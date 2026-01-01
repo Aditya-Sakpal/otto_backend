@@ -114,7 +114,7 @@ async def login(
         # Create tokens
         access_token = create_access_token(
             user_id=user.id,
-            role=user.role.value,
+            role=user.role,
         )
         refresh_token = create_refresh_token(user_id=user.id)
         

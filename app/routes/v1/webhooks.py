@@ -4,10 +4,13 @@ Webhook routes.
 Handles incoming webhooks from:
 - Telephony providers (CallRail, Twilio)
 - Shoonya (job completions)
+
+Note: These endpoints are public (no JWT required) as they are called by external services.
+For production, implement webhook signature verification to ensure requests are authentic.
 """
 from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, Request, Depends, HTTPException, status
+from fastapi import APIRouter, Request, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import DbSession

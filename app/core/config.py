@@ -101,6 +101,10 @@ class Settings(BaseSettings):
     # Feature Flags
     ENABLE_CELERY: bool = Field(default=os.getenv("ENABLE_CELERY", "False").lower() == "true", description="Enable Celery for background jobs")
     ENABLE_VECTOR_DB: bool = Field(default=os.getenv("ENABLE_VECTOR_DB", "True").lower() == "true", description="Enable vector DB for RAG")
+    ENABLE_DOCS: bool = Field(
+        default=os.getenv("ENABLE_DOCS", "True").lower() == "true",
+        description="Enable Swagger/ReDoc documentation (set to False in production)"
+    )
     
     @property
     def allowed_origins_list(self) -> List[str]:

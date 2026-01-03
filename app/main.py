@@ -49,12 +49,14 @@ def create_app() -> FastAPI:
     Returns:
         Configured FastAPI app instance
     """
+    # Enable docs based on ENABLE_DOCS setting (defaults to True)
+    # Can be disabled by setting ENABLE_DOCS=False in environment
     app = FastAPI(
         title="Otto AI Backend",
         description="AI-powered Revenue Intelligence Platform",
         version="2.0.0",
-        docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
-        redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
+        docs_url="/docs" if settings.ENABLE_DOCS else None,
+        redoc_url="/redoc" if settings.ENABLE_DOCS else None,
         lifespan=lifespan,
     )
     

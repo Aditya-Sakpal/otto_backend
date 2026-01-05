@@ -676,11 +676,17 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Company-Id",
+								"value": "{{company_id}}",
+								"type": "text",
+								"description": "Company UUID (can also be in payload)"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"shunya_job_id\": \"job_abc123\",\n    \"status\": \"completed\",\n    \"result\": {\n        \"transcript\": \"Hello, this is a test call...\",\n        \"analysis\": {\n            \"sentiment\": \"positive\",\n            \"objections\": [],\n            \"topics\": [\"pricing\", \"features\"]\n        }\n    },\n    \"company_id\": \"123e4567-e89b-12d3-a456-426614174001\"\n}",
+							"raw": "{\n    \"shunya_job_id\": \"job_abc123\",\n    \"status\": \"completed\",\n    \"call_id\": \"{{call_id}}\",\n    \"company_id\": \"{{company_id}}\",\n    \"result\": {\n        \"transcript\": \"Hello, this is a test call. The customer asked about pricing and features. We discussed the service options available.\",\n        \"analysis\": {\n            \"qualification_status\": \"qualified\",\n            \"booking_status\": \"booked\",\n            \"objections\": [\"price\", \"timing\"],\n            \"objection_texts\": [\"The price seems too high\", \"I need to think about the timing\"],\n            \"sop_stages_completed\": [\"greeting\", \"qualification\", \"presentation\"],\n            \"sop_stages_missed\": [\"objection_handling\", \"close\"],\n            \"sop_compliance_score\": 0.75,\n            \"sentiment_score\": 0.6,\n            \"summary\": \"Customer called to inquire about services. Showed interest but had pricing and timing concerns. Appointment was successfully booked.\",\n            \"key_points\": [\n                \"Customer interested in premium package\",\n                \"Pricing objection raised\",\n                \"Appointment scheduled for next week\"\n            ]\n        }\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -700,7 +706,7 @@
 								"job-complete"
 							]
 						},
-						"description": "Webhook endpoint for Shoonya to notify when an AI job (transcription, analysis) is completed.\n\n**Note:** This endpoint does NOT require JWT authentication as it's called by external services. For production, implement webhook signature verification.\n\n**Request Body:**\n- `shunya_job_id` (required): Shoonya job identifier\n- `status` (required): Job status (completed, failed, etc.)\n- `result` (optional): Job result data\n- `company_id` (optional): Company UUID"
+						"description": "Webhook endpoint for Shoonya to notify when an AI job (transcription, analysis) is completed.\n\n**Note:** This endpoint does NOT require JWT authentication as it's called by external services. For production, implement webhook signature verification.\n\n**Request Body:**\n- `shunya_job_id` (required): Shoonya job identifier\n- `status` (required): Job status (must be \"completed\")\n- `call_id` (required): UUID of the call this analysis belongs to\n- `company_id` (required): Company UUID (can also be in X-Company-Id header)\n- `result` (required): Job result data containing:\n  - `transcript` (optional): Call transcript text\n  - `analysis` (required): Analysis data with:\n    - `qualification_status` (optional): Qualification status string\n    - `booking_status` (optional): Booking status string\n    - `objections` (optional): Array of objection types (price, timing, authority, need, competitor, other)\n    - `objection_texts` (optional): Array of objection detail texts\n    - `sop_stages_completed` (optional): Array of completed SOP stages\n    - `sop_stages_missed` (optional): Array of missed SOP stages\n    - `sop_compliance_score` (optional): SOP compliance score (0-1)\n    - `sentiment_score` (optional): Sentiment score (-1 to 1)\n    - `summary` (optional): Call summary text\n    - `key_points` (optional): Array of key points\n\n**Response:**\nReturns status, call_id, and analysis_id on success."
 					},
 					"response": [
 						{
@@ -711,11 +717,15 @@
 									{
 										"key": "Content-Type",
 										"value": "application/json"
+									},
+									{
+										"key": "X-Company-Id",
+										"value": "123e4567-e89b-12d3-a456-426614174001"
 									}
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"shunya_job_id\": \"job_abc123\",\n    \"status\": \"completed\",\n    \"result\": {...}\n}",
+									"raw": "{\n    \"shunya_job_id\": \"job_abc123\",\n    \"status\": \"completed\",\n    \"call_id\": \"123e4567-e89b-12d3-a456-426614174002\",\n    \"company_id\": \"123e4567-e89b-12d3-a456-426614174001\",\n    \"result\": {\n        \"transcript\": \"Hello, this is a test call...\",\n        \"analysis\": {\n            \"qualification_status\": \"qualified\",\n            \"booking_status\": \"booked\",\n            \"objections\": [\"price\"],\n            \"sop_compliance_score\": 0.75,\n            \"sentiment_score\": 0.6,\n            \"summary\": \"Customer called to inquire about services.\"\n        }\n    }\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -746,7 +756,52 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"status\": \"received\"\n}"
+							"body": "{\n    \"status\": \"success\",\n    \"call_id\": \"123e4567-e89b-12d3-a456-426614174002\",\n    \"analysis_id\": \"123e4567-e89b-12d3-a456-426614174003\"\n}"
+						},
+						{
+							"name": "Error - Missing call_id",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"shunya_job_id\": \"job_abc123\",\n    \"status\": \"completed\",\n    \"company_id\": \"123e4567-e89b-12d3-a456-426614174001\",\n    \"result\": {\n        \"analysis\": {}\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/webhooks/shoonya/job-complete",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"webhooks",
+										"shoonya",
+										"job-complete"
+									]
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"detail\": \"call_id required in payload\"\n}"
 						}
 					]
 				}

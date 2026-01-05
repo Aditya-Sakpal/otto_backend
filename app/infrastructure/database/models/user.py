@@ -20,7 +20,7 @@ class UserORM(Base):
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     # Store as VARCHAR to avoid enum name/value mismatch issues
-    # SQLAlchemy will use enum.value automatically with native_enum=False
+    # SQLAlchemy will use enum value automatically with native_enum=False
     role: Mapped[UserRole] = mapped_column(
         SQLEnum(UserRole, native_enum=False, length=50),
         nullable=False,

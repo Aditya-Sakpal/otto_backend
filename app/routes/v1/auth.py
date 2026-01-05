@@ -66,7 +66,7 @@ async def signup(
         # Create tokens for immediate login
         access_token = create_access_token(
             user_id=user.id,
-            role=user.role.value,  # Use .value for consistency
+            role=user.role,  # Use .value for consistency
         )
         refresh_token = create_refresh_token(user_id=user.id)
         
@@ -114,7 +114,7 @@ async def login(
         # Create tokens
         access_token = create_access_token(
             user_id=user.id,
-            role=user.role.value,  # Use .value for consistency with refresh endpoint
+            role=user.role,  # Use .value for consistency with refresh endpoint
         )
         refresh_token = create_refresh_token(user_id=user.id)
         
@@ -168,7 +168,7 @@ async def refresh_token(
         # Create new access token
         access_token = create_access_token(
             user_id=user.id,
-            role=user.role.value,
+            role=user.role
         )
         
         return RefreshTokenResponse(

@@ -128,7 +128,7 @@ class UserService:
             user_orm = UserORM(
                 email=user_data.email,
                 password_hash=password_hash,
-                role=user_data.role.value,  # Explicitly use enum value for database
+                role=user_data.role,  # Explicitly use enum value for database
                 first_name=user_data.first_name,
                 last_name=user_data.last_name,
                 company_id=user_data.company_id,

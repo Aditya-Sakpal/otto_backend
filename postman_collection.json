@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "otto-ai-backend-v2",
 		"name": "Otto AI Backend v2",
-		"description": "API collection for Otto AI Backend - AI-powered Revenue Intelligence Platform\n\n**Authentication:**\n- All protected endpoints require a valid JWT access token in the Authorization header (Bearer token)\n- Use POST /auth/signup or POST /auth/login to obtain access_token and refresh_token\n- Use POST /auth/refresh to get a new access_token using your refresh_token\n- Access tokens expire after a configured time (default: 15 minutes)\n- Refresh tokens have a longer expiration (default: 7 days)\n\n**Public Endpoints (No JWT required):**\n- POST /auth/signup - Register new user\n- POST /auth/login - Login with email/password\n- POST /auth/refresh - Refresh access token\n- POST /webhooks/* - Webhook endpoints (called by external services)\n- GET /health - Health check\n\n**Protected Endpoints (JWT required):**\n- GET /auth/me - Get current user info\n- GET /calls - List calls (requires MANAGER or CSR role)\n- GET /calls/{call_id} - Get call by ID (requires MANAGER or CSR role)\n- POST /rag/ask-otto - Query Ask Otto (requires MANAGER role)",
+		"description": "API collection for Otto AI Backend - AI-powered Revenue Intelligence Platform\n\n**Authentication:**\n- All protected endpoints require a valid JWT access token in the Authorization header (Bearer token)\n- Use POST /auth/signup or POST /auth/login to obtain access_token and refresh_token\n- Use POST /auth/refresh to get a new access_token using your refresh_token\n- Access tokens expire after a configured time (default: 15 minutes)\n- Refresh tokens have a longer expiration (default: 7 days)\n\n**Public Endpoints (No JWT required):**\n- POST /auth/signup - Register new user\n- POST /auth/login - Login with email/password\n- POST /auth/refresh - Refresh access token\n- POST /webhooks/* - Webhook endpoints (called by external services)\n- GET /health - Health check\n\n**Protected Endpoints (JWT required):**\n- GET /auth/me - Get current user info\n- GET /calls - List calls (requires EXECUTIVE or CSR role)\n- GET /calls/{call_id} - Get call by ID (requires EXECUTIVE or CSR role)\n- POST /rag/ask-otto - Query Ask Otto (requires EXECUTIVE role)",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -89,7 +89,7 @@
 								"signup"
 							]
 						},
-						"description": "Register a new user account.\n\n**Request Body:**\n- `email` (required): User email address\n- `password` (required, min 8 chars): User password\n- `first_name` (optional): First name\n- `last_name` (optional): Last name\n- `role` (optional, default: sales_rep): User role (csr, sales_rep, manager, executive)\n- `company_id` (optional): Associated company UUID\n\n**Response:**\nReturns access_token, refresh_token, and user information. Tokens are automatically saved to collection variables."
+						"description": "Register a new user account.\n\n**Request Body:**\n- `email` (required): User email address\n- `password` (required, min 8 chars): User password\n- `first_name` (optional): First name\n- `last_name` (optional): Last name\n- `role` (optional, default: sales_rep): User role (csr, sales_rep, executive)\n- `company_id` (optional): Associated company UUID\n\n**Response:**\nReturns access_token, refresh_token, and user information. Tokens are automatically saved to collection variables."
 					},
 					"response": [
 						{
@@ -448,7 +448,7 @@
 								}
 							]
 						},
-						"description": "List all calls for a specific company with pagination support.\n\n**Authentication:**\nRequires valid JWT access token. User must have MANAGER or CSR role.\n\n**Query Parameters:**\n- `company_id` (required): UUID of the company to retrieve calls for\n- `skip` (optional, default=0): Number of records to skip for pagination\n- `limit` (optional, default=100): Maximum number of records to return"
+						"description": "List all calls for a specific company with pagination support.\n\n**Authentication:**\nRequires valid JWT access token. User must have EXECUTIVE or CSR role.\n\n**Query Parameters:**\n- `company_id` (required): UUID of the company to retrieve calls for\n- `skip` (optional, default=0): Number of records to skip for pagination\n- `limit` (optional, default=100): Maximum number of records to return"
 					},
 					"response": [
 						{
@@ -529,7 +529,7 @@
 								"{{call_id}}"
 							]
 						},
-						"description": "Get a specific call by its UUID.\n\n**Authentication:**\nRequires valid JWT access token. User must have MANAGER or CSR role.\n\n**Path Parameters:**\n- `call_id` (required): UUID of the call to retrieve"
+						"description": "Get a specific call by its UUID.\n\n**Authentication:**\nRequires valid JWT access token. User must have EXECUTIVE or CSR role.\n\n**Path Parameters:**\n- `call_id` (required): UUID of the call to retrieve"
 					},
 					"response": [
 						{
@@ -571,7 +571,7 @@
 					]
 				}
 			],
-			"description": "Call management endpoints for listing and retrieving calls. Requires MANAGER or CSR role."
+			"description": "Call management endpoints for listing and retrieving calls. Requires EXECUTIVE or CSR role."
 		},
 		{
 			"name": "Webhooks",
@@ -852,7 +852,7 @@
 								"ask-otto"
 							]
 						},
-						"description": "Query Ask Otto (RAG-based AI copilot) for intelligent insights from call data.\n\n**Authentication:**\nRequires valid JWT access token. User must have MANAGER role and be associated with a company.\n\n**Request Body:**\n- `query` (required): The question or query to ask Otto\n- `context` (optional): Additional context for the query (date ranges, filters, etc.)\n\n**Response:**\nReturns AI-generated answer based on call data analysis."
+						"description": "Query Ask Otto (RAG-based AI copilot) for intelligent insights from call data.\n\n**Authentication:**\nRequires valid JWT access token. User must have EXECUTIVE role and be associated with a company.\n\n**Request Body:**\n- `query` (required): The question or query to ask Otto\n- `context` (optional): Additional context for the query (date ranges, filters, etc.)\n\n**Response:**\nReturns AI-generated answer based on call data analysis."
 					},
 					"response": [
 						{
@@ -907,7 +907,7 @@
 					]
 				}
 			],
-			"description": "RAG-based AI copilot endpoints for querying call data and insights. Requires MANAGER role."
+			"description": "RAG-based AI copilot endpoints for querying call data and insights. Requires EXECUTIVE role."
 		},
 		{
 			"name": "Health Check",

@@ -57,7 +57,7 @@ async def get_current_user(
     #     return User(
     #         id=UUID("00000000-0000-0000-0000-000000000001"),
     #         email="dev@example.com",
-    #         role=UserRole.MANAGER,
+    #         role=UserRole.EXECUTIVE,
     #         is_active=True,
     #     )
     

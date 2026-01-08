@@ -89,7 +89,6 @@ class UserRole(str, Enum):
     """User roles."""
     CSR = "csr"  # Customer Service Representative
     SALES_REP = "sales_rep"  # Sales Representative
-    MANAGER = "manager"  # Sales Manager
     EXECUTIVE = "executive"  # Executive/Admin
 
 

@@ -26,4 +26,6 @@ class Lead(BaseModel):
     deal_size: Optional[float] = Field(None, description="Deal size in dollars")
     closed_at: Optional[datetime] = Field(None, description="When deal was closed")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
+    created_at: Optional[datetime] = Field(None, description="When lead was created")
+    updated_at: Optional[datetime] = Field(None, description="When lead was last updated")
 

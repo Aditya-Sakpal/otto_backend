@@ -22,7 +22,7 @@ def require_roles(allowed_roles: List[UserRole]):
     Usage:
         @router.get("/analytics")
         async def analytics(
-            _: User = Depends(require_roles([UserRole.MANAGER]))
+            _: User = Depends(require_roles([UserRole.EXECUTIVE]))
         ):
             ...
     
@@ -65,9 +65,9 @@ def require_roles(allowed_roles: List[UserRole]):
 
 
 # Convenience dependencies for common role checks
-def require_manager(user: User = Depends(require_roles([UserRole.MANAGER]))) -> User:
+def require_manager(user: User = Depends(require_roles([UserRole.EXECUTIVE]))) -> User:
     """
-    Require MANAGER role.
+    Require EXECUTIVE role (formerly MANAGER).
     
     Usage:
         @router.get("/analytics")
@@ -102,10 +102,10 @@ def require_sales_rep(user: User = Depends(require_roles([UserRole.SALES_REP])))
 
 
 def require_manager_or_csr(
-    user: User = Depends(require_roles([UserRole.MANAGER, UserRole.CSR]))
+    user: User = Depends(require_roles([UserRole.EXECUTIVE, UserRole.CSR]))
 ) -> User:
     """
-    Require either MANAGER or CSR role.
+    Require either EXECUTIVE (formerly MANAGER) or CSR role.
     
     Usage:
         @router.get("/calls")
@@ -116,10 +116,10 @@ def require_manager_or_csr(
 
 
 def require_manager_or_sales_rep(
-    user: User = Depends(require_roles([UserRole.MANAGER, UserRole.SALES_REP]))
+    user: User = Depends(require_roles([UserRole.EXECUTIVE, UserRole.SALES_REP]))
 ) -> User:
     """
-    Require either MANAGER or SALES_REP role.
+    Require either EXECUTIVE (formerly MANAGER) or SALES_REP role.
     
     Usage:
         @router.get("/deals")
@@ -127,4 +127,38 @@ def require_manager_or_sales_rep(
             ...
     """
     return user
+
+
+def require_executive(user: User = Depends(require_roles([UserRole.EXECUTIVE]))) -> User:
+    """
+    Require EXECUTIVE role.
+    
+    Usage:
+        @router.get("/analytics")
+        async def analytics(user: User = Depends(require_executive)):
+            ...
+    """
+    return user
+
+
+def require_any_role(allowed_roles: List[UserRole]):
+    """
+    Create a dependency that requires one of the specified roles.
+    
+    This is an alias for require_roles for clearer API naming.
+    
+    Usage:
+        @router.get("/data")
+        async def get_data(
+            user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE]))
+        ):
+            ...
+    
+    Args:
+        allowed_roles: List of roles that are allowed
+        
+    Returns:
+        Dependency function that validates user role
+    """
+    return require_roles(allowed_roles)
 

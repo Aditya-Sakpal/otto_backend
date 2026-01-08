@@ -24,14 +24,14 @@ logger = get_logger(__name__)
 async def list_calls(
     company_id: UUID,
     db: DbSession,
-    user: User = Depends(require_manager_or_csr),  # CSR or MANAGER only
+    user: User = Depends(require_manager_or_csr),  # CSR or EXECUTIVE only
     skip: int = 0,
     limit: int = 100,
 ) -> List[Call]:
     """
     List calls for a specific company.
     
-    Access: CSR, MANAGER
+    Access: CSR, EXECUTIVE
     
     Args:
         company_id: UUID of the company to retrieve calls for
@@ -55,12 +55,12 @@ async def list_calls(
 async def get_call(
     call_id: UUID,
     db: DbSession,
-    user: User = Depends(require_manager_or_csr),  # CSR or MANAGER only
+    user: User = Depends(require_manager_or_csr),  # CSR or EXECUTIVE only
 ) -> Call:
     """
     Get call by ID.
     
-    Access: CSR, MANAGER
+    Access: CSR, EXECUTIVE
     
     Args:
         call_id: UUID of the call to retrieve (unique identifier)

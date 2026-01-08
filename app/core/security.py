@@ -100,7 +100,7 @@ def create_access_token(
     
     Args:
         user_id: User UUID
-        role: User role (MANAGER, CSR, SALES_REP)
+        role: User role (EXECUTIVE, CSR, SALES_REP)
         expires_delta: Optional custom expiration time
         
     Returns:

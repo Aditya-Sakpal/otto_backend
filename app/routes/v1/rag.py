@@ -1,7 +1,7 @@
 """
 RAG/Ask Otto API routes.
 
-Ask Otto (company scope) - MANAGER only
+Ask Otto (company scope) - EXECUTIVE only
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -28,16 +28,16 @@ class RAGQueryRequest(BaseModel):
 async def query_ask_otto(
     request: RAGQueryRequest,
     db: DbSession,
-    user: User = Depends(require_manager),  # MANAGER only for company scope
+    user: User = Depends(require_manager),  # EXECUTIVE only for company scope
 ):
     """
     Query Ask Otto (RAG-based AI copilot) - Company scope.
     
-    Access: MANAGER only
+    Access: EXECUTIVE only
     
     Args:
         request: Query request
-        user: Current authenticated user (MANAGER)
+        user: Current authenticated user (EXECUTIVE)
         
     Returns:
         RAG query result
@@ -52,7 +52,7 @@ async def query_ask_otto(
     
     try:
         # Map user role to Shoonya target role
-        target_role = "sales_manager"  # Manager role
+        target_role = "sales_manager"  # Executive role (mapped to sales_manager for Shoonya)
         
         # Get company_id from user
         company_id = str(user.company_id) if user.company_id else None

@@ -3,6 +3,7 @@ Lead ORM model.
 """
 from sqlalchemy import String, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 from datetime import datetime
 from uuid import uuid4, UUID
 
@@ -23,6 +24,16 @@ class LeadORM(Base):
     deal_size: Mapped[float | None] = mapped_column(Float, nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.current_timestamp(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        onupdate=func.current_timestamp(),
+    )
     
     # Relationships
     company = relationship("CompanyORM", back_populates="leads")

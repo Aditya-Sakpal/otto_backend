@@ -6,8 +6,9 @@ Centralized JWT handling for access and refresh tokens.
 import base64
 import hashlib
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
+from enum import Enum
 
 import bcrypt
 from jose import JWTError, jwt
@@ -92,7 +93,7 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(
     user_id: UUID,
-    role: str,
+    role: Union[str, Enum],
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     """
@@ -113,9 +114,12 @@ def create_access_token(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     
+    # Convert role enum to string value if it's an Enum
+    role_value = role.value if hasattr(role, 'value') else role
+    
     payload = {
         "sub": str(user_id),  # Subject (user ID)
-        "role": role,
+        "role": role_value,
         "type": "access",
         "exp": expire,
         "iat": datetime.utcnow(),

@@ -170,6 +170,9 @@ CREATE TABLE IF NOT EXISTS call_analyses (
     raw_analysis JSONB,
     extra_metadata JSONB,
     
+    -- Pending actions (JSON strings stored as text array)
+    pending_actions TEXT[] DEFAULT ARRAY[]::TEXT[],
+    
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE
 );
@@ -232,6 +235,7 @@ COMMENT ON COLUMN call_analyses.sop_stages_completed IS 'Array of completed SOP 
 COMMENT ON COLUMN call_analyses.sop_stages_missed IS 'Array of missed SOP stages';
 COMMENT ON COLUMN call_analyses.sop_compliance_score IS 'SOP compliance score (0.0 to 1.0)';
 COMMENT ON COLUMN call_analyses.sentiment_score IS 'Sentiment score (-1.0 to 1.0, negative to positive)';
+COMMENT ON COLUMN call_analyses.pending_actions IS 'Array of pending action JSON objects with type, owner, due_at, raw_text, confidence, contact_method';
 
 -- ============================================================================
 -- END OF SCHEMA

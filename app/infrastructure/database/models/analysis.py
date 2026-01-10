@@ -44,6 +44,9 @@ class CallAnalysisORM(Base):
     raw_analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     
+    # Pending actions (JSON strings stored as text array)
+    pending_actions: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.current_timestamp(),

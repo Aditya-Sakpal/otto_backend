@@ -15,8 +15,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import settings
-from app.core.logging import setup_logging
+from app.core.logging import setup_logging, get_logger
+from app.core.scheduler import start_scheduler, stop_scheduler
 from app.routes.v1 import router as api_router
+
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -32,14 +35,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     setup_logging()
     
-    # TODO: Initialize database connection pool
-    # TODO: Start background task workers
+    # Start background scheduler for follow-up notifications
+    logger.info("Starting background scheduler...")
+    start_scheduler()
     
     yield
     
     # Shutdown
-    # TODO: Close database connections
-    # TODO: Stop background workers
+    logger.info("Shutting down background scheduler...")
+    stop_scheduler()
 
 
 def create_app() -> FastAPI:

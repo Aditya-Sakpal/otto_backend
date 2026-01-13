@@ -33,9 +33,6 @@ class FollowUpNotificationService:
     """
     Service for checking and sending follow-up notifications.
 
-    Scans call_analyses for pending follow-up calls and notifies
-    relevant sales reps via WebSocket.
-
     Scans pending_actions table for pending actions and notifies
     relevant users via WebSocket.
     """
@@ -48,8 +45,6 @@ class FollowUpNotificationService:
 
     async def check_and_notify(self) -> int:
         """
-        Check all pending follow-ups and send notifications.
-
         Check all pending actions and send notifications.
 
         Returns:
@@ -58,13 +53,6 @@ class FollowUpNotificationService:
         total_sent = 0
 
         try:
-            # Get current time in EST
-            now_est = datetime.now(EST)
-            logger.debug("Checking follow-ups", current_time_est=now_est.isoformat())
-
-            # Query all call_analyses with pending_actions
-            query = select(CallAnalysisORM).where(
-                CallAnalysisORM.pending_actions.isnot(None)
             # Get current time in UTC (stored in DB as UTC)
             now_utc = datetime.now(ZoneInfo("UTC"))
             logger.debug("Checking follow-ups", current_time_utc=now_utc.isoformat())
@@ -77,10 +65,6 @@ class FollowUpNotificationService:
                 )
             )
             result = await self.db.execute(query)
-            analyses = result.scalars().all()
-
-            for analysis in analyses:
-                notifications_sent = await self._process_analysis(analysis, now_est)
             pending_actions = result.scalars().all()
 
             for action in pending_actions:
@@ -95,18 +79,11 @@ class FollowUpNotificationService:
 
         return total_sent
 
-    async def _process_analysis(self, analysis: CallAnalysisORM, now_est: datetime) -> int:
-
     async def _process_action(self, action: PendingActionORM, now_utc: datetime) -> int:
         """
-        Process a single call analysis for follow-up notifications.
-
         Process a single pending action for follow-up notifications.
 
         Args:
-            analysis: The call analysis record
-            now_est: Current time in EST
-
             action: The pending action record
             now_utc: Current time in UTC
 
@@ -115,72 +92,8 @@ class FollowUpNotificationService:
         """
         notifications_sent = 0
 
-        if not analysis.pending_actions:
-
         if not action.due_at:
             return 0
-
-        for idx, action_str in enumerate(analysis.pending_actions):
-            try:
-                # Parse JSON string to dict
-                action = json.loads(action_str)
-
-                # Check if it's a follow_up_call
-                if action.get("type") != "follow_up_call":
-                    continue
-
-                # Check if due_at exists
-                due_at_str = action.get("due_at")
-                if not due_at_str:
-                    continue
-
-                # Parse due_at (assumed to be in EST)
-                due_at = self._parse_due_at(due_at_str)
-                if not due_at:
-                    continue
-
-                # Calculate minutes until due
-                minutes_until_due = (due_at - now_est).total_seconds() / 60
-
-                # Check each threshold
-                for threshold in NOTIFICATION_THRESHOLDS:
-                    if 0 < minutes_until_due <= threshold:
-                        notification_key = f"{analysis.id}:{idx}:{threshold}"
-
-                        # Skip if already notified for this threshold
-                        if notification_key in self._sent_notifications:
-                            continue
-
-                        # Send notification
-                        sent = await self._send_notification(
-                            analysis=analysis,
-                            action=action,
-                            minutes_until_due=int(minutes_until_due),
-                            threshold=threshold
-                        )
-
-                        if sent:
-                            self._sent_notifications.add(notification_key)
-                            notifications_sent += 1
-
-                        # Only send one threshold notification per check cycle
-                        break
-
-            except json.JSONDecodeError as e:
-                logger.warning(
-                    "Failed to parse pending action",
-                    analysis_id=str(analysis.id),
-                    index=idx,
-                    error=str(e)
-                )
-            except Exception as e:
-                logger.error(
-                    "Error processing pending action",
-                    analysis_id=str(analysis.id),
-                    index=idx,
-                    error=str(e)
-                )
-
 
         try:
             # due_at is stored in UTC
@@ -221,52 +134,6 @@ class FollowUpNotificationService:
 
         return notifications_sent
 
-    def _parse_due_at(self, due_at_str: str) -> Optional[datetime]:
-        """
-        Parse due_at string to datetime in EST.
-
-        Args:
-            due_at_str: Due at string (various formats)
-
-        Returns:
-            Parsed datetime in EST or None
-        """
-        if not due_at_str or due_at_str == "null":
-            return None
-
-        # Normalize short timezone offsets like -05 to -05:00
-        import re
-        normalized_str = due_at_str
-        # Match patterns like -05 or +05 at the end (short offset without minutes)
-        short_tz_match = re.search(r'([+-])(\d{2})$', due_at_str)
-        if short_tz_match:
-            # Convert -05 to -05:00
-            normalized_str = due_at_str[:-3] + short_tz_match.group(1) + short_tz_match.group(2) + ":00"
-
-        # Try various formats
-        formats = [
-            "%Y-%m-%d %H:%M:%S%z",       # 2026-01-15 22:30:00-05:00
-            "%Y-%m-%d %H:%M:%S",          # 2026-01-15 22:30:00
-            "%Y-%m-%dT%H:%M:%S%z",        # ISO format with timezone
-            "%Y-%m-%dT%H:%M:%S",          # ISO format without timezone
-            "%Y-%m-%d %H:%M:%S.%f%z",     # With microseconds
-            "%Y-%m-%dT%H:%M:%S.%f%z",     # ISO with microseconds
-        ]
-
-        for fmt in formats:
-            try:
-                dt = datetime.strptime(normalized_str, fmt)
-                # If no timezone, assume EST
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=EST)
-                return dt
-            except ValueError:
-                continue
-
-        logger.warning("Could not parse due_at", due_at_str=due_at_str)
-        return None
-
-
     async def _send_notification(
         self,
         action: PendingActionORM,
@@ -274,11 +141,6 @@ class FollowUpNotificationService:
         threshold: int
     ) -> bool:
         """
-        Send notification to relevant users based on contact_method.
-
-        - contact_method="phone" → notify CSR users
-        - contact_method="appointment" → notify SALES_REP users
-
         Send notification to relevant users.
 
         If owner_id is set, notify that user. Otherwise, determine based on action_type:
@@ -293,18 +155,6 @@ class FollowUpNotificationService:
         Returns:
             True if at least one notification was sent
         """
-        company_id = analysis.company_id
-        contact_method = action.get("contact_method", "phone")
-
-        # Route to appropriate users based on contact_method
-        if contact_method == "appointment":
-            user_ids = await self._get_users_by_role(company_id, UserRole.SALES_REP)
-            target_role = "sales_rep"
-        else:
-            # Default to CSR for "phone" and other contact methods
-            user_ids = await self._get_users_by_role(company_id, UserRole.CSR)
-            target_role = "csr"
-
         company_id = action.company_id
 
         # Determine target users
@@ -334,10 +184,6 @@ class FollowUpNotificationService:
                 target_role=target_role
             )
             return False
-
-        # Get additional context (call info, contact info)
-        call_info = await self._get_call_info(analysis.call_id)
-
 
         # Get additional context (call/appointment info)
         context_info = await self._get_context_info(action)
@@ -375,7 +221,6 @@ class FollowUpNotificationService:
         )
 
         return sent_count > 0
-
 
     async def _get_context_info(self, action: PendingActionORM) -> Optional[dict]:
         """
@@ -416,12 +261,10 @@ class FollowUpNotificationService:
         Returns:
             List of user UUIDs with the specified role
         """
-        # Convert enum to string value for comparison (ORM stores role as string)
-        role_value = role.value if isinstance(role, UserRole) else role
         query = select(UserORM.id).where(
             and_(
                 UserORM.company_id == company_id,
-                UserORM.role == role_value,
+                UserORM.role == role,
                 UserORM.is_active == True
             )
         )

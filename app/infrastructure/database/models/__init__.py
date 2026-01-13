@@ -7,6 +7,7 @@ from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
+from app.infrastructure.database.models.invitation import InvitationORM
 
 __all__ = [
     "CompanyORM",
@@ -16,4 +17,5 @@ __all__ = [
     "CallORM",
     "AppointmentORM",
     "CallAnalysisORM",
+    "InvitationORM",
 ]

@@ -95,7 +95,7 @@ class UserRole(str, Enum):
 class Stage(str, Enum):
     """
     Business stages for stage-based authorization.
-    
+
     Stages represent where a lead/deal is in the pipeline.
     Authorization is based on stage, not hardcoded roles.
     """
@@ -119,4 +119,11 @@ class VectorDBProvider(str, Enum):
     PINECONE = "pinecone"
     WEAVIATE = "weaviate"
     PGVECTOR = "pgvector"
+
+
+class InvitationStatus(str, Enum):
+    """Invitation status."""
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    EXPIRED = "expired"
 

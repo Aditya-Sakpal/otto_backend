@@ -120,3 +120,10 @@ class VectorDBProvider(str, Enum):
     WEAVIATE = "weaviate"
     PGVECTOR = "pgvector"
 
+
+class PendingActionStatus(str, Enum):
+    """Pending action status."""
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    CONVERTED = "converted"

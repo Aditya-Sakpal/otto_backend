@@ -183,6 +183,7 @@ CREATE INDEX IF NOT EXISTS idx_call_analyses_company_id ON call_analyses(company
 CREATE INDEX IF NOT EXISTS idx_call_analyses_status ON call_analyses(status);
 CREATE INDEX IF NOT EXISTS idx_call_analyses_qualification_status ON call_analyses(qualification_status);
 CREATE INDEX IF NOT EXISTS idx_call_analyses_booking_status ON call_analyses(booking_status);
+CREATE INDEX IF NOT EXISTS idx_call_analyses_objections_gin ON call_analyses USING GIN(objections);
 
 -- ============================================================================
 -- TABLE: appointments

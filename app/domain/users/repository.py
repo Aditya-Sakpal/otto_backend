@@ -3,7 +3,7 @@ User repository.
 
 Data access layer for User entities.
 """
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from sqlalchemy import select
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.domain.users.models import User
+from app.domain.enums import UserRole
 from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.repositories.base import BaseRepository
 
@@ -62,6 +63,66 @@ class UserRepository(BaseRepository[UserORM, User]):
             return None
         except Exception as e:
             logger.error(f"Error getting user by ID string: {e}")
+            raise e
+    
+    async def get_by_company(
+        self,
+        company_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[User]:
+        """
+        Get all users for a company.
+        
+        Args:
+            company_id: Company UUID
+            skip: Number of records to skip
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of User domain models
+        """
+        try:
+            return await self.get_all(
+                skip=skip,
+                limit=limit,
+                filters={"company_id": company_id},
+            )
+        except Exception as e:
+            logger.error(f"Error getting users by company: {e}")
+            raise e
+    
+    async def get_by_role(
+        self,
+        role: UserRole,
+        company_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[User]:
+        """
+        Get users by role, optionally filtered by company.
+        
+        Args:
+            role: User role
+            company_id: Optional company UUID filter
+            skip: Number of records to skip
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of User domain models
+        """
+        try:
+            query = select(UserORM).where(UserORM.role == role)
+            
+            if company_id:
+                query = query.where(UserORM.company_id == company_id)
+            
+            query = query.offset(skip).limit(limit)
+            result = await self.session.execute(query)
+            orm_objs = result.scalars().all()
+            return [self._to_domain(obj) for obj in orm_objs]
+        except Exception as e:
+            logger.error(f"Error getting users by role: {e}")
             raise e
     
     def _to_domain(self, orm_obj: UserORM) -> User:

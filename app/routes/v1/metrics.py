@@ -23,7 +23,8 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 async def get_company_overview(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_executive),
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -51,7 +52,8 @@ async def get_company_overview(
 async def get_csr_dashboard(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_executive),
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -79,7 +81,8 @@ async def get_csr_dashboard(
 async def get_missed_calls(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_executive),
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -106,7 +109,8 @@ async def get_missed_calls(
 async def get_auto_queued_leads(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of leads to return"),
@@ -136,7 +140,8 @@ async def get_auto_queued_leads(
 async def get_booking_rate_improvement(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -164,7 +169,8 @@ async def get_booking_rate_improvement(
 async def get_bookings_summary(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -191,7 +197,8 @@ async def get_bookings_summary(
 async def get_top_objections(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
     limit: int = Query(5, ge=1, le=20, description="Number of top objections to return"),
@@ -221,7 +228,8 @@ async def get_top_objections(
 async def get_objections_summary(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -249,7 +257,8 @@ async def get_objection_calls(
     objection_type: str,
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of calls to return"),
@@ -281,7 +290,8 @@ async def get_objection_calls(
 async def get_coaching_opportunities(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_executive),
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
     limit: int = Query(10, ge=1, le=50, description="Maximum number of opportunities to return"),
@@ -311,7 +321,8 @@ async def get_coaching_opportunities(
 async def get_lead_to_sale_conversion(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -339,7 +350,8 @@ async def get_lead_to_sale_conversion(
 async def get_conversions_pending_to_booked(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -366,7 +378,8 @@ async def get_conversions_pending_to_booked(
 async def get_emergencies_dropped(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_executive),
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -393,7 +406,8 @@ async def get_emergencies_dropped(
 async def get_company_performance(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_executive),
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -421,7 +435,8 @@ async def get_company_performance(
 async def get_calls_summary(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -449,7 +464,8 @@ async def get_calls_summary(
 async def get_unbooked_leads(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of leads to return"),
@@ -479,7 +495,8 @@ async def get_unbooked_leads(
 async def get_pending_actions(
     company_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):

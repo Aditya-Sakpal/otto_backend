@@ -24,7 +24,8 @@ logger = get_logger(__name__)
 async def list_calls(
     company_id: UUID,
     db: DbSession,
-    user: User = Depends(require_manager_or_csr),  # CSR or EXECUTIVE only
+    # RBAC DISABLED - user: User = Depends(require_manager_or_csr),  # CSR or EXECUTIVE only
+    user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
     skip: int = 0,
     limit: int = 100,
 ) -> List[Call]:
@@ -55,7 +56,8 @@ async def list_calls(
 async def get_call(
     call_id: UUID,
     db: DbSession,
-    user: User = Depends(require_manager_or_csr),  # CSR or EXECUTIVE only
+    # RBAC DISABLED - user: User = Depends(require_manager_or_csr),  # CSR or EXECUTIVE only
+    user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
 ) -> Call:
     """
     Get call by ID.

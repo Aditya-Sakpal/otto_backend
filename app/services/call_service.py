@@ -6,7 +6,8 @@ Orchestrates call-related business logic:
 - Call analysis pipeline
 - Transcript processing
 """
-from typing import Optional
+from datetime import datetime
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,9 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.domain.models.call import Call
 from app.domain.models.analysis import CallAnalysis
-from app.domain.enums import AnalysisStatus, ObjectionType, SOPStage
+from app.domain.models.pending_action import PendingAction
+from app.domain.enums import AnalysisStatus, ObjectionType, SOPStage, PendingActionStatus
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.analysis import CallAnalysisRepository
+from app.infrastructure.repositories.pending_action import PendingActionRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.tasks.analysis import analyze_call_task
 
@@ -30,6 +33,7 @@ class CallService:
         self.session = session
         self.call_repo = CallRepository(session)
         self.analysis_repo = CallAnalysisRepository(session)
+        self.pending_action_repo = PendingActionRepository(session)
         self.shoonya = get_shoonya_client()
     
     async def ingest_call(
@@ -233,6 +237,9 @@ class CallService:
             analysis = await self.analysis_repo.upsert_by_call_id(call_id, call_analysis)
             logger.info("Call analysis processed", call_id=str(call_id), analysis_id=str(analysis.id))
             
+            # Process pending actions from analysis
+            await self._process_pending_actions(call, analysis_data, analysis)
+            
             # Update dependent entities based on analysis
             await self._update_dependent_entities(call, analysis)
             
@@ -299,4 +306,116 @@ class CallService:
                 call_id=str(call.id),
             )
             # Don't raise - this is non-critical
+    
+    async def _process_pending_actions(
+        self,
+        call: Call,
+        analysis_data: Dict[str, Any],
+        analysis: CallAnalysis,
+    ) -> None:
+        """
+        Process pending actions from analysis data and insert into pending_actions table.
+        
+        Args:
+            call: The call record
+            analysis_data: Raw analysis data from Shoonya
+            analysis: The created/updated analysis
+        """
+        try:
+            # Extract pending_actions from analysis_data
+            # Expected format: list of dicts with action_type, raw_text, due_at, priority, etc.
+            pending_actions_data = analysis_data.get("pending_actions", [])
+            
+            if not pending_actions_data:
+                return
+            
+            for action_data in pending_actions_data:
+                try:
+                    # Handle both dict and string formats
+                    if isinstance(action_data, str):
+                        # Legacy format: simple string
+                        action_type = action_data
+                        raw_text = action_data
+                        due_at = None
+                        priority = None
+                    else:
+                        # New format: dict with fields
+                        action_type = action_data.get("action_type") or action_data.get("action") or action_data.get("type") or ""
+                        raw_text = action_data.get("raw_text") or action_data.get("action") or action_type
+                        due_at_str = action_data.get("due_at")
+                        priority = action_data.get("priority")
+                        
+                        # Parse due_at if provided (should be UTC)
+                        due_at = None
+                        if due_at_str:
+                            if isinstance(due_at_str, datetime):
+                                due_at = due_at_str
+                            elif isinstance(due_at_str, str):
+                                try:
+                                    # Try ISO format first
+                                    due_at = datetime.fromisoformat(due_at_str.replace('Z', '+00:00'))
+                                except ValueError:
+                                    try:
+                                        # Try other common formats
+                                        due_at = datetime.strptime(due_at_str, "%Y-%m-%d %H:%M:%S%z")
+                                    except ValueError:
+                                        logger.warning(f"Could not parse due_at: {due_at_str}")
+                                        due_at = None
+                        
+                        # Convert priority string to int if needed
+                        if isinstance(priority, str):
+                            priority_map = {"high": 3, "medium": 2, "low": 1}
+                            priority = priority_map.get(priority.lower(), 2)
+                        elif priority is None:
+                            priority = 2  # Default to medium
+                    
+                    # Create PendingAction domain model
+                    pending_action = PendingAction(
+                        company_id=call.company_id,
+                        lead_id=call.lead_id,
+                        call_id=call.id,
+                        appointment_id=None,  # Only for appointment recordings
+                        action_type=action_type,
+                        raw_text=raw_text,
+                        status=PendingActionStatus.PENDING,
+                        due_at=due_at,
+                        priority=priority,
+                        owner_id=call.owner_id,  # Use call owner or determine from action type
+                        source="shunya",
+                        extra_metadata={
+                            "from_analysis": str(analysis.id),
+                            "analysis_data": action_data if isinstance(action_data, dict) else None,
+                        },
+                    )
+                    
+                    # Insert into database
+                    await self.pending_action_repo.create(pending_action)
+                    logger.debug(
+                        "Pending action created",
+                        call_id=str(call.id),
+                        action_type=action_type,
+                        due_at=due_at.isoformat() if due_at else None,
+                    )
+                    
+                except Exception as e:
+                    logger.error(
+                        f"Error processing pending action: {e}",
+                        call_id=str(call.id),
+                        action_data=action_data,
+                    )
+                    # Continue processing other actions
+                    continue
+            
+            logger.info(
+                "Pending actions processed",
+                call_id=str(call.id),
+                count=len(pending_actions_data),
+            )
+            
+        except Exception as e:
+            logger.error(
+                f"Error processing pending actions: {e}",
+                call_id=str(call.id),
+            )
+            # Don't raise - pending actions are non-critical
 

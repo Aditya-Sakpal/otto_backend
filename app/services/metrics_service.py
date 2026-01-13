@@ -945,48 +945,74 @@ class MetricsService:
     ) -> Dict[str, Any]:
         """Get pending actions metrics within date range."""
         try:
+            from app.infrastructure.database.models.pending_action import PendingActionORM
+            from app.domain.enums import PendingActionStatus
+            
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Unbooked leads needing follow-up in date range
-            follow_ups = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    LeadORM.status.in_(["new", "warm", "hot", "qualified_unbooked"])
+            # Count pending actions by status in date range
+            pending_query = await self.session.execute(
+                select(func.count(PendingActionORM.id)).where(
+                    and_(
+                        PendingActionORM.company_id == company_id,
+                        PendingActionORM.created_at >= start_dt,
+                        PendingActionORM.created_at <= end_dt,
+                        PendingActionORM.status == PendingActionStatus.PENDING.value
+                    )
                 )
             )
-            follow_ups_count = follow_ups.scalar() or 0
+            pending_count = pending_query.scalar() or 0
             
-            # Missed calls needing callbacks in date range
-            callbacks = await self.session.execute(
-                select(func.count(CallORM.id)).where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= start_dt,
-                    CallORM.created_at <= end_dt,
-                    CallORM.missed_call == True
+            # Count completed actions in date range
+            completed_query = await self.session.execute(
+                select(func.count(PendingActionORM.id)).where(
+                    and_(
+                        PendingActionORM.company_id == company_id,
+                        PendingActionORM.created_at >= start_dt,
+                        PendingActionORM.created_at <= end_dt,
+                        PendingActionORM.status == PendingActionStatus.COMPLETED.value
+                    )
                 )
             )
-            callbacks_count = callbacks.scalar() or 0
+            completed_count = completed_query.scalar() or 0
             
-            # Pending appointments in date range
-            pending_appts = await self.session.execute(
-                select(func.count(AppointmentORM.id)).where(
-                    AppointmentORM.company_id == company_id,
-                    AppointmentORM.created_at >= start_dt,
-                    AppointmentORM.created_at <= end_dt,
-                    or_(AppointmentORM.outcome == "pending", AppointmentORM.outcome.is_(None))
+            # Count converted actions in date range
+            converted_query = await self.session.execute(
+                select(func.count(PendingActionORM.id)).where(
+                    and_(
+                        PendingActionORM.company_id == company_id,
+                        PendingActionORM.created_at >= start_dt,
+                        PendingActionORM.created_at <= end_dt,
+                        PendingActionORM.status == PendingActionStatus.CONVERTED.value
+                    )
                 )
             )
-            pending_appts_count = pending_appts.scalar() or 0
+            converted_count = converted_query.scalar() or 0
             
-            total_pending = follow_ups_count + callbacks_count + pending_appts_count
+            # Count actions with due_at in the future (urgent)
+            from zoneinfo import ZoneInfo
+            now_utc = datetime.now(ZoneInfo("UTC"))
+            urgent_query = await self.session.execute(
+                select(func.count(PendingActionORM.id)).where(
+                    and_(
+                        PendingActionORM.company_id == company_id,
+                        PendingActionORM.status == PendingActionStatus.PENDING.value,
+                        PendingActionORM.due_at.isnot(None),
+                        PendingActionORM.due_at <= now_utc + timedelta(days=1)  # Due within 24 hours
+                    )
+                )
+            )
+            urgent_count = urgent_query.scalar() or 0
+            
+            total_actions = pending_count + completed_count + converted_count
             
             return {
-                "total_pending": total_pending,
-                "follow_ups_needed": follow_ups_count,
-                "calls_to_make": callbacks_count,
-                "appointments_to_schedule": pending_appts_count,
+                "total_pending": pending_count,
+                "total_actions": total_actions,
+                "pending_actions": pending_count,
+                "completed_actions": completed_count,
+                "converted_actions": converted_count,
+                "urgent_actions": urgent_count,
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),
             }

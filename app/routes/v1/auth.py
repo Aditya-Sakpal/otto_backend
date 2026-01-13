@@ -37,18 +37,18 @@ async def signup(
 ) -> LoginResponse:
     """
     Register a new user account.
-    
+
     Creates a new user with email and password, then returns authentication tokens.
     Role defaults to SALES_REP if not specified.
-    
+
     Returns:
         Access token, refresh token, and user information
-        
+
     Raises:
         HTTPException: 400 if email already exists or validation fails
     """
     user_service = UserService(db)
-    
+
     try:
         # Convert SignupRequest to UserCreate
         user_data = UserCreate(
@@ -59,17 +59,17 @@ async def signup(
             role=signup_data.role,
             company_id=signup_data.company_id,
         )
-        
+
         # Create new user
         user = await user_service.create(user_data)
-        
+
         # Create tokens for immediate login
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,  # Use .value for consistency
         )
         refresh_token = create_refresh_token(user_id=user.id)
-        
+
         return LoginResponse(
             access_token=access_token,
             refresh_token=refresh_token,
@@ -88,36 +88,36 @@ async def login(
 ) -> LoginResponse:
     """
     Login with email and password.
-    
+
     Returns:
         Access token, refresh token, and user information
-        
+
     Raises:
         HTTPException: 401 if credentials are invalid
     """
     try:
         user_service = UserService(db)
-        
+
         # Authenticate user
         user = await user_service.authenticate(
             email=login_data.email,
             password=login_data.password,
         )
-        
+
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+
         # Create tokens
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,  # Use .value for consistency with refresh endpoint
         )
         refresh_token = create_refresh_token(user_id=user.id)
-        
+
         return LoginResponse(
             access_token=access_token,
             refresh_token=refresh_token,
@@ -138,44 +138,44 @@ async def refresh_token(
 ) -> RefreshTokenResponse:
     """
     Refresh access token using refresh token.
-    
+
     Returns:
         New access token
-        
+
     Raises:
         HTTPException: 401 if refresh token is invalid
     """
     try:
         # Verify refresh token and get user ID
         user_id = get_user_id_from_token(refresh_data.refresh_token, token_type="refresh")
-        
+
         # Get user from database
         user_service = UserService(db)
         user = await user_service.get_by_id(user_id)
-        
+
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found",
             )
-        
+
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive",
             )
-        
+
         # Create new access token
         access_token = create_access_token(
             user_id=user.id,
             role=user.role
         )
-        
+
         return RefreshTokenResponse(
             access_token=access_token,
             token_type="bearer",
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -192,10 +192,10 @@ async def get_current_user_info(
 ) -> UserResponse:
     """
     Get current authenticated user information.
-    
+
     Returns:
         Current user information
-        
+
     Note:
         Requires valid JWT access token in Authorization header.
     """

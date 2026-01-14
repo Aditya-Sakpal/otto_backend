@@ -35,12 +35,19 @@ class SignupRequest(BaseModel):
 
 class UserUpdate(BaseModel):
     """Schema for updating a user."""
-    email: Optional[EmailStr] = Field(None, description="User email")
     first_name: Optional[str] = Field(None, description="First name")
     last_name: Optional[str] = Field(None, description="Last name")
+    password: Optional[str] = Field(None, min_length=8, description="User password (min 8 characters)")
     role: Optional[UserRole] = Field(None, description="User role")
     is_active: Optional[bool] = Field(None, description="Whether user account is active")
     company_id: Optional[UUID] = Field(None, description="Associated company ID")
+
+
+class UserSelfUpdate(BaseModel):
+    """Schema for users to update their own profile (excludes email, role, is_active, company_id)."""
+    first_name: Optional[str] = Field(None, description="First name")
+    last_name: Optional[str] = Field(None, description="Last name")
+    password: Optional[str] = Field(None, min_length=8, description="User password (min 8 characters)")
 
 
 class UserResponse(UserBase):
@@ -48,7 +55,7 @@ class UserResponse(UserBase):
     id: UUID = Field(..., description="User UUID")
     is_active: bool = Field(..., description="Whether user account is active")
     created_at: datetime = Field(..., description="Account creation timestamp")
-    
+
     class Config:
         from_attributes = True
 

@@ -12,9 +12,9 @@ from app.infrastructure.database.base import Base
 
 class CallORM(Base):
     """Call ORM model."""
-    
+
     __tablename__ = "calls"
-    
+
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id"), nullable=False, index=True)
     contact_card_id: Mapped[UUID | None] = mapped_column(ForeignKey("contact_cards.id"), nullable=True, index=True)
@@ -25,7 +25,7 @@ class CallORM(Base):
     transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     audio_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    owner_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    owner_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), name="handled_by_user_id", nullable=True, index=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -37,10 +37,9 @@ class CallORM(Base):
         nullable=True,
         onupdate=func.current_timestamp(),
     )
-    
+
     # Relationships
     company = relationship("CompanyORM", back_populates="calls")
     contact_card = relationship("ContactCardORM", back_populates="calls")
     lead = relationship("LeadORM", back_populates="calls")
     analysis = relationship("CallAnalysisORM", back_populates="call", uselist=False)
-

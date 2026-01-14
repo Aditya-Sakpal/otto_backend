@@ -90,6 +90,22 @@ async def list_companies(
         ]
     except Exception as e:
         logger.error(f"Error listing companies: {e}")
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_profile(
+    current_user: User = Depends(get_current_user),
+) -> UserResponse:
+    """
+    Get current user's profile.
+
+    Access: Any authenticated user
+
+    Returns the authenticated user's own profile information.
+    """
+    try:
+        return UserResponse.model_validate(current_user)
+    except Exception as e:
+        logger.error(f"Error getting current user profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),

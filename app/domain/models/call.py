@@ -27,6 +27,7 @@ class Call(BaseModel):
     transcript: Optional[str] = Field(None, description="Call transcript")
     audio_url: Optional[str] = Field(None, description="Audio recording URL")
     duration_seconds: Optional[int] = Field(None, description="Call duration in seconds")
-    owner_id: Optional[UUID] = Field(None, description="CSR who handled the call")
+    handled_by_user_id: Optional[UUID] = Field(None, description="CSR who handled the call")
+    interaction_type: Optional[str] = Field(default="call", description="Type of interaction")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
 

@@ -20,11 +20,11 @@ class UserORM(Base):
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     # Store as VARCHAR to avoid enum name/value mismatch issues
-    # SQLAlchemy will use enum value automatically with native_enum=False
-    role: Mapped[UserRole] = mapped_column(
-        SQLEnum(UserRole, native_enum=False, length=50),
+    # We'll handle enum conversion in the repository layer
+    role: Mapped[str] = mapped_column(
+        String(length=50),
         nullable=False,
-        default=UserRole.SALES_REP,
+        default="sales_rep",  # Store as string value
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     first_name: Mapped[str | None] = mapped_column(String, nullable=True)

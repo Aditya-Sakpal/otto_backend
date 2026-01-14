@@ -124,7 +124,7 @@ class AnalyticsService:
             
             # Add owner_id filter if provided
             if owner_id:
-                query = query.where(CallORM.owner_id == owner_id)
+                query = query.where(CallORM.handled_by_user_id == owner_id)
             
             # Execute query
             results = await self.session.execute(query)

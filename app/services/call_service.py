@@ -97,22 +97,29 @@ class CallService:
                 logger.warning("No audio URL for call", call_id=str(call_id))
                 return
             
-            # Submit transcription job to Shoonya
+            # Submit call processing job to Shunya (replaces old transcription flow)
             if self.shoonya.is_available():
                 try:
-                    result = await self.shoonya.transcribe_audio(
+                    from datetime import datetime
+                    result = await self.shoonya.process_call(
+                        call_id=str(call.id),
                         company_id=str(call.company_id),
                         audio_url=call.audio_url,
-                        call_id=int(call.id),
-                        call_type=call.call_type.value if call.call_type else "csr_call",
+                        phone_number=call.phone_number,
+                        duration=call.duration_seconds or 0,
+                        call_date=call.created_at.isoformat() if call.created_at else datetime.utcnow().isoformat(),
+                        metadata={
+                            "call_type": call.call_type.value if call.call_type else "csr_call",
+                            **(call.extra_metadata or {}),
+                        },
                     )
                     logger.info(
-                        "Transcription job submitted",
+                        "Call processing job submitted",
                         call_id=str(call_id),
                         job_id=result.get("job_id"),
                     )
                 except Exception as e:
-                    logger.error("Failed to submit transcription", call_id=str(call_id), error=str(e))
+                    logger.error("Failed to submit call processing", call_id=str(call_id), error=str(e))
                     raise
         except Exception as e:
             logger.error(f"Error triggering analysis: {e}")
@@ -380,7 +387,7 @@ class CallService:
                         status=PendingActionStatus.PENDING,
                         due_at=due_at,
                         priority=priority,
-                        owner_id=call.owner_id,  # Use call owner or determine from action type
+                        owner_id=call.handled_by_user_id,  # Use call owner or determine from action type
                         source="shunya",
                         extra_metadata={
                             "from_analysis": str(analysis.id),

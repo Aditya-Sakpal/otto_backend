@@ -41,8 +41,12 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(default=os.getenv("REDIS_URL", "redis://localhost:6379/0"))
     
     # Shoonya/UWC Integration (optional - can be empty for development)
-    UWC_BASE_URL: str = Field(default=os.getenv("UWC_BASE_URL", ""), description="Shoonya/UWC API base URL")
-    UWC_API_KEY: str = Field(default=os.getenv("UWC_API_KEY", ""), description="UWC API key")
+    UWC_BASE_URL: str = Field(
+        default=os.getenv("UWC_BASE_URL", "https://ottoai.shunyalabs.ai"),
+        description="Shoonya/UWC API base URL"
+    )
+    UWC_API_KEY: str = Field(default=os.getenv("UWC_API_KEY", ""), description="UWC API key (legacy)")
+    API_KEY: str = Field(default=os.getenv("API_KEY", ""), description="Shunya API key for X-API-Key header")
     UWC_HMAC_SECRET: str = Field(default=os.getenv("UWC_HMAC_SECRET", ""), description="HMAC secret for webhook verification")
     UWC_JWT_SECRET: str = Field(default=os.getenv("UWC_JWT_SECRET", ""), description="JWT secret for UWC")
     UWC_VERSION: str = Field(default=os.getenv("UWC_VERSION", "v1"), description="UWC API version")

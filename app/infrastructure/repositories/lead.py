@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.logging import get_logger
 from app.domain.models.lead import Lead
+from app.domain.enums import DealStatus
 from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.repositories.base import BaseRepository
 
@@ -23,7 +24,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         super().__init__(session, LeadORM, Lead)
 
     async def get_by_id(self, id: UUID) -> Optional[Lead]:
-        """Get lead by ID with call recording links."""
+        """Get lead by ID with call audio URLs."""
         try:
             result = await self.session.execute(
                 select(LeadORM)
@@ -39,14 +40,29 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             raise e
 
     def _to_domain(self, orm_obj: LeadORM) -> Lead:
-        """Convert ORM model to domain model with call recording links."""
-        # Extract call recording links from associated calls
-        call_recording_links = []
+        """Convert ORM model to domain model with call audio URLs."""
+        # Extract audio URLs from associated calls
+        call_audio_urls = None
         if orm_obj.calls:
-            call_recording_links = [
+            call_audio_urls = [
                 call.audio_url for call in orm_obj.calls
                 if call.audio_url is not None
             ]
+            # Return None if empty list instead of empty list
+            if not call_audio_urls:
+                call_audio_urls = None
+
+        # Validate and convert deal_status
+        deal_status = None
+        if orm_obj.deal_status:
+            try:
+                deal_status = DealStatus(orm_obj.deal_status)
+            except ValueError:
+                logger.warning(
+                    f"Invalid deal_status value: {orm_obj.deal_status} for lead {orm_obj.id}, "
+                    "setting to None"
+                )
+                deal_status = None
 
         # Convert to domain model
         lead_data = {
@@ -54,12 +70,12 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "company_id": orm_obj.company_id,
             "contact_card_id": orm_obj.contact_card_id,
             "status": orm_obj.status,
-            "deal_status": orm_obj.deal_status,
+            "deal_status": deal_status,
             "assigned_rep_id": orm_obj.assigned_rep_id,
             "deal_size": orm_obj.deal_size,
             "closed_at": orm_obj.closed_at,
             "extra_metadata": orm_obj.extra_metadata,
-            "call_recording_links": call_recording_links if call_recording_links else None,
+            "call_audio_urls": call_audio_urls,
             "created_at": orm_obj.created_at,
             "updated_at": orm_obj.updated_at,
         }

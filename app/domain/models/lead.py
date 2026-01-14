@@ -26,7 +26,7 @@ class Lead(BaseModel):
     deal_size: Optional[float] = Field(None, description="Deal size in dollars")
     closed_at: Optional[datetime] = Field(None, description="When deal was closed")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
-    call_recording_links: Optional[List[str]] = Field(None, description="List of call recording URLs (S3 links) associated with this lead")
+    call_audio_urls: Optional[List[str]] = Field(None, description="List of call audio URLs associated with this lead")
     created_at: Optional[datetime] = Field(None, description="When lead was created")
     updated_at: Optional[datetime] = Field(None, description="When lead was last updated")
 

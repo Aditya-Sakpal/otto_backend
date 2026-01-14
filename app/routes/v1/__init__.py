@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 
 from app.routes.v1 import (
-    auth, calls, webhooks, rag, metrics, leads, websocket, analytics, users,
+    auth, calls, webhooks, rag, metrics, leads, websocket, analytics, users, invites,
     call_processing, ask_otto, insights
 )
 
@@ -21,3 +21,4 @@ router.include_router(users.router, prefix="/users", tags=["users"])
 router.include_router(call_processing.router, tags=["call-processing"])
 router.include_router(ask_otto.router, tags=["ask-otto"])
 router.include_router(insights.router, tags=["insights"])
+router.include_router(invites.router, prefix="/invites", tags=["invites"])

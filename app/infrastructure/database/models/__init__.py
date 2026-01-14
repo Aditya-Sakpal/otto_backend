@@ -8,6 +8,9 @@ from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
 from app.infrastructure.database.models.pending_action import PendingActionORM
+from app.infrastructure.database.models.call_processing_job import CallProcessingJobORM
+from app.infrastructure.database.models.ask_otto_conversation import AskOttoConversationORM, AskOttoMessageORM
+from app.infrastructure.database.models.insight_job import InsightJobORM
 
 __all__ = [
     "CompanyORM",
@@ -18,4 +21,8 @@ __all__ = [
     "AppointmentORM",
     "CallAnalysisORM",
     "PendingActionORM",
+    "CallProcessingJobORM",
+    "AskOttoConversationORM",
+    "AskOttoMessageORM",
+    "InsightJobORM",
 ]

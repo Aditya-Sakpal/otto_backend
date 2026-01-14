@@ -16,7 +16,7 @@ from app.domain.enums import UserRole
 from app.domain.users.models import User
 from app.services.metrics_service import MetricsService
 
-router = APIRouter(prefix="/metrics", tags=["metrics"])
+router = APIRouter(tags=["metrics"])
 
 
 @router.get("/exec/company-overview")

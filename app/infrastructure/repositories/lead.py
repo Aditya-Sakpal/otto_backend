@@ -21,6 +21,61 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
     def __init__(self, session: AsyncSession):
         super().__init__(session, LeadORM, Lead)
     
+    def _to_domain(self, orm_obj: LeadORM) -> Lead:
+        """
+        Convert ORM model to domain model.
+        
+        Handles enum conversions for status and deal_status.
+        """
+        from app.domain.enums import LeadStatus, DealStatus
+        
+        # Handle status conversion
+        status = orm_obj.status
+        if isinstance(status, str):
+            try:
+                status = LeadStatus(status.lower())
+            except ValueError:
+                # Try to find by value
+                for enum_member in LeadStatus:
+                    if enum_member.value.lower() == status.lower():
+                        status = enum_member
+                        break
+                else:
+                    # Default to NEW if unknown
+                    logger.warning(f"Unknown lead status '{status}', defaulting to NEW")
+                    status = LeadStatus.NEW
+        
+        # Handle deal_status conversion (can be None or invalid value)
+        deal_status = orm_obj.deal_status
+        if deal_status is not None and isinstance(deal_status, str):
+            try:
+                deal_status = DealStatus(deal_status.lower())
+            except ValueError:
+                # Try to find by value
+                for enum_member in DealStatus:
+                    if enum_member.value.lower() == deal_status.lower():
+                        deal_status = enum_member
+                        break
+                else:
+                    # If not found, set to None (deal_status is optional)
+                    logger.warning(f"Unknown deal_status '{deal_status}', setting to None")
+                    deal_status = None
+        
+        # Create domain model with converted enums
+        return Lead(
+            id=orm_obj.id,
+            company_id=orm_obj.company_id,
+            contact_card_id=orm_obj.contact_card_id,
+            status=status,
+            deal_status=deal_status,
+            assigned_rep_id=orm_obj.assigned_rep_id,
+            deal_size=orm_obj.deal_size,
+            closed_at=orm_obj.closed_at,
+            extra_metadata=orm_obj.extra_metadata,
+            created_at=orm_obj.created_at,
+            updated_at=orm_obj.updated_at,
+        )
+    
     async def get_by_company(
         self,
         company_id: UUID,

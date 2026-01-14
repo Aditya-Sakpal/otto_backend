@@ -1,7 +1,10 @@
 """API v1 routes."""
 from fastapi import APIRouter
 
-from app.routes.v1 import auth, calls, webhooks, rag, metrics, leads, websocket, analytics , users
+from app.routes.v1 import (
+    auth, calls, webhooks, rag, metrics, leads, websocket, analytics, users,
+    call_processing, ask_otto, insights
+)
 
 router = APIRouter()
 
@@ -15,3 +18,6 @@ router.include_router(leads.router, prefix="/leads", tags=["leads"])
 router.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 router.include_router(users.router, prefix="/users", tags=["users"])
+router.include_router(call_processing.router, tags=["call-processing"])
+router.include_router(ask_otto.router, tags=["ask-otto"])
+router.include_router(insights.router, tags=["insights"])

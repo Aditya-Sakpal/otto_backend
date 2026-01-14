@@ -483,7 +483,7 @@ class MetricsService:
                 
                 opportunities.append({
                     "call_id": str(analysis.call_id),
-                    "rep_id": str(call_obj.owner_id) if call_obj and call_obj.owner_id else None,
+                    "rep_id": str(call_obj.handled_by_user_id) if call_obj and call_obj.handled_by_user_id else None,
                     "sop_compliance_score": analysis.sop_compliance_score,
                     "sop_stages_missed": analysis.sop_stages_missed or [],
                     "sentiment_score": analysis.sentiment_score,

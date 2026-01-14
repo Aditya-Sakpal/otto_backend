@@ -60,6 +60,41 @@ async def list_users(
         )
 
 
+@router.get("/companies", response_model=List[dict])
+async def list_companies(
+    db: DbSession,
+    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
+) -> List[dict]:
+    """
+    List all companies.
+    
+    Access: Any authenticated user
+    """
+    try:
+        from app.infrastructure.database.models.company import CompanyORM
+        from sqlalchemy import select
+        
+        result = await db.execute(select(CompanyORM))
+        companies = result.scalars().all()
+        
+        return [
+            {
+                "id": str(company.id),
+                "name": company.name,
+                "phone_number": company.phone_number,
+                "address": company.address,
+            }
+            for company in companies
+        ]
+    except Exception as e:
+        logger.error(f"Error listing companies: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: UUID,

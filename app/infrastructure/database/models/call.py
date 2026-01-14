@@ -25,7 +25,8 @@ class CallORM(Base):
     transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     audio_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    owner_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    handled_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    interaction_type: Mapped[str | None] = mapped_column(String, nullable=True, default="call")
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -43,4 +44,5 @@ class CallORM(Base):
     contact_card = relationship("ContactCardORM", back_populates="calls")
     lead = relationship("LeadORM", back_populates="calls")
     analysis = relationship("CallAnalysisORM", back_populates="call", uselist=False)
+    processing_jobs = relationship("CallProcessingJobORM", back_populates="call")
 

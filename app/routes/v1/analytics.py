@@ -14,7 +14,7 @@ from app.domain.enums import UserRole
 from app.domain.users.models import User
 from app.services.analytics_service import AnalyticsService
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(tags=["analytics"])
 
 
 @router.get("/top-objections")
@@ -75,9 +75,19 @@ async def get_objection_calls(
             detail="company_id is required. Either provide it as a query parameter or ensure user has a company_id."
         )
     
-    service = AnalyticsService(db)
-    return await service.get_objection_calls(
-        company_id=company_id,
-        objection=objection,
-        owner_id=owner_id,
-    )
+    try:
+        service = AnalyticsService(db)
+        return await service.get_objection_calls(
+            company_id=company_id,
+            objection=objection,
+            owner_id=owner_id,
+        )
+    except Exception as e:
+        from app.core.logging import get_logger
+        logger = get_logger(__name__)
+        logger.error(f"Error in get_objection_calls: {e}", exc_info=True)
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get objection calls: {str(e)}",
+        )

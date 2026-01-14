@@ -130,11 +130,47 @@ class UserRepository(BaseRepository[UserORM, User]):
         Convert ORM model to domain model.
         
         Excludes password_hash for security.
+        Handles role conversion from database string to enum.
         """
+        # Handle role conversion - database might have string, ensure it's converted to enum
+        role = orm_obj.role
+        
+        # If it's already a UserRole enum, use it directly
+        if isinstance(role, UserRole):
+            pass  # Already correct
+        elif isinstance(role, str):
+            # Try to convert string to enum (handle case variations)
+            role_lower = role.lower().strip()
+            if role_lower == "csr":
+                role = UserRole.CSR
+            elif role_lower in ("sales_rep", "salesrep", "sales rep"):
+                role = UserRole.SALES_REP
+            elif role_lower == "executive":
+                role = UserRole.EXECUTIVE
+            else:
+                # Try to match by enum value
+                try:
+                    # Try to find enum by value
+                    for enum_member in UserRole:
+                        if enum_member.value.lower() == role_lower:
+                            role = enum_member
+                            break
+                    else:
+                        # Default to SALES_REP if unknown
+                        logger.warning(f"Unknown role value '{role}', defaulting to SALES_REP")
+                        role = UserRole.SALES_REP
+                except Exception as e:
+                    logger.warning(f"Error converting role '{role}': {e}, defaulting to SALES_REP")
+                    role = UserRole.SALES_REP
+        else:
+            # Unknown type, default to SALES_REP
+            logger.warning(f"Unknown role type '{type(role)}' with value '{role}', defaulting to SALES_REP")
+            role = UserRole.SALES_REP
+        
         return User(
             id=orm_obj.id,
             email=orm_obj.email,
-            role=orm_obj.role,
+            role=role,
             is_active=orm_obj.is_active,
             first_name=orm_obj.first_name,
             last_name=orm_obj.last_name,

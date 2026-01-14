@@ -23,7 +23,8 @@ logger = get_logger(__name__)
 @router.get("", response_model=List[UserResponse])
 async def list_users(
     db: DbSession,
-    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
     company_id: Optional[UUID] = Query(None, description="Filter by company ID"),
     role: Optional[UserRole] = Query(None, description="Filter by user role"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
@@ -120,7 +121,8 @@ async def get_user(
 async def create_user(
     user_data: UserCreate,
     db: DbSession,
-    current_user: User = Depends(require_executive),
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
 ) -> UserResponse:
     """
     Create a new user.
@@ -202,7 +204,8 @@ async def update_user(
     user_id: UUID,
     user_data: UserUpdate,
     db: DbSession,
-    current_user: User = Depends(require_executive),
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
 ) -> UserResponse:
     """
     Update user.
@@ -246,7 +249,8 @@ async def update_user(
 async def delete_user(
     user_id: UUID,
     db: DbSession,
-    current_user: User = Depends(require_executive),
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
 ) -> None:
     """
     Delete a user.

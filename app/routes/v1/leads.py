@@ -22,7 +22,8 @@ logger = get_logger(__name__)
 async def list_leads(
     company_id: UUID,
     db: DbSession,
-    user: User = Depends(require_manager_or_csr),
+    # RBAC DISABLED - user: User = Depends(require_manager_or_csr),
+    user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
     status_filter: Optional[str] = Query(None, alias="status"),
     nurturing: Optional[str] = Query(None),
     sort: Optional[str] = Query(None),
@@ -95,7 +96,8 @@ async def list_leads(
 async def get_lead(
     lead_id: UUID,
     db: DbSession,
-    user: User = Depends(require_manager_or_csr),
+    # RBAC DISABLED - user: User = Depends(require_manager_or_csr),
+    user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
 ) -> Lead:
     """
     Get lead by ID.

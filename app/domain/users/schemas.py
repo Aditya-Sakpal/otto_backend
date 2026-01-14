@@ -35,7 +35,6 @@ class SignupRequest(BaseModel):
 
 class UserUpdate(BaseModel):
     """Schema for updating a user."""
-    email: Optional[EmailStr] = Field(None, description="User email")
     first_name: Optional[str] = Field(None, description="First name")
     last_name: Optional[str] = Field(None, description="Last name")
     password: Optional[str] = Field(None, min_length=8, description="User password (min 8 characters)")
@@ -45,8 +44,7 @@ class UserUpdate(BaseModel):
 
 
 class UserSelfUpdate(BaseModel):
-    """Schema for users to update their own profile (excludes role, is_active, company_id)."""
-    email: Optional[EmailStr] = Field(None, description="User email")
+    """Schema for users to update their own profile (excludes email, role, is_active, company_id)."""
     first_name: Optional[str] = Field(None, description="First name")
     last_name: Optional[str] = Field(None, description="Last name")
     password: Optional[str] = Field(None, min_length=8, description="User password (min 8 characters)")

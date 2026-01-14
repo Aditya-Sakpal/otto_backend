@@ -9,10 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role, require_executive
+from app.core.auth import get_current_user
 from app.core.logging import get_logger
 from app.domain.users.models import User
 from app.domain.users.service import UserService
-from app.domain.users.schemas import UserCreate, UserUpdate, UserResponse
+from app.domain.users.schemas import UserCreate, UserUpdate, UserSelfUpdate, UserResponse
 from app.domain.enums import UserRole
 
 router = APIRouter()
@@ -54,6 +55,27 @@ async def list_users(
         return [UserResponse.model_validate(u) for u in users]
     except Exception as e:
         logger.error(f"Error listing users: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_profile(
+    current_user: User = Depends(get_current_user),
+) -> UserResponse:
+    """
+    Get current user's profile.
+
+    Access: Any authenticated user
+
+    Returns the authenticated user's own profile information.
+    """
+    try:
+        return UserResponse.model_validate(current_user)
+    except Exception as e:
+        logger.error(f"Error getting current user profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -122,6 +144,55 @@ async def create_user(
         )
     except Exception as e:
         logger.error(f"Error creating user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_self(
+    user_data: UserSelfUpdate,
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+) -> UserResponse:
+    """
+    Update current user's own profile.
+
+    Access: Any authenticated user
+
+    Note: This endpoint allows users to update their own profile data.
+    Users cannot update their email, role, is_active status, or company_id through this endpoint.
+
+    Args:
+        user_data: User update data (excludes email, role, is_active, company_id)
+    """
+    try:
+        service = UserService(db)
+        # Convert UserSelfUpdate to UserUpdate (excluding email, role, is_active, company_id)
+        # Only include fields that are set in user_data
+        update_dict = user_data.model_dump(exclude_unset=True)
+        # Create UserUpdate with only allowed fields (exclude email, role, is_active, company_id)
+        update_data = UserUpdate(**update_dict)
+        user = await service.update(current_user.id, update_data)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        return UserResponse.model_validate(user)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Validation error updating user profile: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error updating user profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),

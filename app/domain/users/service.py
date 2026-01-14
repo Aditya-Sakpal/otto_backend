@@ -180,6 +180,8 @@ class UserService:
             await self.session.refresh(user_orm)
 
             return self.user_repo._to_domain(user_orm)
+        except ValueError:
+            raise
         except Exception as e:
             logger.error(f"Error updating user: {e}")
             raise e

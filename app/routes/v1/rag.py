@@ -68,7 +68,8 @@ async def _stream_response_generator(text: str) -> AsyncGenerator[str, None]:
 async def query_ask_otto(
     request: RAGQueryRequest,
     db: DbSession,
-    user: User = Depends(require_manager),  # EXECUTIVE only for company scope
+    # RBAC DISABLED - user: User = Depends(require_manager),  # EXECUTIVE only for company scope
+    user: User = Depends(require_manager),  # RBAC DISABLED - Returns dummy user
 ):
     """
     Query Ask Otto (RAG-based AI copilot) - Company scope.

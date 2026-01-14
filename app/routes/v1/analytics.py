@@ -20,8 +20,9 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 @router.get("/top-objections")
 async def get_top_objections(
     db: DbSession,
-    company_id: UUID = Query(..., description="Company UUID"),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    company_id: UUID = Query(..., description="Company UUID"),
 ):
     """
     Get top objections aggregated by company.
@@ -40,10 +41,11 @@ async def get_top_objections(
 @router.get("/objection-calls")
 async def get_objection_calls(
     db: DbSession,
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     objection: str = Query(..., description="Objection type (e.g., price, timing, authority)"),
     owner_id: Optional[UUID] = Query(None, description="CSR/owner UUID to filter by"),
     company_id: Optional[UUID] = Query(None, description="Company UUID (optional, inferred from user if not provided)"),
-    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
 ):
     """
     Get calls filtered by objection type and optionally by CSR owner.

@@ -188,7 +188,8 @@ async def refresh_token(
 
 @router.get("/me", response_model=UserResponse, status_code=status.HTTP_200_OK)
 async def get_current_user_info(
-    user: User = Depends(get_current_user),
+    # RBAC DISABLED - user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),  # RBAC DISABLED - Returns dummy user
 ) -> UserResponse:
     """
     Get current authenticated user information.

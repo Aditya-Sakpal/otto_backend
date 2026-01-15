@@ -121,6 +121,10 @@ class Settings(BaseSettings):
         default=os.getenv("ENABLE_DOCS", "True").lower() == "true",
         description="Enable Swagger/ReDoc documentation (set to False in production)"
     )
+    AUTO_CREATE_TABLES: bool = Field(
+        default=os.getenv("AUTO_CREATE_TABLES", "False").lower() == "true",
+        description="Auto-create database tables on startup (development only, disabled in production). Use Alembic migrations for production."
+    )
 
     @property
     def allowed_origins_list(self) -> List[str]:

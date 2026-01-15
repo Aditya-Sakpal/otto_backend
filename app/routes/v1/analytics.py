@@ -80,7 +80,6 @@ async def get_objection_calls(
         company_id = current_user.company_id
 
     if not company_id:
-        from fastapi import HTTPException
         raise HTTPException(
             status_code=400,
             detail="company_id is required. Either provide it as a query parameter or ensure user has a company_id."

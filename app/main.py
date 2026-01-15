@@ -29,11 +29,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     Handles startup and shutdown tasks:
     - Initialize database connections
+    - Auto-create tables (development only)
     - Start background workers
     - Cleanup on shutdown
     """
     # Startup
     setup_logging()
+
+    # Auto-create tables in development (optional)
+    # For production, use Alembic migrations instead
+    if settings.is_development and settings.AUTO_CREATE_TABLES:
+        try:
+            from app.infrastructure.database.init_db import create_tables
+            await create_tables()
+        except Exception as e:
+            logger.warning(f"Could not auto-create tables: {e}")
+            logger.info("Continuing without auto-creation. Use migrations or run init_db.py manually.")
 
     # Start background scheduler for follow-up notifications
     logger.info("Starting background scheduler...")

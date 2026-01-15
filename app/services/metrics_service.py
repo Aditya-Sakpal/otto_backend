@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta, date
 
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, text, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -87,6 +87,22 @@ class MetricsService:
             )
             active_leads_count = active_leads.scalar() or 0
             
+            # Qualified leads in date range
+            # Count leads with deal_status = "qualified" OR status in qualified statuses
+            # This handles both the deal_status field and the status field for qualification
+            qualified_leads = await self.session.execute(
+                select(func.count(LeadORM.id)).where(
+                    LeadORM.company_id == company_id,
+                    LeadORM.created_at >= start_dt,
+                    LeadORM.created_at <= end_dt,
+                    or_(
+                        LeadORM.deal_status == "qualified",
+                        LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
+                    )
+                )
+            )
+            qualified_leads_count = qualified_leads.scalar() or 0
+            
             # Total calls in date range
             total_calls = await self.session.execute(
                 select(func.count(CallORM.id)).where(
@@ -144,6 +160,7 @@ class MetricsService:
             return {
                 "total_leads": total_leads_count,
                 "active_leads": active_leads_count,
+                "qualified_leads": qualified_leads_count,
                 "total_calls": total_calls_count,
                 "missed_calls": missed_calls_count,
                 "total_appointments": total_appointments_count,
@@ -1127,7 +1144,7 @@ class MetricsService:
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
-                    CallAnalysisORM.objections.contains([objection_type])
+                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type))
                 ).order_by(CallAnalysisORM.created_at.desc()).limit(limit)
             )
             analyses_list = analyses.scalars().all()
@@ -1138,7 +1155,7 @@ class MetricsService:
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
-                    CallAnalysisORM.objections.contains([objection_type])
+                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type))
                 )
             )
             total_count = total.scalar() or 0

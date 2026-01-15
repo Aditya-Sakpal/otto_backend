@@ -3,6 +3,7 @@ Analytics service.
 
 Provides analytics calculations for objections and calls.
 """
+import traceback
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
@@ -88,7 +89,8 @@ class AnalyticsService:
             return result
             
         except Exception as e:
-            logger.error(f"Error getting top objections: {e}", exc_info=True)
+            logger.error(f"Error getting top objections: {e}")
+            traceback.print_exc()
             raise
     
     async def get_objection_calls(
@@ -163,5 +165,6 @@ class AnalyticsService:
             return result
             
         except Exception as e:
-            logger.error(f"Error getting objection calls: {e}", exc_info=True)
+            logger.error(f"Error getting objection calls: {e}")
+            traceback.print_exc()
             raise

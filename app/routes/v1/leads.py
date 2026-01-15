@@ -3,6 +3,7 @@ Leads API routes.
 
 Provides lead management endpoints.
 """
+import traceback
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -86,6 +87,7 @@ async def list_leads(
         )
     except Exception as e:
         logger.error(f"Error listing leads: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -119,6 +121,7 @@ async def get_lead(
         raise
     except Exception as e:
         logger.error(f"Error getting lead: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),

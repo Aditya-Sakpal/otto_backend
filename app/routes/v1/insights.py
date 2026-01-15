@@ -3,9 +3,11 @@ Insights API routes.
 
 Handles weekly AI insights generation and retrieval.
 """
+import traceback
 from typing import Optional, List
 from uuid import UUID
 from datetime import date
+from dateutil import parser as date_parser
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
@@ -89,7 +91,8 @@ async def generate_insights(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error generating insights: {e}", exc_info=True)
+        logger.error(f"Error generating insights: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate insights: {str(e)}",
@@ -126,9 +129,16 @@ async def get_insight_job_status(
         
         if job:
             job.status = result.get("status", job.status)
-            job.started_at = result.get("started_at")
-            job.completed_at = result.get("completed_at")
-            job.failed_at = result.get("failed_at")
+            # Parse datetime strings to datetime objects
+            started_at_str = result.get("started_at")
+            job.started_at = date_parser.parse(started_at_str) if started_at_str and isinstance(started_at_str, str) else (started_at_str if started_at_str else None)
+            
+            completed_at_str = result.get("completed_at")
+            job.completed_at = date_parser.parse(completed_at_str) if completed_at_str and isinstance(completed_at_str, str) else (completed_at_str if completed_at_str else None)
+            
+            failed_at_str = result.get("failed_at")
+            job.failed_at = date_parser.parse(failed_at_str) if failed_at_str and isinstance(failed_at_str, str) else (failed_at_str if failed_at_str else None)
+            
             job.results = result.get("results")
             job.error = result.get("error")
             
@@ -138,7 +148,8 @@ async def get_insight_job_status(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting insight job status: {e}", exc_info=True)
+        logger.error(f"Error getting insight job status: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get job status: {str(e)}",
@@ -169,7 +180,8 @@ async def get_current_company_insight(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting company insight: {e}", exc_info=True)
+        logger.error(f"Error getting company insight: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get company insight: {str(e)}",
@@ -214,7 +226,8 @@ async def get_customer_insights(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting customer insights: {e}", exc_info=True)
+        logger.error(f"Error getting customer insights: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get customer insights: {str(e)}",
@@ -245,7 +258,8 @@ async def get_objection_insights(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting objection insights: {e}", exc_info=True)
+        logger.error(f"Error getting objection insights: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get objection insights: {str(e)}",

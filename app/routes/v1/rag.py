@@ -5,6 +5,7 @@ Ask Otto (company scope) - EXECUTIVE only
 """
 import json
 import asyncio
+import traceback
 from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -131,6 +132,7 @@ async def query_ask_otto(
         raise
     except Exception as e:
         logger.error(f"Error querying Ask Otto: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),

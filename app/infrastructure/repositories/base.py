@@ -3,6 +3,7 @@ Base repository.
 
 All repositories inherit from this base class.
 """
+import traceback
 from typing import Generic, TypeVar, Optional, List
 from uuid import UUID
 
@@ -49,7 +50,8 @@ class BaseRepository(Generic[T, D]):
             return None
         except Exception as e:
             logger.error(f"Error getting entity by ID: {e}")
-            raise e
+            traceback.print_exc()
+            raise
     
     async def get_all(
         self,
@@ -73,7 +75,8 @@ class BaseRepository(Generic[T, D]):
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:
             logger.error(f"Error getting all entities: {e}")
-            raise e
+            traceback.print_exc()
+            raise
     
     async def create(self, domain_obj: D) -> D:
         """Create new entity."""
@@ -85,7 +88,8 @@ class BaseRepository(Generic[T, D]):
             return self._to_domain(orm_obj)
         except Exception as e:
             logger.error(f"Error creating entity: {e}")
-            raise e
+            traceback.print_exc()
+            raise
     
     async def update(self, id: UUID, domain_obj: D) -> Optional[D]:
         """Update entity."""
@@ -104,7 +108,8 @@ class BaseRepository(Generic[T, D]):
             return self._to_domain(orm_obj)
         except Exception as e:
             logger.error(f"Error updating entity: {e}")
-            raise e
+            traceback.print_exc()
+            raise
     
     async def delete(self, id: UUID) -> bool:
         """Delete entity."""
@@ -118,7 +123,8 @@ class BaseRepository(Generic[T, D]):
             return True
         except Exception as e:
             logger.error(f"Error deleting entity: {e}")
-            raise e
+            traceback.print_exc()
+            raise
     
     def _to_domain(self, orm_obj: T) -> D:
         """Convert ORM model to domain model."""

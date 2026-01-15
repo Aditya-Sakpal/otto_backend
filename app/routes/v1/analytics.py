@@ -3,18 +3,21 @@ Analytics API routes.
 
 Provides analytics endpoints for objections and calls.
 """
+import traceback
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 
 from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role
+from app.core.logging import get_logger
 from app.domain.enums import UserRole
 from app.domain.users.models import User
 from app.services.analytics_service import AnalyticsService
 
 router = APIRouter(tags=["analytics"])
+logger = get_logger(__name__)
 
 
 @router.get("/top-objections")
@@ -34,8 +37,16 @@ async def get_top_objections(
 
     Required role: CSR, SALES_REP, or EXECUTIVE
     """
-    service = AnalyticsService(db)
-    return await service.get_top_objections(company_id=company_id)
+    try:
+        service = AnalyticsService(db)
+        return await service.get_top_objections(company_id=company_id)
+    except Exception as e:
+        logger.error(f"Error getting top objections: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get top objections: {str(e)}",
+        )
 
 
 @router.get("/objection-calls")
@@ -83,10 +94,8 @@ async def get_objection_calls(
             owner_id=owner_id,
         )
     except Exception as e:
-        from app.core.logging import get_logger
-        logger = get_logger(__name__)
-        logger.error(f"Error in get_objection_calls: {e}", exc_info=True)
-        from fastapi import HTTPException, status
+        logger.error(f"Error in get_objection_calls: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get objection calls: {str(e)}",

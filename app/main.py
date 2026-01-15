@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan manager.
-    
+
     Handles startup and shutdown tasks:
     - Initialize database connections
     - Start background workers
@@ -34,13 +34,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     setup_logging()
-    
+
     # Start background scheduler for follow-up notifications
     logger.info("Starting background scheduler...")
     start_scheduler()
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down background scheduler...")
     stop_scheduler()
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     """
     Create and configure FastAPI application.
-    
+
     Returns:
         Configured FastAPI app instance
     """
@@ -63,7 +63,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.ENABLE_DOCS else None,
         lifespan=lifespan,
     )
-    
+
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -72,23 +72,24 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Trusted host middleware (production)
     if settings.ENVIRONMENT == "production":
         app.add_middleware(
             TrustedHostMiddleware,
             allowed_hosts=settings.allowed_hosts_list,
         )
-    
+
     # Include API routes
     app.include_router(api_router, prefix="/api/v1")
-    
+
     # Health check endpoint
+    @app.get("/")
     @app.get("/health")
     async def health_check():
         """Health check endpoint for load balancers."""
         return {"status": "healthy", "version": "2.0.0"}
-    
+
     return app
 
 

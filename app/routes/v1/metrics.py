@@ -35,8 +35,11 @@ async def get_company_overview(
     - **start_date**: Start of the date range (defaults to 30 days ago)
     - **end_date**: End of the date range (defaults to today)
     
-    Returns total leads, active leads, calls, missed calls, appointments,
+    Returns total leads, active leads, qualified leads, calls, missed calls, appointments,
     conversion rate, and total revenue.
+    
+    Qualified leads include leads with status: qualified_booked, qualified_unbooked, 
+    or qualified_service_not_offered.
     
     Required role: EXECUTIVE
     """

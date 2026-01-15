@@ -3,6 +3,7 @@ Call API routes.
 
 Thin layer that delegates to services.
 """
+import traceback
 from typing import List
 from uuid import UUID
 
@@ -49,7 +50,11 @@ async def list_calls(
         return calls
     except Exception as e:
         logger.error(f"Error listing calls: {e}")
-        raise e
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
 
 
 @router.get("/{call_id}", response_model=Call)
@@ -82,5 +87,9 @@ async def get_call(
         raise
     except Exception as e:
         logger.error(f"Error getting call: {e}")
-        raise e
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
 

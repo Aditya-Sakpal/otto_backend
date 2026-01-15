@@ -3,6 +3,7 @@ Users API routes.
 
 Provides user management endpoints for Team Management.
 """
+import traceback
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -55,6 +56,7 @@ async def list_users(
         return [UserResponse.model_validate(u) for u in users]
     except Exception as e:
         logger.error(f"Error listing users: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -90,6 +92,11 @@ async def list_companies(
         ]
     except Exception as e:
         logger.error(f"Error listing companies: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(
@@ -106,6 +113,7 @@ async def get_current_user_profile(
         return UserResponse.model_validate(current_user)
     except Exception as e:
         logger.error(f"Error getting current user profile: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -141,6 +149,7 @@ async def get_user(
         raise
     except Exception as e:
         logger.error(f"Error getting user: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -168,12 +177,14 @@ async def create_user(
         return UserResponse.model_validate(user)
     except ValueError as e:
         logger.warning(f"Validation error creating user: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except Exception as e:
         logger.error(f"Error creating user: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -217,12 +228,14 @@ async def update_self(
         raise
     except ValueError as e:
         logger.warning(f"Validation error updating user profile: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except Exception as e:
         logger.error(f"Error updating user profile: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -263,12 +276,14 @@ async def update_user(
         raise
     except ValueError as e:
         logger.warning(f"Validation error updating user: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except Exception as e:
         logger.error(f"Error updating user: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -312,6 +327,7 @@ async def delete_user(
         raise
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),

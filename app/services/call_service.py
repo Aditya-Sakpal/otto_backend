@@ -6,6 +6,7 @@ Orchestrates call-related business logic:
 - Call analysis pipeline
 - Transcript processing
 """
+import traceback
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from uuid import UUID
@@ -79,7 +80,8 @@ class CallService:
             return call
         except Exception as e:
             logger.error(f"Error ingesting call: {e}")
-            raise e
+            traceback.print_exc()
+            raise
     
     async def trigger_analysis(self, call_id: UUID) -> None:
         """
@@ -120,10 +122,12 @@ class CallService:
                     )
                 except Exception as e:
                     logger.error("Failed to submit call processing", call_id=str(call_id), error=str(e))
+                    traceback.print_exc()
                     raise
         except Exception as e:
             logger.error(f"Error triggering analysis: {e}")
-            raise e
+            traceback.print_exc()
+            raise
     
     async def process_analysis(
         self,
@@ -254,7 +258,8 @@ class CallService:
             
         except Exception as e:
             logger.error(f"Error processing analysis: {e}", call_id=str(call_id))
-            raise e
+            traceback.print_exc()
+            raise
     
     async def _update_dependent_entities(
         self,
@@ -312,6 +317,7 @@ class CallService:
                 f"Error updating dependent entities: {e}",
                 call_id=str(call.id),
             )
+            traceback.print_exc()
             # Don't raise - this is non-critical
     
     async def _process_pending_actions(
@@ -410,6 +416,7 @@ class CallService:
                         call_id=str(call.id),
                         action_data=action_data,
                     )
+                    traceback.print_exc()
                     # Continue processing other actions
                     continue
             
@@ -424,5 +431,6 @@ class CallService:
                 f"Error processing pending actions: {e}",
                 call_id=str(call.id),
             )
+            traceback.print_exc()
             # Don't raise - pending actions are non-critical
 

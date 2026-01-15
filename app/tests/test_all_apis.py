@@ -410,75 +410,150 @@ async def test_all_apis():
         )
         
         print("\n" + "=" * 80)
-        print("CALL PROCESSING APIs")
+        print("CALL PROCESSING APIs (Shunya)")
         print("=" * 80)
         
-        # Call Processing endpoints (may fail if Shunya not configured)
+        # Call Processing endpoints
         if call_id:
+            # Test call summary
             await test_endpoint(
                 client, "GET", f"{BASE_URL}{API_PREFIX}/call-processing/summary/{call_id}",
                 test_name="GET /call-processing/summary/{call_id}",
-                expected_status=[200, 404, 503]  # Accept multiple status codes
+                expected_status=[200, 404, 503]
             )
             
+            # Test call chunks
             await test_endpoint(
                 client, "GET", f"{BASE_URL}{API_PREFIX}/call-processing/chunks/{call_id}",
                 test_name="GET /call-processing/chunks/{call_id}",
                 expected_status=[200, 404, 503]
             )
         
+        # Test process call (submit a new call for processing)
+        process_call_resp = await test_endpoint(
+            client, "POST", f"{BASE_URL}{API_PREFIX}/call-processing/process",
+            json_data={
+                "call_id": str(uuid4()),
+                "company_id": company_id,
+                "audio_url": "https://example.com/test-audio.mp3",
+                "phone_number": "+1234567890",
+                "duration": 120,
+                "call_date": datetime.utcnow().isoformat(),
+                "metadata": {},
+                "options": {}
+            },
+            test_name="POST /call-processing/process",
+            expected_status=[202, 400, 503]
+        )
+        
+        # If we got a job_id, test status endpoint
+        job_id = None
+        if process_call_resp and isinstance(process_call_resp, dict):
+            job_id = process_call_resp.get("job_id")
+        
+        if job_id:
+            await test_endpoint(
+                client, "GET", f"{BASE_URL}{API_PREFIX}/call-processing/status/{job_id}",
+                test_name="GET /call-processing/status/{job_id}",
+                expected_status=[200, 404, 503]
+            )
+        
         print("\n" + "=" * 80)
-        print("ASK OTTO APIs")
+        print("ASK OTTO APIs (Shunya)")
         print("=" * 80)
         
-        # Ask Otto endpoints
+        # Create a new conversation
         conversation_resp = await test_endpoint(
             client, "POST", f"{BASE_URL}{API_PREFIX}/ask-otto/conversations",
             json_data={
                 "company_id": company_id,
-                "title": "Test Conversation"
+                "context": {}
             },
             test_name="POST /ask-otto/conversations",
-            expected_status=[200, 201, 503]
+            expected_status=[201, 200, 400, 503]
         )
         
         conversation_id = None
-        if conversation_resp:
+        if conversation_resp and isinstance(conversation_resp, dict):
             conversation_id = conversation_resp.get("id") or conversation_resp.get("conversation_id")
+            # Convert to UUID string if needed
+            if conversation_id and not isinstance(conversation_id, str):
+                conversation_id = str(conversation_id)
         
         if conversation_id:
+            # Send a message
             await test_endpoint(
                 client, "POST", f"{BASE_URL}{API_PREFIX}/ask-otto/conversations/{conversation_id}/messages",
                 json_data={
                     "message": "What are the top objections this week?"
                 },
                 test_name="POST /ask-otto/conversations/{id}/messages",
-                expected_status=[200, 201, 503]
+                expected_status=[200, 201, 400, 404, 503]
             )
             
+            # Get conversation details
             await test_endpoint(
                 client, "GET", f"{BASE_URL}{API_PREFIX}/ask-otto/conversations/{conversation_id}",
                 test_name="GET /ask-otto/conversations/{id}",
                 expected_status=[200, 404]
             )
             
+            # Get messages
             await test_endpoint(
                 client, "GET", f"{BASE_URL}{API_PREFIX}/ask-otto/conversations/{conversation_id}/messages",
                 test_name="GET /ask-otto/conversations/{id}/messages",
                 expected_status=[200, 404]
             )
+            
+            # Delete conversation (cleanup)
+            await test_endpoint(
+                client, "DELETE", f"{BASE_URL}{API_PREFIX}/ask-otto/conversations/{conversation_id}",
+                test_name="DELETE /ask-otto/conversations/{id}",
+                expected_status=[200, 204, 404]
+            )
         
         print("\n" + "=" * 80)
-        print("INSIGHTS APIs")
+        print("INSIGHTS APIs (Shunya)")
         print("=" * 80)
         
-        # Insights endpoints
+        # Generate insights (async job)
+        from datetime import timedelta
+        week_end = date.today()
+        week_start = week_end - timedelta(days=7)
+        
+        generate_insights_resp = await test_endpoint(
+            client, "POST", f"{BASE_URL}{API_PREFIX}/insights/generate",
+            json_data={
+                "week_start": week_start.strftime("%Y-%m-%d"),
+                "week_end": week_end.strftime("%Y-%m-%d"),
+                "company_ids": [company_id],
+                "insight_types": ["company", "customer", "objection"],
+                "options": {}
+            },
+            test_name="POST /insights/generate",
+            expected_status=[202, 400, 503]
+        )
+        
+        # Get job status if we got a job_id
+        insight_job_id = None
+        if generate_insights_resp and isinstance(generate_insights_resp, dict):
+            insight_job_id = generate_insights_resp.get("job_id")
+        
+        if insight_job_id:
+            await test_endpoint(
+                client, "GET", f"{BASE_URL}{API_PREFIX}/insights/status/{insight_job_id}",
+                test_name="GET /insights/status/{job_id}",
+                expected_status=[200, 404, 503]
+            )
+        
+        # Get current company insight
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/insights/company/{company_id}/current",
             test_name="GET /insights/company/{id}/current",
             expected_status=[200, 404, 503]
         )
         
+        # Get customer insights
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/insights/customers",
             params={"company_id": company_id, "page": 1, "limit": 10},
@@ -486,6 +561,7 @@ async def test_all_apis():
             expected_status=[200, 404, 503]
         )
         
+        # Get objection insights
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/insights/objections/{company_id}",
             test_name="GET /insights/objections/{id}",

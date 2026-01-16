@@ -4,7 +4,7 @@ Lead repository.
 from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy import select, or_, and_, func
+from sqlalchemy import select, or_, and_, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -164,7 +164,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 .where(
                     LeadORM.company_id == company_id,
                 ).order_by(
-                    func.case(
+                    case(
                         (LeadORM.status == "hot", 1),
                         (LeadORM.status == "warm", 2),
                         (LeadORM.status == "new", 3),

@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta, date
 
-from sqlalchemy import select, func, and_, or_, text, bindparam
+from sqlalchemy import select, func, and_, or_, text, bindparam, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -1196,21 +1196,28 @@ class MetricsService:
         limit: int = 20,
     ) -> Dict[str, Any]:
         """Get auto-queued leads for CSR within date range."""
+        import traceback
         try:
+            from sqlalchemy.orm import selectinload
+            from app.infrastructure.database.models.contact import ContactCardORM
+            
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Get hot, warm, new leads prioritized in date range
+            # Get hot, warm, new leads prioritized in date range with contact_card loaded
             leads = await self.session.execute(
-                select(LeadORM).where(
+                select(LeadORM)
+                .options(selectinload(LeadORM.contact_card))
+                .where(
                     LeadORM.company_id == company_id,
                     LeadORM.created_at >= start_dt,
                     LeadORM.created_at <= end_dt,
                     LeadORM.status.in_(["hot", "warm", "new"])
                 ).order_by(
-                    func.case(
+                    case(
                         (LeadORM.status == "hot", 1),
                         (LeadORM.status == "warm", 2),
                         (LeadORM.status == "new", 3),
+                        else_=4,
                     ),
                     LeadORM.created_at.desc()
                 ).limit(limit)
@@ -1222,25 +1229,38 @@ class MetricsService:
             warm_count = sum(1 for l in leads_list if l.status == "warm")
             new_count = sum(1 for l in leads_list if l.status == "new")
             
+            # Convert to dict with contact_card info
+            leads_data = []
+            for lead in leads_list:
+                lead_dict = {
+                    "id": str(lead.id),
+                    "contact_card_id": str(lead.contact_card_id),
+                    "status": lead.status,
+                    "deal_size": lead.deal_size,
+                    "assigned_rep_id": str(lead.assigned_rep_id) if lead.assigned_rep_id else None,
+                    "created_at": lead.created_at.isoformat() if lead.created_at else None,
+                }
+                # Add contact_card info if available
+                if lead.contact_card:
+                    lead_dict["contact_card"] = {
+                        "id": str(lead.contact_card.id),
+                        "first_name": lead.contact_card.first_name,
+                        "last_name": lead.contact_card.last_name,
+                        "primary_phone": lead.contact_card.primary_phone,
+                        "email": lead.contact_card.email,
+                    }
+                leads_data.append(lead_dict)
+            
             return {
                 "total": len(leads_list),
                 "hot_leads": hot_count,
                 "warm_leads": warm_count,
                 "new_leads": new_count,
-                "leads": [
-                    {
-                        "id": str(lead.id),
-                        "contact_card_id": str(lead.contact_card_id),
-                        "status": lead.status,
-                        "deal_size": lead.deal_size,
-                        "assigned_rep_id": str(lead.assigned_rep_id) if lead.assigned_rep_id else None,
-                        "created_at": lead.created_at.isoformat() if lead.created_at else None,
-                    }
-                    for lead in leads_list
-                ],
+                "leads": leads_data,
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),
             }
         except Exception as e:
             logger.error(f"Error getting auto-queued leads: {e}")
+            traceback.print_exc()
             raise e

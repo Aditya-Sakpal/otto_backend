@@ -11,8 +11,15 @@ from app.core.logging import get_logger
 from app.core.s3 import get_s3_service
 from app.core.encryption import encrypt_api_key
 from app.core.security import get_password_hash
-from app.domain.schemas.onboarding import OnboardingCompleteResponse, ValidateGHLRequest, ValidateGHLResponse
+from app.domain.schemas.onboarding import (
+    OnboardingCompleteResponse,
+    ValidateGHLRequest,
+    ValidateGHLResponse,
+    ValidateCTMRequest,
+    ValidateCTMResponse,
+)
 from app.services.ghl_service import GHLService
+from app.services.ctm_service import CTMService
 from app.domain.users.repository import UserRepository
 from app.infrastructure.database.models.company import CompanyORM
 from app.infrastructure.database.models.user import UserORM
@@ -63,6 +70,46 @@ async def validate_ghl(
         )
 
 
+@router.post("/validate-ctm", response_model=ValidateCTMResponse, status_code=status.HTTP_200_OK)
+async def validate_ctm(
+    request: ValidateCTMRequest,
+) -> ValidateCTMResponse:
+    """
+    Verify Call Tracking Metrics (CTM) credentials before final submission.
+
+    Args:
+        request: Validation request with access_key and secret_key
+
+    Returns:
+        CTM company information if valid (secret_key, company_name, company_id)
+
+    Raises:
+        HTTPException: 401 if credentials are invalid
+    """
+    try:
+        result = await CTMService.verify_api_key(request.access_key, request.secret_key)
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid CTM access key or secret key"
+            )
+
+        return ValidateCTMResponse(
+            secret_key=result["secret_key"],
+            company_name=result["company_name"],
+            company_id=result["company_id"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating CTM credentials: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error validating CTM credentials: {str(e)}"
+        )
+
+
 @router.post("/complete", response_model=OnboardingCompleteResponse, status_code=status.HTTP_201_CREATED)
 async def complete_onboarding(
     db: DbSession,
@@ -72,8 +119,12 @@ async def complete_onboarding(
     password: str = Form(...),
     companyName: str = Form(...),
     location_id: str = Form(...),
-    api_key: str = Form(...),
-    ghl_company_id: str = Form(...),
+    crm_provider: str = Form(...),
+    crm_api_key: str = Form(...),
+    crm_company_id: str = Form(...),
+    voip_provider: str = Form(...),
+    voip_api_key: str = Form(...),
+    voip_company_id: str = Form(...),
     reference_doc: UploadFile = File(...),
     sop_doc: UploadFile = File(...),
 ) -> OnboardingCompleteResponse:
@@ -180,7 +231,7 @@ async def complete_onboarding(
                 name=companyName,
                 reference_doc_url=reference_doc_url,
                 sop_doc_url=sop_doc_url,
-                extra_metadata={"ghl_company_id": ghl_company_id}
+                extra_metadata={"crm_company_id": crm_company_id}
             )
             db.add(company_orm)
             await db.flush()
@@ -188,17 +239,20 @@ async def complete_onboarding(
             company_id = company_orm.id
 
             # Encrypt API key
-            encrypted_api_key = encrypt_api_key(api_key)
+            crm_encrypted_api_key = encrypt_api_key(crm_api_key)
+            voip_encrypted_api_key = encrypt_api_key(voip_api_key)
+
 
             # Create CompanyIntegration
             integration_orm = CompanyIntegrationORM(
                 company_id=company_id,
                 location_id=location_id,
-                crm_api_encrypted_key=encrypted_api_key,
-                crm_provider="gohighlevel",
-                crm_company_id=ghl_company_id,
-                voip_api_encrypted_key="",  # Placeholder, can be set later
-                voip_provider="",  # Placeholder
+                crm_api_encrypted_key=crm_encrypted_api_key,
+                crm_provider=crm_provider,
+                crm_company_id=crm_company_id,
+                voip_api_encrypted_key=voip_encrypted_api_key,
+                voip_provider=voip_provider,
+                voip_company_id= voip_company_id
             )
             db.add(integration_orm)
             await db.flush()

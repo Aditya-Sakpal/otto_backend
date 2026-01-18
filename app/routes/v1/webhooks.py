@@ -17,9 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import DbSession
 from app.core.logging import get_logger
+from app.core.encryption import decrypt_api_key
 from app.infrastructure.integrations.crm_mapping import LEAD_UPDATE_EVENT_TYPES
+from app.infrastructure.repositories.company_integration import CompanyIntegrationRepository
 from app.services.call_service import CallService
 from app.services.ghl_service import GHLService
+from app.services.ctm_service import CTMService
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -228,9 +231,9 @@ async def ghl_message(
 
     # Optional but recommended: verify authenticity (reject spoofed webhooks).
     # GHL uses x-wh-signature for verification.
-    # if x_wh_signature:
-    #     if not GHLService.verify_ghl_signature(raw, x_wh_signature):
-    #         raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    if x_wh_signature:
+        if not GHLService.verify_ghl_signature(raw, x_wh_signature):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     try:
         body = json.loads(raw.decode("utf-8"))
@@ -296,10 +299,10 @@ async def ghl_lead_updates(
 ):
     raw = await request.body()
 
-    # Verify webhook signature (recommended)
-    # if x_wh_signature:
-    #     if not GHLService.verify_ghl_signature(raw, x_wh_signature):
-    #         raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    # Verify webhook signature
+    if x_wh_signature:
+        if not GHLService.verify_ghl_signature(raw, x_wh_signature):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     try:
         body = json.loads(raw.decode("utf-8"))
@@ -401,4 +404,126 @@ async def ghl_lead_updates(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing webhook: {str(e)}",
+        )
+
+
+@router.post("/ctm/calls")
+async def ctm_call_webhook(
+    request: Request,
+    db: DbSession,
+    x_wh_signature: Optional[str] = Header(default=None),
+    x_ctm_time: Optional[str] = Header(default=None),
+):
+    """
+    Handle Call Tracking Metrics (CTM) call webhook.
+
+    Processes completed calls (both inbound and outbound):
+    - Filters for status: "completed" or "answered"
+    - For inbound calls: updates contactCard and call tables, stores audio in S3
+    - For outbound calls: updates call tables, stores audio in S3
+
+    Expected payload format (inbound):
+    {
+        "id": 123456789,
+        "direction": "inbound",
+        "status": "answered",
+        "caller_number": "+15550123456",
+        "audio": "https://...",
+        ...
+    }
+
+    Expected payload format (outbound):
+    {
+        "id": 987654321,
+        "direction": "outbound",
+        "status": "completed",
+        "dialed_number": "+15559998888",
+        "agent_email": "sarah.miller@company.com",
+        "audio": "https://...",
+        ...
+    }
+    """
+    raw_body = await request.body()
+
+    # Parse JSON to get company_id for fetching auth token
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    # Extract company_id from payload or headers
+    company_id = payload.get("company_id") or request.headers.get("X-Company-Id")
+
+    # Verify webhook signature if provided
+    if x_wh_signature:
+        if not company_id:
+            # Can't verify without company_id, but we'll still continue
+            logger.warning("Cannot verify CTM signature without company_id")
+        else:
+            # Get company integration to retrieve voip_api_encrypted_key
+            integration_repo = CompanyIntegrationRepository(db)
+            try:
+                voip_api_encrypted_key = await integration_repo.get_voip_api_encrypted_key_by_company_id(
+                    UUID(company_id)
+                )
+
+                if not voip_api_encrypted_key:
+                    logger.warning(
+                        f"No company integration or voip_api_key found for company_id {company_id}"
+                    )
+                else:
+                    # Decrypt the voip_api_encrypted_key
+                    auth_token = decrypt_api_key(voip_api_encrypted_key)
+
+                    # Verify signature
+                    if not CTMService.verify_ctm_signature(
+                        raw_body=raw_body,
+                        signature_header=x_wh_signature,
+                        time_header=x_ctm_time,
+                        auth_token=auth_token,
+                    ):
+                        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+            except ValueError as e:
+                # Handle decryption errors
+                logger.error(f"Error decrypting voip_api_key for company_id {company_id}: {e}")
+                raise HTTPException(status_code=500, detail="Error verifying webhook signature")
+            except Exception as e:
+                logger.error(f"Error verifying CTM signature: {e}")
+                raise HTTPException(status_code=500, detail="Error verifying webhook signature")
+
+    try:
+        logger.info("CTM call webhook received", payload=payload)
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="company_id required in payload or X-Company-Id header",
+            )
+
+        # Process CTM webhook
+        service = CTMService(db)
+        call = await service.process_webhook(
+            payload=payload,
+            company_id=UUID(company_id),
+        )
+
+        return {
+            "status": "success",
+            "call_id": str(call.id),
+            "ctm_call_id": payload.get("id"),
+        }
+
+    except ValueError as e:
+        # Handle cases where call is not completed (expected)
+        if "not completed" in str(e) or "not answered" in str(e):
+            logger.info(f"Ignoring CTM webhook: {e}")
+            return {"status": "ignored", "reason": str(e)}
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error processing CTM call webhook: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
         )

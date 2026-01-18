@@ -16,6 +16,19 @@ class ValidateGHLResponse(BaseModel):
     company_name: str = Field(..., description="GHL company name")
 
 
+class ValidateCTMRequest(BaseModel):
+    """Request schema for CTM validation."""
+    access_key: str = Field(..., description="CTM access key")
+    secret_key: str = Field(..., description="CTM secret key")
+
+
+class ValidateCTMResponse(BaseModel):
+    """Response schema for CTM validation."""
+    secret_key: str = Field(..., description="CTM secret key (returned for confirmation)")
+    company_name: str = Field(..., description="CTM company/account name")
+    company_id: int = Field(..., description="CTM company/account ID")
+
+
 class OnboardingCompleteResponse(BaseModel):
     """Response schema for onboarding completion."""
     id: UUID

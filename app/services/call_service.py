@@ -21,22 +21,27 @@ from app.domain.enums import AnalysisStatus, ObjectionType, SOPStage, PendingAct
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.analysis import CallAnalysisRepository
 from app.infrastructure.repositories.pending_action import PendingActionRepository
+from app.infrastructure.repositories.contact import ContactRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.tasks.analysis import analyze_call_task
+from app.core.s3 import get_s3_service
+from app.domain.users.repository import UserRepository
 
 logger = get_logger(__name__)
 
 
 class CallService:
     """Service for call-related operations."""
-    
+
     def __init__(self, session: AsyncSession):
         self.session = session
         self.call_repo = CallRepository(session)
         self.analysis_repo = CallAnalysisRepository(session)
         self.pending_action_repo = PendingActionRepository(session)
+        self.contact_repo = ContactRepository(session)
+        self.user_repo = UserRepository(session)
         self.shoonya = get_shoonya_client()
-    
+
     async def ingest_call(
         self,
         company_id: UUID,
@@ -47,14 +52,14 @@ class CallService:
     ) -> Call:
         """
         Ingest a new call from webhook.
-        
+
         Args:
             company_id: Company/tenant ID
             phone_number: Caller phone number
             audio_url: Optional audio recording URL
             call_type: Type of call
             missed_call: Whether call was missed
-            
+
         Returns:
             Created call
         """
@@ -67,26 +72,28 @@ class CallService:
                 call_type=call_type,
                 missed_call=missed_call,
             )
-            
+
             call = await self.call_repo.create(call)
             logger.info("Call ingested", call_id=str(call.id), company_id=str(company_id))
-            
+
             # Trigger analysis if audio URL is available
             if audio_url and not missed_call:
                 # TODO: Use Celery or BackgroundTasks for async execution
                 # For now, call directly (will be async in production)
                 await analyze_call_task(str(call.id))
-            
+
             return call
         except Exception as e:
             logger.error(f"Error ingesting call: {e}")
+            raise e
+
             traceback.print_exc()
             raise
-    
+
     async def trigger_analysis(self, call_id: UUID) -> None:
         """
         Trigger AI analysis for a call.
-        
+
         Args:
             call_id: Call ID
         """
@@ -94,11 +101,11 @@ class CallService:
             call = await self.call_repo.get_by_id(call_id)
             if not call:
                 raise ValueError(f"Call {call_id} not found")
-            
+
             if not call.audio_url:
                 logger.warning("No audio URL for call", call_id=str(call_id))
                 return
-            
+
             # Submit call processing job to Shunya (replaces old transcription flow)
             if self.shoonya.is_available():
                 try:
@@ -126,9 +133,8 @@ class CallService:
                     raise
         except Exception as e:
             logger.error(f"Error triggering analysis: {e}")
-            traceback.print_exc()
-            raise
-    
+            raise e
+
     async def process_analysis(
         self,
         call_id: UUID,
@@ -137,12 +143,12 @@ class CallService:
     ) -> CallAnalysis:
         """
         Process call analysis data from Shoonya webhook.
-        
+
         Args:
             call_id: Call ID
             analysis_data: Analysis data from Shoonya
             transcript: Optional transcript text
-            
+
         Returns:
             Created or updated CallAnalysis
         """
@@ -151,13 +157,13 @@ class CallService:
             call = await self.call_repo.get_by_id(call_id)
             if not call:
                 raise ValueError(f"Call {call_id} not found")
-            
+
             # Update transcript if provided
             if transcript:
                 call.transcript = transcript
                 await self.call_repo.update(call_id, call)
                 logger.info("Call transcript updated", call_id=str(call_id))
-            
+
             # Parse analysis data from Shoonya
             # Expected format from Shoonya (adjust based on actual format):
             # {
@@ -173,11 +179,11 @@ class CallService:
             #   "key_points": [...],
             #   ...
             # }
-            
+
             # Extract and normalize data
             qualification_status = analysis_data.get("qualification_status")
             booking_status = analysis_data.get("booking_status")
-            
+
             # Parse objections (convert strings to enum if needed)
             objections_raw = analysis_data.get("objections", [])
             objections = []
@@ -189,9 +195,9 @@ class CallService:
                         logger.warning(f"Unknown objection type: {obj}")
                 else:
                     objections.append(obj)
-            
+
             objection_texts = analysis_data.get("objection_texts", [])
-            
+
             # Parse SOP stages
             sop_completed_raw = analysis_data.get("sop_stages_completed", [])
             sop_completed = []
@@ -203,7 +209,7 @@ class CallService:
                         logger.warning(f"Unknown SOP stage: {stage}")
                 else:
                     sop_completed.append(stage)
-            
+
             sop_missed_raw = analysis_data.get("sop_stages_missed", [])
             sop_missed = []
             for stage in sop_missed_raw:
@@ -214,18 +220,18 @@ class CallService:
                         logger.warning(f"Unknown SOP stage: {stage}")
                 else:
                     sop_missed.append(stage)
-            
+
             sop_compliance_score = analysis_data.get("sop_compliance_score")
             if sop_compliance_score is not None:
                 sop_compliance_score = float(sop_compliance_score)
-            
+
             sentiment_score = analysis_data.get("sentiment_score")
             if sentiment_score is not None:
                 sentiment_score = float(sentiment_score)
-            
+
             summary = analysis_data.get("summary")
             key_points = analysis_data.get("key_points", [])
-            
+
             # Create CallAnalysis domain model
             call_analysis = CallAnalysis(
                 call_id=call_id,
@@ -243,24 +249,23 @@ class CallService:
                 key_points=key_points,
                 raw_analysis=analysis_data,  # Store raw data for reference
             )
-            
+
             # Upsert analysis
             analysis = await self.analysis_repo.upsert_by_call_id(call_id, call_analysis)
             logger.info("Call analysis processed", call_id=str(call_id), analysis_id=str(analysis.id))
-            
+
             # Process pending actions from analysis
             await self._process_pending_actions(call, analysis_data, analysis)
-            
+
             # Update dependent entities based on analysis
             await self._update_dependent_entities(call, analysis)
-            
+
             return analysis
-            
+
         except Exception as e:
             logger.error(f"Error processing analysis: {e}", call_id=str(call_id))
-            traceback.print_exc()
-            raise
-    
+            raise e
+
     async def _update_dependent_entities(
         self,
         call: Call,
@@ -268,7 +273,7 @@ class CallService:
     ) -> None:
         """
         Update dependent entities based on call analysis.
-        
+
         Updates:
         - Lead status based on qualification_status
         - Appointment status based on booking_status
@@ -290,7 +295,7 @@ class CallService:
                     qualification_status=analysis.qualification_status,
                     booking_status=analysis.booking_status,
                 )
-            
+
             # Update appointment if exists and booking_status indicates one
             if analysis.booking_status and analysis.booking_status.lower() in ["booked", "confirmed"]:
                 # TODO: Implement AppointmentRepository and create/update appointment
@@ -300,7 +305,7 @@ class CallService:
                     call_id=str(call.id),
                     booking_status=analysis.booking_status,
                 )
-            
+
             # Update contact card metadata with analysis insights
             if call.contact_card_id:
                 # TODO: Implement ContactCardRepository and update metadata
@@ -309,9 +314,9 @@ class CallService:
                     "Contact card update needed",
                     contact_card_id=str(call.contact_card_id),
                 )
-            
+
             logger.info("Dependent entities update completed", call_id=str(call.id))
-            
+
         except Exception as e:
             logger.error(
                 f"Error updating dependent entities: {e}",
@@ -319,7 +324,7 @@ class CallService:
             )
             traceback.print_exc()
             # Don't raise - this is non-critical
-    
+
     async def _process_pending_actions(
         self,
         call: Call,
@@ -328,7 +333,7 @@ class CallService:
     ) -> None:
         """
         Process pending actions from analysis data and insert into pending_actions table.
-        
+
         Args:
             call: The call record
             analysis_data: Raw analysis data from Shoonya
@@ -338,10 +343,10 @@ class CallService:
             # Extract pending_actions from analysis_data
             # Expected format: list of dicts with action_type, raw_text, due_at, priority, etc.
             pending_actions_data = analysis_data.get("pending_actions", [])
-            
+
             if not pending_actions_data:
                 return
-            
+
             for action_data in pending_actions_data:
                 try:
                     # Handle both dict and string formats
@@ -357,7 +362,7 @@ class CallService:
                         raw_text = action_data.get("raw_text") or action_data.get("action") or action_type
                         due_at_str = action_data.get("due_at")
                         priority = action_data.get("priority")
-                        
+
                         # Parse due_at if provided (should be UTC)
                         due_at = None
                         if due_at_str:
@@ -374,14 +379,14 @@ class CallService:
                                     except ValueError:
                                         logger.warning(f"Could not parse due_at: {due_at_str}")
                                         due_at = None
-                        
+
                         # Convert priority string to int if needed
                         if isinstance(priority, str):
                             priority_map = {"high": 3, "medium": 2, "low": 1}
                             priority = priority_map.get(priority.lower(), 2)
                         elif priority is None:
                             priority = 2  # Default to medium
-                    
+
                     # Create PendingAction domain model
                     pending_action = PendingAction(
                         company_id=call.company_id,
@@ -400,7 +405,7 @@ class CallService:
                             "analysis_data": action_data if isinstance(action_data, dict) else None,
                         },
                     )
-                    
+
                     # Insert into database
                     await self.pending_action_repo.create(pending_action)
                     logger.debug(
@@ -409,7 +414,7 @@ class CallService:
                         action_type=action_type,
                         due_at=due_at.isoformat() if due_at else None,
                     )
-                    
+
                 except Exception as e:
                     logger.error(
                         f"Error processing pending action: {e}",
@@ -419,13 +424,13 @@ class CallService:
                     traceback.print_exc()
                     # Continue processing other actions
                     continue
-            
+
             logger.info(
                 "Pending actions processed",
                 call_id=str(call.id),
                 count=len(pending_actions_data),
             )
-            
+
         except Exception as e:
             logger.error(
                 f"Error processing pending actions: {e}",

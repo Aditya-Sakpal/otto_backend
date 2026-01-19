@@ -7,6 +7,7 @@ JWT-based authentication endpoints:
 - POST /auth/refresh - Refresh access token
 - GET /auth/me - Get current user info
 """
+import traceback
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,6 +68,7 @@ async def signup(
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,  # Use .value for consistency
+            company_id=user.company_id,
         )
         refresh_token = create_refresh_token(user_id=user.id)
 
@@ -76,9 +78,15 @@ async def signup(
             token_type="bearer",
             user=UserResponse.model_validate(user),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in signup: {e}")
-        raise e
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sign up: {str(e)}",
+        )
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
@@ -115,6 +123,7 @@ async def login(
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,  # Use .value for consistency with refresh endpoint
+            company_id=user.company_id,
         )
         refresh_token = create_refresh_token(user_id=user.id)
 
@@ -128,7 +137,11 @@ async def login(
         raise
     except Exception as e:
         logger.error(f"Error in login: {e}")
-        raise e
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to login: {str(e)}",
+        )
 
 
 @router.post("/refresh", response_model=RefreshTokenResponse, status_code=status.HTTP_200_OK)
@@ -168,7 +181,8 @@ async def refresh_token(
         # Create new access token
         access_token = create_access_token(
             user_id=user.id,
-            role=user.role
+            role=user.role,
+            company_id=user.company_id,
         )
 
         return RefreshTokenResponse(
@@ -180,6 +194,7 @@ async def refresh_token(
         raise
     except Exception as e:
         logger.error(f"Error in refresh token: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token",
@@ -204,4 +219,8 @@ async def get_current_user_info(
         return UserResponse.model_validate(user)
     except Exception as e:
         logger.error(f"Error getting current user info: {e}")
-        raise e
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get current user info: {str(e)}",
+        )

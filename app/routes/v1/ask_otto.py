@@ -3,6 +3,7 @@ Ask Otto (Conversational AI) API routes.
 
 Handles conversational querying over calls, customers, and insights.
 """
+import traceback
 from typing import Optional, List
 from uuid import UUID
 
@@ -77,7 +78,8 @@ async def create_conversation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating conversation: {e}", exc_info=True)
+        logger.error(f"Error creating conversation: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create conversation: {str(e)}",
@@ -153,7 +155,8 @@ async def send_message(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error sending message: {e}", exc_info=True)
+        logger.error(f"Error sending message: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send message: {str(e)}",
@@ -218,7 +221,8 @@ async def get_messages(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting messages: {e}", exc_info=True)
+        logger.error(f"Error getting messages: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get messages: {str(e)}",
@@ -274,7 +278,8 @@ async def get_conversation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting conversation: {e}", exc_info=True)
+        logger.error(f"Error getting conversation: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get conversation: {str(e)}",
@@ -324,7 +329,8 @@ async def delete_conversation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting conversation: {e}", exc_info=True)
+        logger.error(f"Error deleting conversation: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete conversation: {str(e)}",

@@ -3,6 +3,7 @@ Call Processing API routes.
 
 Handles Shunya call processing: transcription, analysis, summarization.
 """
+import traceback
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -66,6 +67,7 @@ async def process_call(
     Processing happens asynchronously. Returns a job_id for tracking.
     """
     try:
+        logger.info(f"Processing call: {request}")
         shoonya = get_shoonya_client()
         if not shoonya.is_available():
             raise HTTPException(
@@ -112,7 +114,8 @@ async def process_call(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error processing call: {e}", exc_info=True)
+        logger.error(f"Error processing call: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process call: {str(e)}",
@@ -150,23 +153,36 @@ async def get_call_processing_status(
         job = job_result.scalar_one_or_none()
         
         if job:
-            job.status = result.get("status", job.status)
-            job.progress_percent = result.get("progress", {}).get("percent")
-            job.current_step = result.get("progress", {}).get("current_step")
-            job.steps_completed = result.get("progress", {}).get("steps_completed", [])
-            job.steps_remaining = result.get("progress", {}).get("steps_remaining", [])
-            job.steps_failed = result.get("progress", {}).get("steps_failed", [])
-            job.started_at = result.get("started_at")
-            job.completed_at = result.get("completed_at")
-            job.failed_at = result.get("failed_at")
-            job.duration_seconds = result.get("duration_seconds")
-            job.estimated_completion = result.get("estimated_completion")
-            job.summary_url = result.get("results", {}).get("summary_url")
-            job.chunks_url = result.get("results", {}).get("chunks_url")
-            job.transcript_url = result.get("results", {}).get("transcript_url")
-            job.job_metadata = result.get("metadata")
-            job.error = result.get("error")
-            job.retry_available = result.get("retry_available", False)
+            job.status = result.get("status", job.status) if result else job.status
+            progress = result.get("progress") if result else None
+            if progress:
+                job.progress_percent = progress.get("percent")
+                job.current_step = progress.get("current_step")
+                job.steps_completed = progress.get("steps_completed", [])
+                job.steps_remaining = progress.get("steps_remaining", [])
+                job.steps_failed = progress.get("steps_failed", [])
+            # Parse datetime strings to datetime objects
+            started_at_str = result.get("started_at") if result else None
+            job.started_at = date_parser.parse(started_at_str) if started_at_str and isinstance(started_at_str, str) else (started_at_str if started_at_str else None)
+            
+            completed_at_str = result.get("completed_at") if result else None
+            job.completed_at = date_parser.parse(completed_at_str) if completed_at_str and isinstance(completed_at_str, str) else (completed_at_str if completed_at_str else None)
+            
+            failed_at_str = result.get("failed_at") if result else None
+            job.failed_at = date_parser.parse(failed_at_str) if failed_at_str and isinstance(failed_at_str, str) else (failed_at_str if failed_at_str else None)
+            
+            job.duration_seconds = result.get("duration_seconds") if result else None
+            
+            estimated_completion_str = result.get("estimated_completion") if result else None
+            job.estimated_completion = date_parser.parse(estimated_completion_str) if estimated_completion_str and isinstance(estimated_completion_str, str) else (estimated_completion_str if estimated_completion_str else None)
+            results = result.get("results") if result else None
+            if results:
+                job.summary_url = results.get("summary_url")
+                job.chunks_url = results.get("chunks_url")
+                job.transcript_url = results.get("transcript_url")
+            job.job_metadata = result.get("metadata") if result else None
+            job.error = result.get("error") if result else None
+            job.retry_available = result.get("retry_available", False) if result else False
             
             await db.commit()
         
@@ -174,7 +190,8 @@ async def get_call_processing_status(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting call processing status: {e}", exc_info=True)
+        logger.error(f"Error getting call processing status: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get job status: {str(e)}",
@@ -211,7 +228,8 @@ async def get_call_summary(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting call summary: {e}", exc_info=True)
+        logger.error(f"Error getting call summary: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get call summary: {str(e)}",
@@ -244,7 +262,8 @@ async def get_call_chunks(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting call chunks: {e}", exc_info=True)
+        logger.error(f"Error getting call chunks: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get call chunks: {str(e)}",
@@ -301,7 +320,8 @@ async def retry_failed_job(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrying job: {e}", exc_info=True)
+        logger.error(f"Error retrying job: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retry job: {str(e)}",

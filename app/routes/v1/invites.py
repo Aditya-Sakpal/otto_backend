@@ -3,6 +3,7 @@ Invitations API routes.
 
 Provides endpoints for creating and accepting invitations.
 """
+import traceback
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.dependencies import DbSession
@@ -44,12 +45,14 @@ async def create_invitation(
         return InvitationResponse.model_validate(invitation)
     except ValueError as e:
         logger.warning(f"Validation error creating invitation: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except Exception as e:
         logger.error(f"Error creating invitation: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create invitation",
@@ -87,12 +90,14 @@ async def accept_invitation(
         )
     except ValueError as e:
         logger.warning(f"Validation error accepting invitation: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except Exception as e:
         logger.error(f"Error accepting invitation: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to accept invitation",

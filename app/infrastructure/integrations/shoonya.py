@@ -6,7 +6,7 @@ Abstraction for Shoonya AI/ML services.
 from typing import Optional, Dict, Any
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
-
+import traceback
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -25,16 +25,30 @@ class ShoonyaClient:
     
     def __init__(self):
         self.base_url = settings.UWC_BASE_URL
-        # Use API_KEY (new) or fall back to UWC_API_KEY (legacy)
-        self.api_key = settings.API_KEY or settings.UWC_API_KEY
+        # Use API_KEY (new) or fall back to UWC_API_KEY (legacy) or UWC_JWT_SECRET
+        self.api_key = settings.API_KEY or settings.UWC_API_KEY or settings.UWC_JWT_SECRET
         self.hmac_secret = settings.UWC_HMAC_SECRET
         self.jwt_secret = settings.UWC_JWT_SECRET
+        
+        # Ensure base_url doesn't have trailing slash and is correct
+        if self.base_url:
+            self.base_url = self.base_url.rstrip('/')
+            # Validate URL format
+            if not self.base_url.startswith('http'):
+                logger.error(f"Invalid UWC_BASE_URL format: {self.base_url}. Must start with http:// or https://")
+                self._enabled = False
+            elif 'otto.shunyalabs.ai' in self.base_url and 'ottoai' not in self.base_url:
+                # Fix common typo: otto.shunyalabs.ai -> ottoai.shunyalabs.ai
+                logger.warning(f"Detected incorrect base URL: {self.base_url}. Should be https://ottoai.shunyalabs.ai")
+                self.base_url = self.base_url.replace('otto.shunyalabs.ai', 'ottoai.shunyalabs.ai')
+                logger.info(f"Auto-corrected base URL to: {self.base_url}")
         
         if not self.base_url or not self.api_key:
             logger.warning("Shoonya not configured - features will be disabled")
             self._enabled = False
         else:
             self._enabled = True
+            logger.info(f"Shoonya client initialized with base URL: {self.base_url}")
     
     def _get_headers(self, company_id: Optional[str] = None) -> Dict[str, str]:
         """Get standard headers for Shunya API requests."""
@@ -200,31 +214,50 @@ class ShoonyaClient:
         Returns:
             Job response with job_id, status, etc.
         """
-        if not self.is_available():
-            raise RuntimeError("Shoonya not configured")
-        
-        payload = {
-            "call_id": call_id,
-            "company_id": company_id,
-            "audio_url": audio_url,
-            "phone_number": phone_number,
-            "duration": duration,
-            "call_date": call_date,
-            "metadata": metadata or {},
-            "options": options or {},
-        }
-        
-        if webhook_url:
-            payload["webhook_url"] = webhook_url
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{self.base_url}/api/v1/call-processing/process",
-                json=payload,
-                headers=self._get_headers(company_id),
+        try:
+            if not self.is_available():
+                raise RuntimeError("Shoonya not configured")
+            
+            payload = {
+                "call_id": call_id,
+                "company_id": company_id,
+                "audio_url": audio_url,
+                "phone_number": phone_number,
+                "duration": duration,
+                "call_date": call_date,
+                "metadata": metadata or {},
+                "options": options or {},
+            }
+            
+            if webhook_url:
+                payload["webhook_url"] = webhook_url
+            
+            url = f"{self.base_url}/api/v1/call-processing/process"
+            logger.info(f"Calling Shunya API: {url}")
+            logger.debug(f"Payload: {payload}")
+            logger.debug(f"Headers: {self._get_headers(company_id)}")
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:               
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url if 'url' in locals() else f"{self.base_url}/api/v1/call-processing/process",
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error processing call: {e}")
+            traceback.print_exc()
+            raise
+    
     
     @retry(
         stop=stop_after_attempt(3),
@@ -248,13 +281,29 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/api/v1/call-processing/status/{job_id}",
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/call-processing/status/{job_id}"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting call processing status: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -284,14 +333,30 @@ class ShoonyaClient:
         if include_chunks:
             params["include_chunks"] = "true"
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/api/v1/call-processing/summary/{call_id}",
-                params=params,
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/call-processing/summary/{call_id}"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    params=params,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting call summary: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -315,13 +380,29 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/api/v1/call-processing/chunks/{call_id}",
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/call-processing/chunks/{call_id}"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting call chunks: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -345,13 +426,29 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{self.base_url}/api/v1/call-processing/retry/{job_id}",
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/call-processing/retry/{job_id}"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    url,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error retrying call processing job: {e}")
+            traceback.print_exc()
+            raise
     
     # ============================================================================
     # Ask Otto (Conversational AI) APIs
@@ -385,14 +482,30 @@ class ShoonyaClient:
         if context:
             payload["context"] = context
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{self.base_url}/api/v1/ask-otto/conversations",
-                json=payload,
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/ask-otto/conversations"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error creating Ask Otto conversation: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -418,14 +531,30 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=60.0) as client:  # Longer timeout for AI responses
-            response = await client.post(
-                f"{self.base_url}/api/v1/ask-otto/conversations/{conversation_id}/messages",
-                json={"message": message},
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/ask-otto/conversations/{conversation_id}/messages"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:  # Longer timeout for AI responses
+                response = await client.post(
+                    url,
+                    json={"message": message},
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error sending Ask Otto message: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -449,13 +578,29 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/api/v1/ask-otto/conversations/{conversation_id}/messages",
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/ask-otto/conversations/{conversation_id}/messages"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting Ask Otto messages: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -479,13 +624,29 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/api/v1/ask-otto/conversations/{conversation_id}",
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/ask-otto/conversations/{conversation_id}"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting Ask Otto conversation: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -509,13 +670,29 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.delete(
-                f"{self.base_url}/api/v1/ask-otto/conversations/{conversation_id}",
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/ask-otto/conversations/{conversation_id}"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.delete(
+                    url,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json() if response.content else {}
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json() if response.content else {}
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error deleting Ask Otto conversation: {e}")
+            traceback.print_exc()
+            raise
     
     # ============================================================================
     # Insights APIs
@@ -564,14 +741,30 @@ class ShoonyaClient:
         if webhook_url:
             payload["webhook_url"] = webhook_url
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{self.base_url}/api/v1/insights/generate",
-                json=payload,
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/insights/generate"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error generating insights: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -595,13 +788,29 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/api/v1/insights/status/{job_id}",
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/insights/status/{job_id}"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting insight job status: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -623,13 +832,29 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/api/v1/insights/company/{company_id}/current",
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/insights/company/{company_id}/current"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting company insight: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -673,14 +898,30 @@ class ShoonyaClient:
         if priority:
             params["priority"] = priority
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/api/v1/insights/customers",
-                params=params,
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/insights/customers"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    params=params,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting customer insights: {e}")
+            traceback.print_exc()
+            raise
     
     @retry(
         stop=stop_after_attempt(3),
@@ -702,13 +943,29 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/api/v1/insights/objections/{company_id}",
-                headers=self._get_headers(company_id),
+        url = f"{self.base_url}/api/v1/insights/objections/{company_id}"
+        logger.info(f"Calling Shunya API: {url}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
             )
-            response.raise_for_status()
-            return response.json()
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting objection insights: {e}")
+            traceback.print_exc()
+            raise
 
 
 # Global client instance

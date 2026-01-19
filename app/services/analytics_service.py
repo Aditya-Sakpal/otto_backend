@@ -3,10 +3,11 @@ Analytics service.
 
 Provides analytics calculations for objections and calls.
 """
+import traceback
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -88,7 +89,8 @@ class AnalyticsService:
             return result
             
         except Exception as e:
-            logger.error(f"Error getting top objections: {e}", exc_info=True)
+            logger.error(f"Error getting top objections: {e}")
+            traceback.print_exc()
             raise
     
     async def get_objection_calls(
@@ -109,6 +111,30 @@ class AnalyticsService:
         """
         try:
             # Build query with join for better performance
+            # Normalize objection to lowercase for case-insensitive matching
+            objection_normalized = objection.lower().strip()
+            
+            # Map common variations to standard values
+            # This handles data inconsistencies like 'price' vs 'pricing'
+            objection_mappings = {
+                'price': ['price', 'pricing', 'cost', 'costs'],
+                'timing': ['timing', 'time', 'schedule', 'scheduling'],
+                'authority': ['authority', 'decision', 'decision-maker'],
+                'need': ['need', 'needs', 'requirement', 'requirements'],
+                'competitor': ['competitor', 'competitors', 'competition'],
+                'other': ['other', 'others', 'misc', 'miscellaneous'],
+            }
+            
+            # Get all possible variations for this objection
+            objection_variations = objection_mappings.get(objection_normalized, [objection_normalized])
+            # Also include the original value in case it's not in the mapping
+            if objection_normalized not in objection_variations:
+                objection_variations.insert(0, objection_normalized)
+            
+            # Use PostgreSQL array overlap operator (&&) to check if any variation matches
+            # Convert variations to lowercase array for case-insensitive comparison
+            variations_array = [v.lower() for v in objection_variations]
+            
             query = select(
                 CallAnalysisORM,
                 CallORM,
@@ -119,7 +145,13 @@ class AnalyticsService:
                 ContactCardORM, CallORM.contact_card_id == ContactCardORM.id
             ).where(
                 CallAnalysisORM.company_id == company_id,
-                CallAnalysisORM.objections.contains([objection])
+                CallAnalysisORM.objections.isnot(None),
+                func.array_length(CallAnalysisORM.objections, 1) > 0,
+                # Check if any variation matches any element in the array (case-insensitive)
+                # Using array overlap with LOWER() for case-insensitive matching
+                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
+                    bindparam('variations', variations_array)
+                )
             )
             
             # Add owner_id filter if provided
@@ -163,5 +195,6 @@ class AnalyticsService:
             return result
             
         except Exception as e:
-            logger.error(f"Error getting objection calls: {e}", exc_info=True)
+            logger.error(f"Error getting objection calls: {e}")
+            traceback.print_exc()
             raise

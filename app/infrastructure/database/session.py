@@ -3,6 +3,7 @@ Database session management.
 
 Provides async database sessions using SQLAlchemy 2.x.
 """
+import traceback
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -87,7 +88,9 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except Exception:
+        except Exception as e:
+            logger.error(f"Database session error: {e}")
+            traceback.print_exc()
             await session.rollback()
             raise
         finally:

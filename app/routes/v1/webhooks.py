@@ -10,6 +10,7 @@ Note: These endpoints are public (no JWT required) as they are called by externa
 For production, implement webhook signature verification to ensure requests are authentic.
 """
 import json
+import traceback
 from typing import Any, Dict, Optional, Set
 from uuid import UUID
 from fastapi import APIRouter, Header, Request, HTTPException, status
@@ -69,6 +70,7 @@ async def call_complete_webhook(
 
     except Exception as e:
         logger.error(f"Error processing call webhook: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -207,7 +209,8 @@ async def shoonya_job_complete_webhook(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error processing Shoonya webhook: {e}", exc_info=True)
+        logger.error(f"Error processing Shoonya webhook: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),

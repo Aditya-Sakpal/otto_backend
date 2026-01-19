@@ -94,6 +94,7 @@ def get_password_hash(password: str) -> str:
 def create_access_token(
     user_id: UUID,
     role: Union[str, Enum],
+    company_id: Optional[UUID] = None,
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     """
@@ -102,6 +103,7 @@ def create_access_token(
     Args:
         user_id: User UUID
         role: User role (EXECUTIVE, CSR, SALES_REP)
+        company_id: Optional company UUID
         expires_delta: Optional custom expiration time
 
     Returns:
@@ -124,6 +126,10 @@ def create_access_token(
         "exp": expire,
         "iat": datetime.utcnow(),
     }
+    
+    # Add company_id to payload if provided
+    if company_id:
+        payload["company_id"] = str(company_id)
 
     encoded_jwt = jwt.encode(
         payload,
@@ -270,4 +276,30 @@ def get_role_from_token(token: str) -> str:
         )
 
     return role
+
+
+def get_company_id_from_token(token: str) -> Optional[UUID]:
+    """
+    Extract company_id from an access token.
+
+    Args:
+        token: JWT access token
+
+    Returns:
+        Company UUID or None if not present
+
+    Raises:
+        HTTPException: If token is invalid
+    """
+    payload = decode_token(token, token_type="access")
+    company_id_str = payload.get("company_id")
+
+    if not company_id_str:
+        return None
+
+    try:
+        return UUID(company_id_str)
+    except ValueError:
+        logger.warning(f"Invalid company_id in token: {company_id_str}")
+        return None
 

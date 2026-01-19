@@ -13,11 +13,13 @@ from app.domain.models.base import BaseModel
 class Company(BaseModel):
     """
     Company (tenant) model.
-    
+
     Each company is a separate tenant with isolated data.
     """
     name: str = Field(..., description="Company name")
     phone_number: Optional[str] = Field(None, description="Company phone number")
     address: Optional[str] = Field(None, description="Company address")
+    reference_doc_url: Optional[str] = Field(None, description="S3 URL for reference document")
+    sop_doc_url: Optional[str] = Field(None, description="S3 URL for SOP document")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
 

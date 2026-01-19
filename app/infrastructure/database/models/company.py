@@ -17,6 +17,8 @@ class CompanyORM(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     phone_number: Mapped[str | None] = mapped_column(String, nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reference_doc_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sop_doc_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
@@ -24,4 +26,4 @@ class CompanyORM(Base):
     calls = relationship("CallORM", back_populates="company")
     leads = relationship("LeadORM", back_populates="company")
     invitations = relationship("InvitationORM", back_populates="company")
-
+    integrations = relationship("CompanyIntegrationORM", back_populates="company")

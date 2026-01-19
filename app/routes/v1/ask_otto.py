@@ -3,11 +3,14 @@ Ask Otto (Conversational AI) API routes.
 
 Handles conversational querying over calls, customers, and insights.
 """
+import asyncio
+import json
 import traceback
-from typing import Optional, List
+from typing import AsyncGenerator, Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.core.dependencies import DbSession
@@ -53,13 +56,13 @@ async def create_conversation(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Shunya service not available",
             )
-        
+
         # Create conversation in Shunya
         result = await shoonya.create_ask_otto_conversation(
             company_id=request.company_id,
             context=request.context,
         )
-        
+
         # Store in database
         conversation = AskOttoConversationORM(
             company_id=UUID(request.company_id),
@@ -70,7 +73,7 @@ async def create_conversation(
         db.add(conversation)
         await db.commit()
         await db.refresh(conversation)
-        
+
         return {
             **result,
             "id": str(conversation.id),
@@ -85,7 +88,6 @@ async def create_conversation(
             detail=f"Failed to create conversation: {str(e)}",
         )
 
-
 @router.post("/conversations/{conversation_id}/messages")
 async def send_message(
     conversation_id: UUID,
@@ -96,9 +98,22 @@ async def send_message(
 ):
     """
     Send a message in an Ask Otto conversation.
-    
+
     Returns assistant response.
     """
+    async def _stream_response_generator(text: str) -> AsyncGenerator[str, None]:
+        """
+        Generate streaming response chunks for typing effect.
+
+        Streams text character by character with small delays for typing effect.
+        Uses Server-Sent Events (SSE) format.
+        """
+        for char in text:
+            yield f"data: {json.dumps({'chunk': char})}\n\n"
+            await asyncio.sleep(0.02)
+
+        yield f"data: {json.dumps({'done': True})}\n\n"
+
     try:
         shoonya = get_shoonya_client()
         if not shoonya.is_available():
@@ -106,30 +121,33 @@ async def send_message(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Shunya service not available",
             )
-        
+
         # Get conversation from database
         conv_query = select(AskOttoConversationORM).where(
             AskOttoConversationORM.id == conversation_id
         )
         conv_result = await db.execute(conv_query)
         conversation = conv_result.scalar_one_or_none()
-        
+
         if not conversation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found",
             )
-        
+
         # Use Shunya conversation ID if available, otherwise use our UUID
         shunya_conv_id = conversation.shunya_conversation_id or str(conversation_id)
-        
+
         # Send message to Shunya
         result = await shoonya.send_ask_otto_message(
             conversation_id=shunya_conv_id,
             message=request.message,
             company_id=str(conversation.company_id),
         )
-        
+
+        # Extract assistant response text from Shunya result dict
+        response_text = result.get("response") or result.get("message") or ""
+
         # Store user message
         user_message = AskOttoMessageORM(
             conversation_id=conversation_id,
@@ -138,20 +156,30 @@ async def send_message(
             shunya_message_id=result.get("message_id"),
         )
         db.add(user_message)
-        
+
         # Store assistant response
         assistant_message = AskOttoMessageORM(
             conversation_id=conversation_id,
             role="assistant",
-            content=result.get("response", result.get("message", "")),
+            content=response_text,
             shunya_message_id=result.get("response_id"),
             message_metadata=result,
         )
         db.add(assistant_message)
-        
+
         await db.commit()
-        
-        return result
+
+        # Return streaming response with SSE format, streaming only the assistant text
+        return StreamingResponse(
+            _stream_response_generator(response_text),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",  # Disable buffering for nginx
+            },
+        )
+
     except HTTPException:
         raise
     except Exception as e:
@@ -180,13 +208,13 @@ async def get_messages(
         )
         conv_result = await db.execute(conv_query)
         conversation = conv_result.scalar_one_or_none()
-        
+
         if not conversation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found",
             )
-        
+
         # Try to get from Shunya first (for latest data)
         shoonya = get_shoonya_client()
         if shoonya.is_available() and conversation.shunya_conversation_id:
@@ -198,14 +226,14 @@ async def get_messages(
                 return result
             except Exception as e:
                 logger.warning(f"Failed to get messages from Shunya, using local: {e}")
-        
+
         # Fallback to local database
         messages_query = select(AskOttoMessageORM).where(
             AskOttoMessageORM.conversation_id == conversation_id
         ).order_by(AskOttoMessageORM.created_at)
         messages_result = await db.execute(messages_query)
         messages = messages_result.scalars().all()
-        
+
         return {
             "conversation_id": str(conversation_id),
             "messages": [
@@ -246,13 +274,13 @@ async def get_conversation(
         )
         conv_result = await db.execute(conv_query)
         conversation = conv_result.scalar_one_or_none()
-        
+
         if not conversation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found",
             )
-        
+
         # Try to get from Shunya if available
         shoonya = get_shoonya_client()
         if shoonya.is_available() and conversation.shunya_conversation_id:
@@ -264,7 +292,7 @@ async def get_conversation(
                 return result
             except Exception as e:
                 logger.warning(f"Failed to get conversation from Shunya, using local: {e}")
-        
+
         # Return local data
         return {
             "id": str(conversation.id),
@@ -303,13 +331,13 @@ async def delete_conversation(
         )
         conv_result = await db.execute(conv_query)
         conversation = conv_result.scalar_one_or_none()
-        
+
         if not conversation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found",
             )
-        
+
         # Delete from Shunya if available
         shoonya = get_shoonya_client()
         if shoonya.is_available() and conversation.shunya_conversation_id:
@@ -320,11 +348,11 @@ async def delete_conversation(
                 )
             except Exception as e:
                 logger.warning(f"Failed to delete conversation from Shunya: {e}")
-        
+
         # Delete from local database (cascade will delete messages)
         db.delete(conversation)  # delete() is synchronous in SQLAlchemy
         await db.commit()
-        
+
         return {"message": "Conversation deleted successfully"}
     except HTTPException:
         raise

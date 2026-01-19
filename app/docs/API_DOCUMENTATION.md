@@ -1,19 +1,45 @@
 # Otto AI Backend API Documentation
 
-**Base URL:** `http://localhost:8002/api/v1`
+**Base URL:** `http://localhost:8000/api/v1` (or `http://localhost:8001/api/v1`)
 
-**Version:** 1.0
+**Version:** 2.0.0
+
+---
+
+## Test Data
+
+This documentation uses real UUIDs from the seed data (`backend/seed_dummy_data.sql`). Key test IDs:
+
+- **Company:** `11111111-1111-1111-1111-111111111111` (Acme Corporation)
+- **Users:**
+  - Executive: `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa` (exec@acme.com)
+  - Sales Rep: `cccccccc-cccc-cccc-cccc-cccccccccccc` (sales1@acme.com)
+  - CSR: `ffffffff-ffff-ffff-ffff-ffffffffffff` (csr1@acme.com)
+- **Contact Card:** `10000000-0000-0000-0000-000000000001` (Alice Johnson)
+- **Lead:** `20000000-0000-0000-0000-000000000001` (Qualified Booked)
+- **Call:** `30000000-0000-0000-0000-000000000001` (Sales call with transcript)
+- **Call Processing Job:** `80000000-0000-0000-0000-000000000003` (Completed)
+- **Ask Otto Conversation:** `90000000-0000-0000-0000-000000000001`
+- **Insight Job:** `b0000000-0000-0000-0000-000000000003` (Completed)
+
+To use this data, run `backend/seed_dummy_data.sql` against your database.
 
 ---
 
 ## Table of Contents
 
 1. [Authentication](#authentication)
-2. [Calls](#calls)
-3. [Leads](#leads)
-4. [Metrics](#metrics)
-5. [RAG / Ask Otto](#rag--ask-otto)
-6. [Webhooks](#webhooks)
+2. [Users](#users)
+3. [Calls](#calls)
+4. [Leads](#leads)
+5. [Metrics](#metrics)
+6. [Analytics](#analytics)
+7. [Call Processing (Shunya)](#call-processing-shunya)
+8. [Ask Otto (Shunya)](#ask-otto-shunya)
+9. [Insights (Shunya)](#insights-shunya)
+10. [RAG / Ask Otto](#rag--ask-otto)
+11. [Webhooks](#webhooks)
+12. [Invites](#invites)
 
 ---
 
@@ -32,14 +58,16 @@ Register a new user account.
 **Request Body:**
 ```json
 {
-  "email": "user@example.com",
-  "password": "securepassword123",
-  "first_name": "John",
-  "last_name": "Doe",
+  "email": "test.user@example.com",
+  "password": "SecurePassword123!",
+  "first_name": "Test",
+  "last_name": "User",
   "role": "sales_rep",
-  "company_id": "123e4567-e89b-12d3-a456-426614174000"
+  "company_id": "11111111-1111-1111-1111-111111111111"
 }
 ```
+
+**Note:** Use real company ID from seed data: `11111111-1111-1111-1111-111111111111` (Acme Corporation)
 
 **Response:** `201 Created`
 ```json
@@ -48,13 +76,13 @@ Register a new user account.
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "token_type": "bearer",
   "user": {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "email": "user@example.com",
+    "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "email": "test.user@example.com",
     "role": "sales_rep",
     "is_active": true,
-    "first_name": "John",
-    "last_name": "Doe",
-    "company_id": "123e4567-e89b-12d3-a456-426614174000",
+    "first_name": "Test",
+    "last_name": "User",
+    "company_id": "11111111-1111-1111-1111-111111111111",
     "created_at": "2026-01-08T10:00:00Z"
   }
 }
@@ -71,10 +99,15 @@ Login with email and password.
 **Request Body:**
 ```json
 {
-  "email": "user@example.com",
-  "password": "securepassword123"
+  "email": "sales1@acme.com",
+  "password": "SecurePassword123!"
 }
 ```
+
+**Note:** Use real user emails from seed data:
+- Executive: `exec@acme.com`
+- Sales Rep: `sales1@acme.com`, `sales2@acme.com`
+- CSR: `csr1@acme.com`, `csr2@acme.com`
 
 **Response:** `200 OK`
 ```json
@@ -125,16 +158,174 @@ Authorization: Bearer <access_token>
 **Response:** `200 OK`
 ```json
 {
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "email": "user@example.com",
+  "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "email": "sales1@acme.com",
   "role": "sales_rep",
   "is_active": true,
-  "first_name": "John",
-  "last_name": "Doe",
-  "company_id": "123e4567-e89b-12d3-a456-426614174000",
+  "first_name": "Mike",
+  "last_name": "Salesman",
+  "company_id": "11111111-1111-1111-1111-111111111111",
   "created_at": "2026-01-08T10:00:00Z"
 }
 ```
+
+---
+
+## Users
+
+### GET `/users`
+
+List users with optional filters.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `skip` (int, default: 0) - Number of records to skip
+- `limit` (int, default: 100) - Maximum number of records to return
+- `role` (string, optional) - Filter by role (`csr`, `sales_rep`, `executive`)
+- `is_active` (boolean, optional) - Filter by active status
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "email": "exec@acme.com",
+    "role": "executive",
+    "is_active": true,
+    "first_name": "John",
+    "last_name": "Executive",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "created_at": "2025-01-08T10:00:00Z"
+  }
+]
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/users/{user_id}`
+
+Get user by ID.
+
+**Path Parameters:**
+- `user_id` (UUID, required) - User UUID
+
+**Response:** `200 OK`
+```json
+{
+  "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "email": "sales1@acme.com",
+  "role": "sales_rep",
+  "is_active": true,
+  "first_name": "Mike",
+  "last_name": "Salesman",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "created_at": "2025-05-08T10:00:00Z"
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/users/me`
+
+Get current user's profile.
+
+**Response:** `200 OK`
+```json
+{
+  "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "email": "sales1@acme.com",
+  "role": "sales_rep",
+  "is_active": true,
+  "first_name": "Mike",
+  "last_name": "Salesman",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "created_at": "2025-05-08T10:00:00Z"
+}
+```
+
+**Required Role:** Any authenticated user
+
+---
+
+### GET `/users/companies`
+
+List all companies.
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "name": "Acme Corporation",
+    "phone_number": "+1-555-0100",
+    "address": "123 Business St, New York, NY 10001"
+  }
+]
+```
+
+**Required Role:** Any authenticated user
+
+---
+
+### POST `/users`
+
+Create a new user (EXECUTIVE only).
+
+**Request Body:**
+```json
+{
+  "email": "new.user@example.com",
+  "password": "SecurePassword123!",
+  "first_name": "New",
+  "last_name": "User",
+  "role": "csr",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "is_active": true
+}
+```
+
+**Response:** `201 Created`
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### PUT `/users/{user_id}`
+
+Update user by ID (EXECUTIVE only).
+
+**Request Body:**
+```json
+{
+  "first_name": "Updated",
+  "last_name": "Name",
+  "role": "executive",
+  "is_active": true
+}
+```
+
+**Response:** `200 OK`
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### DELETE `/users/{user_id}`
+
+Delete user by ID (EXECUTIVE only).
+
+**Response:** `204 No Content`
+
+**Required Role:** `EXECUTIVE`
 
 ---
 
@@ -154,26 +345,36 @@ List calls for a specific company.
 Authorization: Bearer <access_token>
 ```
 
+**Example Request:**
+```
+GET /api/v1/calls?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100
+```
+
 **Response:** `200 OK`
 ```json
 [
   {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "company_id": "123e4567-e89b-12d3-a456-426614174000",
-    "contact_card_id": "123e4567-e89b-12d3-a456-426614174001",
-    "lead_id": "123e4567-e89b-12d3-a456-426614174002",
-    "phone_number": "+1234567890",
-    "call_type": "csr_call",
+    "id": "30000000-0000-0000-0000-000000000001",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "contact_card_id": "10000000-0000-0000-0000-000000000001",
+    "lead_id": "20000000-0000-0000-0000-000000000001",
+    "phone_number": "+1-555-1001",
+    "call_type": "sales_call",
     "missed_call": false,
-    "transcript": "Call transcript...",
-    "audio_url": "https://...",
-    "duration_seconds": 120,
-    "owner_id": "123e4567-e89b-12d3-a456-426614174003",
-    "created_at": "2026-01-08T10:00:00Z",
-    "updated_at": "2026-01-08T10:02:00Z"
+    "transcript": "Hello, I am interested in your services. What are your pricing options?",
+    "audio_url": "https://storage.example.com/audio/call1.mp3",
+    "duration_seconds": 180,
+    "owner_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "created_at": "2025-10-20T10:00:00Z",
+    "updated_at": "2025-10-20T10:00:00Z"
   }
 ]
 ```
+
+**Note:** Real call IDs from seed data:
+- `30000000-0000-0000-0000-000000000001` - Sales call with transcript
+- `30000000-0000-0000-0000-000000000006` - CSR call
+- `30000000-0000-0000-0000-000000000008` - Missed call
 
 **Required Role:** `CSR` or `EXECUTIVE`
 
@@ -191,16 +392,95 @@ Get call by ID.
 Authorization: Bearer <access_token>
 ```
 
+**Example Request:**
+```
+GET /api/v1/calls/30000000-0000-0000-0000-000000000001
+```
+
 **Response:** `200 OK`
 ```json
 {
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "company_id": "123e4567-e89b-12d3-a456-426614174000",
-  ...
+  "id": "30000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "contact_card_id": "10000000-0000-0000-0000-000000000001",
+  "lead_id": "20000000-0000-0000-0000-000000000001",
+  "phone_number": "+1-555-1001",
+  "call_type": "sales_call",
+  "missed_call": false,
+  "transcript": "Hello, I am interested in your services. What are your pricing options?",
+  "audio_url": "https://storage.example.com/audio/call1.mp3",
+  "duration_seconds": 180,
+  "owner_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "created_at": "2025-10-20T10:00:00Z",
+  "updated_at": "2025-10-20T10:00:00Z"
 }
 ```
 
 **Error:** `404 Not Found` - Call not found
+
+**Required Role:** `CSR` or `EXECUTIVE`
+
+---
+
+### GET `/calls/by-objection/self`
+
+Get comprehensive objection details data for the objection details page.
+
+**Query Parameters:**
+- `objection` (string, required) - Objection type (e.g., `authority`, `price`, `timing`, `competitor`, `need`)
+- `company_id` (UUID, optional) - Company UUID (defaults to user's company if not provided)
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/calls/by-objection/self?objection=authority&company_id=11111111-1111-1111-1111-111111111111
+```
+
+**Response:** `200 OK`
+```json
+{
+  "objection": "authority",
+  "calls": [
+    {
+      "id": "30000000-0000-0000-0000-000000000004",
+      "contact_name": "David Brown",
+      "call_recording_url": "https://storage.example.com/audio/call4.mp3",
+      "phone_number": "+1-555-4001",
+      "call_type": "sales_call",
+      "duration_seconds": 120,
+      "created_at": "2025-12-20T10:00:00Z",
+      "transcript": "I need to check with my manager before making a decision.",
+      "summary": "Customer needs manager approval. Decision maker not on call."
+    }
+  ],
+  "unbooked_leads": [
+    {
+      "id": "20000000-0000-0000-0000-000000000004",
+      "contact_name": "David Brown",
+      "status": "new",
+      "deal_status": "new",
+      "created_at": "2025-12-20T10:00:00Z"
+    }
+  ],
+  "most_coaching_need": [
+    {
+      "csr_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      "csr_name": "Lisa Support",
+      "unbooked_calls": 2
+    }
+  ]
+}
+```
+
+**Note:** 
+- Returns data for three tabs: Calls, Unbooked Leads, and Most Coaching Need
+- Objection matching is case-insensitive and handles variations (e.g., `price` matches `pricing`, `cost`, `costs`)
+- For CSR role, results are filtered to the current user's calls only
+- For EXECUTIVE role, results show company-wide data
 
 **Required Role:** `CSR` or `EXECUTIVE`
 
@@ -225,30 +505,40 @@ List leads for a company with optional filters.
 Authorization: Bearer <access_token>
 ```
 
+**Example Request:**
+```
+GET /api/v1/leads?company_id=11111111-1111-1111-1111-111111111111&status=qualified_unbooked
+```
+
 **Response:** `200 OK`
 ```json
 [
   {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "company_id": "123e4567-e89b-12d3-a456-426614174000",
-    "contact_card_id": "123e4567-e89b-12d3-a456-426614174001",
+    "id": "20000000-0000-0000-0000-000000000002",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "contact_card_id": "10000000-0000-0000-0000-000000000002",
     "status": "qualified_unbooked",
-    "deal_status": "booked",
-    "assigned_rep_id": "123e4567-e89b-12d3-a456-426614174002",
-    "deal_size": 5000.00,
+    "deal_status": "qualified",
+    "assigned_rep_id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+    "deal_size": 7500.00,
     "closed_at": null,
-    "created_at": "2026-01-08T10:00:00Z",
-    "updated_at": "2026-01-08T10:00:00Z"
+    "created_at": "2025-11-20T10:00:00Z",
+    "updated_at": "2025-11-25T10:00:00Z"
   }
 ]
 ```
 
 **Examples:**
-- Get qualified unbooked leads: `/leads?company_id=...&status=qualified_unbooked`
-- Get qualified booked leads: `/leads?company_id=...&status=qualified_booked`
-- Get closed/lost/abandoned leads: `/leads?company_id=...&status=closed_lost,abandoned,dormant`
-- Get nurturing leads: `/leads?company_id=...&nurturing=new,warm,hot`
-- Sort by priority: `/leads?company_id=...&sort=priority`
+- Get qualified unbooked leads: `/leads?company_id=11111111-1111-1111-1111-111111111111&status=qualified_unbooked`
+- Get qualified booked leads: `/leads?company_id=11111111-1111-1111-1111-111111111111&status=qualified_booked`
+- Get closed/lost/abandoned leads: `/leads?company_id=11111111-1111-1111-1111-111111111111&status=closed_lost,abandoned,dormant`
+- Get nurturing leads: `/leads?company_id=11111111-1111-1111-1111-111111111111&nurturing=new,warm,hot`
+- Sort by priority: `/leads?company_id=11111111-1111-1111-1111-111111111111&sort=priority`
+
+**Note:** Real lead IDs from seed data:
+- `20000000-0000-0000-0000-000000000001` - Qualified booked
+- `20000000-0000-0000-0000-000000000002` - Qualified unbooked
+- `20000000-0000-0000-0000-000000000007` - Hot lead
 
 **Required Role:** `EXECUTIVE` or `CSR`
 
@@ -266,18 +556,184 @@ Get lead by ID.
 Authorization: Bearer <access_token>
 ```
 
+**Example Request:**
+```
+GET /api/v1/leads/20000000-0000-0000-0000-000000000001
+```
+
 **Response:** `200 OK`
 ```json
 {
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "company_id": "123e4567-e89b-12d3-a456-426614174000",
-  ...
+  "id": "20000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "contact_card_id": "10000000-0000-0000-0000-000000000001",
+  "status": "qualified_booked",
+  "deal_status": "qualified",
+  "assigned_rep_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "deal_size": 5000.00,
+  "closed_at": null,
+  "created_at": "2025-10-20T10:00:00Z",
+  "updated_at": "2025-10-25T10:00:00Z"
 }
 ```
 
 **Error:** `404 Not Found` - Lead not found
 
 **Required Role:** `EXECUTIVE` or `CSR`
+
+---
+
+### GET `/leads/{lead_id}/details`
+
+Get detailed lead information for lead details page.
+
+**Path Parameters:**
+- `lead_id` (UUID, required) - Lead UUID
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/leads/20000000-0000-0000-0000-000000000001/details
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": "20000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "status": "qualified_booked",
+  "deal_status": "qualified",
+  "deal_size": 5000.00,
+  "created_at": "2025-10-20T10:00:00Z",
+  "updated_at": "2025-10-25T10:00:00Z",
+  "contact": {
+    "id": "10000000-0000-0000-0000-000000000001",
+    "first_name": "Alice",
+    "last_name": "Johnson",
+    "primary_phone": "+1-555-1001",
+    "email": "customer1@example.com"
+  },
+  "agent": {
+    "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "first_name": "Mike",
+    "last_name": "Salesman",
+    "email": "sales1@acme.com"
+  },
+  "overall_engagement": {
+    "summary": "Customer inquired about pricing and expressed concerns about cost. Qualified lead but not ready to book.",
+    "key_points": [
+      "Price concern",
+      "Qualified lead",
+      "Needs follow-up"
+    ],
+    "action_items": [
+      "Follow up on pricing concerns"
+    ],
+    "appointment_status": "Qualified and booked"
+  },
+  "conversations": [
+    {
+      "id": "30000000-0000-0000-0000-000000000001",
+      "call_type": "sales_call",
+      "phone_number": "+1-555-1001",
+      "duration_seconds": 180,
+      "missed_call": false,
+      "transcript": "Hello, I am interested in your services...",
+      "call_recording_url": "https://storage.example.com/audio/call1.mp3",
+      "handled_by_user_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      "created_at": "2025-10-20T10:00:00Z",
+      "summary": "Customer inquired about pricing...",
+      "key_points": ["Price concern", "Qualified lead"],
+      "objections": ["price", "pricing"],
+      "sentiment_score": 0.65,
+      "sop_compliance_score": 75.5,
+      "qualification_status": "qualified",
+      "booking_status": "not_booked"
+    }
+  ]
+}
+```
+
+**Error:** `404 Not Found` - Lead not found
+
+**Required Role:** `EXECUTIVE` or `CSR`
+
+---
+
+### POST `/leads/{lead_id}/assign`
+
+Assign a lead to a sales rep.
+
+**Path Parameters:**
+- `lead_id` (UUID, required) - Lead UUID
+
+**Request Body:**
+```json
+{
+  "sales_rep_id": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+}
+```
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+POST /api/v1/leads/20000000-0000-0000-0000-000000000004/assign
+Content-Type: application/json
+
+{
+  "sales_rep_id": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "lead": {
+    "id": "20000000-0000-0000-0000-000000000004",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "contact_card_id": "10000000-0000-0000-0000-000000000004",
+    "status": "new",
+    "deal_status": "new",
+    "assigned_rep_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "deal_size": null,
+    "closed_at": null,
+    "extra_metadata": {
+      "last_assignment": {
+        "assigned_by": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+        "assigned_at": "2026-01-15T10:30:00Z",
+        "previous_rep_id": null
+      },
+      "assignment_history": [
+        {
+          "assigned_by": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+          "assigned_at": "2026-01-15T10:30:00Z",
+          "previous_rep_id": null
+        }
+      ]
+    },
+    "created_at": "2025-12-20T10:00:00Z",
+    "updated_at": "2026-01-15T10:30:00Z"
+  },
+  "assigned_by": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "assigned_at": "2026-01-15T10:30:00Z"
+}
+```
+
+**Errors:**
+- `400 Bad Request` - Sales rep not found, wrong company, or validation error
+- `404 Not Found` - Lead not found
+
+**Required Role:** `EXECUTIVE` or `CSR`
+
+**Note:** The assignment is tracked in the lead's `extra_metadata` with full history of who assigned it and when.
 
 ---
 
@@ -294,6 +750,11 @@ Get company overview metrics within date range.
 - `start_date` (date, optional) - Start date (YYYY-MM-DD, defaults to 30 days ago)
 - `end_date` (date, optional) - End date (YYYY-MM-DD, defaults to today)
 
+**Example Request:**
+```
+GET /api/v1/metrics/exec/company-overview?company_id=11111111-1111-1111-1111-111111111111
+```
+
 **Headers:**
 ```
 Authorization: Bearer <access_token>
@@ -302,17 +763,20 @@ Authorization: Bearer <access_token>
 **Response:** `200 OK`
 ```json
 {
-  "total_leads": 150,
-  "active_leads": 120,
-  "total_calls": 500,
-  "missed_calls": 25,
-  "total_appointments": 80,
-  "conversion_rate": 15.5,
-  "total_revenue": 75000.00,
-  "start_date": "2025-12-01T00:00:00",
-  "end_date": "2026-01-08T23:59:59"
+  "total_leads": 5,
+  "active_leads": 3,
+  "qualified_leads": 0,
+  "total_calls": 6,
+  "missed_calls": 0,
+  "total_appointments": 3,
+  "conversion_rate": 0.0,
+  "total_revenue": 0.0,
+  "start_date": "2025-12-16T00:00:00",
+  "end_date": "2026-01-15T23:59:59"
 }
 ```
+
+**Note:** Response values reflect actual data from seed_dummy_data.sql
 
 **Required Role:** `EXECUTIVE`
 
@@ -790,6 +1254,485 @@ Get pending actions metrics within date range.
 
 ---
 
+## Analytics
+
+### GET `/analytics/top-objections`
+
+Get top objections aggregated by company.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Example Request:**
+```
+GET /api/v1/analytics/top-objections?company_id=11111111-1111-1111-1111-111111111111
+```
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "objection_type": "pricing",
+    "count": 3,
+    "affected_leads_count": 2
+  },
+  {
+    "objection_type": "price",
+    "count": 2,
+    "affected_leads_count": 2
+  }
+]
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### GET `/analytics/objection-calls`
+
+Get calls filtered by objection type and optionally by CSR owner.
+
+**Query Parameters:**
+- `objection` (string, required) - Objection type (e.g., `price`, `timing`, `authority`)
+- `company_id` (UUID, required) - Company UUID
+- `owner_id` (UUID, optional) - Filter by CSR/owner UUID
+
+**Example Request:**
+```
+GET /api/v1/analytics/objection-calls?objection=price&company_id=11111111-1111-1111-1111-111111111111
+```
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "call_id": "30000000-0000-0000-0000-000000000001",
+    "contact_card": {
+      "id": "10000000-0000-0000-0000-000000000001",
+      "first_name": "Alice",
+      "last_name": "Johnson",
+      "primary_phone": "+1-555-1001"
+    },
+    "audio_url": "https://storage.example.com/audio/call1.mp3",
+    "qualification_status": "qualified",
+    "booking_status": "not_booked"
+  }
+]
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+## Call Processing (Shunya)
+
+### POST `/call-processing/process`
+
+Submit a call for AI processing.
+
+**Request Body:**
+```json
+{
+  "call_id": "30000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "audio_url": "https://storage.example.com/audio/call1.mp3",
+  "phone_number": "+1-555-1001",
+  "duration": 180,
+  "call_date": "2025-10-20T10:30:00Z",
+  "metadata": {
+    "call_type": "csr_call",
+    "source": "twilio"
+  },
+  "options": {
+    "skip_rag_indexing": false,
+    "skip_summary_generation": false,
+    "priority": "normal"
+  }
+}
+```
+
+**Response:** `202 Accepted`
+```json
+{
+  "job_id": "80000000-0000-0000-0000-000000000001",
+  "call_id": "30000000-0000-0000-0000-000000000001",
+  "status": "queued",
+  "message": "Call processing job created",
+  "status_url": "/api/v1/call-processing/status/80000000-0000-0000-0000-000000000001",
+  "created_at": "2026-01-15T10:30:00Z"
+}
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### GET `/call-processing/status/{job_id}`
+
+Get call processing job status.
+
+**Path Parameters:**
+- `job_id` (UUID, required) - Job UUID
+
+**Example Request:**
+```
+GET /api/v1/call-processing/status/80000000-0000-0000-0000-000000000003
+```
+
+**Response:** `200 OK`
+```json
+{
+  "job_id": "80000000-0000-0000-0000-000000000003",
+  "status": "completed",
+  "progress_percent": 100,
+  "current_step": "completed",
+  "summary_url": "https://storage.example.com/summaries/job003.json",
+  "chunks_url": "https://storage.example.com/chunks/job003.json",
+  "transcript_url": "https://storage.example.com/transcripts/job003.txt"
+}
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### GET `/call-processing/summary/{call_id}`
+
+Get call summary with compliance analysis, objections, qualification.
+
+**Path Parameters:**
+- `call_id` (UUID, required) - Call UUID
+
+**Query Parameters:**
+- `include_chunks` (boolean, optional, default: false) - Include call chunks
+
+**Example Request:**
+```
+GET /api/v1/call-processing/summary/30000000-0000-0000-0000-000000000001?include_chunks=false
+```
+
+**Response:** `200 OK`
+```json
+{
+  "call_id": "30000000-0000-0000-0000-000000000001",
+  "summary": "Customer inquired about pricing and expressed concerns about cost.",
+  "qualification_status": "qualified",
+  "booking_status": "not_booked",
+  "objections": ["price", "pricing"],
+  "sop_compliance_score": 75.5,
+  "sentiment_score": 0.65
+}
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### GET `/call-processing/chunks/{call_id}`
+
+Get call chunks with summaries and Milvus IDs.
+
+**Path Parameters:**
+- `call_id` (UUID, required) - Call UUID
+
+**Response:** `200 OK`
+```json
+{
+  "call_id": "30000000-0000-0000-0000-000000000001",
+  "chunks": [
+    {
+      "chunk_id": "chunk_001",
+      "text": "Hello, I am interested in your services.",
+      "summary": "Customer greeting and interest",
+      "milvus_id": "milvus_123"
+    }
+  ]
+}
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### POST `/call-processing/retry/{job_id}`
+
+Retry a failed call processing job.
+
+**Path Parameters:**
+- `job_id` (UUID, required) - Job UUID
+
+**Response:** `202 Accepted`
+```json
+{
+  "job_id": "80000000-0000-0000-0000-000000000005",
+  "status": "queued",
+  "message": "Job retry initiated"
+}
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+## Ask Otto (Shunya)
+
+### POST `/ask-otto/conversations`
+
+Create a new Ask Otto conversation.
+
+**Request Body:**
+```json
+{
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "context": {
+    "user_role": "executive",
+    "focus_area": "sales"
+  }
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": "90000000-0000-0000-0000-000000000001",
+  "conversation_id": "shunya_conv_001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "title": "Sales Performance Questions",
+  "created_at": "2026-01-10T10:00:00Z"
+}
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### POST `/ask-otto/conversations/{conversation_id}/messages`
+
+Send a message in an Ask Otto conversation.
+
+**Path Parameters:**
+- `conversation_id` (UUID, required) - Conversation UUID
+
+**Request Body:**
+```json
+{
+  "message": "What are the top objections this week?"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message_id": "a0000000-0000-0000-0000-000000000002",
+  "role": "assistant",
+  "content": "The top objections this week are: 1. Price (40%), 2. Timing (25%), 3. Competitor (20%)",
+  "created_at": "2026-01-10T10:00:05Z"
+}
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### GET `/ask-otto/conversations/{conversation_id}/messages`
+
+Get all messages in an Ask Otto conversation.
+
+**Path Parameters:**
+- `conversation_id` (UUID, required) - Conversation UUID
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "a0000000-0000-0000-0000-000000000001",
+    "role": "user",
+    "content": "What are the top objections this week?",
+    "created_at": "2026-01-10T10:00:00Z"
+  },
+  {
+    "id": "a0000000-0000-0000-0000-000000000002",
+    "role": "assistant",
+    "content": "The top objections this week are...",
+    "created_at": "2026-01-10T10:00:05Z"
+  }
+]
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### GET `/ask-otto/conversations/{conversation_id}`
+
+Get Ask Otto conversation details.
+
+**Path Parameters:**
+- `conversation_id` (UUID, required) - Conversation UUID
+
+**Response:** `200 OK`
+```json
+{
+  "id": "90000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "title": "Sales Performance Questions",
+  "created_at": "2026-01-10T10:00:00Z",
+  "updated_at": "2026-01-11T10:00:00Z"
+}
+```
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### DELETE `/ask-otto/conversations/{conversation_id}`
+
+Delete an Ask Otto conversation.
+
+**Path Parameters:**
+- `conversation_id` (UUID, required) - Conversation UUID
+
+**Response:** `204 No Content`
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+## Insights (Shunya)
+
+### POST `/insights/generate`
+
+Generate insights for specified companies and week range.
+
+**Request Body:**
+```json
+{
+  "week_start": "2026-01-08",
+  "week_end": "2026-01-15",
+  "company_ids": ["11111111-1111-1111-1111-111111111111"],
+  "insight_types": ["company", "customer", "objection"],
+  "webhook_url": null,
+  "options": {
+    "force_regenerate": false,
+    "include_inactive_customers": false
+  }
+}
+```
+
+**Response:** `202 Accepted`
+```json
+{
+  "job_id": "b0000000-0000-0000-0000-000000000001",
+  "status": "queued",
+  "message": "Insight generation job created"
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/insights/status/{job_id}`
+
+Get insight generation job status.
+
+**Path Parameters:**
+- `job_id` (UUID, required) - Job UUID
+
+**Response:** `200 OK`
+```json
+{
+  "job_id": "b0000000-0000-0000-0000-000000000003",
+  "status": "completed",
+  "week_start": "2025-12-18",
+  "week_end": "2025-12-25",
+  "results": {
+    "insights": [
+      {
+        "type": "objection",
+        "data": {
+          "top_objections": ["price", "timing", "competitor"]
+        }
+      }
+    ]
+  }
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/insights/company/{company_id}/current`
+
+Get current company insight.
+
+**Path Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Response:** `200 OK`
+```json
+{
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "week_start": "2026-01-08",
+  "week_end": "2026-01-15",
+  "insights": {
+    "trends": "positive",
+    "top_objections": ["price", "timing"]
+  }
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/insights/customers`
+
+Get customer insights with pagination and filters.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `week_start` (date, optional) - Week start date (YYYY-MM-DD)
+- `status` (string, optional) - Filter by status (`active`, `inactive`)
+- `priority` (string, optional) - Filter by priority (`high`, `medium`, `low`)
+- `page` (int, default: 1) - Page number
+- `limit` (int, default: 50) - Items per page
+
+**Response:** `200 OK`
+```json
+{
+  "customers": [],
+  "total": 0,
+  "page": 1,
+  "limit": 50
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/insights/objections/{company_id}`
+
+Get objection insights for a company.
+
+**Path Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Response:** `200 OK`
+```json
+{
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "top_objections": ["price", "timing", "competitor"],
+  "trends": "increasing"
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
 ## RAG / Ask Otto
 
 ### POST `/rag/ask-otto`
@@ -801,7 +1744,7 @@ Query Ask Otto (RAG-based AI copilot) - Company scope.
 {
   "query": "What are the top objections this month?",
   "context": {
-    "company_id": "123e4567-e89b-12d3-a456-426614174000"
+    "company_id": "11111111-1111-1111-1111-111111111111"
   }
 }
 ```
@@ -836,25 +1779,30 @@ Handle call completion webhook from telephony provider (CallRail, Twilio).
 **Request Body:**
 ```json
 {
-  "company_id": "123e4567-e89b-12d3-a456-426614174000",
-  "phone_number": "+1234567890",
-  "audio_url": "https://example.com/audio.mp3",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "phone_number": "+1-555-1001",
+  "audio_url": "https://storage.example.com/audio/call1.mp3",
   "call_type": "csr_call",
   "missed_call": false,
-  "duration_seconds": 120
+  "duration_seconds": 180,
+  "call_date": "2025-10-20T10:30:00Z",
+  "metadata": {
+    "source": "twilio",
+    "call_sid": "CA1234567890"
+  }
 }
 ```
 
 **Headers (alternative):**
 ```
-X-Company-Id: 123e4567-e89b-12d3-a456-426614174000
+X-Company-Id: 11111111-1111-1111-1111-111111111111
 ```
 
 **Response:** `200 OK`
 ```json
 {
   "status": "success",
-  "call_id": "123e4567-e89b-12d3-a456-426614174000"
+  "call_id": "30000000-0000-0000-0000-000000000001"
 }
 ```
 
@@ -869,25 +1817,16 @@ Handle job completion webhook from Shoonya (call analysis).
 **Request Body:**
 ```json
 {
-  "shunya_job_id": "job_123",
+  "job_id": "shunya_job_completed_003",
   "status": "completed",
-  "call_id": "123e4567-e89b-12d3-a456-426614174000",
-  "company_id": "123e4567-e89b-12d3-a456-426614174001",
-  "result": {
-    "transcript": "Call transcript text...",
-    "analysis": {
-      "qualification_status": "qualified",
-      "booking_status": "booked",
-      "objections": ["price", "timing"],
-      "objection_texts": ["Customer mentioned price is too high"],
-      "sop_stages_completed": ["greeting", "qualification", "presentation"],
-      "sop_stages_missed": ["objection_handling", "close"],
-      "sop_compliance_score": 0.75,
-      "sentiment_score": 0.5,
-      "summary": "Call summary...",
-      "key_points": ["Point 1", "Point 2"]
-    }
-  }
+  "call_id": "30000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "results": {
+    "summary_url": "https://storage.example.com/summaries/job003.json",
+    "chunks_url": "https://storage.example.com/chunks/job003.json",
+    "transcript_url": "https://storage.example.com/transcripts/job003.txt"
+  },
+  "metadata": {}
 }
 ```
 
@@ -895,12 +1834,79 @@ Handle job completion webhook from Shoonya (call analysis).
 ```json
 {
   "status": "success",
-  "call_id": "123e4567-e89b-12d3-a456-426614174000",
-  "analysis_id": "123e4567-e89b-12d3-a456-426614174002"
+  "call_id": "30000000-0000-0000-0000-000000000001",
+  "analysis_id": "40000000-0000-0000-0000-000000000001"
 }
 ```
 
 **Error:** `400 Bad Request` - Missing required fields or invalid format
+
+---
+
+## Invites
+
+### POST `/invites`
+
+Create a new user invitation.
+
+**Request Body:**
+```json
+{
+  "email": "invitee@example.com",
+  "role": "sales_rep",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "message": "Welcome to our team!"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": "60000000-0000-0000-0000-000000000001",
+  "email": "invitee@example.com",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "role": "sales_rep",
+  "status": "pending",
+  "expires_at": "2026-01-22T10:00:00Z",
+  "created_at": "2026-01-15T10:00:00Z"
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### POST `/invites/accept/{token}`
+
+Accept an invitation and create user account.
+
+**Path Parameters:**
+- `token` (string, required) - Invitation token
+
+**Request Body:**
+```json
+{
+  "token": "token_pending_12345",
+  "password": "SecurePassword123!",
+  "first_name": "John",
+  "last_name": "Doe"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "status": "success",
+  "user": {
+    "id": "new-user-id",
+    "email": "invitee@example.com",
+    "role": "sales_rep",
+    "company_id": "11111111-1111-1111-1111-111111111111"
+  }
+}
+```
+
+**No authentication required**
 
 ---
 
@@ -977,7 +1983,31 @@ Endpoints that support pagination use:
 ## Notes
 
 - All timestamps are in ISO 8601 format with timezone (e.g., `2026-01-08T10:00:00Z`)
-- UUIDs are in standard format (e.g., `123e4567-e89b-12d3-a456-426614174000`)
+- UUIDs are in standard format (e.g., `11111111-1111-1111-1111-111111111111`)
 - Metrics endpoints default to last 30 days if `start_date` and `end_date` are not provided
 - Webhook endpoints do not require authentication but should implement signature verification in production
+- All example UUIDs in this documentation match the seed data in `backend/seed_dummy_data.sql`
+- The Postman collection (`backend/app/docs/postman_collection.json`) uses variables for easy testing with different data
+
+---
+
+## Quick Reference: Seed Data IDs
+
+For quick testing, here are the main IDs from seed data:
+
+| Type | ID | Description |
+|------|-----|-------------|
+| Company | `11111111-1111-1111-1111-111111111111` | Acme Corporation |
+| User (Executive) | `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa` | exec@acme.com |
+| User (Sales Rep) | `cccccccc-cccc-cccc-cccc-cccccccccccc` | sales1@acme.com |
+| User (CSR) | `ffffffff-ffff-ffff-ffff-ffffffffffff` | csr1@acme.com |
+| Contact Card | `10000000-0000-0000-0000-000000000001` | Alice Johnson |
+| Lead | `20000000-0000-0000-0000-000000000001` | Qualified Booked |
+| Lead (Unbooked) | `20000000-0000-0000-0000-000000000002` | Qualified Unbooked |
+| Call | `30000000-0000-0000-0000-000000000001` | Sales call |
+| Call Analysis | `40000000-0000-0000-0000-000000000001` | Completed analysis |
+| Appointment | `50000000-0000-0000-0000-000000000001` | Pending appointment |
+| Call Processing Job | `80000000-0000-0000-0000-000000000003` | Completed job |
+| Ask Otto Conversation | `90000000-0000-0000-0000-000000000001` | Sales Performance |
+| Insight Job | `b0000000-0000-0000-0000-000000000003` | Completed insights |
 

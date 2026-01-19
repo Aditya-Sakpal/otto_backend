@@ -68,7 +68,9 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: str = Field(default=os.getenv("AWS_ACCESS_KEY_ID", ""), description="AWS access key")
     AWS_SECRET_ACCESS_KEY: str = Field(default=os.getenv("AWS_SECRET_ACCESS_KEY", ""), description="AWS secret key")
     AWS_REGION: str = Field(default=os.getenv("AWS_REGION", "us-east-1"), description="AWS region")
-    S3_BUCKET: str = Field(default=os.getenv("S3_BUCKET", ""), description="S3 bucket name")
+    S3_BUCKET: str = Field(default=os.getenv("S3_BUCKET", ""), description="S3 bucket name (deprecated: use S3_DOCUMENTS_BUCKET and S3_AUDIO_BUCKET)")
+    S3_DOCUMENTS_BUCKET: str = Field(default=os.getenv("S3_DOCUMENTS_BUCKET", ""), description="S3 bucket name for documents")
+    S3_AUDIO_BUCKET: str = Field(default=os.getenv("S3_AUDIO_BUCKET", ""), description="S3 bucket name for audio files")
 
     # API Configuration
     API_URL: str = Field(default=os.getenv("API_URL", "http://localhost:8000"), description="Public API URL")
@@ -114,6 +116,8 @@ class Settings(BaseSettings):
         description="Default sender email address"
     )
 
+    # GoHighLevel Configuration
+    GHL_PUBLIC_KEY: str = Field(default=os.getenv("GHL_PUBLIC_KEY", ""), description="GoHighLevel public key")
     # Feature Flags
     ENABLE_CELERY: bool = Field(default=os.getenv("ENABLE_CELERY", "False").lower() == "true", description="Enable Celery for background jobs")
     ENABLE_VECTOR_DB: bool = Field(default=os.getenv("ENABLE_VECTOR_DB", "True").lower() == "true", description="Enable vector DB for RAG")

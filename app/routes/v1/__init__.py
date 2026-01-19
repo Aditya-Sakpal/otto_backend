@@ -3,7 +3,7 @@ from fastapi import APIRouter
 
 from app.routes.v1 import (
     auth, calls, webhooks, rag, metrics, leads, websocket, analytics, users, invites,
-    call_processing, ask_otto, insights
+    call_processing, ask_otto, insights, onboarding
 )
 
 router = APIRouter()
@@ -22,3 +22,4 @@ router.include_router(call_processing.router, tags=["call-processing"])
 router.include_router(ask_otto.router, tags=["ask-otto"])
 router.include_router(insights.router, tags=["insights"])
 router.include_router(invites.router, prefix="/invites", tags=["invites"])
+router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])

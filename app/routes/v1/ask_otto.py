@@ -57,7 +57,8 @@ async def create_conversation(
         # Create conversation in Shunya
         result = await shoonya.create_ask_otto_conversation(
             company_id=request.company_id,
-            context=request.context,
+            user_id=str(current_user.id) if current_user else None,
+            metadata=request.context,  # Use context as metadata
         )
         
         # Store in database
@@ -96,7 +97,6 @@ async def send_message(
 ):
     """
     Send a message in an Ask Otto conversation.
-    
     Returns assistant response.
     """
     try:

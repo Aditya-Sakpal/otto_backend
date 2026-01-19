@@ -22,7 +22,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"test.user@example.com\",\n    \"password\": \"TestPassword123!\",\n    \"first_name\": \"Test\",\n    \"last_name\": \"User\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"11111111-1111-1111-1111-111111111111\"\n}"
+							"raw": "{\n    \"email\": \"test.user@example.com\",\n    \"password\": \"SecurePassword123!\",\n    \"first_name\": \"Test\",\n    \"last_name\": \"User\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"{{company_id}}\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/signup",
@@ -45,7 +45,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"test.user@example.com\",\n    \"password\": \"TestPassword123!\"\n}"
+							"raw": "{\n    \"email\": \"sales1@acme.com\",\n    \"password\": \"SecurePassword123!\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/login",
@@ -121,7 +121,7 @@
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								},
 								{
 									"key": "skip",
@@ -327,7 +327,7 @@
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								},
 								{
 									"key": "skip",
@@ -361,6 +361,36 @@
 						"description": "Get call by ID"
 					},
 					"response": []
+				},
+				{
+					"name": "Get Calls by Objection (Self)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/calls/by-objection/self?objection=authority&company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "calls", "by-objection", "self"],
+							"query": [
+								{
+									"key": "objection",
+									"value": "authority",
+									"description": "Objection type (authority, price, timing, competitor, need)"
+								},
+								{
+									"key": "company_id",
+									"value": "{{company_id}}"
+								}
+							]
+						},
+						"description": "Get comprehensive objection details data (calls, unbooked leads, most coaching need)"
+					},
+					"response": []
 				}
 			],
 			"description": "Call management endpoints"
@@ -385,7 +415,7 @@
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								},
 								{
 									"key": "status",
@@ -434,6 +464,52 @@
 						"description": "Get lead by ID"
 					},
 					"response": []
+				},
+				{
+					"name": "Get Lead Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}/details",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "leads", "{{lead_id}}", "details"]
+						},
+						"description": "Get detailed lead information with contact info, agent info, overall engagement, and conversations"
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Lead to Sales Rep",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sales_rep_id\": \"{{sales_rep_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}/assign",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "leads", "{{lead_id}}", "assign"]
+						},
+						"description": "Assign a lead to a sales rep (CSR or Executive can assign)"
+					},
+					"response": []
 				}
 			],
 			"description": "Lead management endpoints"
@@ -452,13 +528,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/analytics/top-objections?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/analytics/top-objections?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "analytics", "top-objections"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -477,7 +553,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/analytics/objection-calls?objection=price&company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/analytics/objection-calls?objection=price&company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "analytics", "objection-calls"],
 							"query": [
@@ -487,7 +563,7 @@
 								},
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								},
 								{
 									"key": "owner_id",
@@ -517,13 +593,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/exec/company-overview?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/exec/company-overview?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "exec", "company-overview"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								},
 								{
 									"key": "start_date",
@@ -552,13 +628,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/exec/csr/dashboard?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/exec/csr/dashboard?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "exec", "csr", "dashboard"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								},
 								{
 									"key": "start_date",
@@ -587,13 +663,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/exec/missed-calls?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/exec/missed-calls?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "exec", "missed-calls"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -612,13 +688,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/csr/auto-queued-leads?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/csr/auto-queued-leads?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "csr", "auto-queued-leads"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -637,13 +713,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/booking-rate-improvement?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/booking-rate-improvement?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "booking-rate-improvement"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -662,13 +738,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/bookings/summary?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/bookings/summary?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "bookings", "summary"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -687,13 +763,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/objections/top?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/objections/top?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "objections", "top"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -712,13 +788,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/objections/summary?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/objections/summary?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "objections", "summary"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -737,13 +813,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/objections/price/calls?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/objections/price/calls?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "objections", "price", "calls"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -762,13 +838,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/coaching/opportunities?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/coaching/opportunities?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "coaching", "opportunities"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -787,13 +863,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/conversion/lead-to-sale?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/conversion/lead-to-sale?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "conversion", "lead-to-sale"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -812,13 +888,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/conversions/pending-to-booked?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/conversions/pending-to-booked?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "conversions", "pending-to-booked"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -837,13 +913,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/emergencies/dropped?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/emergencies/dropped?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "emergencies", "dropped"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -862,13 +938,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/company/performance?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/company/performance?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "company", "performance"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -887,13 +963,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/calls/summary?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/calls/summary?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "calls", "summary"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -912,13 +988,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/leads/unbooked?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/leads/unbooked?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "leads", "unbooked"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -937,13 +1013,13 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/actions/pending?company_id=11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/metrics/actions/pending?company_id={{company_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "actions", "pending"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								}
 							]
 						},
@@ -973,7 +1049,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"call_id\": \"11110000-0000-0000-0000-000000000001\",\n    \"company_id\": \"11111111-1111-1111-1111-111111111111\",\n    \"audio_url\": \"https://example.com/audio/call-recording.mp3\",\n    \"phone_number\": \"+1234567890\",\n    \"duration\": 120,\n    \"call_date\": \"2024-01-15T10:30:00Z\",\n    \"metadata\": {\n        \"call_type\": \"csr_call\",\n        \"source\": \"twilio\"\n    },\n    \"options\": {\n        \"skip_rag_indexing\": false,\n        \"skip_summary_generation\": false,\n        \"priority\": \"normal\"\n    }\n}"
+							"raw": "{\n    \"call_id\": \"{{call_id}}\",\n    \"company_id\": \"{{company_id}}\",\n    \"audio_url\": \"https://storage.example.com/audio/call1.mp3\",\n    \"phone_number\": \"+1-555-1001\",\n    \"duration\": 180,\n    \"call_date\": \"2025-10-20T10:30:00Z\",\n    \"metadata\": {\n        \"call_type\": \"csr_call\",\n        \"source\": \"twilio\"\n    },\n    \"options\": {\n        \"skip_rag_indexing\": false,\n        \"skip_summary_generation\": false,\n        \"priority\": \"normal\"\n    }\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/call-processing/process",
@@ -997,7 +1073,13 @@
 						"url": {
 							"raw": "{{base_url}}/api/v1/call-processing/status/{{job_id}}",
 							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "call-processing", "status", "{{job_id}}"]
+							"path": ["api", "v1", "call-processing", "status", "{{job_id}}"],
+							"variable": [
+								{
+									"key": "job_id",
+									"value": "80000000-0000-0000-0000-000000000003"
+								}
+							]
 						},
 						"description": "Get call processing job status"
 					},
@@ -1088,7 +1170,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"company_id\": \"11111111-1111-1111-1111-111111111111\",\n    \"context\": {\n        \"user_role\": \"executive\",\n        \"focus_area\": \"sales\"\n    }\n}"
+							"raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"context\": {\n        \"user_role\": \"executive\",\n        \"focus_area\": \"sales\"\n    }\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/ask-otto/conversations",
@@ -1205,7 +1287,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"week_start\": \"2024-01-08\",\n    \"week_end\": \"2024-01-15\",\n    \"company_ids\": [\"11111111-1111-1111-1111-111111111111\"],\n    \"insight_types\": [\"company\", \"customer\", \"objection\"],\n    \"webhook_url\": null,\n    \"options\": {\n        \"force_regenerate\": false,\n        \"include_inactive_customers\": false\n    }\n}"
+							"raw": "{\n    \"week_start\": \"2026-01-08\",\n    \"week_end\": \"2026-01-15\",\n    \"company_ids\": [\"{{company_id}}\"],\n    \"insight_types\": [\"company\", \"customer\", \"objection\"],\n    \"webhook_url\": null,\n    \"options\": {\n        \"force_regenerate\": false,\n        \"include_inactive_customers\": false\n    }\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/insights/generate",
@@ -1246,9 +1328,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/insights/company/11111111-1111-1111-1111-111111111111/current",
+							"raw": "{{base_url}}/api/v1/insights/company/{{company_id}}/current",
 							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "insights", "company", "11111111-1111-1111-1111-111111111111", "current"]
+							"path": ["api", "v1", "insights", "company", "{{company_id}}", "current"]
 						},
 						"description": "Get current company insight"
 					},
@@ -1271,11 +1353,11 @@
 							"query": [
 								{
 									"key": "company_id",
-									"value": "11111111-1111-1111-1111-111111111111"
+									"value": "{{company_id}}"
 								},
 								{
 									"key": "week_start",
-									"value": "2024-01-08",
+									"value": "2026-01-08",
 									"disabled": true
 								},
 								{
@@ -1313,9 +1395,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/insights/objections/11111111-1111-1111-1111-111111111111",
+							"raw": "{{base_url}}/api/v1/insights/objections/{{company_id}}",
 							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "insights", "objections", "11111111-1111-1111-1111-111111111111"]
+							"path": ["api", "v1", "insights", "objections", "{{company_id}}"]
 						},
 						"description": "Get objection insights for a company"
 					},
@@ -1343,7 +1425,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"query\": \"What are the top objections this week?\",\n    \"context\": {\n        \"company_id\": \"11111111-1111-1111-1111-111111111111\",\n        \"user_role\": \"executive\"\n    }\n}"
+							"raw": "{\n    \"query\": \"What are the top objections this week?\",\n    \"context\": {\n        \"company_id\": \"{{company_id}}\",\n        \"user_role\": \"executive\"\n    }\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/rag/ask-otto",
@@ -1376,7 +1458,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"company_id\": \"11111111-1111-1111-1111-111111111111\",\n    \"phone_number\": \"+1234567890\",\n    \"audio_url\": \"https://example.com/audio/call-recording.mp3\",\n    \"call_type\": \"csr_call\",\n    \"missed_call\": false,\n    \"duration_seconds\": 120,\n    \"call_date\": \"2024-01-15T10:30:00Z\",\n    \"metadata\": {\n        \"source\": \"twilio\",\n        \"call_sid\": \"CA1234567890\"\n    }\n}"
+							"raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"phone_number\": \"+1-555-1001\",\n    \"audio_url\": \"https://storage.example.com/audio/call1.mp3\",\n    \"call_type\": \"csr_call\",\n    \"missed_call\": false,\n    \"duration_seconds\": 180,\n    \"call_date\": \"2025-10-20T10:30:00Z\",\n    \"metadata\": {\n        \"source\": \"twilio\",\n        \"call_sid\": \"CA1234567890\"\n    }\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/webhooks/telephony/call-complete",
@@ -1399,7 +1481,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"job_id\": \"{{job_id}}\",\n    \"status\": \"completed\",\n    \"call_id\": \"11110000-0000-0000-0000-000000000001\",\n    \"company_id\": \"11111111-1111-1111-1111-111111111111\",\n    \"results\": {\n        \"summary_url\": \"https://shunya.example.com/summary/123\",\n        \"chunks_url\": \"https://shunya.example.com/chunks/123\",\n        \"transcript_url\": \"https://shunya.example.com/transcript/123\"\n    },\n    \"metadata\": {}\n}"
+							"raw": "{\n    \"job_id\": \"shunya_job_completed_003\",\n    \"status\": \"completed\",\n    \"call_id\": \"{{call_id}}\",\n    \"company_id\": \"{{company_id}}\",\n    \"results\": {\n        \"summary_url\": \"https://storage.example.com/summaries/job003.json\",\n        \"chunks_url\": \"https://storage.example.com/chunks/job003.json\",\n        \"transcript_url\": \"https://storage.example.com/transcripts/job003.txt\"\n    },\n    \"metadata\": {}\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/webhooks/shoonya/job-complete",
@@ -1432,7 +1514,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"invitee@example.com\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"11111111-1111-1111-1111-111111111111\",\n    \"message\": \"Welcome to our team!\"\n}"
+							"raw": "{\n    \"email\": \"invitee@example.com\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"{{company_id}}\",\n    \"message\": \"Welcome to our team!\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/invites",
@@ -1487,33 +1569,53 @@
 			"type": "string"
 		},
 		{
-			"key": "user_id",
+			"key": "company_id",
 			"value": "11111111-1111-1111-1111-111111111111",
 			"type": "string"
 		},
 		{
+			"key": "user_id",
+			"value": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+			"type": "string"
+		},
+		{
+			"key": "sales_rep_id",
+			"value": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+			"type": "string"
+		},
+		{
 			"key": "call_id",
-			"value": "11110000-0000-0000-0000-000000000001",
+			"value": "30000000-0000-0000-0000-000000000001",
 			"type": "string"
 		},
 		{
 			"key": "lead_id",
-			"value": "22220000-0000-0000-0000-000000000001",
+			"value": "20000000-0000-0000-0000-000000000001",
+			"type": "string"
+		},
+		{
+			"key": "contact_card_id",
+			"value": "10000000-0000-0000-0000-000000000001",
 			"type": "string"
 		},
 		{
 			"key": "conversation_id",
-			"value": "",
+			"value": "90000000-0000-0000-0000-000000000001",
 			"type": "string"
 		},
 		{
 			"key": "job_id",
-			"value": "",
+			"value": "80000000-0000-0000-0000-000000000003",
+			"type": "string"
+		},
+		{
+			"key": "insight_job_id",
+			"value": "b0000000-0000-0000-0000-000000000003",
 			"type": "string"
 		},
 		{
 			"key": "invitation_token",
-			"value": "",
+			"value": "token_pending_12345",
 			"type": "string"
 		}
 	]

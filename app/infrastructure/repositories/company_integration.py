@@ -75,6 +75,22 @@ class CompanyIntegrationRepository:
             logger.error(f"Error getting company_id by location_id: {e}")
             raise e
 
+    async def get_voip_api_encrypted_key_by_company_id(self, company_id):
+        """Get voip_api_encrypted_key from company_id."""
+        try:
+            result = await self.session.execute(
+                select(CompanyIntegrationORM).where(
+                    CompanyIntegrationORM.company_id == company_id
+                )
+            )
+            orm_obj = result.scalar_one_or_none()
+            if orm_obj:
+                return orm_obj.voip_api_encrypted_key
+            return None
+        except Exception as e:
+            logger.error(f"Error getting voip_api_encrypted_key by company_id: {e}")
+            raise e
+
     async def _to_domain(self, orm_obj: CompanyIntegrationORM) -> CompanyIntegration:
         """Convert ORM model to domain model."""
         return CompanyIntegration(

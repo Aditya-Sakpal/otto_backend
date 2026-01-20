@@ -166,9 +166,14 @@ class CTMService:
             call_id_ctm = payload.get("id")  # CTM call ID
             direction = payload.get("direction", "").lower()
             status = payload.get("status", "").lower()
+            call_status = (payload.get("call_status") or "").lower()
 
-            # Filter for completed calls only
-            if status not in ["completed", "answered"]:
+            # Determine missed vs answered / completed calls
+            # CTM can send a variety of terminal statuses – we treat the
+            # common "no answer", "missed", "busy" as missed calls but
+            # still persist them, and only ignore truly non-final states.
+            is_missed = status in ["no answer", "missed", "busy"]
+            if not is_missed and status not in ["completed", "answered"]:
                 logger.info(
                     f"Ignoring CTM webhook - call not completed",
                     ctm_call_id=call_id_ctm,
@@ -178,14 +183,20 @@ class CTMService:
 
             # Extract phone numbers
             if direction == "inbound":
-                caller_phone = payload.get("caller_number")
-                tracking_number = payload.get("tracking_number")
-                contact_phone = caller_phone
+                caller_phone = payload.get("caller_number_bare") or payload.get("caller_number")
+                if caller_phone == "+":
+                    caller_phone = "anonymous"
+                # Handle "anonymous" or empty/plus-only numbers
+                if not caller_phone or caller_phone == "+":
+                    contact_phone = "anonymous"
+                else:
+                    contact_phone = caller_phone
 
             elif direction == "outbound":
                 caller_phone = payload.get("caller_number")  # Company's number
                 dialed_number = payload.get("dialed_number") or payload.get("destination_number")
                 contact_phone = dialed_number
+
             else:
                 raise ValueError(f"Unknown call direction: {direction}")
 
@@ -203,14 +214,26 @@ class CTMService:
 
             # Extract user information (for outbound calls)
             handled_by_user_id = None
-            agent_email = payload.get("agent_email")
+            agent_data = payload.get("agent")
+            agent_email = agent_data.get("email") if isinstance(agent_data, dict) else payload.get("agent_email") if payload.get("agent_email") else None
             if agent_email:
                 user_orm = await self.user_repo.get_by_email(agent_email)
                 if user_orm:
                     handled_by_user_id = user_orm.id
 
             # Extract call metadata
-            duration = payload.get("duration") or payload.get("talk_time")
+            # Prefer talk_time when it's non-zero (actual conversation time),
+            # otherwise fall back to CTM's duration which often includes ring time.
+            duration_raw = payload.get("duration")
+            talk_time = payload.get("talk_time")
+            ring_time = payload.get("ring_time")
+            hold_time = payload.get("hold_time")
+            wait_time = payload.get("wait_time")
+            duration = (
+                talk_time
+                if isinstance(talk_time, (int, float)) and talk_time > 0
+                else duration_raw
+            )
             transcript = payload.get("transcription_text")
             audio_url_ctm = payload.get("audio")
             called_at = payload.get("called_at")
@@ -244,12 +267,17 @@ class CTMService:
                 update_needed = False
                 contact_updates = {}
 
-                # Update address fields if provided (for inbound calls)
+                # Update address/location fields if provided (for inbound calls)
                 if direction == "inbound":
+                    street = payload.get("street")
                     city = payload.get("city")
                     state = payload.get("state")
                     postal_code = payload.get("postal_code")
+                    country = payload.get("country")
 
+                    if street and not contact_card.address:
+                        contact_updates["address"] = street
+                        update_needed = True
                     if city and not contact_card.city:
                         contact_updates["city"] = city
                         update_needed = True
@@ -259,6 +287,13 @@ class CTMService:
                     if postal_code and not contact_card.postal_code:
                         contact_updates["postal_code"] = postal_code
                         update_needed = True
+                    if country:
+                        # Store country in extra_metadata since we don't have a direct column
+                        if contact_card.extra_metadata is None:
+                            contact_card.extra_metadata = {}
+                        if "country" not in contact_card.extra_metadata:
+                            contact_card.extra_metadata["country"] = country
+                            update_needed = True
 
                 if update_needed:
                     for key, value in contact_updates.items():
@@ -306,15 +341,36 @@ class CTMService:
                 "ctm_call_id": call_id_ctm,
                 "ctm_sid": payload.get("sid"),
                 "direction": direction,
+                "status": status,
+                "call_status": call_status or payload.get("call_status"),
                 "tracking_number": payload.get("tracking_number"),
                 "tracking_label": payload.get("tracking_label"),
                 "source": payload.get("source"),
                 "medium": payload.get("medium"),
                 "campaign": payload.get("campaign"),
                 "keyword": payload.get("keyword"),
-                "tags": payload.get("tags", []),
+                "tags": payload.get("tag_list", []),
                 "outcome_label": payload.get("outcome_label"),
                 "total_cost": payload.get("total_cost"),
+                # Duration / timing breakdown
+                "duration": duration_raw,
+                "talk_time": talk_time,
+                "ring_time": ring_time,
+                "hold_time": hold_time,
+                "wait_time": wait_time,
+                # Routing / queueing information
+                "call_path": payload.get("call_path", []),
+                "legs": payload.get("legs", []),
+                # Caller / analytics context
+                "is_new_caller": payload.get("is_new_caller"),
+                "day": payload.get("day"),
+                "month": payload.get("month"),
+                "hour": payload.get("hour"),
+                "location": payload.get("location"),
+                "country": payload.get("country"),
+                "agent": agent_data,
+                # Preserve the full raw payload for debugging / future use
+                "ctm_raw_payload": payload,
             }
 
             # Create or update call record
@@ -334,6 +390,7 @@ class CTMService:
                 existing_call.duration_seconds = duration or existing_call.duration_seconds
                 existing_call.transcript = transcript or existing_call.transcript
                 existing_call.handled_by_user_id = handled_by_user_id or existing_call.handled_by_user_id
+                existing_call.missed_call = is_missed
                 if contact_card:
                     existing_call.contact_card_id = contact_card.id
                 existing_call.extra_metadata = {**(existing_call.extra_metadata or {}), **extra_metadata}
@@ -351,7 +408,7 @@ class CTMService:
                     transcript=transcript,
                     handled_by_user_id=handled_by_user_id,
                     call_type=None,  # CTM doesn't provide call_type
-                    missed_call=False,  # Only completed calls reach here
+                    missed_call=is_missed,
                     interaction_type="call",
                     extra_metadata=extra_metadata,
                 )

@@ -26,5 +26,6 @@ class Appointment(BaseModel):
     location_address: Optional[str] = Field(None, description="Location address")
     outcome: Optional[AppointmentOutcome] = Field(None, description="Appointment outcome")
     assigned_rep_id: Optional[UUID] = Field(None, description="Assigned sales rep")
+    interaction_id: Optional[UUID] = Field(None, description="Associated call/interaction ID")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
 

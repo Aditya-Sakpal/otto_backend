@@ -29,5 +29,7 @@ class Call(BaseModel):
     duration_seconds: Optional[int] = Field(None, description="Call duration in seconds")
     handled_by_user_id: Optional[UUID] = Field(None, description="CSR who handled the call")
     interaction_type: Optional[str] = Field(default="call", description="Type of interaction")
+    status: Optional[str] = Field(default="pending", description="Call status (pending, processing, completed)")
+    shunya_job_id: Optional[str] = Field(None, description="Shunya job ID for tracking")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
 

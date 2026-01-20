@@ -9,7 +9,6 @@ from pydantic import EmailStr
 from app.core.dependencies import DbSession
 from app.core.logging import get_logger
 from app.core.s3 import get_s3_service
-from app.core.encryption import encrypt_api_key
 from app.core.security import get_password_hash
 from app.domain.schemas.onboarding import (
     OnboardingCompleteResponse,
@@ -18,18 +17,16 @@ from app.domain.schemas.onboarding import (
     ValidateCTMRequest,
     ValidateCTMResponse,
 )
+from app.services.company_service import CompanyService
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
 from app.domain.users.repository import UserRepository
-from app.infrastructure.database.models.company import CompanyORM
 from app.infrastructure.database.models.user import UserORM
-from app.infrastructure.database.models.company_integration import CompanyIntegrationORM
 from app.domain.enums import UserRole
 
 logger = get_logger(__name__)
 
 router = APIRouter()
-
 
 @router.post("/validate-ghl", response_model=ValidateGHLResponse, status_code=status.HTTP_200_OK)
 async def validate_ghl(
@@ -109,7 +106,6 @@ async def validate_ctm(
             detail=f"Error validating CTM credentials: {str(e)}"
         )
 
-
 @router.post("/complete", response_model=OnboardingCompleteResponse, status_code=status.HTTP_201_CREATED)
 async def complete_onboarding(
     db: DbSession,
@@ -118,39 +114,55 @@ async def complete_onboarding(
     email: EmailStr = Form(...),
     password: str = Form(...),
     companyName: str = Form(...),
-    location_id: str = Form(...),
-    crm_provider: str = Form(...),
-    crm_api_key: str = Form(...),
-    crm_company_id: str = Form(...),
-    voip_provider: str = Form(...),
-    voip_api_key: str = Form(...),
-    voip_company_id: str = Form(...),
     reference_doc: UploadFile = File(...),
     sop_doc: UploadFile = File(...),
+    # Optional company fields
+    phone_number: str | None = Form(None),
+    address: str | None = Form(None),
+    # Optional integration fields
+    location_id: str | None = Form(None),
+    crm_provider: str | None = Form(None),
+    crm_api_key: str | None = Form(None),
+    crm_company_id: str | None = Form(None),
+    voip_provider: str | None = Form(None),
+    voip_api_key: str | None = Form(None),
+    voip_company_id: str | None = Form(None),
 ) -> OnboardingCompleteResponse:
     """
     Complete onboarding: create user, company, integration, and upload documents.
 
-    This endpoint performs an atomic operation:
+    This endpoint performs an idempotent, atomic operation:
     1. Validates all fields and files
-    2. Uploads documents to S3
-    3. Creates Company, User, and CompanyIntegration records in a transaction
+    2. Checks for existing user/company (idempotency)
+    3. Uploads documents to S3
+    4. Creates Company, User, and CompanyIntegration records in a single transaction
 
-    Args:
+    The operation is idempotent: if a user with the same email already exists,
+    it returns the existing user data without creating duplicates.
+
+    Required Args:
         firstName: User's first name
         lastName: User's last name
         email: User's email address
         password: User's password
         companyName: Company name
-        location_id: GHL location ID
-        api_key: GHL API key (will be encrypted)
-        ghl_company_id: GHL company ID
         reference_doc: Reference document file
         sop_doc: SOP document file
+
+    Optional Args:
+        phone_number: Company phone number
+        address: Company address
+        location_id: GHL location ID
+        crm_provider: CRM provider name
+        crm_api_key: CRM API key (will be encrypted)
+        crm_company_id: CRM company ID
+        voip_provider: VoIP provider name
+        voip_api_key: VoIP API key (will be encrypted)
+        voip_company_id: VoIP company ID
         db: Database session
 
     Returns:
-        Created user information (excluding password)
+        Created or existing user information (excluding password)
 
     Raises:
         HTTPException: 400 if validation fails, 500 if creation fails
@@ -175,11 +187,45 @@ async def complete_onboarding(
             detail="S3 service is not configured"
         )
 
-    # Track uploaded S3 keys for cleanup on failure
-    uploaded_keys = []
+    # Initialize repositories and services
+    user_repo = UserRepository(db)
+    company_service = CompanyService(db)
 
+    # Track uploaded S3 keys for cleanup on failure
+    uploaded_s3_keys = []
+
+    # Step 1: Check for existing user (idempotency check BEFORE S3 upload)
+    existing_user = await user_repo.get_by_email(email)
+
+    if existing_user:
+        # User exists - check if it's a complete onboarding (has company)
+        if existing_user.company_id:
+            existing_company = await company_service.get_company_by_id(existing_user.company_id)
+
+            if existing_company:
+                # Check for integration (optional now, so complete onboarding just needs company)
+                existing_integration = await company_service.get_company_integration(existing_user.company_id)
+
+                # Complete onboarding exists - return existing data (idempotent)
+                logger.info(f"Onboarding already complete for {email}, returning existing user")
+                return OnboardingCompleteResponse(
+                    id=existing_user.id,
+                    email=existing_user.email,
+                    first_name=existing_user.first_name,
+                    last_name=existing_user.last_name,
+                    role=existing_user.role,
+                    company_id=existing_user.company_id,
+                    created_at=existing_user.created_at.isoformat() if hasattr(existing_user.created_at, 'isoformat') else str(existing_user.created_at)
+                )
+
+        # User exists but onboarding is incomplete - this is an error state
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User with email {email} already exists but onboarding is incomplete. Please contact support."
+        )
+
+    # Step 2: Upload documents to S3 (only after confirming no existing user)
     try:
-        # Step 1: Upload documents to S3
         reference_doc_bytes = await reference_doc.read()
         sop_doc_bytes = await sop_doc.read()
 
@@ -196,14 +242,13 @@ async def complete_onboarding(
         )
 
         # Upload files to documents bucket
-        # Note: upload_file is async, so we await it directly
         reference_doc_url = await s3_service.upload_file(
             file_bytes=reference_doc_bytes,
             s3_key=reference_s3_key,
             content_type=reference_doc.content_type,
             bucket_type="documents"
         )
-        uploaded_keys.append(reference_s3_key)
+        uploaded_s3_keys.append((reference_s3_key, "documents"))
 
         sop_doc_url = await s3_service.upload_file(
             file_bytes=sop_doc_bytes,
@@ -211,51 +256,61 @@ async def complete_onboarding(
             content_type=sop_doc.content_type,
             bucket_type="documents"
         )
-        uploaded_keys.append(sop_s3_key)
+        uploaded_s3_keys.append((sop_s3_key, "documents"))
 
         logger.info(f"Uploaded documents to S3 for {email}")
 
-        # Step 2: Database transaction - create Company, User, and CompanyIntegration
-        async with db.begin():
-            # Check if user already exists
-            user_repo = UserRepository(db)
-            existing_user = await user_repo.get_by_email(email)
-            if existing_user:
+        # Step 3: Create all database records in transaction
+        try:
+            # Re-check user existence (in case another request created it between checks)
+            existing_user_check = await user_repo.get_by_email(email)
+            if existing_user_check:
+                # Another request completed onboarding - clean up S3 and return existing user
+                await _cleanup_s3_files(s3_service, uploaded_s3_keys)
+
+                if existing_user_check.company_id:
+                    existing_company = await company_service.get_company_by_id(existing_user_check.company_id)
+                    if existing_company:
+                        logger.info(f"Onboarding completed by another request for {email}, returning existing user")
+                        return OnboardingCompleteResponse(
+                            id=existing_user_check.id,
+                            email=existing_user_check.email,
+                            first_name=existing_user_check.first_name,
+                            last_name=existing_user_check.last_name,
+                            role=existing_user_check.role,
+                            company_id=existing_user_check.company_id,
+                            created_at=existing_user_check.created_at.isoformat() if hasattr(existing_user_check.created_at, 'isoformat') else str(existing_user_check.created_at)
+                        )
+
+                # Fallback - shouldn't happen, but handle gracefully
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"User with email {email} already exists"
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Unexpected state during idempotent onboarding check for {email}"
                 )
 
-            # Create Company
-            company_orm = CompanyORM(
+            # Create Company with all fields
+            company_orm = await company_service.create_company(
                 name=companyName,
+                phone_number=phone_number,
+                address=address,
                 reference_doc_url=reference_doc_url,
                 sop_doc_url=sop_doc_url,
-                extra_metadata={"crm_company_id": crm_company_id}
+                extra_metadata={"crm_company_id": crm_company_id} if crm_company_id else None
             )
-            db.add(company_orm)
-            await db.flush()
-            await db.refresh(company_orm)
             company_id = company_orm.id
 
-            # Encrypt API key
-            crm_encrypted_api_key = encrypt_api_key(crm_api_key)
-            voip_encrypted_api_key = encrypt_api_key(voip_api_key)
-
-
-            # Create CompanyIntegration
-            integration_orm = CompanyIntegrationORM(
+            # Create CompanyIntegration (only if integration data is provided)
+            # The service will handle the logic of whether to create or not
+            await company_service.create_company_integration(
                 company_id=company_id,
                 location_id=location_id,
-                crm_api_encrypted_key=crm_encrypted_api_key,
                 crm_provider=crm_provider,
+                crm_api_key=crm_api_key,
                 crm_company_id=crm_company_id,
-                voip_api_encrypted_key=voip_encrypted_api_key,
                 voip_provider=voip_provider,
-                voip_company_id= voip_company_id
+                voip_api_key=voip_api_key,
+                voip_company_id=voip_company_id
             )
-            db.add(integration_orm)
-            await db.flush()
 
             # Hash password
             password_hash = get_password_hash(password)
@@ -274,6 +329,9 @@ async def complete_onboarding(
             await db.flush()
             await db.refresh(user_orm)
 
+            # Commit all changes atomically
+            await db.commit()
+
             # Convert to domain model for response
             user = user_repo._to_domain(user_orm)
 
@@ -289,19 +347,62 @@ async def complete_onboarding(
                 created_at=user.created_at.isoformat() if hasattr(user.created_at, 'isoformat') else str(user.created_at)
             )
 
+        except HTTPException:
+            # HTTPException during DB operations - rollback and cleanup
+            await db.rollback()
+            if uploaded_s3_keys and s3_service:
+                await _cleanup_s3_files(s3_service, uploaded_s3_keys)
+            raise
+        except Exception as e:
+            # Database error - rollback transaction
+            await db.rollback()
+            # Cleanup S3 files
+            if uploaded_s3_keys and s3_service:
+                await _cleanup_s3_files(s3_service, uploaded_s3_keys)
+            logger.error(f"Database error during onboarding: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error during onboarding: {str(e)}"
+            )
+
     except HTTPException:
-        # Cleanup S3 files on validation failure
-        if uploaded_keys and s3_service:
-            # For now, we log the keys that should be cleaned up
-            logger.warning(f"S3 files uploaded but transaction failed. Keys to cleanup: {uploaded_keys}")
+        # HTTPExceptions should not trigger S3 cleanup - they're validation errors
+        # Only cleanup if we uploaded files
+        if uploaded_s3_keys and s3_service:
+            await _cleanup_s3_files(s3_service, uploaded_s3_keys)
         raise
+    except PermissionError as e:
+        # Cleanup S3 files on permission error
+        if uploaded_s3_keys and s3_service:
+            await _cleanup_s3_files(s3_service, uploaded_s3_keys)
+
+        logger.error(f"S3 permission error during onboarding: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"S3 access error: {str(e)}. Please check AWS credentials and bucket permissions."
+        )
     except Exception as e:
         # Cleanup S3 files on error
-        if uploaded_keys and s3_service:
-            logger.warning(f"S3 files uploaded but transaction failed. Keys to cleanup: {uploaded_keys}")
+        if uploaded_s3_keys and s3_service:
+            await _cleanup_s3_files(s3_service, uploaded_s3_keys)
 
         logger.error(f"Error completing onboarding: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error completing onboarding: {str(e)}"
         )
+
+async def _cleanup_s3_files(s3_service, uploaded_keys: list[tuple[str, str]]) -> None:
+    """
+    Clean up uploaded S3 files.
+
+    Args:
+        s3_service: S3 service instance
+        uploaded_keys: List of tuples (s3_key, bucket_type) to delete
+    """
+    for s3_key, bucket_type in uploaded_keys:
+        try:
+            await s3_service.delete_file(s3_key, bucket_type)
+            logger.info(f"Cleaned up S3 file: {s3_key}")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup S3 file {s3_key}: {e}")

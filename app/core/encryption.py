@@ -1,16 +1,13 @@
 """
 API key encryption utilities.
-
 Handles encryption and decryption of API keys using AES-256.
 """
 import base64
 import os
 from typing import Optional
-
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
-
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -27,20 +24,48 @@ def get_encryption_key() -> bytes:
     Returns:
         32-byte encryption key
     """
-    encryption_key_env = os.getenv("ENCRYPTION_KEY")
+    encryption_key_env = settings.ENCRYPTION_KEY
+
     if encryption_key_env:
         try:
-            # Decode base64 key to bytes
-            key_bytes = base64.b64decode(encryption_key_env)
-            if len(key_bytes) != 32:
-                raise ValueError("ENCRYPTION_KEY must be 32 bytes (256 bits) when base64 decoded")
+            # Try to decode as base64 first
+            try:
+                key_bytes = base64.b64decode(encryption_key_env)
+                if len(key_bytes) == 32:
+                    return key_bytes
+                else:
+                    logger.warning(
+                        f"ENCRYPTION_KEY decoded to {len(key_bytes)} bytes, need 32 bytes. "
+                        "Treating as raw string and hashing."
+                    )
+            except Exception:
+                # Not valid base64, treat as raw string
+                logger.warning(
+                    "ENCRYPTION_KEY is not valid base64. Treating as raw string and deriving key."
+                )
+
+            # If base64 decode failed or wrong length, derive key from the string
+            from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+            # Use PBKDF2 to derive a proper 32-byte key from whatever string was provided
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=b'otto-encryption-salt',  # Static salt for deterministic key derivation
+                iterations=100000,
+                backend=default_backend()
+            )
+            key_bytes = kdf.derive(encryption_key_env.encode('utf-8'))
+            logger.info("Successfully derived 32-byte encryption key from ENCRYPTION_KEY string")
             return key_bytes
+
         except Exception as e:
             logger.warning(f"Error parsing ENCRYPTION_KEY: {e}. Using default key (NOT FOR PRODUCTION)")
 
     # Default key for development (32 bytes = 256 bits)
     # WARNING: This is insecure for production use
-    default_key = b"otto-default-encryption-key-256bits!!"
+    default_key = b"otto-default-encryption-key-256!!"  # Exactly 32 bytes
     logger.warning("Using default encryption key. Set ENCRYPTION_KEY environment variable for production.")
     return default_key
 
@@ -57,6 +82,11 @@ def encrypt_api_key(plain_key: str) -> str:
     """
     try:
         key = get_encryption_key()
+
+        # Validate key length
+        if len(key) != 32:
+            raise ValueError(f"Encryption key must be exactly 32 bytes, got {len(key)} bytes")
+
         backend = default_backend()
 
         # Generate random IV (16 bytes for AES)
@@ -79,6 +109,7 @@ def encrypt_api_key(plain_key: str) -> str:
         encrypted_b64 = base64.b64encode(encrypted_with_iv).decode('utf-8')
 
         return encrypted_b64
+
     except Exception as e:
         logger.error(f"Error encrypting API key: {e}")
         raise ValueError(f"Failed to encrypt API key: {e}")
@@ -96,6 +127,11 @@ def decrypt_api_key(encrypted_key: str) -> str:
     """
     try:
         key = get_encryption_key()
+
+        # Validate key length
+        if len(key) != 32:
+            raise ValueError(f"Encryption key must be exactly 32 bytes, got {len(key)} bytes")
+
         backend = default_backend()
 
         # Decode base64
@@ -118,6 +154,7 @@ def decrypt_api_key(encrypted_key: str) -> str:
         plaintext += unpadder.finalize()
 
         return plaintext.decode('utf-8')
+
     except Exception as e:
         logger.error(f"Error decrypting API key: {e}")
         raise ValueError(f"Failed to decrypt API key: {e}")

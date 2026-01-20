@@ -4,7 +4,7 @@ Invitations API routes.
 Provides endpoints for creating and accepting invitations.
 """
 import traceback
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 from app.core.dependencies import DbSession
 from app.core.permissions import require_executive, require_any_role
@@ -20,8 +20,8 @@ logger = get_logger(__name__)
 
 @router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
 async def create_invitation(
-    invitation_data: InvitationCreate,
     db: DbSession,
+    invitation_data: InvitationCreate = Body(...),
     current_user: User = Depends(require_executive),
 ) -> InvitationResponse:
     """

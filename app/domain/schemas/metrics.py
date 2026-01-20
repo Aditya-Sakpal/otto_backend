@@ -152,3 +152,55 @@ class ObjectionCallsResponse(BaseModel):
     total_calls: int
     calls: List[Dict[str, Any]]
 
+
+class CoachingInsight(BaseModel):
+    """Coaching insight item."""
+    type: str = Field(..., description="Type of insight: objection_handling, script_adherence, response_time, lead_qualification")
+    title: str = Field(..., description="Title of the insight")
+    message: str = Field(..., description="Detailed message/feedback")
+    status: str = Field(..., description="Status: positive, warning, recommendation")
+    improvement_percentage: Optional[float] = Field(None, description="Improvement percentage if applicable")
+
+
+class ExecutiveViewMetrics(BaseModel):
+    """Executive view metrics."""
+    booking_rate: float = Field(..., description="Booking rate percentage")
+    conversion_rate: float = Field(..., description="Conversion rate percentage")
+    calls_answered: int = Field(..., description="Number of calls answered")
+    total_calls: int = Field(..., description="Total number of calls")
+    avg_response_time: float = Field(..., description="Average response time in seconds")
+    response_time_target: float = Field(default=15.0, description="Target response time in seconds")
+
+
+class CSRProfileResponse(BaseModel):
+    """CSR profile with all metrics and insights."""
+    # User info
+    user_id: UUID
+    name: str = Field(..., description="Full name (first_name + last_name)")
+    email: str
+    role: str
+    rank: Optional[int] = Field(None, description="Rank among CSRs (1-based)")
+    total_csrs: int = Field(..., description="Total number of CSRs in company")
+    
+    # KPIs
+    total_calls: int
+    calls_answered: int
+    calls_answered_percentage: float
+    missed_calls: int
+    missed_calls_status: str = Field(..., description="Status: low, medium, high")
+    booked_appointments: int
+    total_leads: int
+    qualified_leads: int
+    booking_rate: float
+    avg_response_time: float
+    response_time_status: str = Field(..., description="Status: on_target, above_target, below_target")
+    
+    # Executive view
+    executive_view: ExecutiveViewMetrics
+    
+    # Coaching insights
+    coaching_insights: List[CoachingInsight]
+    
+    # Date range
+    start_date: datetime
+    end_date: datetime

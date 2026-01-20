@@ -119,7 +119,7 @@ security = HTTPBearer()
 # AUTHENTICATION BYPASS - Returns dummy user to allow all access
 async def get_current_user(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
 ) -> User:
     """AUTHENTICATION DISABLED - Returns dummy user to allow all access."""
     from uuid import UUID
@@ -127,10 +127,10 @@ async def get_current_user(
     logger.debug("Authentication bypassed - returning dummy user")
     return User(
         id=UUID("00000000-0000-0000-0000-000000000001"),
-        email="open_access@system.local",
+        email="open_access@otto.ai",  # Valid email domain
         role=UserRole.EXECUTIVE,
         is_active=True,
-        company_id=None,
+        company_id=UUID("11111111-1111-1111-1111-111111111111"),  # Use test company
         created_at=datetime.utcnow(),
     )
 

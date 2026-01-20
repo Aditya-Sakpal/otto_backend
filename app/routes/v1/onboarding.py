@@ -33,13 +33,13 @@ router = APIRouter()
 
 @router.post("/validate-ghl", response_model=ValidateGHLResponse, status_code=status.HTTP_200_OK)
 async def validate_ghl(
-    request: ValidateGHLRequest,
+    body: ValidateGHLRequest,
 ) -> ValidateGHLResponse:
     """
     Verify GoHighLevel credentials before final submission.
 
     Args:
-        request: Validation request with location_id and api_key
+        body: Validation request with location_id and api_key
 
     Returns:
         GHL company information if valid
@@ -48,7 +48,7 @@ async def validate_ghl(
         HTTPException: 401 if credentials are invalid
     """
     try:
-        result = await GHLService.verify_api_key(request.api_key, request.location_id)
+        result = await GHLService.verify_api_key(body.api_key, body.location_id)
 
         if not result:
             raise HTTPException(
@@ -72,13 +72,13 @@ async def validate_ghl(
 
 @router.post("/validate-ctm", response_model=ValidateCTMResponse, status_code=status.HTTP_200_OK)
 async def validate_ctm(
-    request: ValidateCTMRequest,
+    body: ValidateCTMRequest,
 ) -> ValidateCTMResponse:
     """
     Verify Call Tracking Metrics (CTM) credentials before final submission.
 
     Args:
-        request: Validation request with access_key and secret_key
+        body: Validation request with access_key and secret_key
 
     Returns:
         CTM company information if valid (secret_key, company_name, company_id)
@@ -87,7 +87,7 @@ async def validate_ctm(
         HTTPException: 401 if credentials are invalid
     """
     try:
-        result = await CTMService.verify_api_key(request.access_key, request.secret_key)
+        result = await CTMService.verify_api_key(body.access_key, body.secret_key)
 
         if not result:
             raise HTTPException(

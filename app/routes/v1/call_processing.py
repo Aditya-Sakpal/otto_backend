@@ -56,7 +56,7 @@ class ProcessCallResponse(BaseModel):
 
 @router.post("/process", status_code=status.HTTP_202_ACCEPTED)
 async def process_call(
-    request: ProcessCallRequest,
+    body: ProcessCallRequest,
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
@@ -67,7 +67,7 @@ async def process_call(
     Processing happens asynchronously. Returns a job_id for tracking.
     """
     try:
-        logger.info(f"Processing call: {request}")
+        logger.info(f"Processing call: {body}")
         shoonya = get_shoonya_client()
         if not shoonya.is_available():
             raise HTTPException(
@@ -77,34 +77,39 @@ async def process_call(
         
         # Submit to Shunya
         result = await shoonya.process_call(
-            call_id=request.call_id,
-            company_id=request.company_id,
-            audio_url=request.audio_url,
-            phone_number=request.phone_number,
-            duration=request.duration,
-            call_date=request.call_date,
-            metadata=request.metadata,
-            webhook_url=request.webhook_url,
-            options=request.options,
+            call_id=body.call_id,
+            company_id=body.company_id,
+            audio_url=body.audio_url,
+            phone_number=body.phone_number,
+            duration=body.duration,
+            call_date=body.call_date,
+            metadata=body.metadata,
+            webhook_url=body.webhook_url,
+            options=body.options,
         )
         
-        # Store job in database
-        job = CallProcessingJobORM(
-            company_id=UUID(request.company_id),
-            call_id=UUID(request.call_id),
-            shunya_job_id=result["job_id"],
-            status=result.get("status", "queued"),
-            skip_rag_indexing=request.options.get("skip_rag_indexing", False),
-            skip_summary_generation=request.options.get("skip_summary_generation", False),
-            priority=request.options.get("priority", "normal"),
-        )
-        db.add(job)
-        await db.commit()
-        await db.refresh(job)
+        # Try to store job in database (may fail if call_id doesn't exist - FK constraint)
+        try:
+            job = CallProcessingJobORM(
+                company_id=UUID(body.company_id),
+                call_id=UUID(body.call_id),
+                shunya_job_id=result["job_id"],
+                status=result.get("status", "queued"),
+                skip_rag_indexing=body.options.get("skip_rag_indexing", False),
+                skip_summary_generation=body.options.get("skip_summary_generation", False),
+                priority=body.options.get("priority", "normal"),
+            )
+            db.add(job)
+            await db.commit()
+            await db.refresh(job)
+        except Exception as db_error:
+            # Log but don't fail - job is already submitted to Shunya
+            logger.warning(f"Could not store job locally (call may not exist in DB): {db_error}")
+            await db.rollback()
         
         return ProcessCallResponse(
             job_id=result["job_id"],
-            call_id=request.call_id,
+            call_id=body.call_id,
             status=result.get("status", "queued"),
             message=result.get("message", "Call processing queued"),
             estimated_completion_time=date_parser.parse(result["estimated_completion_time"]) if isinstance(result.get("estimated_completion_time"), str) else result.get("estimated_completion_time"),
@@ -116,6 +121,12 @@ async def process_call(
     except Exception as e:
         logger.error(f"Error processing call: {e}")
         traceback.print_exc()
+        # Return 503 for Shunya connectivity issues (RetryError, connection errors)
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process call: {str(e)}",
@@ -230,6 +241,12 @@ async def get_call_summary(
     except Exception as e:
         logger.error(f"Error getting call summary: {e}")
         traceback.print_exc()
+        # Return 503 for Shunya connectivity issues (RetryError, connection errors)
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get call summary: {str(e)}",
@@ -264,6 +281,12 @@ async def get_call_chunks(
     except Exception as e:
         logger.error(f"Error getting call chunks: {e}")
         traceback.print_exc()
+        # Return 503 for Shunya connectivity issues (RetryError, connection errors)
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get call chunks: {str(e)}",

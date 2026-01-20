@@ -16,6 +16,7 @@ from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
 from app.infrastructure.database.models.user import UserORM
+from app.domain.enums import UserRole
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.lead import LeadRepository
 from app.infrastructure.repositories.appointment import AppointmentRepository
@@ -1262,5 +1263,345 @@ class MetricsService:
             }
         except Exception as e:
             logger.error(f"Error getting auto-queued leads: {e}")
+            traceback.print_exc()
+            raise e
+    
+    async def get_csr_profile(
+        self,
+        user_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get comprehensive CSR profile with all metrics, rank, and coaching insights.
+        
+        Args:
+            user_id: CSR user ID
+            start_date: Start date for metrics (defaults to 30 days ago)
+            end_date: End date for metrics (defaults to today)
+            
+        Returns:
+            Dictionary with all CSR profile data
+        """
+        try:
+            start_dt, end_dt = self._get_date_range(start_date, end_date)
+            
+            # Get user info
+            user_result = await self.session.execute(
+                select(UserORM).where(UserORM.id == user_id)
+            )
+            user = user_result.scalar_one_or_none()
+            
+            if not user:
+                raise ValueError(f"User {user_id} not found")
+            
+            if user.role != UserRole.CSR.value:
+                raise ValueError(f"User {user_id} is not a CSR")
+            
+            if not user.company_id:
+                raise ValueError(f"User {user_id} has no company_id")
+            
+            company_id = user.company_id
+            user_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or "CSR Agent"
+            
+            # Get all CSRs in the company for ranking
+            all_csrs_result = await self.session.execute(
+                select(UserORM.id).where(
+                    UserORM.company_id == company_id,
+                    UserORM.role == UserRole.CSR.value,
+                    UserORM.is_active == True
+                )
+            )
+            all_csr_ids = [row[0] for row in all_csrs_result.all()]
+            total_csrs = len(all_csr_ids)
+            
+            # ===== CALL METRICS =====
+            # Total calls
+            total_calls_result = await self.session.execute(
+                select(func.count(CallORM.id)).where(
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                )
+            )
+            total_calls = total_calls_result.scalar() or 0
+            
+            # Calls answered
+            calls_answered_result = await self.session.execute(
+                select(func.count(CallORM.id)).where(
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == False,
+                )
+            )
+            calls_answered = calls_answered_result.scalar() or 0
+            
+            # Missed calls
+            missed_calls = total_calls - calls_answered
+            calls_answered_percentage = (calls_answered / total_calls * 100) if total_calls > 0 else 0.0
+            
+            # Determine missed calls status
+            missed_calls_percentage = (missed_calls / total_calls * 100) if total_calls > 0 else 0.0
+            if missed_calls_percentage > 10:
+                missed_calls_status = "high"
+            elif missed_calls_percentage > 5:
+                missed_calls_status = "medium"
+            else:
+                missed_calls_status = "low"
+            
+            # Average response time (in seconds)
+            avg_response_time_result = await self.session.execute(
+                select(
+                    func.avg(
+                        func.extract('epoch', CallORM.answered_at - CallORM.created_at)
+                    )
+                ).where(
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == False,
+                    CallORM.answered_at.isnot(None),
+                )
+            )
+            avg_response_time = avg_response_time_result.scalar() or 0.0
+            
+            # Response time status
+            response_time_target = 15.0
+            if avg_response_time <= response_time_target:
+                response_time_status = "on_target"
+            elif avg_response_time <= response_time_target * 1.5:
+                response_time_status = "above_target"
+            else:
+                response_time_status = "below_target"
+            
+            # ===== LEAD METRICS =====
+            # Total leads (leads assigned to this CSR)
+            total_leads_result = await self.session.execute(
+                select(func.count(LeadORM.id)).where(
+                    LeadORM.assigned_rep_id == user_id,
+                    LeadORM.created_at >= start_dt,
+                    LeadORM.created_at <= end_dt,
+                )
+            )
+            total_leads = total_leads_result.scalar() or 0
+            
+            # Qualified leads
+            qualified_leads_result = await self.session.execute(
+                select(func.count(LeadORM.id)).where(
+                    LeadORM.assigned_rep_id == user_id,
+                    LeadORM.created_at >= start_dt,
+                    LeadORM.created_at <= end_dt,
+                    or_(
+                        LeadORM.status.like('qualified_%'),
+                        LeadORM.deal_status == 'qualified'
+                    )
+                )
+            )
+            qualified_leads = qualified_leads_result.scalar() or 0
+            
+            # ===== APPOINTMENT METRICS =====
+            # Booked appointments
+            booked_appointments_result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(
+                    AppointmentORM.assigned_rep_id == user_id,
+                    AppointmentORM.created_at >= start_dt,
+                    AppointmentORM.created_at <= end_dt,
+                )
+            )
+            booked_appointments = booked_appointments_result.scalar() or 0
+            
+            # Booking rate
+            booking_rate = (booked_appointments / qualified_leads * 100) if qualified_leads > 0 else 0.0
+            
+            # ===== CONVERSION RATE =====
+            # Conversion rate: appointments with outcome='won' / qualified_leads
+            won_appointments_result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(
+                    AppointmentORM.assigned_rep_id == user_id,
+                    AppointmentORM.created_at >= start_dt,
+                    AppointmentORM.created_at <= end_dt,
+                    AppointmentORM.outcome == 'won',
+                )
+            )
+            won_appointments = won_appointments_result.scalar() or 0
+            conversion_rate = (won_appointments / qualified_leads * 100) if qualified_leads > 0 else 0.0
+            
+            # ===== RANK CALCULATION =====
+            # Calculate booking rates for all CSRs to determine rank
+            csr_booking_rates = {}
+            for csr_id in all_csr_ids:
+                csr_qualified_result = await self.session.execute(
+                    select(func.count(LeadORM.id)).where(
+                        LeadORM.assigned_rep_id == csr_id,
+                        LeadORM.created_at >= start_dt,
+                        LeadORM.created_at <= end_dt,
+                        or_(
+                            LeadORM.status.like('qualified_%'),
+                            LeadORM.deal_status == 'qualified'
+                        )
+                    )
+                )
+                csr_qualified = csr_qualified_result.scalar() or 0
+                
+                csr_appointments_result = await self.session.execute(
+                    select(func.count(AppointmentORM.id)).where(
+                        AppointmentORM.assigned_rep_id == csr_id,
+                        AppointmentORM.created_at >= start_dt,
+                        AppointmentORM.created_at <= end_dt,
+                    )
+                )
+                csr_appointments = csr_appointments_result.scalar() or 0
+                
+                csr_booking_rate = (csr_appointments / csr_qualified * 100) if csr_qualified > 0 else 0.0
+                csr_booking_rates[csr_id] = csr_booking_rate
+            
+            # Sort CSRs by booking rate (descending) and find rank
+            sorted_csrs = sorted(csr_booking_rates.items(), key=lambda x: x[1], reverse=True)
+            rank = None
+            for idx, (csr_id, rate) in enumerate(sorted_csrs, 1):
+                if csr_id == user_id:
+                    rank = idx
+                    break
+            
+            # ===== COACHING INSIGHTS =====
+            coaching_insights = []
+            
+            # 1. Objection Handling
+            # Get objection handling improvement
+            current_month_objections = await self.session.execute(
+                select(func.count(CallAnalysisORM.id)).where(
+                    CallAnalysisORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallAnalysisORM.created_at >= start_dt,
+                    CallAnalysisORM.created_at <= end_dt,
+                    CallAnalysisORM.objections.isnot(None),
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+            )
+            current_objections = current_month_objections.scalar() or 0
+            
+            # Compare with previous period
+            prev_start_dt = start_dt - (end_dt - start_dt)
+            prev_objections_result = await self.session.execute(
+                select(func.count(CallAnalysisORM.id)).where(
+                    CallAnalysisORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallAnalysisORM.created_at >= prev_start_dt,
+                    CallAnalysisORM.created_at < start_dt,
+                    CallAnalysisORM.objections.isnot(None),
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+            )
+            prev_objections = prev_objections_result.scalar() or 0
+            
+            if prev_objections > 0:
+                improvement = ((prev_objections - current_objections) / prev_objections) * 100
+                if improvement > 0:
+                    coaching_insights.append({
+                        "type": "objection_handling",
+                        "title": "Objection Handling",
+                        "message": f"You've improved your handling of pricing objections by {improvement:.0f}% this month. Keep up the great work!",
+                        "status": "positive",
+                        "improvement_percentage": improvement
+                    })
+            
+            # 2. Script Adherence
+            # Check SOP compliance
+            avg_sop_score_result = await self.session.execute(
+                select(func.avg(CallAnalysisORM.sop_compliance_score)).where(
+                    CallAnalysisORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallAnalysisORM.created_at >= start_dt,
+                    CallAnalysisORM.created_at <= end_dt,
+                    CallAnalysisORM.sop_compliance_score.isnot(None),
+                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+            )
+            avg_sop_score = avg_sop_score_result.scalar() or 0.0
+            
+            if avg_sop_score < 80:
+                coaching_insights.append({
+                    "type": "script_adherence",
+                    "title": "Script Adherence",
+                    "message": "Focus on following the booking script more closely, especially during peak hours.",
+                    "status": "recommendation",
+                    "improvement_percentage": None
+                })
+            
+            # 3. Response Time
+            if avg_response_time > response_time_target:
+                coaching_insights.append({
+                    "type": "response_time",
+                    "title": "Response Time",
+                    "message": f"Your average response time is above target. Try to answer calls within the first 3 rings.",
+                    "status": "warning",
+                    "improvement_percentage": None
+                })
+            
+            # 4. Lead Qualification Accuracy
+            # Compare qualification_status from analysis with actual lead status
+            qualification_accuracy_result = await self.session.execute(
+                select(
+                    func.count(CallAnalysisORM.id),
+                    func.sum(case((CallAnalysisORM.qualification_status == 'qualified', 1), else_=0))
+                ).where(
+                    CallAnalysisORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.lead_id.isnot(None),
+                    CallAnalysisORM.created_at >= start_dt,
+                    CallAnalysisORM.created_at <= end_dt,
+                    CallAnalysisORM.qualification_status.isnot(None),
+                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+            )
+            qual_result = qualification_accuracy_result.first()
+            total_qualifications = qual_result[0] or 0
+            qualified_count = qual_result[1] or 0
+            
+            if total_qualifications > 0:
+                qualification_accuracy = (qualified_count / total_qualifications) * 100
+                if qualification_accuracy >= 90:
+                    coaching_insights.append({
+                        "type": "lead_qualification",
+                        "title": "Lead Qualification",
+                        "message": f"Your lead qualification accuracy is {qualification_accuracy:.0f}%, one of the highest on the team!",
+                        "status": "positive",
+                        "improvement_percentage": None
+                    })
+            
+            # Build response
+            return {
+                "user_id": str(user_id),
+                "name": user_name,
+                "email": user.email,
+                "role": user.role,
+                "rank": rank,
+                "total_csrs": total_csrs,
+                "total_calls": total_calls,
+                "calls_answered": calls_answered,
+                "calls_answered_percentage": round(calls_answered_percentage, 1),
+                "missed_calls": missed_calls,
+                "missed_calls_status": missed_calls_status,
+                "booked_appointments": booked_appointments,
+                "total_leads": total_leads,
+                "qualified_leads": qualified_leads,
+                "booking_rate": round(booking_rate, 1),
+                "avg_response_time": round(avg_response_time, 1),
+                "response_time_status": response_time_status,
+                "executive_view": {
+                    "booking_rate": round(booking_rate, 1),
+                    "conversion_rate": round(conversion_rate, 1),
+                    "calls_answered": calls_answered,
+                    "total_calls": total_calls,
+                    "avg_response_time": round(avg_response_time, 1),
+                    "response_time_target": response_time_target,
+                },
+                "coaching_insights": coaching_insights,
+                "start_date": start_dt.isoformat(),
+                "end_date": end_dt.isoformat(),
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting CSR profile: {e}")
+            import traceback
             traceback.print_exc()
             raise e

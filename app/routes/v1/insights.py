@@ -42,7 +42,7 @@ class GenerateInsightsRequest(BaseModel):
 
 @router.post("/generate", status_code=status.HTTP_202_ACCEPTED)
 async def generate_insights(
-    request: GenerateInsightsRequest,
+    body: GenerateInsightsRequest,
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.EXECUTIVE])),
@@ -62,26 +62,26 @@ async def generate_insights(
         
         # Submit to Shunya
         result = await shoonya.generate_insights(
-            week_start=request.week_start,
-            week_end=request.week_end,
-            company_ids=request.company_ids,
-            insight_types=request.insight_types,
-            webhook_url=request.webhook_url,
-            options=request.options,
+            week_start=body.week_start,
+            week_end=body.week_end,
+            company_ids=body.company_ids,
+            insight_types=body.insight_types,
+            webhook_url=body.webhook_url,
+            options=body.options,
         )
         
         # Store job in database
         from datetime import datetime as dt
         job = InsightJobORM(
-            company_id=UUID(request.company_ids[0]) if request.company_ids else None,
+            company_id=UUID(body.company_ids[0]) if body.company_ids else None,
             shunya_job_id=result["job_id"],
-            week_start=dt.strptime(request.week_start, "%Y-%m-%d").date(),
-            week_end=dt.strptime(request.week_end, "%Y-%m-%d").date(),
-            company_ids=request.company_ids,
-            insight_types=request.insight_types,
+            week_start=dt.strptime(body.week_start, "%Y-%m-%d").date(),
+            week_end=dt.strptime(body.week_end, "%Y-%m-%d").date(),
+            company_ids=body.company_ids,
+            insight_types=body.insight_types,
             status=result.get("status", "queued"),
-            force_regenerate=request.options.get("force_regenerate", False),
-            include_inactive_customers=request.options.get("include_inactive_customers", False),
+            force_regenerate=body.options.get("force_regenerate", False),
+            include_inactive_customers=body.options.get("include_inactive_customers", False),
         )
         db.add(job)
         await db.commit()
@@ -93,6 +93,12 @@ async def generate_insights(
     except Exception as e:
         logger.error(f"Error generating insights: {e}")
         traceback.print_exc()
+        # Return 503 for Shunya connectivity issues (RetryError, connection errors)
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate insights: {str(e)}",
@@ -260,6 +266,12 @@ async def get_objection_insights(
     except Exception as e:
         logger.error(f"Error getting objection insights: {e}")
         traceback.print_exc()
+        # Return 503 for Shunya connectivity issues (RetryError, connection errors)
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get objection insights: {str(e)}",

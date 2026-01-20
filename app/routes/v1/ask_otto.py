@@ -41,7 +41,7 @@ class SendMessageRequest(BaseModel):
 
 @router.post("/conversations", status_code=status.HTTP_201_CREATED)
 async def create_conversation(
-    request: CreateConversationRequest,
+    body: CreateConversationRequest,
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
@@ -50,34 +50,45 @@ async def create_conversation(
     Create a new Ask Otto conversation.
     """
     try:
+        # Check if user is the dummy user (RBAC disabled) - don't store user_id in that case
+        is_dummy_user = current_user and current_user.email in ["open_access@system.local", "open_access@otto.ai"]
+        user_id_for_db = None if is_dummy_user else (current_user.id if current_user else None)
+        user_id_for_shunya = None if is_dummy_user else (str(current_user.id) if current_user else None)
+        
         shoonya = get_shoonya_client()
-        if not shoonya.is_available():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Shunya service not available",
-            )
+        shunya_conversation_id = None
+        shunya_result = {}
+        
+        # Try to create conversation in Shunya if available
+        if shoonya.is_available():
+            try:
+                shunya_result = await shoonya.create_ask_otto_conversation(
+                    company_id=body.company_id,
+                    user_id=user_id_for_shunya,
+                    metadata=body.context,  # Use context as metadata
+                )
+                shunya_conversation_id = shunya_result.get("conversation_id") or shunya_result.get("id")
+            except Exception as e:
+                # Log but don't fail - we can store locally without Shunya
+                logger.warning(f"Shunya service unavailable, creating local conversation: {e}")
+                shunya_result = {"message": "Shunya service unavailable - conversation created locally"}
 
-        # Create conversation in Shunya
-        result = await shoonya.create_ask_otto_conversation(
-            company_id=request.company_id,
-            user_id=str(current_user.id) if current_user else None,
-            metadata=request.context,  # Use context as metadata
-        )
-
-        # Store in database
+        # Store in database (works even without Shunya)
         conversation = AskOttoConversationORM(
-            company_id=UUID(request.company_id),
-            user_id=current_user.id if current_user else None,
-            shunya_conversation_id=result.get("conversation_id") or result.get("id"),
-            context=request.context,
+            company_id=UUID(body.company_id),
+            user_id=user_id_for_db,
+            shunya_conversation_id=shunya_conversation_id,
+            context=body.context,
         )
         db.add(conversation)
         await db.commit()
         await db.refresh(conversation)
 
         return {
-            **result,
+            **shunya_result,
             "id": str(conversation.id),
+            "conversation_id": shunya_conversation_id or str(conversation.id),
+            "company_id": body.company_id,
         }
     except HTTPException:
         raise
@@ -91,8 +102,8 @@ async def create_conversation(
 
 @router.post("/conversations/{conversation_id}/messages")
 async def send_message(
-    conversation_id: UUID,
-    request: SendMessageRequest,
+    conversation_id: str,
+    body: SendMessageRequest,
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
@@ -116,13 +127,6 @@ async def send_message(
         yield f"data: {json.dumps({'done': True})}\n\n"
 
     try:
-        shoonya = get_shoonya_client()
-        if not shoonya.is_available():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Shunya service not available",
-            )
-
         # Get conversation from database
         conv_query = select(AskOttoConversationORM).where(
             AskOttoConversationORM.id == conversation_id
@@ -136,24 +140,34 @@ async def send_message(
                 detail="Conversation not found",
             )
 
-        # Use Shunya conversation ID if available, otherwise use our UUID
-        shunya_conv_id = conversation.shunya_conversation_id or str(conversation_id)
-
-        # Send message to Shunya
-        result = await shoonya.send_ask_otto_message(
-            conversation_id=shunya_conv_id,
-            message=request.message,
-            company_id=str(conversation.company_id),
-        )
-
-        # Extract assistant response text from Shunya result dict
-        response_text = result.get("response") or result.get("message") or ""
+        shoonya = get_shoonya_client()
+        response_text = ""
+        result = {}
+        
+        # Try to send message to Shunya if available
+        if shoonya.is_available() and conversation.shunya_conversation_id:
+            try:
+                shunya_conv_id = conversation.shunya_conversation_id
+                result = await shoonya.send_ask_otto_message(
+                    conversation_id=shunya_conv_id,
+                    message=body.message,
+                    company_id=str(conversation.company_id),
+                )
+                response_text = result.get("response") or result.get("message") or ""
+            except Exception as e:
+                logger.warning(f"Shunya service unavailable, using local fallback: {e}")
+                response_text = f"[Shunya service unavailable] Your question: '{body.message}' has been recorded. The AI assistant is currently offline."
+                result = {"message": "Shunya service unavailable"}
+        else:
+            # Fallback response when Shunya is not available
+            response_text = f"[Offline mode] Your question: '{body.message}' has been recorded. The AI assistant is currently unavailable."
+            result = {"message": "AI assistant unavailable"}
 
         # Store user message
         user_message = AskOttoMessageORM(
             conversation_id=conversation_id,
             role="user",
-            content=request.message,
+            content=body.message,
             shunya_message_id=result.get("message_id"),
         )
         db.add(user_message)

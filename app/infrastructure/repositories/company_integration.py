@@ -252,12 +252,36 @@ class CompanyIntegrationRepository:
             logger.error(f"Error getting company_id by location_id: {e}")
             raise e
 
-    async def get_voip_api_encrypted_key_by_company_id(self, company_id: UUID) -> str | None:
+    async def get_company_id_by_voip_company_id(self, voip_company_id: str) -> UUID | None:
+        """
+        Get company_id from voip_company_id.
+
+        Args:
+            voip_company_id: VoIP company ID
+
+        Returns:
+            Company UUID or None if not found
+        """
+        try:
+            result = await self.session.execute(
+                select(CompanyIntegrationORM).where(
+                    CompanyIntegrationORM.voip_company_id == voip_company_id
+                )
+            )
+            orm_obj = result.scalar_one_or_none()
+            if orm_obj:
+                return orm_obj.company_id
+            return None
+        except Exception as e:
+            logger.error(f"Error getting company_id by voip_company_id: {e}")
+            raise e
+
+    async def get_voip_api_encrypted_key_by_voip_company_id(self, company_id: str) -> str | None:
         """
         Get voip_api_encrypted_key from company_id.
 
         Args:
-            company_id: Company UUID
+            company_id: voip_company_id
 
         Returns:
             Encrypted VoIP API key or None if not found
@@ -265,7 +289,7 @@ class CompanyIntegrationRepository:
         try:
             result = await self.session.execute(
                 select(CompanyIntegrationORM).where(
-                    CompanyIntegrationORM.company_id == company_id
+                    CompanyIntegrationORM.voip_company_id == company_id
                 )
             )
             orm_obj = result.scalar_one_or_none()

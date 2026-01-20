@@ -21,6 +21,8 @@ from app.domain.schemas.appointment import (
 )
 from app.domain.users.models import User
 from app.services.appointment_service import AppointmentService
+from app.infrastructure.repositories.appointment import AppointmentRepository
+from app.infrastructure.repositories.analysis import CallAnalysisRepository
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -214,6 +216,100 @@ async def delete_appointment(
         raise
     except Exception as e:
         logger.error(f"Error deleting appointment: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/{appointment_id}/insights")
+async def get_appointment_insights(
+    appointment_id: UUID,
+    db: DbSession,
+    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
+):
+    """
+    Get insights for an appointment.
+
+    Returns call analysis insights for the appointment's associated call/interaction.
+    If no interaction_id exists or no analysis is available, returns appropriate status.
+
+    Access: Any authenticated user
+
+    Returns:
+        {
+            "appointment_id": "...",
+            "status": "completed" | "pending" | "processing" | "not_found",
+            "insights": {
+                "summary": "...",
+                "sentiment": 0.85,
+                "sop_score": 0.9,
+                "objections_found": ["Price", "Competitor"]
+            } | null
+        }
+    """
+    try:
+        appointment_repo = AppointmentRepository(db)
+        analysis_repo = CallAnalysisRepository(db)
+        
+        # Get appointment
+        appointment = await appointment_repo.get_by_id(appointment_id)
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found",
+            )
+        
+        # Check if appointment has an interaction_id
+        if not appointment.interaction_id:
+            return {
+                "appointment_id": str(appointment_id),
+                "status": "not_found",
+                "insights": None,
+            }
+        
+        # Get call analysis by call_id (interaction_id)
+        analysis = await analysis_repo.get_by_call_id(appointment.interaction_id)
+        
+        if not analysis:
+            # Check if call exists and its status
+            from app.infrastructure.repositories.call import CallRepository
+            call_repo = CallRepository(db)
+            call = await call_repo.get_by_id(appointment.interaction_id)
+            
+            if call:
+                return {
+                    "appointment_id": str(appointment_id),
+                    "status": call.status or "pending",
+                    "insights": None,
+                }
+            else:
+                return {
+                    "appointment_id": str(appointment_id),
+                    "status": "not_found",
+                    "insights": None,
+                }
+        
+        # Build insights response
+        insights = {
+            "summary": analysis.summary or "",
+            "sentiment": analysis.sentiment_score if analysis.sentiment_score is not None else None,
+            "sop_score": analysis.sop_compliance_score if analysis.sop_compliance_score is not None else None,
+            "objections_found": [obj.value if hasattr(obj, 'value') else str(obj) for obj in analysis.objections] if analysis.objections else [],
+        }
+        
+        return {
+            "appointment_id": str(appointment_id),
+            "status": analysis.status.value if hasattr(analysis.status, 'value') else str(analysis.status),
+            "insights": insights,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting appointment insights: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

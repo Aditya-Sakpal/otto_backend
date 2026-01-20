@@ -111,5 +111,15 @@ class ContactRepository(BaseRepository[ContactCardORM, ContactCard]):
         return ContactCard.model_validate(orm_obj)
 
     def _to_orm(self, contact: ContactCard) -> ContactCardORM:
-        """Convert domain model to ORM model."""
-        return ContactCardORM(**contact.model_dump(exclude={"id"} if contact.id else set()))
+        """
+        Convert domain model to ORM model, excluding fields
+        that the DB manages or that shouldn't be in the constructor.
+        """
+        # Always exclude audit fields and the ID (if new)
+        exclude_fields = {"created_at", "updated_at"}
+        if not contact.id:
+            exclude_fields.add("id")
+
+        # model_dump(exclude=...) prevents 'created_at' from being passed to ContactCardORM(...)
+        data = contact.model_dump(exclude=exclude_fields)
+        return ContactCardORM(**data)

@@ -39,6 +39,11 @@ class CallORM(Base):
         nullable=True,
         onupdate=func.current_timestamp(),
     )
+    answered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
 
     # Relationships
     company = relationship("CompanyORM", back_populates="calls")

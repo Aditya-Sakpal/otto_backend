@@ -10,7 +10,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 
-from app.core.dependencies import DbSession
+from app.core.dependencies import DbSession, get_current_user
 from app.core.permissions import require_executive, require_any_role
 from app.domain.enums import UserRole
 from app.domain.users.models import User
@@ -518,6 +518,75 @@ async def get_pending_actions(
     service = MetricsService(db)
     return await service.get_pending_actions(
         company_id=company_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+@router.get("/csr/me/profile", response_model=dict)
+async def get_my_csr_profile(
+    db: DbSession,
+    # RBAC DISABLED - current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),  # RBAC DISABLED - Returns dummy user
+    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
+):
+    """
+    Get current CSR's own profile with all metrics, rank, and coaching insights.
+    
+    - **start_date**: Start of the date range (defaults to 30 days ago)
+    - **end_date**: End of the date range (defaults to today)
+    
+    Returns:
+    - User information (name, email, role, rank)
+    - Key Performance Indicators (calls, leads, appointments, booking rate, response time)
+    - Executive view metrics (booking rate, conversion rate, calls answered, response time)
+    - Coaching insights (objection handling, script adherence, response time, lead qualification)
+    
+    Required role: CSR (returns own profile)
+    """
+    if current_user.role != UserRole.CSR.value:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This endpoint is only available for CSR users"
+        )
+    
+    service = MetricsService(db)
+    return await service.get_csr_profile(
+        user_id=current_user.id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+@router.get("/csr/{user_id}/profile", response_model=dict)
+async def get_csr_profile(
+    user_id: UUID,
+    db: DbSession,
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
+    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
+):
+    """
+    Get comprehensive CSR profile with all metrics, rank, and coaching insights.
+    
+    - **user_id**: CSR user UUID
+    - **start_date**: Start of the date range (defaults to 30 days ago)
+    - **end_date**: End of the date range (defaults to today)
+    
+    Returns:
+    - User information (name, email, role, rank)
+    - Key Performance Indicators (calls, leads, appointments, booking rate, response time)
+    - Executive view metrics (booking rate, conversion rate, calls answered, response time)
+    - Coaching insights (objection handling, script adherence, response time, lead qualification)
+    
+    Required role: CSR or EXECUTIVE
+    """
+    service = MetricsService(db)
+    return await service.get_csr_profile(
+        user_id=user_id,
         start_date=start_date,
         end_date=end_date,
     )

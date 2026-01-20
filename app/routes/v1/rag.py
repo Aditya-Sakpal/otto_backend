@@ -26,7 +26,7 @@ class RAGQueryRequest(BaseModel):
 
 @router.post("/ask-otto")
 async def query_ask_otto(
-    request: RAGQueryRequest,
+    body: RAGQueryRequest,
     db: DbSession,
     user: User = Depends(require_manager),  # EXECUTIVE only for company scope
 ):
@@ -36,7 +36,7 @@ async def query_ask_otto(
     Access: EXECUTIVE only
 
     Args:
-        request: Query request
+        body: Query request
         user: Current authenticated user (EXECUTIVE)
 
     Returns:
@@ -64,9 +64,9 @@ async def query_ask_otto(
 
         result = await shoonya.query_ask_otto(
             company_id=company_id,
-            query=request.query,
+            query=body.query,
             target_role=target_role,
-            context=request.context,
+            context=body.context,
         )
 
         return result
@@ -75,6 +75,12 @@ async def query_ask_otto(
         raise
     except Exception as e:
         logger.error(f"Error querying Ask Otto: {e}")
+        # Return 503 for Shunya connectivity issues (RetryError, connection errors)
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),

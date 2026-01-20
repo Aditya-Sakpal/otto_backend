@@ -1026,6 +1026,68 @@
 						"description": "Get pending actions metrics"
 					},
 					"response": []
+				},
+				{
+					"name": "Get My CSR Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/csr/me/profile",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "csr", "me", "profile"],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2025-12-01",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2026-01-08",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get current CSR's own profile with all metrics, rank, and coaching insights (CSR only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get CSR Profile by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/csr/{{csr_user_id}}/profile",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "csr", "{{csr_user_id}}", "profile"],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2025-12-01",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2026-01-08",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get comprehensive CSR profile with all metrics, rank, and coaching insights (CSR or Executive)"
+					},
+					"response": []
 				}
 			],
 			"description": "Metrics and analytics endpoints"
@@ -1550,6 +1612,147 @@
 				}
 			],
 			"description": "User invitation endpoints"
+		},
+		{
+			"name": "Onboarding",
+			"item": [
+				{
+					"name": "Validate GHL",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"location_id\": \"NYC-001\",\n    \"api_key\": \"your_ghl_api_key_here\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/onboarding/validate-ghl",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "onboarding", "validate-ghl"]
+						},
+						"description": "Verify GoHighLevel credentials before final submission"
+					},
+					"response": []
+				},
+				{
+					"name": "Validate CTM",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"access_key\": \"your_ctm_access_key\",\n    \"secret_key\": \"your_ctm_secret_key\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/onboarding/validate-ctm",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "onboarding", "validate-ctm"]
+						},
+						"description": "Verify Call Tracking Metrics credentials before final submission"
+					},
+					"response": []
+				},
+				{
+					"name": "Complete Onboarding",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "firstName",
+									"value": "John",
+									"type": "text"
+								},
+								{
+									"key": "lastName",
+									"value": "Doe",
+									"type": "text"
+								},
+								{
+									"key": "email",
+									"value": "john.doe@example.com",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "SecurePassword123!",
+									"type": "text"
+								},
+								{
+									"key": "companyName",
+									"value": "Acme Corp",
+									"type": "text"
+								},
+								{
+									"key": "location_id",
+									"value": "NYC-001",
+									"type": "text"
+								},
+								{
+									"key": "crm_provider",
+									"value": "gohighlevel",
+									"type": "text"
+								},
+								{
+									"key": "crm_api_key",
+									"value": "ghl_api_key_123",
+									"type": "text"
+								},
+								{
+									"key": "crm_company_id",
+									"value": "sf_company_12345",
+									"type": "text"
+								},
+								{
+									"key": "voip_provider",
+									"value": "ringcentral",
+									"type": "text"
+								},
+								{
+									"key": "voip_api_key",
+									"value": "rc_api_key_456",
+									"type": "text"
+								},
+								{
+									"key": "voip_company_id",
+									"value": "rc_company_67890",
+									"type": "text"
+								},
+								{
+									"key": "reference_doc",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "sop_doc",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/onboarding/complete",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "onboarding", "complete"]
+						},
+						"description": "Complete onboarding: create user, company, integration, and upload documents"
+					},
+					"response": []
+				}
+			],
+			"description": "Onboarding endpoints for new company setup"
 		}
 	],
 	"variable": [
@@ -1616,6 +1819,11 @@
 		{
 			"key": "invitation_token",
 			"value": "token_pending_12345",
+			"type": "string"
+		},
+		{
+			"key": "csr_user_id",
+			"value": "ffffffff-ffff-ffff-ffff-ffffffffffff",
 			"type": "string"
 		}
 	]

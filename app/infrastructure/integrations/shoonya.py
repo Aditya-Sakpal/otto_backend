@@ -587,7 +587,7 @@ class ShoonyaClient:
         
         Args:
             company_id: Company UUID
-            user_id: Optional user ID
+            user_id: Optional user ID (defaults to "anonymous" if not provided)
             metadata: Optional metadata (source, user_role, etc.)
             
         Returns:
@@ -596,11 +596,11 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
         
+        # user_id is required by Shunya API - use "anonymous" as default
         payload = {
             "company_id": company_id,
+            "user_id": user_id or "anonymous",
         }
-        if user_id:
-            payload["user_id"] = user_id
         if metadata:
             payload["metadata"] = metadata
         

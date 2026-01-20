@@ -40,6 +40,7 @@ To use this data, run `backend/seed_dummy_data.sql` against your database.
 10. [RAG / Ask Otto](#rag--ask-otto)
 11. [Webhooks](#webhooks)
 12. [Invites](#invites)
+13. [Onboarding](#onboarding)
 
 ---
 
@@ -365,6 +366,7 @@ GET /api/v1/calls?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=1
     "audio_url": "https://storage.example.com/audio/call1.mp3",
     "duration_seconds": 180,
     "owner_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "answered_at": "2025-10-20T10:00:08Z",
     "created_at": "2025-10-20T10:00:00Z",
     "updated_at": "2025-10-20T10:00:00Z"
   }
@@ -411,10 +413,13 @@ GET /api/v1/calls/30000000-0000-0000-0000-000000000001
   "audio_url": "https://storage.example.com/audio/call1.mp3",
   "duration_seconds": 180,
   "owner_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "answered_at": "2025-10-20T10:00:08Z",
   "created_at": "2025-10-20T10:00:00Z",
   "updated_at": "2025-10-20T10:00:00Z"
 }
 ```
+
+**Note:** The `answered_at` field indicates when the call was answered. This is used to calculate response time metrics for CSR performance. For missed calls, `answered_at` will be `null`.
 
 **Error:** `404 Not Found` - Call not found
 
@@ -1254,6 +1259,141 @@ Get pending actions metrics within date range.
 
 ---
 
+### GET `/metrics/csr/me/profile`
+
+Get current CSR's own profile with all metrics, rank, and coaching insights.
+
+**Query Parameters:**
+- `start_date` (date, optional) - Start date (YYYY-MM-DD, defaults to 30 days ago)
+- `end_date` (date, optional) - End date (YYYY-MM-DD, defaults to today)
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response:** `200 OK`
+```json
+{
+  "user": {
+    "id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "email": "csr1@acme.com",
+    "first_name": "Lisa",
+    "last_name": "Support",
+    "role": "csr",
+    "rank": 1
+  },
+  "kpis": {
+    "total_calls": 50,
+    "answered_calls": 45,
+    "missed_calls": 5,
+    "leads_assigned": 30,
+    "appointments_scheduled": 25,
+    "booking_rate": 55.6,
+    "avg_response_time": 8.5
+  },
+  "executive_view": {
+    "booking_rate": 55.6,
+    "conversion_rate": 45.0,
+    "calls_answered": 45,
+    "avg_response_time": 8.5,
+    "response_time_status": "on_target"
+  },
+  "coaching_insights": [
+    {
+      "type": "response_time",
+      "message": "Excellent response time, consistently below target",
+      "avg_response_time": 8.5,
+      "response_time_target": 15.0,
+      "response_time_status": "on_target"
+    }
+  ],
+  "start_date": "2025-12-16T00:00:00",
+  "end_date": "2026-01-15T23:59:59"
+}
+```
+
+**Required Role:** `CSR` (returns own profile only)
+
+---
+
+### GET `/metrics/csr/{user_id}/profile`
+
+Get comprehensive CSR profile with all metrics, rank, and coaching insights.
+
+**Path Parameters:**
+- `user_id` (UUID, required) - CSR user UUID
+
+**Query Parameters:**
+- `start_date` (date, optional) - Start date (YYYY-MM-DD, defaults to 30 days ago)
+- `end_date` (date, optional) - End date (YYYY-MM-DD, defaults to today)
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/metrics/csr/ffffffff-ffff-ffff-ffff-ffffffffffff/profile?start_date=2025-12-01&end_date=2026-01-08
+```
+
+**Response:** `200 OK`
+```json
+{
+  "user": {
+    "id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "email": "csr1@acme.com",
+    "first_name": "Lisa",
+    "last_name": "Support",
+    "role": "csr",
+    "rank": 1
+  },
+  "kpis": {
+    "total_calls": 50,
+    "answered_calls": 45,
+    "missed_calls": 5,
+    "leads_assigned": 30,
+    "appointments_scheduled": 25,
+    "booking_rate": 55.6,
+    "avg_response_time": 8.5
+  },
+  "executive_view": {
+    "booking_rate": 55.6,
+    "conversion_rate": 45.0,
+    "calls_answered": 45,
+    "avg_response_time": 8.5,
+    "response_time_status": "on_target"
+  },
+  "coaching_insights": [
+    {
+      "type": "response_time",
+      "message": "Excellent response time, consistently below target",
+      "avg_response_time": 8.5,
+      "response_time_target": 15.0,
+      "response_time_status": "on_target"
+    },
+    {
+      "type": "objection_handling",
+      "message": "Needs improvement in handling price objections",
+      "objection_type": "price",
+      "affected_calls": 5
+    }
+  ],
+  "start_date": "2025-12-01T00:00:00",
+  "end_date": "2026-01-08T23:59:59"
+}
+```
+
+**Required Role:** `CSR` or `EXECUTIVE`
+
+**Note:** Response time is calculated from the `answered_at` field on calls. The target response time is 15 seconds. Status can be:
+- `on_target`: ≤ 15 seconds
+- `above_target`: > 15 seconds but ≤ 22.5 seconds
+- `below_target`: > 22.5 seconds
+
+---
+
 ## Analytics
 
 ### GET `/analytics/top-objections`
@@ -1907,6 +2047,130 @@ Accept an invitation and create user account.
 ```
 
 **No authentication required**
+
+---
+
+## Onboarding
+
+### POST `/onboarding/validate-ghl`
+
+Verify GoHighLevel (GHL) credentials before final submission.
+
+**Request Body:**
+```json
+{
+  "location_id": "NYC-001",
+  "api_key": "your_ghl_api_key_here"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "company_id": "sf_company_12345",
+  "company_name": "Acme Corporation"
+}
+```
+
+**Error:** `401 Unauthorized` - Invalid GHL API key or location ID
+
+**Note:** This endpoint validates credentials without creating any records. Use this before calling `/onboarding/complete`.
+
+---
+
+### POST `/onboarding/validate-ctm`
+
+Verify Call Tracking Metrics (CTM) credentials before final submission.
+
+**Request Body:**
+```json
+{
+  "access_key": "your_ctm_access_key",
+  "secret_key": "your_ctm_secret_key"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "secret_key": "encrypted_secret_key",
+  "company_name": "Acme Corporation",
+  "company_id": "ctm_company_67890"
+}
+```
+
+**Error:** `401 Unauthorized` - Invalid CTM access key or secret key
+
+**Note:** This endpoint validates credentials without creating any records. Use this before calling `/onboarding/complete`.
+
+---
+
+### POST `/onboarding/complete`
+
+Complete onboarding: create user, company, integration, and upload documents.
+
+This endpoint performs an atomic operation:
+1. Validates all fields and files
+2. Uploads documents to S3
+3. Creates Company, User, and CompanyIntegration records in a transaction
+
+**Request Body (multipart/form-data):**
+- `firstName` (string, required) - User's first name
+- `lastName` (string, required) - User's last name
+- `email` (string, required) - User's email address
+- `password` (string, required) - User's password
+- `companyName` (string, required) - Company name
+- `location_id` (string, required) - GHL location ID
+- `crm_provider` (string, required) - CRM provider (e.g., "gohighlevel", "salesforce", "hubspot")
+- `crm_api_key` (string, required) - CRM API key (will be encrypted)
+- `crm_company_id` (string, required) - CRM company ID
+- `voip_provider` (string, required) - VoIP provider (e.g., "ringcentral", "twilio", "callrail")
+- `voip_api_key` (string, required) - VoIP API key (will be encrypted)
+- `voip_company_id` (string, required) - VoIP company ID
+- `reference_doc` (file, required) - Reference document file (PDF, DOCX, etc.)
+- `sop_doc` (file, required) - SOP document file (PDF, DOCX, etc.)
+
+**Example Request (using curl):**
+```bash
+curl -X POST "http://localhost:8000/api/v1/onboarding/complete" \
+  -F "firstName=John" \
+  -F "lastName=Doe" \
+  -F "email=john.doe@example.com" \
+  -F "password=SecurePassword123!" \
+  -F "companyName=Acme Corp" \
+  -F "location_id=NYC-001" \
+  -F "crm_provider=gohighlevel" \
+  -F "crm_api_key=ghl_api_key_123" \
+  -F "crm_company_id=sf_company_12345" \
+  -F "voip_provider=ringcentral" \
+  -F "voip_api_key=rc_api_key_456" \
+  -F "voip_company_id=rc_company_67890" \
+  -F "reference_doc=@/path/to/reference.pdf" \
+  -F "sop_doc=@/path/to/sop.pdf"
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": "new-user-uuid",
+  "email": "john.doe@example.com",
+  "first_name": "John",
+  "last_name": "Doe",
+  "role": "executive",
+  "company_id": "new-company-uuid",
+  "created_at": "2026-01-15T10:00:00Z"
+}
+```
+
+**Errors:**
+- `400 Bad Request` - Validation fails, user already exists, or files missing
+- `500 Internal Server Error` - Creation fails
+
+**Note:**
+- The user is created with `EXECUTIVE` role by default (company owner)
+- API keys are encrypted before storage
+- Documents are uploaded to S3 and URLs are stored in the company record
+- If any step fails, uploaded S3 files should be cleaned up manually
 
 ---
 

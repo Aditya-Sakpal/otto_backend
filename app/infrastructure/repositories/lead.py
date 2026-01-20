@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import select, or_, and_, func, case, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.inspection import inspect
 
 from app.core.logging import get_logger
 from app.domain.models.lead import Lead
@@ -48,15 +49,30 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
     def _to_domain(self, orm_obj: LeadORM) -> Lead:
         """Convert ORM model to domain model with call audio URLs."""
         # Extract audio URLs from associated calls
+        # Check if the relationship is loaded to avoid lazy loading issues in async context
         call_audio_urls = None
-        if orm_obj.calls:
-            call_audio_urls = [
-                call.audio_url for call in orm_obj.calls
-                if call.audio_url is not None
-            ]
-            # Return None if empty list instead of empty list
-            if not call_audio_urls:
-                call_audio_urls = None
+        try:
+            # Use inspect to check if relationship is loaded
+            mapper = inspect(orm_obj)
+            calls_attr = mapper.attrs.get('calls')
+            
+            # Check if relationship is loaded (loaded_value is not None means it was loaded, even if empty)
+            if calls_attr and calls_attr.loaded_value is not None:
+                # Relationship is loaded, safe to access
+                calls = calls_attr.loaded_value
+                if calls:  # calls could be an empty list if loaded but no items
+                    call_audio_urls = [
+                        call.audio_url for call in calls
+                        if call.audio_url is not None
+                    ]
+                    # Return None if empty list instead of empty list
+                    if not call_audio_urls:
+                        call_audio_urls = None
+        except (AttributeError, KeyError, TypeError) as e:
+            # Relationship not loaded or not available, skip
+            # This can happen if the object is detached or relationship wasn't eagerly loaded
+            logger.debug(f"Could not access calls relationship for lead {orm_obj.id}: {e}")
+            call_audio_urls = None
 
         # Validate and convert deal_status
         deal_status = None
@@ -263,7 +279,17 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     )
             
             # Get call analyses for this lead (via calls)
-            call_ids = [call.id for call in lead_orm.calls] if lead_orm.calls else []
+            # Safely access calls relationship to avoid lazy loading issues
+            calls = []
+            try:
+                mapper = inspect(lead_orm)
+                calls_attr = mapper.attrs.get('calls')
+                if calls_attr and calls_attr.loaded_value is not None:
+                    calls = calls_attr.loaded_value or []
+            except (AttributeError, KeyError, TypeError):
+                calls = []
+            
+            call_ids = [call.id for call in calls]
             summaries = []
             all_key_points = []
             
@@ -318,9 +344,9 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             
             # Get conversations (calls) for this lead, sorted by most recent first
             conversations = []
-            if lead_orm.calls:
+            if calls:
                 # Sort calls by created_at descending (most recent first)
-                sorted_calls = sorted(lead_orm.calls, key=lambda c: c.created_at, reverse=True)
+                sorted_calls = sorted(calls, key=lambda c: c.created_at, reverse=True)
                 
                 for call in sorted_calls:
                     # Get analysis for this call - it's already loaded via selectinload

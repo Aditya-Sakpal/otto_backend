@@ -104,6 +104,9 @@ class Settings(BaseSettings):
         description="Refresh token expiration time in days"
     )
 
+    # Encryption Key
+    ENCRYPTION_KEY: str = Field(default=os.getenv("ENCRYPTION_KEY", ""), description="Encryption key")
+
     # Mailgun Configuration
     MAILGUN_API_KEY: str = Field(default=os.getenv("MAILGUN_API_KEY", ""), description="Mailgun API key")
     MAILGUN_DOMAIN: str = Field(default=os.getenv("MAILGUN_DOMAIN", ""), description="Mailgun domain")

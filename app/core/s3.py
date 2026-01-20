@@ -52,6 +52,19 @@ class S3Service:
 
         self.region = settings.AWS_REGION
 
+        # Log credential status (without exposing secrets)
+        if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
+            logger.info(
+                f"S3 service initializing without explicit credentials. "
+                f"Will use default credential chain (IAM role, environment, or config files). "
+                f"Buckets: documents='{self.documents_bucket}', audio='{self.audio_bucket}', region='{self.region}'"
+            )
+        else:
+            logger.info(
+                f"S3 service initializing with explicit AWS credentials. "
+                f"Buckets: documents='{self.documents_bucket}', audio='{self.audio_bucket}', region='{self.region}'"
+            )
+
         # Initialize S3 client
         self.s3_client = boto3.client(
             's3',
@@ -144,7 +157,7 @@ class S3Service:
             # Determine bucket type if not provided
             if bucket_type is None:
                 bucket_type = self._determine_bucket_type(content_type)
-
+                
             bucket_name = self._get_bucket_name(bucket_type)
 
             extra_args = {}
@@ -170,10 +183,32 @@ class S3Service:
             return url
 
         except ClientError as e:
-            logger.error(f"Error uploading file to S3: {e}")
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            error_message = e.response.get('Error', {}).get('Message', str(e))
+
+            logger.error(
+                f"Error uploading file to S3 bucket '{bucket_name}': "
+                f"Code={error_code}, Message={error_message}, Key={s3_key}, "
+                f"AWS_ACCESS_KEY_ID={'***' if settings.AWS_ACCESS_KEY_ID else 'Not set'}, "
+                f"Region={self.region}"
+            )
+
+            # Provide more helpful error messages for common issues
+            if error_code == 'AccessDenied':
+                raise PermissionError(
+                    f"Access denied uploading to S3 bucket '{bucket_name}'. "
+                    f"Please check: 1) AWS credentials have PutObject permission, "
+                    f"2) Bucket policy allows writes, 3) IAM user/role has s3:PutObject permission, "
+                    f"4) Bucket name '{bucket_name}' exists and is accessible in region '{self.region}'"
+                ) from e
+            elif error_code == 'NoSuchBucket':
+                raise ValueError(
+                    f"S3 bucket '{bucket_name}' does not exist in region '{self.region}'"
+                ) from e
+
             raise
         except Exception as e:
-            logger.error(f"Unexpected error uploading file to S3: {e}")
+            logger.error(f"Unexpected error uploading file to S3 bucket '{bucket_name}': {e}")
             raise
 
     async def upload_from_url(
@@ -275,6 +310,39 @@ class S3Service:
             bucket_type = "documents"
         bucket_name = self._get_bucket_name(bucket_type)
         return f"https://{bucket_name}.s3.{self.region}.amazonaws.com/{s3_key}"
+
+    async def delete_file(self, s3_key: str, bucket_type: Optional[BucketType] = None) -> bool:
+        """
+        Delete file from S3.
+
+        Args:
+            s3_key: S3 key (path) of the file to delete
+            bucket_type: Optional bucket type ('documents' or 'audio').
+                        If not provided, will default to documents
+
+        Returns:
+            True if file was deleted, False if it didn't exist
+        """
+        try:
+            if bucket_type is None:
+                bucket_type = "documents"
+
+            bucket_name = self._get_bucket_name(bucket_type)
+
+            self.s3_client.delete_object(Bucket=bucket_name, Key=s3_key)
+            logger.info(f"Deleted file from S3 bucket '{bucket_name}': {s3_key}")
+            return True
+
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            if error_code == 'NoSuchKey':
+                logger.warning(f"File not found in S3 bucket '{bucket_name}': {s3_key}")
+                return False
+            logger.error(f"Error deleting file from S3 bucket '{bucket_name}': {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error deleting file from S3: {e}")
+            raise
 
 
 def get_s3_service() -> Optional[S3Service]:

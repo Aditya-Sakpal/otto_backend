@@ -205,6 +205,43 @@
 					"response": []
 				},
 				{
+					"name": "Get Sales Reps by Company",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/sales-reps?company_id={{company_id}}&is_active=true&skip=0&limit=100",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "sales-reps"],
+							"query": [
+								{
+									"key": "company_id",
+									"value": "{{company_id}}"
+								},
+								{
+									"key": "is_active",
+									"value": "true"
+								},
+								{
+									"key": "skip",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "100"
+								}
+							]
+						},
+						"description": "Get all sales reps for a company"
+					},
+					"response": []
+				},
+				{
 					"name": "Create User",
 					"request": {
 						"method": "POST",
@@ -508,6 +545,33 @@
 							"path": ["api", "v1", "leads", "{{lead_id}}", "assign"]
 						},
 						"description": "Assign a lead to a sales rep (CSR or Executive can assign)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Lead Status",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"qualified_booked\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "leads", "{{lead_id}}", "status"]
+						},
+						"description": "Update lead status (EXECUTIVE or CSR)"
 					},
 					"response": []
 				}

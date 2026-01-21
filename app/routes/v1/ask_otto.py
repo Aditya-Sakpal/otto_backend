@@ -153,7 +153,7 @@ async def send_message(
                     message=body.message,
                     company_id=str(conversation.company_id),
                 )
-                response_text = result.get("response") or result.get("message") or ""
+                response_text = result.get("answer") or result.get("message") or ""
             except Exception as e:
                 logger.warning(f"Shunya service unavailable, using local fallback: {e}")
                 response_text = f"[Shunya service unavailable] Your question: '{body.message}' has been recorded. The AI assistant is currently offline."

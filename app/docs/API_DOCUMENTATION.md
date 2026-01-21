@@ -277,6 +277,56 @@ List all companies.
 
 ---
 
+### GET `/users/sales-reps`
+
+Get all sales reps for a company.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `is_active` (boolean, optional, default: true) - Filter by active status
+- `skip` (int, default: 0) - Number of records to skip
+- `limit` (int, default: 100, max: 1000) - Maximum number of records to return
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/users/sales-reps?company_id=11111111-1111-1111-1111-111111111111&is_active=true&skip=0&limit=100
+```
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "email": "sales1@acme.com",
+    "role": "sales_rep",
+    "is_active": true,
+    "first_name": "Mike",
+    "last_name": "Salesman",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "created_at": "2025-05-08T10:00:00Z"
+  },
+  {
+    "id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+    "email": "sales2@acme.com",
+    "role": "sales_rep",
+    "is_active": true,
+    "first_name": "Sarah",
+    "last_name": "Seller",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "created_at": "2025-05-09T10:00:00Z"
+  }
+]
+```
+
+**Required Role:** Any authenticated user
+
+---
+
 ### POST `/users`
 
 Create a new user (EXECUTIVE only).
@@ -739,6 +789,75 @@ Content-Type: application/json
 **Required Role:** `EXECUTIVE` or `CSR`
 
 **Note:** The assignment is tracked in the lead's `extra_metadata` with full history of who assigned it and when.
+
+---
+
+### PUT `/leads/{lead_id}/status`
+
+Update lead status.
+
+**Path Parameters:**
+- `lead_id` (UUID, required) - Lead UUID
+
+**Request Body:**
+```json
+{
+  "status": "qualified_booked"
+}
+```
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Example Request:**
+```
+PUT /api/v1/leads/20000000-0000-0000-0000-000000000001/status
+Content-Type: application/json
+
+{
+  "status": "qualified_booked"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": "20000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "contact_card_id": "10000000-0000-0000-0000-000000000001",
+  "status": "qualified_booked",
+  "deal_status": "qualified",
+  "assigned_rep_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "deal_size": 5000.00,
+  "closed_at": null,
+  "extra_metadata": null,
+  "call_audio_urls": [
+    "https://storage.example.com/audio/call1.mp3"
+  ],
+  "created_at": "2025-10-20T10:00:00Z",
+  "updated_at": "2026-01-15T10:30:00Z",
+  "name": "Alice Johnson",
+  "phone_number": "+1-555-1001",
+  "reason_not_booked": null,
+  "objection": null,
+  "response": null
+}
+```
+
+**Valid Status Values:**
+- `new`, `warm`, `hot`
+- `qualified_booked`, `qualified_unbooked`, `qualified_service_not_offered`
+- `nurturing`, `dormant`, `abandoned`
+- `closed_won`, `closed_lost`
+
+**Errors:**
+- `400 Bad Request` - Invalid status value
+- `404 Not Found` - Lead not found
+
+**Required Role:** `EXECUTIVE` or `CSR`
 
 ---
 

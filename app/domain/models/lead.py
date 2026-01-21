@@ -29,4 +29,9 @@ class Lead(BaseModel):
     call_audio_urls: Optional[List[str]] = Field(None, description="List of call audio URLs associated with this lead")
     created_at: Optional[datetime] = Field(None, description="When lead was created")
     updated_at: Optional[datetime] = Field(None, description="When lead was last updated")
+    name: Optional[str] = Field(None, description="Contact name (first_name + last_name)")
+    phone_number: Optional[str] = Field(None, description="Contact primary phone number")
+    reason_not_booked: Optional[str] = Field(None, description="Reason why lead was not booked")
+    objection: Optional[str] = Field(None, description="Objection raised by the lead")
+    response: Optional[str] = Field(None, description="Response to the objection")
 

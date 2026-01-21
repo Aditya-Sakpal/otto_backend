@@ -277,6 +277,65 @@ class S3Service:
         bucket_name = self._get_bucket_name(bucket_type)
         return f"https://{bucket_name}.s3.{self.region}.amazonaws.com/{s3_key}"
 
+    def generate_presigned_url(
+        self,
+        s3_key: str,
+        expiration: int = 3600,
+        content_type: Optional[str] = None,
+        bucket_type: Optional[BucketType] = None,
+    ) -> str:
+        """
+        Generate a pre-signed URL for uploading a file to S3.
+
+        Args:
+            s3_key: S3 key (path) for the file
+            expiration: URL expiration time in seconds (default: 3600 = 1 hour)
+            content_type: Optional content type (e.g., "audio/x-wav", "audio/mpeg")
+            bucket_type: Optional bucket type ('documents' or 'audio').
+                        If not provided, will be determined from content_type
+
+        Returns:
+            Pre-signed URL for PUT operation
+        """
+        try:
+            # Determine bucket type if not provided
+            if bucket_type is None:
+                bucket_type = self._determine_bucket_type(content_type)
+
+            bucket_name = self._get_bucket_name(bucket_type)
+
+            # Generate pre-signed URL for PUT operation
+            params = {
+                "Bucket": bucket_name,
+                "Key": s3_key,
+            }
+
+            # Add content type if provided
+            if content_type:
+                params["ContentType"] = content_type
+
+            url = self.s3_client.generate_presigned_url(
+                "put_object",
+                Params=params,
+                ExpiresIn=expiration,
+            )
+
+            logger.info(
+                f"Generated pre-signed URL for S3 bucket '{bucket_name}' (type: {bucket_type}): {s3_key}"
+            )
+            return url
+
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            logger.error(
+                f"Error generating pre-signed URL for S3 bucket '{bucket_name}': "
+                f"Code={error_code}, Key={s3_key}"
+            )
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error generating pre-signed URL: {e}")
+            raise
+
     async def delete_file(self, s3_key: str, bucket_type: Optional[BucketType] = None) -> bool:
         """
         Delete file from S3.

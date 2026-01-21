@@ -166,4 +166,32 @@ class LeadService:
             sales_rep_id=sales_rep_id,
             assigned_by_user_id=assigned_by_user_id,
         )
+    
+    async def update_status(
+        self,
+        lead_id: UUID,
+        status: str,
+    ) -> Optional[Lead]:
+        """
+        Update lead status.
+        
+        Args:
+            lead_id: Lead ID
+            status: New status value
+            
+        Returns:
+            Updated lead or None if not found
+        """
+        from app.domain.enums import LeadStatus
+        
+        # Validate status
+        try:
+            LeadStatus(status)
+        except ValueError:
+            raise ValueError(f"Invalid lead status: {status}")
+        
+        return await self.lead_repo.update_status(
+            lead_id=lead_id,
+            status=status,
+        )
 

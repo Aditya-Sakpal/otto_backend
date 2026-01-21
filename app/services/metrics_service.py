@@ -5,7 +5,7 @@ Provides metrics and analytics calculations with date range filtering.
 """
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 
 from sqlalchemy import select, func, and_, or_, text, bindparam, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -927,7 +927,7 @@ class MetricsService:
             leads_list = leads.scalars().all()
             
             # Calculate average days unbooked
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             total_days = sum(
                 (now - lead.created_at).days if lead.created_at else 0
                 for lead in leads_list

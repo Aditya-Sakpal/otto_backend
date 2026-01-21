@@ -185,6 +185,11 @@ class AssignLeadResponse(BaseModel):
     assigned_at: str = Field(..., description="ISO timestamp of assignment")
 
 
+class UpdateLeadStatusRequest(BaseModel):
+    """Request to update lead status."""
+    status: str = Field(..., description="New lead status")
+
+
 @router.post("/{lead_id}/assign", response_model=AssignLeadResponse, status_code=status.HTTP_200_OK)
 async def assign_lead(
     lead_id: UUID,
@@ -241,5 +246,58 @@ async def assign_lead(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to assign lead: {str(e)}",
+        )
+
+
+@router.put("/{lead_id}/status", response_model=Lead, status_code=status.HTTP_200_OK)
+async def update_lead_status(
+    lead_id: UUID,
+    request: UpdateLeadStatusRequest,
+    db: DbSession,
+    # RBAC DISABLED - user: User = Depends(require_manager_or_csr),
+    user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
+) -> Lead:
+    """
+    Update lead status.
+    
+    Updates the status of a lead. Valid status values are defined in LeadStatus enum.
+    
+    Access: EXECUTIVE, CSR
+    
+    Args:
+        lead_id: Lead ID to update
+        request: Status update request
+    """
+    try:
+        service = LeadService(db)
+        
+        # Update the lead status
+        updated_lead = await service.update_status(
+            lead_id=lead_id,
+            status=request.status,
+        )
+        
+        if not updated_lead:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead not found",
+            )
+        
+        return updated_lead
+    except ValueError as e:
+        # Validation error (e.g., invalid status)
+        logger.error(f"Validation error updating lead status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating lead status: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update lead status: {str(e)}",
         )
 

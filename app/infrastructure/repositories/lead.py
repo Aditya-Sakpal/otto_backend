@@ -3,6 +3,7 @@ Lead repository.
 """
 from typing import Optional, List
 from uuid import UUID
+from datetime import datetime
 
 from sqlalchemy import select, or_, and_, func, case, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +36,10 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         try:
             result = await self.session.execute(
                 select(LeadORM)
-                .options(selectinload(LeadORM.calls))
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
                 .where(LeadORM.id == id)
             )
             orm_obj = result.scalar_one_or_none()
@@ -51,6 +55,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         # Extract audio URLs from associated calls
         # Check if the relationship is loaded to avoid lazy loading issues in async context
         call_audio_urls = None
+        calls = []
         try:
             # Use inspect to check if relationship is loaded
             mapper = inspect(orm_obj)
@@ -73,6 +78,70 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             # This can happen if the object is detached or relationship wasn't eagerly loaded
             logger.debug(f"Could not access calls relationship for lead {orm_obj.id}: {e}")
             call_audio_urls = None
+            calls = []
+
+        # Extract contact information
+        name = None
+        phone_number = None
+        try:
+            mapper = inspect(orm_obj)
+            contact_attr = mapper.attrs.get('contact_card')
+            if contact_attr and contact_attr.loaded_value is not None:
+                contact = contact_attr.loaded_value
+                if contact:
+                    # Build full name
+                    first_name = contact.first_name or ""
+                    last_name = contact.last_name or ""
+                    name = f"{first_name} {last_name}".strip() or None
+                    phone_number = contact.primary_phone
+        except (AttributeError, KeyError, TypeError) as e:
+            logger.debug(f"Could not access contact_card relationship for lead {orm_obj.id}: {e}")
+
+        # Extract reason_not_booked, objection, and response from call analyses
+        reason_not_booked = None
+        objection = None
+        response = None
+        try:
+            # Get the most recent call analysis with booking_status or objections
+            if calls:
+                # Sort calls by created_at descending to get most recent first
+                sorted_calls = sorted(calls, key=lambda c: c.created_at if c.created_at else datetime.min, reverse=True)
+                
+                for call in sorted_calls:
+                    # Check if call has analysis loaded
+                    call_mapper = inspect(call)
+                    analysis_attr = call_mapper.attrs.get('analysis')
+                    if analysis_attr and analysis_attr.loaded_value is not None:
+                        analysis = analysis_attr.loaded_value
+                        if analysis:
+                            # Get objection from objections column (first one)
+                            if not objection:
+                                if analysis.objections and len(analysis.objections) > 0:
+                                    objection = str(analysis.objections[0])
+                            
+                            # Get response from objection_texts column (first one)
+                            if not response:
+                                if analysis.objection_texts and len(analysis.objection_texts) > 0:
+                                    response = analysis.objection_texts[0]
+                            
+                            # Get reason_not_booked from booking_status or use first objection
+                            if not reason_not_booked:
+                                if analysis.booking_status:
+                                    booking_status_lower = analysis.booking_status.lower()
+                                    if booking_status_lower in ["not_booked", "unbooked", "qualified_unbooked"]:
+                                        # If we have objection texts, use the first one as the reason
+                                        if analysis.objection_texts and len(analysis.objection_texts) > 0:
+                                            reason_not_booked = analysis.objection_texts[0]
+                                        elif analysis.objections and len(analysis.objections) > 0:
+                                            reason_not_booked = str(analysis.objections[0])
+                                        else:
+                                            reason_not_booked = analysis.booking_status
+                            
+                            # If we found all fields, we can break
+                            if reason_not_booked and objection and response:
+                                break
+        except (AttributeError, KeyError, TypeError) as e:
+            logger.debug(f"Could not access call analysis for lead {orm_obj.id}: {e}")
 
         # Validate and convert deal_status
         deal_status = None
@@ -100,6 +169,11 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "call_audio_urls": call_audio_urls,
             "created_at": orm_obj.created_at,
             "updated_at": orm_obj.updated_at,
+            "name": name,
+            "phone_number": phone_number,
+            "reason_not_booked": reason_not_booked,
+            "objection": objection,
+            "response": response,
         }
         return Lead(**lead_data)
 
@@ -113,7 +187,10 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         try:
             result = await self.session.execute(
                 select(LeadORM)
-                .options(selectinload(LeadORM.calls))
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
                 .where(LeadORM.company_id == company_id)
                 .offset(skip)
                 .limit(limit)
@@ -135,7 +212,10 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         try:
             result = await self.session.execute(
                 select(LeadORM)
-                .options(selectinload(LeadORM.calls))
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
                 .where(
                     LeadORM.company_id == company_id,
                     LeadORM.status.in_(statuses),
@@ -182,7 +262,10 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
 
             result = await self.session.execute(
                 select(LeadORM)
-                .options(selectinload(LeadORM.calls))
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
                 .where(
                     LeadORM.company_id == company_id,
                 ).order_by(
@@ -436,11 +519,66 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             lead_orm.extra_metadata["last_assignment"] = assignment_info
             
             await self.session.commit()
-            await self.session.refresh(lead_orm)
+            
+            # Reload lead with relationships for _to_domain
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
+                .where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            
+            if not lead_orm:
+                return None
             
             return self._to_domain(lead_orm)
         except Exception as e:
             logger.error(f"Error assigning lead to rep: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
+
+    async def update_status(
+        self,
+        lead_id: UUID,
+        status: str,
+    ) -> Optional[Lead]:
+        """Update lead status."""
+        try:
+            # Get the lead
+            result = await self.session.execute(
+                select(LeadORM).where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            
+            if not lead_orm:
+                return None
+            
+            # Update status
+            lead_orm.status = status
+            
+            await self.session.commit()
+            
+            # Reload lead with relationships for _to_domain
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
+                .where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            
+            if not lead_orm:
+                return None
+            
+            return self._to_domain(lead_orm)
+        except Exception as e:
+            logger.error(f"Error updating lead status: {e}")
             import traceback
             traceback.print_exc()
             raise e

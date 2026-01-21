@@ -541,6 +541,153 @@ GET /api/v1/calls/by-objection/self?objection=authority&company_id=11111111-1111
 
 ---
 
+### GET `/calls/by-objection/{objection}/details`
+
+Get comprehensive objection details for a single objection.
+
+Returns all details for the objection details modal including:
+1. **Unbooked leads tab**: Booking rate improvement, graph data, and unbooked leads list
+2. **Most coaching need tab**: CSRs with unbooked calls count
+3. **Calls tab**: Call recordings with contact names
+
+**Path Parameters:**
+- `objection` (string, required) - Objection type (e.g., `authority`, `price`, `timing`, `competitor`, `need`)
+
+**Query Parameters:**
+- `company_id` (UUID, optional) - Company UUID (defaults to user's company)
+- `start_date` (string, optional) - Start date for filtering (YYYY-MM-DD, defaults to 30 days ago)
+- `end_date` (string, optional) - End date for filtering (YYYY-MM-DD, defaults to today)
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/calls/by-objection/authority/details?company_id=11111111-1111-1111-1111-111111111111&start_date=2025-12-01&end_date=2026-01-15
+```
+
+**Response:** `200 OK`
+```json
+{
+  "objection": "authority",
+  "unbooked_leads": {
+    "booking_rate_improvement": {
+      "title": "Booking Rate Improvement",
+      "percentage": 32.0,
+      "description": "32.0% Increase in Booking Appointments",
+      "context": "Growth in qualified leads booked from start to end of the selected timeframe.",
+      "current_rate": 45.5,
+      "previous_rate": 13.5,
+      "total_qualified": 100,
+      "booked_count": 45,
+      "unbooked_count": 55
+    },
+    "graph_data": [
+      {
+        "date": "2025-12-01",
+        "booking_rate": 10.5,
+        "qualified_count": 20,
+        "booked_count": 2
+      },
+      {
+        "date": "2025-12-02",
+        "booking_rate": 15.0,
+        "qualified_count": 20,
+        "booked_count": 3
+      }
+    ],
+    "leads": [
+      {
+        "id": "20000000-0000-0000-0000-000000000002",
+        "contact_name": "Alice Johnson",
+        "phone_number": "+1-555-1001",
+        "status": "qualified_unbooked",
+        "deal_status": "qualified",
+        "created_at": "2025-12-01T10:00:00Z"
+      }
+    ]
+  },
+  "most_coaching_need": {
+    "total_csr": 4,
+    "csrs": [
+      {
+        "csr_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+        "csr_name": "Raven",
+        "unbooked_calls": 10
+      },
+      {
+        "csr_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+        "csr_name": "Navia Baxter",
+        "unbooked_calls": 10
+      },
+      {
+        "csr_id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        "csr_name": "Layla",
+        "unbooked_calls": 3
+      },
+      {
+        "csr_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+        "csr_name": "Jayda",
+        "unbooked_calls": 1
+      }
+    ]
+  },
+  "calls": {
+    "total_calls": 3,
+    "call_recordings": [
+      {
+        "id": "30000000-0000-0000-0000-000000000001",
+        "contact_name": "Courtney",
+        "call_recording_url": "https://storage.example.com/audio/call1.mp3",
+        "phone_number": "+1-555-1001",
+        "call_type": "csr_call",
+        "duration_seconds": 180,
+        "created_at": "2025-12-01T10:00:00Z",
+        "transcript": "Call transcript...",
+        "summary": "Call summary..."
+      },
+      {
+        "id": "30000000-0000-0000-0000-000000000002",
+        "contact_name": "Heather",
+        "call_recording_url": "https://storage.example.com/audio/call2.mp3",
+        "phone_number": "+1-555-1002",
+        "call_type": "csr_call",
+        "duration_seconds": 200,
+        "created_at": "2025-12-02T10:00:00Z",
+        "transcript": "Call transcript...",
+        "summary": "Call summary..."
+      },
+      {
+        "id": "30000000-0000-0000-0000-000000000003",
+        "contact_name": "Kevin",
+        "call_recording_url": "https://storage.example.com/audio/call3.mp3",
+        "phone_number": "+1-555-1003",
+        "call_type": "csr_call",
+        "duration_seconds": 150,
+        "created_at": "2025-12-03T10:00:00Z",
+        "transcript": "Call transcript...",
+        "summary": "Call summary..."
+      }
+    ]
+  },
+  "start_date": "2025-12-01",
+  "end_date": "2026-01-15"
+}
+```
+
+**Note:** 
+- Objection matching is case-insensitive and handles variations (e.g., `price` matches `pricing`, `cost`, `costs`)
+- For CSR role, results are filtered to the current user's calls only
+- For EXECUTIVE role, results show company-wide data
+- Graph data provides daily booking rates for visualization
+- Booking rate improvement compares first half vs second half of the date range
+
+**Required Role:** `CSR` or `EXECUTIVE`
+
+---
+
 ## Leads
 
 ### GET `/leads`
@@ -778,7 +925,8 @@ Content-Type: application/json
     "updated_at": "2026-01-15T10:30:00Z"
   },
   "assigned_by": "ffffffff-ffff-ffff-ffff-ffffffffffff",
-  "assigned_at": "2026-01-15T10:30:00Z"
+  "assigned_at": "2026-01-15T10:30:00Z",
+  "assigned_rep_name": "Mike Salesman"
 }
 ```
 
@@ -1341,7 +1489,9 @@ Get unbooked leads metrics within date range.
       "contact_card_id": "123e4567-e89b-12d3-a456-426614174001",
       "status": "qualified_unbooked",
       "deal_size": 5000.00,
-      "created_at": "2026-01-08T10:00:00Z"
+      "created_at": "2026-01-08T10:00:00Z",
+      "name": "Alice Johnson",
+      "phone_number": "+1-555-1001"
     }
   ],
   "start_date": "2025-12-01T00:00:00",

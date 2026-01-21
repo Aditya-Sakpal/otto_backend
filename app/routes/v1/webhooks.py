@@ -188,13 +188,26 @@ async def shoonya_job_complete_webhook(
                     detail="Either transcript or analysis required in result",
                 )
 
-        # Process analysis
+        # Process analysis and update call status in a single transaction
         service = CallService(db)
+        
+        # Update call status to "completed" and process analysis
+        call = await service.call_repo.get_by_id(call_id)
+        if call:
+            call.status = "completed"
+            if payload.get("shunya_job_id"):
+                call.shunya_job_id = payload.get("shunya_job_id")
+            await service.call_repo.update(call_id, call)
+            logger.info(f"Updated call status to completed", call_id=str(call_id))
+        
         analysis = await service.process_analysis(
             call_id=call_id,
             analysis_data=analysis_data,
             transcript=transcript,
         )
+        
+        # Commit all changes in single transaction
+        await db.commit()
 
         logger.info(
             "Shoonya webhook processed successfully",

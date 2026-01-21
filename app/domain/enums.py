@@ -114,6 +114,14 @@ class AnalysisStatus(str, Enum):
     FAILED = "failed"
 
 
+class CallStatus(str, Enum):
+    """Status of call processing."""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class VectorDBProvider(str, Enum):
     """Vector database provider."""
     PINECONE = "pinecone"

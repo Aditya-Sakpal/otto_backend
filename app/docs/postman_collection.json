@@ -428,6 +428,41 @@
 						"description": "Get comprehensive objection details data (calls, unbooked leads, most coaching need)"
 					},
 					"response": []
+				},
+				{
+					"name": "Get Objection Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/calls/by-objection/authority/details?company_id={{company_id}}&start_date=2025-12-01&end_date=2026-01-15",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "calls", "by-objection", "authority", "details"],
+							"query": [
+								{
+									"key": "company_id",
+									"value": "{{company_id}}"
+								},
+								{
+									"key": "start_date",
+									"value": "2025-12-01",
+									"description": "Start date (YYYY-MM-DD, optional, defaults to 30 days ago)"
+								},
+								{
+									"key": "end_date",
+									"value": "2026-01-15",
+									"description": "End date (YYYY-MM-DD, optional, defaults to today)"
+								}
+							]
+						},
+						"description": "Get comprehensive objection details for a single objection (unbooked leads tab with booking rate improvement and graph, most coaching need tab, calls tab)"
+					},
+					"response": []
 				}
 			],
 			"description": "Call management endpoints"
@@ -544,7 +579,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "leads", "{{lead_id}}", "assign"]
 						},
-						"description": "Assign a lead to a sales rep (CSR or Executive can assign)"
+						"description": "Assign a lead to a sales rep (CSR or Executive can assign). Response includes assigned_rep_name."
 					},
 					"response": []
 				},

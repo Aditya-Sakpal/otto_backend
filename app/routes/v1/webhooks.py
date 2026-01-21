@@ -455,24 +455,24 @@ async def ctm_call_webhook(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     # Extract company_id from payload or headers
-    company_id = payload.get("company_id") or request.headers.get("X-Company-Id")
+    voip_company_id = str(payload.get("account_id") or request.headers.get("X-Company-Id"))
+    integration_repo = CompanyIntegrationRepository(db)
 
     # Verify webhook signature if provided
     if x_wh_signature:
-        if not company_id:
+        if not voip_company_id:
             # Can't verify without company_id, but we'll still continue
             logger.warning("Cannot verify CTM signature without company_id")
         else:
             # Get company integration to retrieve voip_api_encrypted_key
-            integration_repo = CompanyIntegrationRepository(db)
             try:
-                voip_api_encrypted_key = await integration_repo.get_voip_api_encrypted_key_by_company_id(
-                    UUID(company_id)
+                voip_api_encrypted_key = await integration_repo.get_voip_api_encrypted_key_by_voip_company_id(
+                    voip_company_id
                 )
 
                 if not voip_api_encrypted_key:
                     logger.warning(
-                        f"No company integration or voip_api_key found for company_id {company_id}"
+                        f"No company integration or voip_api_key found for company_id {voip_company_id}"
                     )
                 else:
                     # Decrypt the voip_api_encrypted_key
@@ -488,7 +488,7 @@ async def ctm_call_webhook(
                         raise HTTPException(status_code=401, detail="Invalid webhook signature")
             except ValueError as e:
                 # Handle decryption errors
-                logger.error(f"Error decrypting voip_api_key for company_id {company_id}: {e}")
+                logger.error(f"Error decrypting voip_api_key for company_id {voip_company_id}: {e}")
                 raise HTTPException(status_code=500, detail="Error verifying webhook signature")
             except Exception as e:
                 logger.error(f"Error verifying CTM signature: {e}")
@@ -496,17 +496,19 @@ async def ctm_call_webhook(
 
     try:
         logger.info("CTM call webhook received", payload=payload)
-        if not company_id:
+        if not voip_company_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="company_id required in payload or X-Company-Id header",
             )
 
+        company_id = await integration_repo.get_company_id_by_voip_company_id(voip_company_id)
+
         # Process CTM webhook
         service = CTMService(db)
         call = await service.process_webhook(
             payload=payload,
-            company_id=UUID(company_id),
+            company_id=company_id,
         )
 
         return {

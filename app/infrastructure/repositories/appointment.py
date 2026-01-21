@@ -73,6 +73,27 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
             logger.error(f"Error counting appointments by outcome: {e}")
             raise e
 
+    async def get_by_assigned_rep(
+        self,
+        company_id: UUID,
+        assigned_rep_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[Appointment]:
+        """Get all appointments for a company assigned to a specific sales rep."""
+        try:
+            return await self.get_all(
+                skip=skip,
+                limit=limit,
+                filters={
+                    "company_id": company_id,
+                    "assigned_rep_id": assigned_rep_id,
+                },
+            )
+        except Exception as e:
+            logger.error(f"Error getting appointments by assigned rep: {e}")
+            raise e
+
     async def get_by_lead_id(self, lead_id: UUID) -> Optional[Appointment]:
         """Get appointment by lead ID."""
         try:

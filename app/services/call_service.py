@@ -13,6 +13,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.domain.models.call import Call
 from app.domain.models.analysis import CallAnalysis
@@ -28,6 +29,51 @@ from app.core.s3 import get_s3_service
 from app.domain.users.repository import UserRepository
 
 logger = get_logger(__name__)
+
+
+def transform_summary_to_analysis_data(summary_json: dict) -> dict:
+    """
+    Transform summary API JSON (context.spec shape) into the flat analysis_data
+    format expected by process_analysis.
+
+    Summary API returns: { summary, compliance, objections, qualification }.
+    process_analysis expects: qualification_status, booking_status, objections,
+    objection_texts, sop_stages_*, sop_compliance_score, sentiment_score,
+    summary, key_points, pending_actions.
+    """
+    try:
+        summary_block = summary_json.get("summary") or {}
+        compliance_block = summary_json.get("compliance") or {}
+        sop = compliance_block.get("sop_compliance") or {}
+        stages = sop.get("stages") or {}
+        objections_block = summary_json.get("objections") or {}
+        qualification_block = summary_json.get("qualification") or {}
+
+        objections_list = objections_block.get("objections") or []
+        objection_texts = []
+        if objections_list:
+            for o in objections_list:
+                if isinstance(o, str):
+                    objection_texts.append(o)
+                elif isinstance(o, dict) and o.get("text"):
+                    objection_texts.append(o["text"])
+
+        return {
+            "qualification_status": qualification_block.get("qualification_status"),
+            "booking_status": qualification_block.get("booking_status"),
+            "objections": objections_list,
+            "objection_texts": objection_texts,
+            "sop_stages_completed": stages.get("followed") or [],
+            "sop_stages_missed": stages.get("missed") or [],
+            "sop_compliance_score": sop.get("score") or sop.get("compliance_rate"),
+            "sentiment_score": summary_block.get("sentiment_score"),
+            "summary": summary_block.get("summary"),
+            "key_points": summary_block.get("key_points") or [],
+            "pending_actions": summary_block.get("pending_actions") or [],
+        }
+    except Exception as e:
+        logger.error(f"Error transforming summary to analysis data: {e}")
+        raise e
 
 
 class CallService:
@@ -117,6 +163,7 @@ class CallService:
                         phone_number=call.phone_number,
                         duration=call.duration_seconds or 0,
                         call_date=call.created_at.isoformat() if call.created_at else datetime.utcnow().isoformat(),
+                        webhook_url=f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete",
                         metadata={
                             "call_type": call.call_type.value if call.call_type else "csr_call",
                             **(call.extra_metadata or {}),
@@ -452,7 +499,7 @@ class CallService:
     ) -> Dict[str, Any]:
         """
         Get call logs with summary statistics and filtered call list.
-        
+
         Returns:
             Dictionary with:
             - summary: Statistics (total_calls, qualified, booked, abandoned)
@@ -467,7 +514,7 @@ class CallService:
             from app.infrastructure.database.models.contact import ContactCardORM
             from app.infrastructure.database.models.user import UserORM
             from app.infrastructure.database.models.lead import LeadORM
-            
+
             # Build base query with joins
             query = select(
                 CallORM,
@@ -486,11 +533,11 @@ class CallService:
             ).where(
                 CallORM.company_id == company_id
             )
-            
+
             # Apply filters
             if csr_id:
                 query = query.where(CallORM.handled_by_user_id == csr_id)
-            
+
             # Status filter (qualification status)
             if status_filter and status_filter.lower() != "all":
                 if status_filter.lower() == "qualified":
@@ -502,7 +549,7 @@ class CallService:
                             CallAnalysisORM.qualification_status.is_(None)
                         )
                     )
-            
+
             # Booking filter
             if booking_filter and booking_filter.lower() != "all":
                 if booking_filter.lower() == "booked":
@@ -514,7 +561,7 @@ class CallService:
                             CallAnalysisORM.booking_status.is_(None)
                         )
                     )
-            
+
             # Quick filters
             if quick_filter:
                 quick_filter_lower = quick_filter.lower()
@@ -554,7 +601,7 @@ class CallService:
                             ContactCardORM.extra_metadata['property_type'].astext == "commercial"
                         )
                     )
-            
+
             # Search filter (customer name, CSR name, or phone number)
             if search:
                 search_term = f"%{search.lower()}%"
@@ -567,20 +614,20 @@ class CallService:
                         func.lower(UserORM.last_name).like(search_term),
                     )
                 )
-            
+
             # Get total count before pagination
             count_query = select(func.count()).select_from(query.subquery())
             total_result = await self.session.execute(count_query)
             total = total_result.scalar() or 0
-            
+
             # Apply ordering and pagination
             query = query.order_by(CallORM.created_at.desc())
             query = query.offset(skip).limit(limit)
-            
+
             # Execute query
             results = await self.session.execute(query)
             rows = results.all()
-            
+
             # Calculate summary statistics (from all calls, not just filtered)
             summary_query = select(
                 func.count(CallORM.id).label('total_calls'),
@@ -609,17 +656,17 @@ class CallService:
             ).where(
                 CallORM.company_id == company_id
             )
-            
+
             summary_result = await self.session.execute(summary_query)
             summary_row = summary_result.first()
-            
+
             summary = {
                 "total_calls": summary_row.total_calls or 0,
                 "qualified": int(summary_row.qualified or 0),
                 "booked": int(summary_row.booked or 0),
                 "abandoned": int(summary_row.abandoned or 0),
             }
-            
+
             # Build call log entries
             calls = []
             for call, analysis, contact, user, lead in rows:
@@ -632,7 +679,7 @@ class CallService:
                         csr_name = user.first_name
                     elif user.last_name:
                         csr_name = user.last_name
-                
+
                 # Get customer name
                 customer_name = None
                 phone_number = call.phone_number
@@ -645,7 +692,7 @@ class CallService:
                         customer_name = contact.last_name.upper()
                     if contact.primary_phone:
                         phone_number = contact.primary_phone
-                
+
                 # Format phone number
                 formatted_phone = phone_number
                 if phone_number and len(phone_number) == 10:
@@ -656,11 +703,11 @@ class CallService:
                         clean_phone = phone_number[2:].replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
                         if len(clean_phone) == 10:
                             formatted_phone = f"({clean_phone[:3]}) {clean_phone[3:6]}-{clean_phone[6:]}"
-                
+
                 # Get qualification and booking status
                 is_qualified = analysis and analysis.qualification_status == "qualified" if analysis else False
                 is_booked = analysis and analysis.booking_status == "booked" if analysis else False
-                
+
                 # Get score (use SOP compliance score or sentiment score)
                 score = None
                 if analysis:
@@ -668,7 +715,7 @@ class CallService:
                         score = int(analysis.sop_compliance_score)
                     elif analysis.sentiment_score is not None:
                         score = int(analysis.sentiment_score * 100)  # Convert to 0-100 scale
-                
+
                 # Get objections
                 objections = None
                 if analysis and analysis.objections:
@@ -676,7 +723,7 @@ class CallService:
                     objections = ", ".join(analysis.objections[:3])  # Limit to first 3
                     if len(analysis.objections) > 3:
                         objections += "..."
-                
+
                 # Get tags (from lead status or extra_metadata)
                 tags = []
                 if lead:
@@ -692,7 +739,7 @@ class CallService:
                     }
                     if lead.status in status_to_tag:
                         tags.append(status_to_tag[lead.status])
-                    
+
                     # Check for additional tags in extra_metadata
                     if lead.extra_metadata:
                         if lead.extra_metadata.get("tags"):
@@ -700,19 +747,19 @@ class CallService:
                                 tags.extend(lead.extra_metadata["tags"])
                             elif isinstance(lead.extra_metadata["tags"], str):
                                 tags.append(lead.extra_metadata["tags"])
-                
+
                 # Format duration
                 duration_str = None
                 if call.duration_seconds:
                     minutes = call.duration_seconds // 60
                     seconds = call.duration_seconds % 60
                     duration_str = f"{minutes}m {seconds}s"
-                
+
                 # Format call received date
                 call_received = None
                 if call.created_at:
                     call_received = call.created_at.strftime("%m/%d/%y, %I:%M %p")
-                
+
                 calls.append({
                     "call_id": str(call.id),
                     "call_received": call_received,
@@ -726,7 +773,7 @@ class CallService:
                     "objections": objections,
                     "tags": ", ".join(tags) if tags else None,
                 })
-            
+
             return {
                 "summary": summary,
                 "calls": calls,
@@ -734,7 +781,7 @@ class CallService:
                 "skip": skip,
                 "limit": limit,
             }
-            
+
         except Exception as e:
             logger.error(f"Error getting call logs: {e}")
             traceback.print_exc()

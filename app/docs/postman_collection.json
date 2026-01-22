@@ -680,71 +680,6 @@
 			"description": "Lead management endpoints"
 		},
 		{
-			"name": "Analytics",
-			"item": [
-				{
-					"name": "Top Objections",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/analytics/top-objections?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "analytics", "top-objections"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get top objections aggregated by type"
-					},
-					"response": []
-				},
-				{
-					"name": "Objection Calls",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/analytics/objection-calls?objection=price&company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "analytics", "objection-calls"],
-							"query": [
-								{
-									"key": "objection",
-									"value": "price"
-								},
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								},
-								{
-									"key": "owner_id",
-									"value": "{{user_id}}",
-									"disabled": true
-								}
-							]
-						},
-						"description": "Get calls filtered by objection type and optionally by CSR owner"
-					},
-					"response": []
-				}
-			],
-			"description": "Analytics endpoints"
-		},
-		{
 			"name": "Metrics",
 			"item": [
 				{
@@ -934,11 +869,30 @@
 							"query": [
 								{
 									"key": "company_id",
-									"value": "{{company_id}}"
+									"value": "{{company_id}}",
+									"description": "Company UUID (required)"
+								},
+								{
+									"key": "start_date",
+									"value": "",
+									"description": "Currently ignored - returns all objections",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "",
+									"description": "Currently ignored - returns all objections",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "",
+									"description": "Optional limit - if not provided, returns all objections",
+									"disabled": true
 								}
 							]
 						},
-						"description": "Get top objections metrics"
+						"description": "Get top objections aggregated by company. Returns ALL objections sorted from most occurred to least occurred."
 					},
 					"response": []
 				},
@@ -984,11 +938,36 @@
 							"query": [
 								{
 									"key": "company_id",
-									"value": "{{company_id}}"
+									"value": "{{company_id}}",
+									"description": "Company UUID (required)"
+								},
+								{
+									"key": "owner_id",
+									"value": "",
+									"description": "Filter by CSR/owner UUID",
+									"disabled": true
+								},
+								{
+									"key": "start_date",
+									"value": "",
+									"description": "Currently ignored",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "",
+									"description": "Currently ignored",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "",
+									"description": "Optional limit on number of calls returned",
+									"disabled": true
 								}
 							]
 						},
-						"description": "Get calls for specific objection type"
+						"description": "Get calls filtered by objection type and optionally by CSR owner. Objection matching is case-insensitive and handles variations."
 					},
 					"response": []
 				},

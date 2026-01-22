@@ -216,9 +216,8 @@ async def complete_recording(
 
         audio_url = s3_service.get_public_url(request.s3_key, bucket_type="audio")
 
-        # Update call with audio_url and status
+        # Update call with audio_url
         call.audio_url = audio_url
-        call.status = CallStatus.PROCESSING.value
         await call_repo.update(request.call_id, call)
         await db.commit()
 
@@ -246,9 +245,7 @@ async def complete_recording(
                     },
                 )
                 processing_job_id = result.get("job_id")
-                call.shunya_job_id = processing_job_id
-                await call_repo.update(request.call_id, call)
-                await db.commit()
+                # Note: shunya_job_id is stored in call_processing_jobs table, not in calls table
                 logger.info(
                     f"Triggered Shunya processing for call {request.call_id}, job_id={processing_job_id}"
                 )
@@ -258,7 +255,7 @@ async def complete_recording(
 
         return RecordingCompleteResponse(
             call_id=request.call_id,
-            status=call.status,
+            status="processing",  # Default status since field doesn't exist in DB
             processing_job_id=processing_job_id,
         )
 

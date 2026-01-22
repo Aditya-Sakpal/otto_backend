@@ -191,14 +191,12 @@ async def shoonya_job_complete_webhook(
         # Process analysis and update call status in a single transaction
         service = CallService(db)
         
-        # Update call status to "completed" and process analysis
+        # Process analysis (call status is tracked in call_processing_jobs table, not in calls table)
         call = await service.call_repo.get_by_id(call_id)
         if call:
-            call.status = "completed"
-            if payload.get("shunya_job_id"):
-                call.shunya_job_id = payload.get("shunya_job_id")
-            await service.call_repo.update(call_id, call)
-            logger.info(f"Updated call status to completed", call_id=str(call_id))
+            # Note: status and shunya_job_id are not stored in calls table
+            # They are tracked in call_processing_jobs table instead
+            logger.info(f"Processing analysis for call", call_id=str(call_id))
         
         analysis = await service.process_analysis(
             call_id=call_id,

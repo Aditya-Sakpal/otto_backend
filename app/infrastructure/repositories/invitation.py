@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.domain.models.invitation import Invitation
-from app.domain.enums import InvitationStatus
+from app.domain.enums import InvitationStatus, UserRole
 from app.infrastructure.database.models.invitation import InvitationORM
 from app.infrastructure.repositories.base import BaseRepository
 
@@ -174,7 +174,7 @@ class InvitationRepository(BaseRepository[InvitationORM, Invitation]):
         """
         Convert ORM model to domain model.
 
-        Handles status enum conversion.
+        Handles status and role enum conversion.
         """
         # Convert status string to enum
         try:
@@ -183,12 +183,20 @@ class InvitationRepository(BaseRepository[InvitationORM, Invitation]):
             logger.warning(f"Invalid invitation status: {orm_obj.status}, defaulting to PENDING")
             status = InvitationStatus.PENDING
 
+        # Convert role string to enum
+        try:
+            role = UserRole(orm_obj.role)
+        except Exception:
+            logger.warning(f"Invalid invitation role: {getattr(orm_obj, 'role', None)}, defaulting to CSR")
+            role = UserRole.CSR
+
         return Invitation(
             id=orm_obj.id,
             email=orm_obj.email,
             company_id=orm_obj.company_id,
             inviter_id=orm_obj.inviter_id,
             token=orm_obj.token,
+            role=role,
             status=status,
             expires_at=orm_obj.expires_at,
             created_at=orm_obj.created_at,

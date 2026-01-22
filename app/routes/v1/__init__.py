@@ -18,6 +18,7 @@ from app.routes.v1 import (
     onboarding,
     appointments,
     recordings,
+    contact_card,
 )
 
 router = APIRouter()
@@ -25,6 +26,7 @@ router = APIRouter()
 # Include route modules
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
 router.include_router(calls.router, prefix="/calls", tags=["calls"])
+router.include_router(contact_card.router, prefix="/contact-card", tags=["contact-card"])
 router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 router.include_router(rag.router, prefix="/rag", tags=["rag"])
 router.include_router(metrics.router, prefix="/metrics", tags=["metrics"])

@@ -33,14 +33,13 @@ To use this data, run `backend/seed_dummy_data.sql` against your database.
 3. [Calls](#calls)
 4. [Leads](#leads)
 5. [Metrics](#metrics)
-6. [Analytics](#analytics)
-7. [Call Processing (Shunya)](#call-processing-shunya)
-8. [Ask Otto (Shunya)](#ask-otto-shunya)
-9. [Insights (Shunya)](#insights-shunya)
-10. [RAG / Ask Otto](#rag--ask-otto)
-11. [Webhooks](#webhooks)
-12. [Invites](#invites)
-13. [Onboarding](#onboarding)
+6. [Call Processing (Shunya)](#call-processing-shunya)
+7. [Ask Otto (Shunya)](#ask-otto-shunya)
+8. [Insights (Shunya)](#insights-shunya)
+9. [RAG / Ask Otto](#rag--ask-otto)
+10. [Webhooks](#webhooks)
+11. [Invites](#invites)
+12. [Onboarding](#onboarding)
 
 ---
 
@@ -381,6 +380,8 @@ Delete user by ID (EXECUTIVE only).
 ---
 
 ## Calls
+
+**Note:** Route order is important. The `/calls/logs` endpoint must be defined before `/calls/{call_id}` to avoid routing conflicts.
 
 ### GET `/calls`
 
@@ -1337,36 +1338,43 @@ Get bookings summary metrics within date range.
 
 ### GET `/metrics/objections/top`
 
-Get top objections from call analyses within date range.
+Get top objections aggregated by company.
+
+Returns ALL objections sorted from most occurred to least occurred, with:
+- objection_type: Type of objection
+- count: Number of times this objection appeared
+- affected_leads_count: Number of unique leads affected by this objection
 
 **Query Parameters:**
 - `company_id` (UUID, required) - Company UUID
-- `start_date` (date, optional) - Start date (YYYY-MM-DD)
-- `end_date` (date, optional) - End date (YYYY-MM-DD)
-- `limit` (int, default: 5, max: 20) - Number of top objections
+- `start_date` (date, optional) - Currently ignored - returns all objections
+- `end_date` (date, optional) - Currently ignored - returns all objections
+- `limit` (int, optional, max: 20) - Optional limit - if not provided, returns all objections
+
+**Example Request:**
+```
+GET /api/v1/metrics/objections/top?company_id=11111111-1111-1111-1111-111111111111
+```
 
 **Response:** `200 OK`
 ```json
-{
-  "objections": [
-    {
-      "objection_type": "price",
-      "count": 45,
-      "percentage": 35.2
-    },
-    {
-      "objection_type": "timing",
-      "count": 30,
-      "percentage": 23.4
-    }
-  ],
-  "total_calls_with_objections": 128,
-  "start_date": "2025-12-01T00:00:00",
-  "end_date": "2026-01-08T23:59:59"
-}
+[
+  {
+    "objection_type": "pricing",
+    "count": 3,
+    "affected_leads_count": 2
+  },
+  {
+    "objection_type": "price",
+    "count": 2,
+    "affected_leads_count": 2
+  }
+]
 ```
 
-**Required Role:** Any authenticated user
+**Note:** Returns all objections sorted by count (most to least). Use the `limit` parameter to restrict the number of results.
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
 
 ---
 
@@ -1404,38 +1412,44 @@ Get objections summary within date range.
 
 ### GET `/metrics/objections/{objection_type}/calls`
 
-Get calls with specific objection type within date range.
+Get calls filtered by objection type and optionally by CSR owner.
 
 **Path Parameters:**
-- `objection_type` (string, required) - Type of objection (`price`, `timing`, `authority`, `need`, `competitor`, `other`)
+- `objection_type` (string, required) - Type of objection (e.g., `price`, `timing`, `authority`)
 
 **Query Parameters:**
 - `company_id` (UUID, required) - Company UUID
-- `start_date` (date, optional) - Start date (YYYY-MM-DD)
-- `end_date` (date, optional) - End date (YYYY-MM-DD)
-- `limit` (int, default: 20, max: 100) - Maximum number of calls
+- `owner_id` (UUID, optional) - Filter by CSR/owner UUID
+- `start_date` (date, optional) - Currently ignored
+- `end_date` (date, optional) - Currently ignored
+- `limit` (int, optional, max: 100) - Optional limit on number of calls returned
+
+**Example Request:**
+```
+GET /api/v1/metrics/objections/price/calls?company_id=11111111-1111-1111-1111-111111111111&owner_id=ffffffff-ffff-ffff-ffff-ffffffffffff
+```
 
 **Response:** `200 OK`
 ```json
-{
-  "objection_type": "price",
-  "total_calls": 80,
-  "calls": [
-    {
-      "call_id": "123e4567-e89b-12d3-a456-426614174000",
-      "phone_number": "+1234567890",
-      "created_at": "2026-01-08T10:00:00Z",
-      "duration_seconds": 180,
-      "objection_texts": ["Customer mentioned price is too high"],
-      "summary": "Call summary..."
-    }
-  ],
-  "start_date": "2025-12-01T00:00:00",
-  "end_date": "2026-01-08T23:59:59"
-}
+[
+  {
+    "call_id": "30000000-0000-0000-0000-000000000001",
+    "contact_card": {
+      "id": "10000000-0000-0000-0000-000000000001",
+      "first_name": "Alice",
+      "last_name": "Johnson",
+      "primary_phone": "+1-555-1001"
+    },
+    "audio_url": "https://storage.example.com/audio/call1.mp3",
+    "qualification_status": "qualified",
+    "booking_status": "not_booked"
+  }
+]
 ```
 
-**Required Role:** Any authenticated user
+**Note:** Objection matching is case-insensitive and handles variations (e.g., `price` matches `pricing`, `cost`, `costs`).
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
 
 ---
 
@@ -1793,76 +1807,6 @@ GET /api/v1/metrics/csr/ffffffff-ffff-ffff-ffff-ffffffffffff/profile?start_date=
 - `on_target`: ≤ 15 seconds
 - `above_target`: > 15 seconds but ≤ 22.5 seconds
 - `below_target`: > 22.5 seconds
-
----
-
-## Analytics
-
-### GET `/analytics/top-objections`
-
-Get top objections aggregated by company.
-
-**Query Parameters:**
-- `company_id` (UUID, required) - Company UUID
-
-**Example Request:**
-```
-GET /api/v1/analytics/top-objections?company_id=11111111-1111-1111-1111-111111111111
-```
-
-**Response:** `200 OK`
-```json
-[
-  {
-    "objection_type": "pricing",
-    "count": 3,
-    "affected_leads_count": 2
-  },
-  {
-    "objection_type": "price",
-    "count": 2,
-    "affected_leads_count": 2
-  }
-]
-```
-
-**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
-
----
-
-### GET `/analytics/objection-calls`
-
-Get calls filtered by objection type and optionally by CSR owner.
-
-**Query Parameters:**
-- `objection` (string, required) - Objection type (e.g., `price`, `timing`, `authority`)
-- `company_id` (UUID, required) - Company UUID
-- `owner_id` (UUID, optional) - Filter by CSR/owner UUID
-
-**Example Request:**
-```
-GET /api/v1/analytics/objection-calls?objection=price&company_id=11111111-1111-1111-1111-111111111111
-```
-
-**Response:** `200 OK`
-```json
-[
-  {
-    "call_id": "30000000-0000-0000-0000-000000000001",
-    "contact_card": {
-      "id": "10000000-0000-0000-0000-000000000001",
-      "first_name": "Alice",
-      "last_name": "Johnson",
-      "primary_phone": "+1-555-1001"
-    },
-    "audio_url": "https://storage.example.com/audio/call1.mp3",
-    "qualification_status": "qualified",
-    "booking_status": "not_booked"
-  }
-]
-```
-
-**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
 
 ---
 

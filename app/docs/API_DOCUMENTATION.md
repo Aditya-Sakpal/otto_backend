@@ -688,6 +688,139 @@ GET /api/v1/calls/by-objection/authority/details?company_id=11111111-1111-1111-1
 
 ---
 
+### GET `/calls/logs`
+
+Get call logs with summary statistics and filtered call list.
+
+Returns comprehensive call log data including summary statistics (Total Calls, Qualified, Booked, Abandoned) and a detailed list of calls with all relevant information for the call logs dashboard.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `search` (string, optional) - Search by customer name, CSR name, or phone number
+- `csr_id` (UUID, optional) - Filter by specific CSR/owner UUID
+- `status_filter` (string, optional) - Filter by qualification status (`qualified`/`unqualified`/`all`, default: `all`)
+- `booking_filter` (string, optional) - Filter by booking status (`booked`/`unbooked`/`all`, default: `all`)
+- `quick_filter` (string, optional) - Quick filter options:
+  - `hot_lead` - Hot leads
+  - `qualified_unbooked` - Qualified but not booked
+  - `qualified_booked` - Qualified and booked
+  - `abandoned` - Abandoned leads
+  - `residential` - Residential properties
+  - `commercial` - Commercial properties
+- `skip` (int, default: 0) - Number of records to skip (for pagination)
+- `limit` (int, default: 100, max: 1000) - Maximum number of records to return
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=john&skip=0&limit=100
+```
+
+**Response:** `200 OK`
+```json
+{
+  "summary": {
+    "total_calls": 15,
+    "qualified": 5,
+    "booked": 3,
+    "abandoned": 4
+  },
+  "calls": [
+    {
+      "call_id": "30000000-0000-0000-0000-000000000001",
+      "call_received": "12/31/25, 10:39 AM",
+      "duration": "2m 13s",
+      "csr_name": "Travis Jones",
+      "customer_name": "EVANSON DALE",
+      "phone_number": "(555) 123-4567",
+      "is_qualified": false,
+      "is_booked": false,
+      "score": null,
+      "objections": null,
+      "tags": "Follow-up"
+    },
+    {
+      "call_id": "30000000-0000-0000-0000-000000000002",
+      "call_received": "12/31/25, 10:09 AM",
+      "duration": "4m 57s",
+      "csr_name": "Travis Jones",
+      "customer_name": "EVANSON DALE",
+      "phone_number": "(555) 123-4567",
+      "is_qualified": false,
+      "is_booked": false,
+      "score": 72,
+      "objections": "Price too high",
+      "tags": "Follow-up"
+    },
+    {
+      "call_id": "30000000-0000-0000-0000-000000000003",
+      "call_received": "12/31/25, 9:55 AM",
+      "duration": "1m 41s",
+      "csr_name": "Travis Jones",
+      "customer_name": "ANDREW JONES",
+      "phone_number": "(555) 234-5678",
+      "is_qualified": false,
+      "is_booked": false,
+      "score": null,
+      "objections": null,
+      "tags": "Abandoned"
+    }
+  ],
+  "total": 15,
+  "skip": 0,
+  "limit": 100
+}
+```
+
+**Response Fields:**
+- `summary`: Summary statistics
+  - `total_calls`: Total number of calls for the company
+  - `qualified`: Number of qualified calls
+  - `booked`: Number of booked calls
+  - `abandoned`: Number of abandoned calls
+- `calls`: Array of call log entries
+  - `call_id`: UUID of the call
+  - `call_received`: Formatted date/time when call was received (MM/DD/YY, HH:MM AM/PM)
+  - `duration`: Call duration formatted as "Xm Ys"
+  - `csr_name`: Full name of the CSR who handled the call
+  - `customer_name`: Customer name in uppercase
+  - `phone_number`: Formatted phone number (XXX) XXX-XXXX
+  - `is_qualified`: Boolean indicating if call was qualified
+  - `is_booked`: Boolean indicating if call resulted in booking
+  - `score`: Call score (SOP compliance score or sentiment score converted to 0-100 scale), null if not available
+  - `objections`: Comma-separated list of objections (first 3), null if none
+  - `tags`: Comma-separated list of tags from lead status and metadata, null if none
+- `total`: Total count of calls matching filters (before pagination)
+- `skip`: Number of records skipped
+- `limit`: Maximum number of records returned
+
+**Examples:**
+- Get all call logs: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111`
+- Search by customer name: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=john`
+- Filter by CSR: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111&csr_id=ffffffff-ffff-ffff-ffff-ffffffffffff`
+- Filter qualified calls: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111&status_filter=qualified`
+- Filter booked calls: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111&booking_filter=booked`
+- Quick filter hot leads: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111&quick_filter=hot_lead`
+- Quick filter qualified unbooked: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111&quick_filter=qualified_unbooked`
+- Quick filter abandoned: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111&quick_filter=abandoned`
+
+**Note:**
+- Summary statistics are calculated from all calls for the company (not filtered)
+- Call list is filtered based on query parameters
+- Calls are ordered by creation date (most recent first)
+- Phone numbers are automatically formatted to (XXX) XXX-XXXX format
+- Customer names are displayed in uppercase
+- Tags are derived from lead status and extra_metadata
+- Score uses SOP compliance score if available, otherwise falls back to sentiment score (converted to 0-100 scale)
+
+**Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
 ## Leads
 
 ### GET `/leads`

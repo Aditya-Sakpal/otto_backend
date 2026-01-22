@@ -439,3 +439,303 @@ class CallService:
             traceback.print_exc()
             # Don't raise - pending actions are non-critical
 
+    async def get_call_logs(
+        self,
+        company_id: UUID,
+        search: Optional[str] = None,
+        csr_id: Optional[UUID] = None,
+        status_filter: Optional[str] = None,
+        booking_filter: Optional[str] = None,
+        quick_filter: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
+        """
+        Get call logs with summary statistics and filtered call list.
+        
+        Returns:
+            Dictionary with:
+            - summary: Statistics (total_calls, qualified, booked, abandoned)
+            - calls: List of call log entries with all details
+            - total: Total count of calls matching filters
+        """
+        try:
+            from sqlalchemy import select, func, or_, and_, case
+            from sqlalchemy.orm import selectinload
+            from app.infrastructure.database.models.call import CallORM
+            from app.infrastructure.database.models.analysis import CallAnalysisORM
+            from app.infrastructure.database.models.contact import ContactCardORM
+            from app.infrastructure.database.models.user import UserORM
+            from app.infrastructure.database.models.lead import LeadORM
+            
+            # Build base query with joins
+            query = select(
+                CallORM,
+                CallAnalysisORM,
+                ContactCardORM,
+                UserORM,
+                LeadORM
+            ).outerjoin(
+                CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id
+            ).outerjoin(
+                ContactCardORM, CallORM.contact_card_id == ContactCardORM.id
+            ).outerjoin(
+                UserORM, CallORM.handled_by_user_id == UserORM.id
+            ).outerjoin(
+                LeadORM, CallORM.lead_id == LeadORM.id
+            ).where(
+                CallORM.company_id == company_id
+            )
+            
+            # Apply filters
+            if csr_id:
+                query = query.where(CallORM.handled_by_user_id == csr_id)
+            
+            # Status filter (qualification status)
+            if status_filter and status_filter.lower() != "all":
+                if status_filter.lower() == "qualified":
+                    query = query.where(CallAnalysisORM.qualification_status == "qualified")
+                elif status_filter.lower() == "unqualified":
+                    query = query.where(
+                        or_(
+                            CallAnalysisORM.qualification_status != "qualified",
+                            CallAnalysisORM.qualification_status.is_(None)
+                        )
+                    )
+            
+            # Booking filter
+            if booking_filter and booking_filter.lower() != "all":
+                if booking_filter.lower() == "booked":
+                    query = query.where(CallAnalysisORM.booking_status == "booked")
+                elif booking_filter.lower() == "unbooked":
+                    query = query.where(
+                        or_(
+                            CallAnalysisORM.booking_status != "booked",
+                            CallAnalysisORM.booking_status.is_(None)
+                        )
+                    )
+            
+            # Quick filters
+            if quick_filter:
+                quick_filter_lower = quick_filter.lower()
+                if quick_filter_lower == "hot_lead":
+                    query = query.where(LeadORM.status == "hot")
+                elif quick_filter_lower == "qualified_unbooked":
+                    query = query.where(
+                        and_(
+                            CallAnalysisORM.qualification_status == "qualified",
+                            or_(
+                                CallAnalysisORM.booking_status != "booked",
+                                CallAnalysisORM.booking_status.is_(None)
+                            )
+                        )
+                    )
+                elif quick_filter_lower == "qualified_booked":
+                    query = query.where(
+                        and_(
+                            CallAnalysisORM.qualification_status == "qualified",
+                            CallAnalysisORM.booking_status == "booked"
+                        )
+                    )
+                elif quick_filter_lower == "abandoned":
+                    query = query.where(LeadORM.status == "abandoned")
+                elif quick_filter_lower == "residential":
+                    # Check in contact card property_snapshot or extra_metadata
+                    query = query.where(
+                        or_(
+                            ContactCardORM.property_snapshot['property_type'].astext == "residential",
+                            ContactCardORM.extra_metadata['property_type'].astext == "residential"
+                        )
+                    )
+                elif quick_filter_lower == "commercial":
+                    query = query.where(
+                        or_(
+                            ContactCardORM.property_snapshot['property_type'].astext == "commercial",
+                            ContactCardORM.extra_metadata['property_type'].astext == "commercial"
+                        )
+                    )
+            
+            # Search filter (customer name, CSR name, or phone number)
+            if search:
+                search_term = f"%{search.lower()}%"
+                query = query.where(
+                    or_(
+                        func.lower(ContactCardORM.first_name).like(search_term),
+                        func.lower(ContactCardORM.last_name).like(search_term),
+                        func.lower(ContactCardORM.primary_phone).like(search_term),
+                        func.lower(UserORM.first_name).like(search_term),
+                        func.lower(UserORM.last_name).like(search_term),
+                    )
+                )
+            
+            # Get total count before pagination
+            count_query = select(func.count()).select_from(query.subquery())
+            total_result = await self.session.execute(count_query)
+            total = total_result.scalar() or 0
+            
+            # Apply ordering and pagination
+            query = query.order_by(CallORM.created_at.desc())
+            query = query.offset(skip).limit(limit)
+            
+            # Execute query
+            results = await self.session.execute(query)
+            rows = results.all()
+            
+            # Calculate summary statistics (from all calls, not just filtered)
+            summary_query = select(
+                func.count(CallORM.id).label('total_calls'),
+                func.sum(
+                    case(
+                        (CallAnalysisORM.qualification_status == "qualified", 1),
+                        else_=0
+                    )
+                ).label('qualified'),
+                func.sum(
+                    case(
+                        (CallAnalysisORM.booking_status == "booked", 1),
+                        else_=0
+                    )
+                ).label('booked'),
+                func.sum(
+                    case(
+                        (LeadORM.status == "abandoned", 1),
+                        else_=0
+                    )
+                ).label('abandoned'),
+            ).outerjoin(
+                CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id
+            ).outerjoin(
+                LeadORM, CallORM.lead_id == LeadORM.id
+            ).where(
+                CallORM.company_id == company_id
+            )
+            
+            summary_result = await self.session.execute(summary_query)
+            summary_row = summary_result.first()
+            
+            summary = {
+                "total_calls": summary_row.total_calls or 0,
+                "qualified": int(summary_row.qualified or 0),
+                "booked": int(summary_row.booked or 0),
+                "abandoned": int(summary_row.abandoned or 0),
+            }
+            
+            # Build call log entries
+            calls = []
+            for call, analysis, contact, user, lead in rows:
+                # Get CSR name
+                csr_name = None
+                if user:
+                    if user.first_name and user.last_name:
+                        csr_name = f"{user.first_name} {user.last_name}"
+                    elif user.first_name:
+                        csr_name = user.first_name
+                    elif user.last_name:
+                        csr_name = user.last_name
+                
+                # Get customer name
+                customer_name = None
+                phone_number = call.phone_number
+                if contact:
+                    if contact.first_name and contact.last_name:
+                        customer_name = f"{contact.first_name} {contact.last_name}".upper()
+                    elif contact.first_name:
+                        customer_name = contact.first_name.upper()
+                    elif contact.last_name:
+                        customer_name = contact.last_name.upper()
+                    if contact.primary_phone:
+                        phone_number = contact.primary_phone
+                
+                # Format phone number
+                formatted_phone = phone_number
+                if phone_number and len(phone_number) == 10:
+                    formatted_phone = f"({phone_number[:3]}) {phone_number[3:6]}-{phone_number[6:]}"
+                elif phone_number and len(phone_number) > 10:
+                    # Try to format if it has country code
+                    if phone_number.startswith("+1"):
+                        clean_phone = phone_number[2:].replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
+                        if len(clean_phone) == 10:
+                            formatted_phone = f"({clean_phone[:3]}) {clean_phone[3:6]}-{clean_phone[6:]}"
+                
+                # Get qualification and booking status
+                is_qualified = analysis and analysis.qualification_status == "qualified" if analysis else False
+                is_booked = analysis and analysis.booking_status == "booked" if analysis else False
+                
+                # Get score (use SOP compliance score or sentiment score)
+                score = None
+                if analysis:
+                    if analysis.sop_compliance_score is not None:
+                        score = int(analysis.sop_compliance_score)
+                    elif analysis.sentiment_score is not None:
+                        score = int(analysis.sentiment_score * 100)  # Convert to 0-100 scale
+                
+                # Get objections
+                objections = None
+                if analysis and analysis.objections:
+                    # Join objections with comma
+                    objections = ", ".join(analysis.objections[:3])  # Limit to first 3
+                    if len(analysis.objections) > 3:
+                        objections += "..."
+                
+                # Get tags (from lead status or extra_metadata)
+                tags = []
+                if lead:
+                    # Map lead status to tags
+                    status_to_tag = {
+                        "hot": "Hot lead",
+                        "warm": "Warm lead",
+                        "new": "New",
+                        "qualified_booked": "Qualified, booked",
+                        "qualified_unbooked": "Qualified, unbooked",
+                        "abandoned": "Abandoned",
+                        "nurturing": "Follow-up",
+                    }
+                    if lead.status in status_to_tag:
+                        tags.append(status_to_tag[lead.status])
+                    
+                    # Check for additional tags in extra_metadata
+                    if lead.extra_metadata:
+                        if lead.extra_metadata.get("tags"):
+                            if isinstance(lead.extra_metadata["tags"], list):
+                                tags.extend(lead.extra_metadata["tags"])
+                            elif isinstance(lead.extra_metadata["tags"], str):
+                                tags.append(lead.extra_metadata["tags"])
+                
+                # Format duration
+                duration_str = None
+                if call.duration_seconds:
+                    minutes = call.duration_seconds // 60
+                    seconds = call.duration_seconds % 60
+                    duration_str = f"{minutes}m {seconds}s"
+                
+                # Format call received date
+                call_received = None
+                if call.created_at:
+                    call_received = call.created_at.strftime("%m/%d/%y, %I:%M %p")
+                
+                calls.append({
+                    "call_id": str(call.id),
+                    "call_received": call_received,
+                    "duration": duration_str,
+                    "csr_name": csr_name,
+                    "customer_name": customer_name,
+                    "phone_number": formatted_phone,
+                    "is_qualified": is_qualified,
+                    "is_booked": is_booked,
+                    "score": score,
+                    "objections": objections,
+                    "tags": ", ".join(tags) if tags else None,
+                })
+            
+            return {
+                "summary": summary,
+                "calls": calls,
+                "total": total,
+                "skip": skip,
+                "limit": limit,
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting call logs: {e}")
+            traceback.print_exc()
+            raise

@@ -16,12 +16,14 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Request, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.dependencies import DbSession
 from app.core.logging import get_logger
 from app.core.encryption import decrypt_api_key
 from app.infrastructure.integrations.crm_mapping import LEAD_UPDATE_EVENT_TYPES
+from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.infrastructure.repositories.company_integration import CompanyIntegrationRepository
-from app.services.call_service import CallService
+from app.services.call_service import CallService, transform_summary_to_analysis_data
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
 
@@ -88,92 +90,120 @@ async def shoonya_job_complete_webhook(
     """
     Handle job completion webhook from Shoonya.
 
-    Expected payload from Shoonya:
+    Supports two payload formats:
+
+    1. New format (call_processing): summary_url + chunks_url; we fetch summary from
+       /api/v1/call-processing/summary/{call_id} and process context.spec-style JSON.
+    {
+        "job_id": "uuid",
+        "status": "completed",
+        "event_type": "call_processing",
+        "timestamp": "...",
+        "call_id": "uuid",
+        "summary_url": "/api/v1/call-processing/summary/{call_id}",
+        "chunks_url": "/api/v1/call-processing/chunks/{call_id}"
+    }
+
+    2. Legacy format: inline result.analysis + transcript.
     {
         "shunya_job_id": "job_123",
         "status": "completed",
-        "call_id": "uuid-string" or int,
-        "company_id": "uuid-string",
-        "result": {
-            "transcript": "...",
-            "analysis": {
-                "qualification_status": "...",
-                "booking_status": "...",
-                "objections": [...],
-                "objection_texts": [...],
-                "sop_stages_completed": [...],
-                "sop_stages_missed": [...],
-                "sop_compliance_score": 0.85,
-                "sentiment_score": 0.5,
-                "summary": "...",
-                "key_points": [...],
-                ...
-            }
-        }
+        "call_id": "uuid",
+        "company_id": "uuid",
+        "result": { "transcript": "...", "analysis": { ... } }
     }
     """
     try:
         payload = await request.json()
+        job_id = payload.get("job_id") or payload.get("shunya_job_id")
         logger.info("Shoonya job complete webhook received", payload=payload)
 
-        # Extract required fields
         job_status = payload.get("status")
         if job_status != "completed":
             logger.warning(
                 "Job not completed, ignoring",
                 status=job_status,
-                job_id=payload.get("shunya_job_id"),
+                job_id=job_id,
             )
             return {"status": "ignored", "reason": f"Job status is {job_status}"}
 
-        # Extract call_id (can be UUID string or int)
         call_id_raw = payload.get("call_id")
         if not call_id_raw:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="call_id required in payload",
             )
-
-        # Convert to UUID
         try:
             if isinstance(call_id_raw, int):
-                # If Shoonya sends int, we need to look it up or handle differently
-                # For now, assume it's a UUID string
                 raise ValueError("call_id must be UUID string, not int")
             call_id = UUID(call_id_raw)
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid call_id format: {call_id_raw}",
             )
 
-        # Extract company_id
+        summary_url = payload.get("summary_url")
+        event_type = payload.get("event_type", "")
+
+        if summary_url and event_type == "call_processing":
+            # New flow: fetch summary from Shunya summary API, transform, process.
+            service = CallService(db)
+            call = await service.call_repo.get_by_id(call_id)
+            if not call:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Call {call_id} not found; cannot fetch summary",
+                )
+            company_id = str(call.company_id)
+
+            shoonya = get_shoonya_client()
+            if not shoonya.is_available():
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Shunya service not available",
+                )
+            summary_json = await shoonya.get_call_summary(
+                str(call_id),
+                company_id=company_id,
+                include_chunks=False,
+            )
+            analysis_data = transform_summary_to_analysis_data(summary_json)
+            analysis = await service.process_analysis(
+                call_id=call_id,
+                analysis_data=analysis_data,
+                transcript=None,
+            )
+            await db.commit()
+            logger.info(
+                "Shoonya webhook processed (summary API)",
+                call_id=str(call_id),
+                analysis_id=str(analysis.id),
+                job_id=job_id,
+            )
+            return {
+                "status": "success",
+                "call_id": str(call_id),
+                "analysis_id": str(analysis.id),
+            }
+
+        # Legacy flow: inline result.analysis + transcript.
         company_id = payload.get("company_id") or request.headers.get("X-Company-Id")
         if not company_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="company_id required",
+                detail="company_id required (legacy payload); or use summary_url + call_processing",
             )
-
-        # Extract result data
         result = payload.get("result", {})
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="result required in payload",
+                detail="result required in payload (legacy); or use summary_url + event_type=call_processing",
             )
-
-        # Extract transcript and analysis
         transcript = result.get("transcript")
         analysis_data = result.get("analysis", {})
 
         if not analysis_data:
-            logger.warning(
-                "No analysis data in result",
-                call_id=str(call_id),
-                job_id=payload.get("shunya_job_id"),
-            )
-            # Still process if we have transcript
             if transcript:
                 service = CallService(db)
                 call = await service.call_repo.get_by_id(call_id)
@@ -181,39 +211,29 @@ async def shoonya_job_complete_webhook(
                     call.transcript = transcript
                     await service.call_repo.update(call_id, call)
                     logger.info("Transcript updated", call_id=str(call_id))
+                await db.commit()
                 return {"status": "success", "message": "Transcript updated, no analysis data"}
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Either transcript or analysis required in result",
-                )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either transcript or analysis required in result",
+            )
 
-        # Process analysis and update call status in a single transaction
         service = CallService(db)
-        
-        # Process analysis (call status is tracked in call_processing_jobs table, not in calls table)
         call = await service.call_repo.get_by_id(call_id)
         if call:
-            # Note: status and shunya_job_id are not stored in calls table
-            # They are tracked in call_processing_jobs table instead
-            logger.info(f"Processing analysis for call", call_id=str(call_id))
-        
+            logger.info("Processing analysis for call", call_id=str(call_id))
         analysis = await service.process_analysis(
             call_id=call_id,
             analysis_data=analysis_data,
             transcript=transcript,
         )
-        
-        # Commit all changes in single transaction
         await db.commit()
-
         logger.info(
             "Shoonya webhook processed successfully",
             call_id=str(call_id),
             analysis_id=str(analysis.id),
-            job_id=payload.get("shunya_job_id"),
+            job_id=job_id,
         )
-
         return {
             "status": "success",
             "call_id": str(call_id),
@@ -291,6 +311,7 @@ async def ghl_message(
                 event=event,
                 db_session=db,
                 company_id=company_id,
+                webhook_url=f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete",
             )
             return result
         except Exception as e:

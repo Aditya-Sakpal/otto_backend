@@ -65,10 +65,17 @@ async def signup(
         user = await user_service.create(user_data)
 
         # Create tokens for immediate login
+        # Construct full name from first_name and last_name
+        full_name = None
+        if user.first_name or user.last_name:
+            name_parts = [part for part in [user.first_name, user.last_name] if part]
+            full_name = " ".join(name_parts) if name_parts else None
+        
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,  # Use .value for consistency
             company_id=user.company_id,
+            name=full_name,
         )
         refresh_token = create_refresh_token(user_id=user.id)
 
@@ -120,10 +127,17 @@ async def login(
             )
 
         # Create tokens
+        # Construct full name from first_name and last_name
+        full_name = None
+        if user.first_name or user.last_name:
+            name_parts = [part for part in [user.first_name, user.last_name] if part]
+            full_name = " ".join(name_parts) if name_parts else None
+        
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,  # Use .value for consistency with refresh endpoint
             company_id=user.company_id,
+            name=full_name,
         )
         refresh_token = create_refresh_token(user_id=user.id)
 
@@ -179,10 +193,17 @@ async def refresh_token(
             )
 
         # Create new access token
+        # Construct full name from first_name and last_name
+        full_name = None
+        if user.first_name or user.last_name:
+            name_parts = [part for part in [user.first_name, user.last_name] if part]
+            full_name = " ".join(name_parts) if name_parts else None
+        
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,
             company_id=user.company_id,
+            name=full_name,
         )
 
         return RefreshTokenResponse(

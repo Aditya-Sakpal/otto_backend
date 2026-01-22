@@ -58,6 +58,81 @@ async def list_calls(
         )
 
 
+@router.get("/logs")
+async def get_call_logs(
+    company_id: UUID = Query(..., description="Company UUID"),
+    db: DbSession = None,
+    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
+    search: Optional[str] = Query(None, description="Search by customer name, CSR name, or phone number"),
+    csr_id: Optional[UUID] = Query(None, description="Filter by CSR/owner UUID"),
+    status_filter: Optional[str] = Query(None, description="Filter by qualification status (qualified/unqualified/all)"),
+    booking_filter: Optional[str] = Query(None, description="Filter by booking status (booked/unbooked/all)"),
+    quick_filter: Optional[str] = Query(None, description="Quick filter (hot_lead, qualified_unbooked, qualified_booked, abandoned, residential, commercial, etc.)"),
+    skip: int = Query(0, ge=0, description="Number of records to skip (for pagination)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
+):
+    """
+    Get call logs with summary statistics and filtered call list.
+    
+    Returns:
+    - summary: Statistics (total_calls, qualified, booked, abandoned)
+    - calls: List of call log entries with all details:
+      - call_id: UUID of the call
+      - call_received: Formatted date/time when call was received
+      - duration: Call duration (e.g., "2m 13s")
+      - csr_name: Name of the CSR who handled the call
+      - customer_name: Customer name (uppercase)
+      - phone_number: Formatted phone number
+      - is_qualified: Whether call was qualified (boolean)
+      - is_booked: Whether call resulted in booking (boolean)
+      - score: Call score (SOP compliance or sentiment score)
+      - objections: Comma-separated list of objections
+      - tags: Comma-separated list of tags
+    - total: Total count of calls matching filters
+    - skip: Number of records skipped
+    - limit: Maximum number of records returned
+    
+    Query Parameters:
+    - company_id: Company UUID (required)
+    - search: Search by customer name, CSR name, or phone number
+    - csr_id: Filter by specific CSR/owner UUID
+    - status_filter: Filter by qualification status (qualified/unqualified/all)
+    - booking_filter: Filter by booking status (booked/unbooked/all)
+    - quick_filter: Quick filter options:
+      - hot_lead: Hot leads
+      - qualified_unbooked: Qualified but not booked
+      - qualified_booked: Qualified and booked
+      - abandoned: Abandoned leads
+      - residential: Residential properties
+      - commercial: Commercial properties
+    - skip: Number of records to skip (default: 0)
+    - limit: Maximum number of records to return (default: 100, max: 1000)
+    
+    Access: CSR, SALES_REP, EXECUTIVE
+    """
+    try:
+        service = CallService(db)
+        result = await service.get_call_logs(
+            company_id=company_id,
+            search=search,
+            csr_id=csr_id,
+            status_filter=status_filter,
+            booking_filter=booking_filter,
+            quick_filter=quick_filter,
+            skip=skip,
+            limit=limit,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error getting call logs: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get call logs: {str(e)}",
+        )
+
+
 @router.get("/{call_id}", response_model=Call)
 async def get_call(
     call_id: UUID,
@@ -203,4 +278,3 @@ async def get_objection_details(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get objection details: {str(e)}",
         )
-

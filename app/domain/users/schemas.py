@@ -91,4 +91,5 @@ class TokenPayload(BaseModel):
     user_id: UUID = Field(..., alias="sub", description="User ID")
     role: UserRole = Field(..., description="User role")
     type: str = Field(..., description="Token type (access or refresh)")
+    name: Optional[str] = Field(None, description="User full name")
 

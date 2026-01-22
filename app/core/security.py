@@ -95,6 +95,7 @@ def create_access_token(
     user_id: UUID,
     role: Union[str, Enum],
     company_id: Optional[UUID] = None,
+    name: Optional[str] = None,
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     """
@@ -104,6 +105,7 @@ def create_access_token(
         user_id: User UUID
         role: User role (EXECUTIVE, CSR, SALES_REP)
         company_id: Optional company UUID
+        name: Optional user name (full name)
         expires_delta: Optional custom expiration time
 
     Returns:
@@ -130,6 +132,10 @@ def create_access_token(
     # Add company_id to payload if provided
     if company_id:
         payload["company_id"] = str(company_id)
+    
+    # Add name to payload if provided
+    if name:
+        payload["name"] = name
 
     encoded_jwt = jwt.encode(
         payload,

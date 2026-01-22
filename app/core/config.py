@@ -74,6 +74,7 @@ class Settings(BaseSettings):
 
     # API Configuration
     API_URL: str = Field(default=os.getenv("API_URL", "http://localhost:8000"), description="Public API URL")
+    APP_URL: str = Field(default=os.getenv("APP_URL", "http://localhost:3000"), description="Public app URL")
     ALLOWED_ORIGINS: str = Field(
         default=os.getenv("ALLOWED_ORIGINS", "http://localhost:3000"),
         description="Allowed CORS origins (comma-separated)"

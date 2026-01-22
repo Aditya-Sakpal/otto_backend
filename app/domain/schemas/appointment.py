@@ -84,6 +84,22 @@ class AppointmentResponse(AppointmentBase):
         None,
         description="Last update timestamp",
     )
+    appointment_name: Optional[str] = Field(
+        None,
+        description="Contact name (from contact card)",
+    )
+    sales_rep_name: Optional[str] = Field(
+        None,
+        description="Sales rep name (from assigned user)",
+    )
+    contact_details: Optional[dict] = Field(
+        None,
+        description="Full contact card details",
+    )
+    assigned_rep_details: Optional[dict] = Field(
+        None,
+        description="Full assigned sales rep user details",
+    )
 
     class Config:
         from_attributes = True

@@ -13,7 +13,6 @@ from app.core.dependencies import DbSession
 from app.core.logging import get_logger
 from app.core.permissions import require_any_role
 from app.domain.enums import UserRole
-from app.domain.models.appointment import Appointment
 from app.domain.schemas.appointment import (
     AppointmentCreate,
     AppointmentUpdate,
@@ -21,8 +20,6 @@ from app.domain.schemas.appointment import (
 )
 from app.domain.users.models import User
 from app.services.appointment_service import AppointmentService
-from app.infrastructure.repositories.appointment import AppointmentRepository
-from app.infrastructure.repositories.analysis import CallAnalysisRepository
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -62,30 +59,24 @@ async def list_appointments(
 
         # If lead_id is provided, return appointment for that lead
         if lead_id:
-            appointment = await service.get_by_lead(lead_id)
-            return (
-                [AppointmentResponse.model_validate(appointment)]
-                if appointment
-                else []
-            )
+            appointment = await service.get_enriched_by_lead(lead_id)
+            return [appointment] if appointment else []
 
         # Filter by assigned rep if provided
         if assigned_rep_id:
-            appointments = await service.get_by_assigned_rep(
+            return await service.list_enriched_by_assigned_rep(
                 company_id=company_id,
                 assigned_rep_id=assigned_rep_id,
                 skip=skip,
                 limit=limit,
             )
-            return [AppointmentResponse.model_validate(a) for a in appointments]
 
         # Default: return all appointments for company
-        appointments = await service.get_by_company(
+        return await service.list_enriched_by_company(
             company_id=company_id,
             skip=skip,
             limit=limit,
         )
-        return [AppointmentResponse.model_validate(a) for a in appointments]
     except Exception as e:
         logger.error(f"Error listing appointments: {e}")
         traceback.print_exc()
@@ -109,7 +100,7 @@ async def get_appointment(
     """
     try:
         service = AppointmentService(db)
-        appointment = await service.get_by_id(appointment_id)
+        appointment = await service.get_enriched_by_id(appointment_id)
 
         if not appointment:
             raise HTTPException(
@@ -117,7 +108,7 @@ async def get_appointment(
                 detail="Appointment not found",
             )
 
-        return AppointmentResponse.model_validate(appointment)
+        return appointment
     except HTTPException:
         raise
     except Exception as e:
@@ -251,61 +242,21 @@ async def get_appointment_insights(
         }
     """
     try:
-        appointment_repo = AppointmentRepository(db)
-        analysis_repo = CallAnalysisRepository(db)
-        
-        # Get appointment
-        appointment = await appointment_repo.get_by_id(appointment_id)
-        if not appointment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Appointment not found",
-            )
-        
-        # Check if appointment has an interaction_id
-        if not appointment.interaction_id:
-            return {
-                "appointment_id": str(appointment_id),
-                "status": "not_found",
-                "insights": None,
-            }
-        
-        # Get call analysis by call_id (interaction_id)
-        analysis = await analysis_repo.get_by_call_id(appointment.interaction_id)
-        
-        if not analysis:
-            # Check if call exists and its status
-            from app.infrastructure.repositories.call import CallRepository
-            call_repo = CallRepository(db)
-            call = await call_repo.get_by_id(appointment.interaction_id)
-            
-            if call:
-                return {
-                    "appointment_id": str(appointment_id),
-                    "status": "pending",  # Default status since field doesn't exist in DB
-                    "insights": None,
-                }
-            else:
-                return {
-                    "appointment_id": str(appointment_id),
-                    "status": "not_found",
-                    "insights": None,
-                }
-        
-        # Build insights response
-        insights = {
-            "summary": analysis.summary or "",
-            "sentiment": analysis.sentiment_score if analysis.sentiment_score is not None else None,
-            "sop_score": analysis.sop_compliance_score if analysis.sop_compliance_score is not None else None,
-            "objections_found": [obj.value if hasattr(obj, 'value') else str(obj) for obj in analysis.objections] if analysis.objections else [],
-        }
-        
-        return {
-            "appointment_id": str(appointment_id),
-            "status": analysis.status.value if hasattr(analysis.status, 'value') else str(analysis.status),
-            "insights": insights,
-        }
-        
+        service = AppointmentService(db)
+        result = await service.get_appointment_insights(appointment_id)
+
+        # Check if appointment was not found
+        if result.get("status") == "not_found" and not result.get("insights"):
+            # Verify appointment exists
+            appointment = await service.get_by_id(appointment_id)
+            if not appointment:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Appointment not found",
+                )
+
+        return result
+
     except HTTPException:
         raise
     except Exception as e:

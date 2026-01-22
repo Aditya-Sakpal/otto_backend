@@ -5,7 +5,7 @@ Provides metrics and analytics calculations with date range filtering.
 """
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 
 from sqlalchemy import select, func, and_, or_, text, bindparam, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -915,9 +915,14 @@ class MetricsService:
             )
             unbooked_count = unbooked.scalar() or 0
             
-            # Get leads in date range
+            # Get leads in date range with contact card
+            from sqlalchemy.orm import selectinload
+            from app.infrastructure.database.models.contact import ContactCardORM
+            
             leads = await self.session.execute(
-                select(LeadORM).where(
+                select(LeadORM)
+                .options(selectinload(LeadORM.contact_card))
+                .where(
                     LeadORM.company_id == company_id,
                     LeadORM.created_at >= start_dt,
                     LeadORM.created_at <= end_dt,
@@ -927,27 +932,41 @@ class MetricsService:
             leads_list = leads.scalars().all()
             
             # Calculate average days unbooked
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             total_days = sum(
                 (now - lead.created_at).days if lead.created_at else 0
                 for lead in leads_list
             )
             avg_days = (total_days / len(leads_list)) if leads_list else 0.0
             
+            # Build leads response with name and phone
+            leads_response = []
+            for lead in leads_list:
+                lead_data = {
+                    "id": str(lead.id),
+                    "contact_card_id": str(lead.contact_card_id),
+                    "status": lead.status,
+                    "deal_size": lead.deal_size,
+                    "created_at": lead.created_at.isoformat() if lead.created_at else None,
+                }
+                
+                # Add name and phone from contact card
+                if lead.contact_card:
+                    first_name = lead.contact_card.first_name or ""
+                    last_name = lead.contact_card.last_name or ""
+                    lead_data["name"] = f"{first_name} {last_name}".strip() or None
+                    lead_data["phone_number"] = lead.contact_card.primary_phone
+                else:
+                    lead_data["name"] = None
+                    lead_data["phone_number"] = None
+                
+                leads_response.append(lead_data)
+            
             return {
                 "total_unbooked": unbooked_count,
                 "qualified_unbooked": unbooked_count,
                 "avg_days_unbooked": round(avg_days, 2),
-                "leads": [
-                    {
-                        "id": str(lead.id),
-                        "contact_card_id": str(lead.contact_card_id),
-                        "status": lead.status,
-                        "deal_size": lead.deal_size,
-                        "created_at": lead.created_at.isoformat() if lead.created_at else None,
-                    }
-                    for lead in leads_list
-                ],
+                "leads": leads_response,
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),
             }

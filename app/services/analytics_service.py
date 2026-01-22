@@ -6,6 +6,7 @@ Provides analytics calculations for objections and calls.
 import traceback
 from typing import Optional, List, Dict, Any
 from uuid import UUID
+from datetime import datetime, timedelta
 
 from sqlalchemy import select, func, text, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -299,12 +300,9 @@ class AnalyticsService:
             # Unbooked = leads with status not 'qualified_booked' and not 'closed_won'
             unbooked_statuses = ['new', 'warm', 'hot', 'qualified_unbooked', 'qualified_service_not_offered', 'nurturing']
             
-            unbooked_leads_query = select(
-                LeadORM,
-                ContactCardORM
-            ).join(
-                ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
-            ).join(
+            # Use DISTINCT ON to avoid JSON comparison issues
+            # Use subquery to get distinct lead IDs first, then join to avoid JSON comparison issues
+            distinct_lead_ids = select(LeadORM.id).join(
                 CallORM, CallORM.lead_id == LeadORM.id
             ).join(
                 CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
@@ -316,7 +314,16 @@ class AnalyticsService:
                 text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
                     bindparam('variations', variations_array)
                 )
-            ).distinct()
+            ).distinct().subquery()
+            
+            unbooked_leads_query = select(
+                LeadORM,
+                ContactCardORM
+            ).join(
+                ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
+            ).where(
+                LeadORM.id.in_(select(distinct_lead_ids.c.id))
+            )
             
             unbooked_results = await self.session.execute(unbooked_leads_query)
             unbooked_rows = unbooked_results.all()
@@ -403,5 +410,303 @@ class AnalyticsService:
             
         except Exception as e:
             logger.error(f"Error getting calls by objection self: {e}")
+            traceback.print_exc()
+            raise
+    
+    async def get_objection_details(
+        self,
+        company_id: UUID,
+        objection: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        user_id: Optional[UUID] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get comprehensive objection details for a single objection.
+        
+        Returns data for all three tabs:
+        1. Unbooked leads: Leads with booking rate improvement and graph data
+        2. Most coaching need: CSRs with unbooked calls for that objection
+        3. Calls: Call recordings with contact names
+        
+        Args:
+            company_id: Company UUID
+            objection: Objection type (e.g., 'authority', 'price', 'timing')
+            start_date: Start date for filtering (YYYY-MM-DD, optional)
+            end_date: End date for filtering (YYYY-MM-DD, optional)
+            user_id: Optional user ID to filter by (for CSR role)
+        
+        Returns:
+            Dictionary with comprehensive objection details including:
+            - objection: Objection type
+            - unbooked_leads: Tab data with booking rate improvement and graph
+            - most_coaching_need: Tab data with CSRs and unbooked calls
+            - calls: Tab data with call recordings and contact names
+        """
+        try:
+            from app.infrastructure.database.models.lead import LeadORM
+            from app.infrastructure.database.models.user import UserORM
+            
+            # Parse dates
+            if start_date:
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=None)
+            else:
+                start_dt = datetime.now().replace(tzinfo=None) - timedelta(days=30)
+            
+            if end_date:
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=None)
+            else:
+                end_dt = datetime.now().replace(tzinfo=None)
+            
+            # Normalize objection
+            objection_normalized = objection.lower().strip()
+            objection_mappings = {
+                'price': ['price', 'pricing', 'cost', 'costs'],
+                'timing': ['timing', 'time', 'schedule', 'scheduling'],
+                'authority': ['authority', 'decision', 'decision-maker'],
+                'need': ['need', 'needs', 'requirement', 'requirements'],
+                'competitor': ['competitor', 'competitors', 'competition'],
+                'other': ['other', 'others', 'misc', 'miscellaneous'],
+            }
+            objection_variations = objection_mappings.get(objection_normalized, [objection_normalized])
+            if objection_normalized not in objection_variations:
+                objection_variations.insert(0, objection_normalized)
+            variations_array = [v.lower() for v in objection_variations]
+            
+            unbooked_statuses = ['new', 'warm', 'hot', 'qualified_unbooked', 'qualified_service_not_offered', 'nurturing']
+            
+            # 1. UNBOOKED LEADS TAB - Get booking rate improvement and graph data
+            # Get qualified leads with this objection in date range
+            # Use subquery to get distinct lead IDs first, then join to avoid JSON comparison issues
+            qualified_lead_ids_query = select(LeadORM.id).join(
+                CallORM, CallORM.lead_id == LeadORM.id
+            ).join(
+                CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
+            ).where(
+                LeadORM.company_id == company_id,
+                LeadORM.created_at >= start_dt,
+                LeadORM.created_at <= end_dt,
+                LeadORM.status.in_(['qualified_booked', 'qualified_unbooked']),
+                CallAnalysisORM.objections.isnot(None),
+                func.array_length(CallAnalysisORM.objections, 1) > 0,
+                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
+                    bindparam('variations', variations_array)
+                )
+            )
+            
+            if user_id:
+                qualified_lead_ids_query = qualified_lead_ids_query.where(CallORM.handled_by_user_id == user_id)
+            
+            distinct_lead_ids = qualified_lead_ids_query.distinct().subquery()
+            
+            qualified_leads_query = select(
+                LeadORM,
+                ContactCardORM
+            ).join(
+                ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
+            ).where(
+                LeadORM.id.in_(select(distinct_lead_ids.c.id))
+            )
+            
+            qualified_results = await self.session.execute(qualified_leads_query)
+            qualified_rows = qualified_results.all()
+            
+            # Calculate booking rate improvement
+            total_qualified = len(qualified_rows)
+            booked_count = sum(1 for lead, contact in qualified_rows if lead.status == 'qualified_booked')
+            unbooked_count = sum(1 for lead, contact in qualified_rows if lead.status == 'qualified_unbooked')
+            
+            # Split into two periods for comparison (using lead created_at for period split)
+            mid_date = start_dt + (end_dt - start_dt) / 2
+            first_period_booked = sum(1 for lead, contact in qualified_rows 
+                                     if lead.status == 'qualified_booked' and lead.created_at and lead.created_at < mid_date)
+            first_period_total = sum(1 for lead, contact in qualified_rows 
+                                    if lead.created_at and lead.created_at < mid_date)
+            second_period_booked = sum(1 for lead, contact in qualified_rows 
+                                      if lead.status == 'qualified_booked' and lead.created_at and lead.created_at >= mid_date)
+            second_period_total = sum(1 for lead, contact in qualified_rows 
+                                     if lead.created_at and lead.created_at >= mid_date)
+            
+            first_period_rate = (first_period_booked / first_period_total * 100) if first_period_total > 0 else 0
+            second_period_rate = (second_period_booked / second_period_total * 100) if second_period_total > 0 else 0
+            improvement_percentage = second_period_rate - first_period_rate
+            
+            # Generate graph data (daily booking rate over time)
+            graph_data = []
+            current_date = start_dt
+            while current_date <= end_dt:
+                day_start = current_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                day_end = day_start + timedelta(days=1)
+                
+                day_qualified = sum(1 for lead, contact in qualified_rows 
+                                  if lead.created_at and day_start <= lead.created_at < day_end)
+                day_booked = sum(1 for lead, contact in qualified_rows 
+                               if lead.status == 'qualified_booked' and lead.created_at and day_start <= lead.created_at < day_end)
+                
+                booking_rate = (day_booked / day_qualified * 100) if day_qualified > 0 else 0
+                
+                graph_data.append({
+                    "date": day_start.strftime("%Y-%m-%d"),
+                    "booking_rate": round(booking_rate, 2),
+                    "qualified_count": day_qualified,
+                    "booked_count": day_booked
+                })
+                
+                current_date += timedelta(days=1)
+            
+            # Get unbooked leads list with name and phone
+            unbooked_leads_list = []
+            for lead, contact_card in qualified_rows:
+                if lead.status == 'qualified_unbooked':
+                    contact_name = None
+                    if contact_card:
+                        first_name = contact_card.first_name or ""
+                        last_name = contact_card.last_name or ""
+                        contact_name = f"{first_name} {last_name}".strip() or None
+                    
+                    unbooked_leads_list.append({
+                        "id": str(lead.id),
+                        "contact_name": contact_name,
+                        "phone_number": contact_card.primary_phone if contact_card else None,
+                        "status": lead.status,
+                        "deal_status": lead.deal_status,
+                        "created_at": lead.created_at.isoformat() if lead.created_at else None,
+                    })
+            
+            # 2. MOST COACHING NEED TAB - CSRs with unbooked calls
+            csr_unbooked_query = select(
+                UserORM.id,
+                UserORM.first_name,
+                UserORM.last_name,
+                func.count(CallORM.id).label('unbooked_calls_count')
+            ).join(
+                CallORM, CallORM.handled_by_user_id == UserORM.id
+            ).join(
+                CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
+            ).join(
+                LeadORM, CallORM.lead_id == LeadORM.id
+            ).where(
+                UserORM.company_id == company_id,
+                UserORM.role == 'csr',
+                UserORM.is_active == True,
+                LeadORM.status.in_(unbooked_statuses),
+                CallAnalysisORM.objections.isnot(None),
+                func.array_length(CallAnalysisORM.objections, 1) > 0,
+                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
+                    bindparam('variations', variations_array)
+                ),
+                CallORM.created_at >= start_dt,
+                CallORM.created_at <= end_dt
+            ).group_by(
+                UserORM.id,
+                UserORM.first_name,
+                UserORM.last_name
+            ).order_by(
+                func.count(CallORM.id).desc()
+            )
+            
+            csr_results = await self.session.execute(csr_unbooked_query)
+            csr_rows = csr_results.all()
+            
+            most_coaching_need_data = []
+            for user_id_val, first_name, last_name, unbooked_count in csr_rows:
+                name = None
+                if first_name and last_name:
+                    name = f"{first_name} {last_name}"
+                elif first_name:
+                    name = first_name
+                elif last_name:
+                    name = last_name
+                else:
+                    name = "Unknown"
+                
+                most_coaching_need_data.append({
+                    "csr_id": str(user_id_val),
+                    "csr_name": name,
+                    "unbooked_calls": unbooked_count,
+                })
+            
+            # 3. CALLS TAB - Call recordings with contact names
+            calls_query = select(
+                CallORM,
+                CallAnalysisORM,
+                ContactCardORM
+            ).join(
+                CallORM, CallAnalysisORM.call_id == CallORM.id
+            ).outerjoin(
+                ContactCardORM, CallORM.contact_card_id == ContactCardORM.id
+            ).where(
+                CallAnalysisORM.company_id == company_id,
+                CallAnalysisORM.objections.isnot(None),
+                func.array_length(CallAnalysisORM.objections, 1) > 0,
+                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
+                    bindparam('variations', variations_array)
+                ),
+                CallORM.created_at >= start_dt,
+                CallORM.created_at <= end_dt
+            )
+            
+            if user_id:
+                calls_query = calls_query.where(CallORM.handled_by_user_id == user_id)
+            
+            calls_query = calls_query.order_by(CallORM.created_at.desc())
+            
+            calls_results = await self.session.execute(calls_query)
+            calls_rows = calls_results.all()
+            
+            calls_data = []
+            for call, analysis, contact_card in calls_rows:
+                # Get contact name
+                contact_name = None
+                if contact_card:
+                    first_name = contact_card.first_name or ""
+                    last_name = contact_card.last_name or ""
+                    contact_name = f"{first_name} {last_name}".strip() or None
+                    if not contact_name:
+                        contact_name = contact_card.primary_phone
+                
+                calls_data.append({
+                    "id": str(call.id),
+                    "contact_name": contact_name or "Unknown",
+                    "call_recording_url": call.audio_url,
+                    "phone_number": call.phone_number,
+                    "call_type": call.call_type,
+                    "duration_seconds": call.duration_seconds,
+                    "created_at": call.created_at.isoformat() if call.created_at else None,
+                    "transcript": call.transcript,
+                    "summary": analysis.summary if analysis else None,
+                })
+            
+            return {
+                "objection": objection,
+                "unbooked_leads": {
+                    "booking_rate_improvement": {
+                        "title": "Booking Rate Improvement",
+                        "percentage": round(improvement_percentage, 1),
+                        "description": f"{round(improvement_percentage, 1)}% Increase in Booking Appointments",
+                        "context": "Growth in qualified leads booked from start to end of the selected timeframe.",
+                        "current_rate": round(second_period_rate, 1),
+                        "previous_rate": round(first_period_rate, 1),
+                        "total_qualified": total_qualified,
+                        "booked_count": booked_count,
+                        "unbooked_count": unbooked_count
+                    },
+                    "graph_data": graph_data,
+                    "leads": unbooked_leads_list
+                },
+                "most_coaching_need": {
+                    "total_csr": len(most_coaching_need_data),
+                    "csrs": most_coaching_need_data
+                },
+                "calls": {
+                    "total_calls": len(calls_data),
+                    "call_recordings": calls_data
+                },
+                "start_date": start_dt.strftime("%Y-%m-%d"),
+                "end_date": end_dt.strftime("%Y-%m-%d")
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting objection details: {e}")
             traceback.print_exc()
             raise

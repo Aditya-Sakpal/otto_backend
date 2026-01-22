@@ -32,13 +32,14 @@ class AnalyticsService:
         """
         Get top objections aggregated by company.
         
-        Returns list of objections with:
+        Returns ALL objections sorted from most occurred to least occurred, with:
         - objection_type: Type of objection
         - count: Number of times this objection appeared
         - affected_leads_count: Number of unique leads affected by this objection
         """
         try:
             # Get all analyses with objections for this company, joined with calls to get lead_id
+            # Filter for non-null objections arrays
             query = select(
                 CallAnalysisORM,
                 CallORM.lead_id
@@ -46,8 +47,7 @@ class AnalyticsService:
                 CallORM, CallAnalysisORM.call_id == CallORM.id
             ).where(
                 CallAnalysisORM.company_id == company_id,
-                CallAnalysisORM.objections.isnot(None),
-                func.array_length(CallAnalysisORM.objections, 1) > 0
+                CallAnalysisORM.objections.isnot(None)
             )
             
             results = await self.session.execute(query)
@@ -58,22 +58,32 @@ class AnalyticsService:
             objection_leads: Dict[str, set] = {}  # Track unique lead IDs per objection
             
             for analysis, lead_id in rows:
-                if not analysis.objections:
+                # Skip if objections is None or empty
+                if not analysis.objections or len(analysis.objections) == 0:
                     continue
                 
                 # Count each objection and track affected leads
+                # Filter out empty strings and None values
                 for obj_type in analysis.objections:
-                    if obj_type not in objection_counts:
-                        objection_counts[obj_type] = 0
-                        objection_leads[obj_type] = set()
+                    # Skip empty or None objection types
+                    if not obj_type or not str(obj_type).strip():
+                        continue
                     
-                    objection_counts[obj_type] += 1
+                    # Normalize objection type (strip whitespace for consistency)
+                    obj_type_normalized = str(obj_type).strip()
+                    
+                    if obj_type_normalized not in objection_counts:
+                        objection_counts[obj_type_normalized] = 0
+                        objection_leads[obj_type_normalized] = set()
+                    
+                    objection_counts[obj_type_normalized] += 1
                     
                     # Track unique lead if available
                     if lead_id:
-                        objection_leads[obj_type].add(lead_id)
+                        objection_leads[obj_type_normalized].add(lead_id)
             
-            # Build response list
+            # Build response list - sorted by count descending (most occurred to least occurred)
+            # Return ALL objections, not just top N
             result = [
                 {
                     "objection_type": obj_type,
@@ -82,8 +92,8 @@ class AnalyticsService:
                 }
                 for obj_type, count in sorted(
                     objection_counts.items(),
-                    key=lambda x: x[1],
-                    reverse=True
+                    key=lambda x: x[1],  # Sort by count
+                    reverse=True  # Descending order (most to least)
                 )
             ]
             

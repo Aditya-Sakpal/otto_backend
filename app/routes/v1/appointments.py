@@ -282,7 +282,7 @@ async def get_appointment_insights(
             if call:
                 return {
                     "appointment_id": str(appointment_id),
-                    "status": call.status or "pending",
+                    "status": "pending",  # Default status since field doesn't exist in DB
                     "insights": None,
                 }
             else:

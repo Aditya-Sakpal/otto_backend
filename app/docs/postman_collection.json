@@ -463,6 +463,72 @@
 						"description": "Get comprehensive objection details for a single objection (unbooked leads tab with booking rate improvement and graph, most coaching need tab, calls tab)"
 					},
 					"response": []
+				},
+				{
+					"name": "Get Call Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/calls/logs?company_id={{company_id}}&skip=0&limit=100",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "calls", "logs"],
+							"query": [
+								{
+									"key": "company_id",
+									"value": "{{company_id}}",
+									"description": "Company UUID (required)"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search by customer name, CSR name, or phone number",
+									"disabled": true
+								},
+								{
+									"key": "csr_id",
+									"value": "",
+									"description": "Filter by CSR/owner UUID",
+									"disabled": true
+								},
+								{
+									"key": "status_filter",
+									"value": "all",
+									"description": "Filter by qualification status (qualified/unqualified/all)",
+									"disabled": true
+								},
+								{
+									"key": "booking_filter",
+									"value": "all",
+									"description": "Filter by booking status (booked/unbooked/all)",
+									"disabled": true
+								},
+								{
+									"key": "quick_filter",
+									"value": "",
+									"description": "Quick filter (hot_lead, qualified_unbooked, qualified_booked, abandoned, residential, commercial)",
+									"disabled": true
+								},
+								{
+									"key": "skip",
+									"value": "0",
+									"description": "Number of records to skip (for pagination)"
+								},
+								{
+									"key": "limit",
+									"value": "100",
+									"description": "Maximum number of records to return (max: 1000)"
+								}
+							]
+						},
+						"description": "Get call logs with summary statistics (Total Calls, Qualified, Booked, Abandoned) and filtered call list with all details for the call logs dashboard. Returns call information including CSR name, customer name, phone number, qualification status, booking status, score, objections, and tags."
+					},
+					"response": []
 				}
 			],
 			"description": "Call management endpoints"

@@ -157,7 +157,7 @@ class S3Service:
             # Determine bucket type if not provided
             if bucket_type is None:
                 bucket_type = self._determine_bucket_type(content_type)
-                
+
             bucket_name = self._get_bucket_name(bucket_type)
 
             extra_args = {}
@@ -219,79 +219,45 @@ class S3Service:
         metadata: Optional[dict] = None,
         bucket_type: Optional[BucketType] = None,
     ) -> str:
-        """
-        Stream file from URL directly to S3 (avoids loading large files into RAM).
-
-        Args:
-            url: Source URL to download from
-            s3_key: S3 key (path) for the file
-            content_type: Optional content type (e.g., "audio/mpeg", "audio/x-wav")
-            metadata: Optional metadata dictionary
-            bucket_type: Optional bucket type ('documents' or 'audio').
-                        If not provided, will be determined from content_type
-
-        Returns:
-            S3 URL of the uploaded file
-        """
-        if not HTTPX_AVAILABLE:
-            raise RuntimeError("httpx is not installed. Install with: pip install httpx")
-
         try:
-            # Determine bucket type if not provided
             if bucket_type is None:
                 bucket_type = self._determine_bucket_type(content_type)
-
             bucket_name = self._get_bucket_name(bucket_type)
 
-            # Stream from URL to S3
-            async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout for large files
+            # 1. Use follow_redirects=True (Crucial for CTM)
+            async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
                 async with client.stream('GET', url) as response:
+                    # If CTM returns 404 or 403, this will catch it
                     response.raise_for_status()
 
-                    # Get content type from response if not provided
                     if not content_type:
-                        content_type = response.headers.get('content-type', 'application/octet-stream')
+                        content_type = response.headers.get('content-type', 'audio/wav')
 
-                    extra_args = {}
-                    if content_type:
-                        extra_args['ContentType'] = content_type
-
+                    extra_args = {'ContentType': content_type}
                     if metadata:
-                        # Convert metadata to S3 metadata format (string values only)
-                        s3_metadata = {f"metadata-{k}": str(v) for k, v in metadata.items()}
-                        extra_args['Metadata'] = s3_metadata
+                        extra_args['Metadata'] = {f"metadata-{k}": str(v) for k, v in metadata.items()}
 
-                    # Use upload_fileobj for streaming
-                    from botocore.awsrequest import AWSRequest
-                    from botocore.endpoint import Endpoint
-                    from botocore.auth import SigV4Auth
-                    from botocore.httpsession import URLLib3Session
-                    import io
+                    # 2. Simplified bytes handling
+                    # Since boto3's upload_fileobj is synchronous, we fetch the content
+                    # CTM recordings are typically 2MB-20MB, which fits easily in memory
+                    file_content = await response.aread()
 
-                    # Read stream in chunks and upload
-                    buffer = io.BytesIO()
-                    async for chunk in response.aiter_bytes(chunk_size=8192):
-                        buffer.write(chunk)
-
-                    buffer.seek(0)
-                    self.s3_client.upload_fileobj(
-                        buffer,
-                        bucket_name,
-                        s3_key,
-                        ExtraArgs=extra_args
+                    self.s3_client.put_object(
+                        Bucket=bucket_name,
+                        Key=s3_key,
+                        Body=file_content,
+                        **extra_args
                     )
 
-            # Generate public URL
             s3_url = f"https://{bucket_name}.s3.{self.region}.amazonaws.com/{s3_key}"
-
-            logger.info(f"Streamed file from URL to S3 bucket '{bucket_name}' (type: {bucket_type}): {s3_key}")
+            logger.info(f"Successfully moved CTM recording to S3: {s3_key}")
             return s3_url
 
-        except ClientError as e:
-            logger.error(f"Error streaming file from URL to S3: {e}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"CTM Link returned error {e.response.status_code} for URL: {url}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error streaming file from URL to S3: {e}")
+            logger.error(f"Unexpected error in upload_from_url: {e}")
             raise
 
     def get_public_url(self, s3_key: str, bucket_type: Optional[BucketType] = None) -> str:

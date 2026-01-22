@@ -146,3 +146,61 @@ async def get_calls_by_objection_self(
             detail=f"Failed to get calls by objection: {str(e)}",
         )
 
+
+@router.get("/by-objection/{objection}/details")
+async def get_objection_details(
+    objection: str,
+    db: DbSession,
+    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),
+    user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
+    company_id: Optional[UUID] = Query(None, description="Company UUID"),
+    start_date: Optional[str] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
+):
+    """
+    Get comprehensive objection details for a single objection.
+    
+    Returns all details for the objection details modal including:
+    1. Unbooked leads tab: Booking rate improvement, graph data, and unbooked leads list
+    2. Most coaching need tab: CSRs with unbooked calls count
+    3. Calls tab: Call recordings with contact names
+    
+    Query Parameters:
+    - objection: Objection type (required) - e.g., 'authority', 'price', 'timing', 'competitor', 'need'
+    - company_id: Company UUID (optional, defaults to user's company)
+    - start_date: Start date for filtering (YYYY-MM-DD, optional, defaults to 30 days ago)
+    - end_date: End date for filtering (YYYY-MM-DD, optional, defaults to today)
+    
+    Access: CSR, EXECUTIVE
+    """
+    try:
+        # Use company_id from query or fall back to current user's company
+        if not company_id and user.company_id:
+            company_id = user.company_id
+        
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="company_id is required. Either provide it as a query parameter or ensure user has a company_id."
+            )
+        
+        service = AnalyticsService(db)
+        result = await service.get_objection_details(
+            company_id=company_id,
+            objection=objection,
+            start_date=start_date,
+            end_date=end_date,
+            user_id=user.id if user.role == UserRole.CSR else None,  # Filter by user if CSR
+        )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting objection details: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get objection details: {str(e)}",
+        )
+

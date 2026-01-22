@@ -63,6 +63,46 @@ async def list_users(
         )
 
 
+@router.get("/sales-reps", response_model=List[UserResponse])
+async def get_sales_reps_by_company(
+    db: DbSession,
+    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
+    company_id: UUID = Query(..., description="Company ID to filter sales reps"),
+    is_active: Optional[bool] = Query(True, description="Filter by active status (default: true)"),
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
+) -> List[UserResponse]:
+    """
+    Get all sales reps for a company.
+    
+    Access: Any authenticated user
+    
+    Query Parameters:
+    - company_id: Company ID (required)
+    - is_active: Filter by active status (default: true)
+    - skip: Pagination offset
+    - limit: Maximum number of results (1-1000)
+    """
+    try:
+        service = UserService(db)
+        sales_reps = await service.list_users(
+            company_id=company_id,
+            role=UserRole.SALES_REP,
+            is_active=is_active,
+            skip=skip,
+            limit=limit,
+        )
+        return [UserResponse.model_validate(rep) for rep in sales_reps]
+    except Exception as e:
+        logger.error(f"Error getting sales reps by company: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
 @router.get("/companies", response_model=List[dict])
 async def list_companies(
     db: DbSession,

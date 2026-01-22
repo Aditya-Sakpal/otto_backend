@@ -8,7 +8,7 @@ from sqlalchemy.sql import func
 from uuid import uuid4, UUID
 
 from app.infrastructure.database.base import Base
-from app.domain.enums import InvitationStatus
+from app.domain.enums import InvitationStatus, UserRole
 
 
 class InvitationORM(Base):
@@ -21,6 +21,11 @@ class InvitationORM(Base):
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id"), nullable=False, index=True)
     inviter_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     token: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    role: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default=UserRole.CSR.value,
+    )
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,

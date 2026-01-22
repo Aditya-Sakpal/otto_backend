@@ -21,7 +21,8 @@ class CompanyService:
         self,
         name: str,
         reference_doc_url: str,
-        sop_doc_url: str,
+        csr_sop_doc_url: str | None = None,
+        sales_sop_doc_url: str | None = None,
         phone_number: str | None = None,
         address: str | None = None,
         extra_metadata: dict | None = None,
@@ -32,7 +33,8 @@ class CompanyService:
         Args:
             name: Company name
             reference_doc_url: URL to reference document in S3
-            sop_doc_url: URL to SOP document in S3
+            csr_sop_doc_url: URL to CSR SOP document in S3 (optional)
+            sales_sop_doc_url: URL to Sales SOP document in S3 (optional)
             phone_number: Company phone number (optional)
             address: Company address (optional)
             extra_metadata: Additional metadata (optional)
@@ -45,7 +47,8 @@ class CompanyService:
             phone_number=phone_number,
             address=address,
             reference_doc_url=reference_doc_url,
-            sop_doc_url=sop_doc_url,
+            csr_sop_doc_url=csr_sop_doc_url,
+            sales_sop_doc_url=sales_sop_doc_url,
             extra_metadata=extra_metadata
         )
 
@@ -130,7 +133,8 @@ class CompanyService:
         phone_number: str | None = None,
         address: str | None = None,
         reference_doc_url: str | None = None,
-        sop_doc_url: str | None = None,
+        csr_sop_doc_url: str | None = None,
+        sales_sop_doc_url: str | None = None,
         extra_metadata: dict | None = None,
     ) -> CompanyORM | None:
         """
@@ -142,7 +146,8 @@ class CompanyService:
             phone_number: Company phone number (optional)
             address: Company address (optional)
             reference_doc_url: URL to reference document (optional)
-            sop_doc_url: URL to SOP document (optional)
+            csr_sop_doc_url: URL to CSR SOP document (optional)
+            sales_sop_doc_url: URL to Sales SOP document (optional)
             extra_metadata: Additional metadata (optional)
 
         Returns:
@@ -154,7 +159,8 @@ class CompanyService:
             phone_number=phone_number,
             address=address,
             reference_doc_url=reference_doc_url,
-            sop_doc_url=sop_doc_url,
+            csr_sop_doc_url=csr_sop_doc_url,
+            sales_sop_doc_url=sales_sop_doc_url,
             extra_metadata=extra_metadata
         )
 

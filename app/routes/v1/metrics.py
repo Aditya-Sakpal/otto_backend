@@ -15,6 +15,7 @@ from app.core.permissions import require_executive, require_any_role
 from app.domain.enums import UserRole
 from app.domain.users.models import User
 from app.services.metrics_service import MetricsService
+from app.services.analytics_service import AnalyticsService
 
 router = APIRouter(tags=["metrics"])
 
@@ -202,29 +203,33 @@ async def get_top_objections(
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
-    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
-    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
-    limit: int = Query(5, ge=1, le=20, description="Number of top objections to return"),
+    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD) - currently ignored, returns all objections"),
+    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD) - currently ignored, returns all objections"),
+    limit: Optional[int] = Query(None, ge=1, le=20, description="Number of top objections to return (optional, returns all if not specified)"),
 ):
     """
-    Get top objections from call analyses within date range.
+    Get top objections aggregated by company.
     
-    - **company_id**: Company UUID
-    - **start_date**: Start of the date range (defaults to 30 days ago)
-    - **end_date**: End of the date range (defaults to today)
-    - **limit**: Number of top objections (default: 5)
+    Returns ALL objections sorted from most occurred to least occurred, with:
+    - objection_type: Type of objection
+    - count: Number of times this objection appeared
+    - affected_leads_count: Number of unique leads affected by this objection
     
-    Returns list of objections with counts and percentages.
+    - **company_id**: Company UUID (required)
+    - **start_date**: Currently ignored - returns all objections
+    - **end_date**: Currently ignored - returns all objections
+    - **limit**: Optional limit - if not provided, returns all objections
     
-    Required role: Any authenticated user
+    Required role: CSR, SALES_REP, or EXECUTIVE
     """
-    service = MetricsService(db)
-    return await service.get_top_objections(
-        company_id=company_id,
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit,
-    )
+    service = AnalyticsService(db)
+    result = await service.get_top_objections(company_id=company_id)
+    
+    # Apply limit if provided
+    if limit is not None:
+        result = result[:limit]
+    
+    return result
 
 
 @router.get("/objections/summary")
@@ -262,31 +267,42 @@ async def get_objection_calls(
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
-    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
-    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
-    limit: int = Query(20, ge=1, le=100, description="Maximum number of calls to return"),
+    owner_id: Optional[UUID] = Query(None, description="CSR/owner UUID to filter by"),
+    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD) - currently ignored"),
+    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD) - currently ignored"),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Maximum number of calls to return (optional)"),
 ):
     """
-    Get calls with specific objection type within date range.
+    Get calls filtered by objection type and optionally by CSR owner.
     
-    - **objection_type**: Type of objection (price, timing, authority, need, competitor, other)
-    - **company_id**: Company UUID
-    - **start_date**: Start of the date range (defaults to 30 days ago)
-    - **end_date**: End of the date range (defaults to today)
-    - **limit**: Maximum number of calls (default: 20)
+    Returns list of calls with:
+    - call_id: UUID of the call
+    - contact_card: Full contact card object
+    - audio_url: URL to call audio recording
+    - qualification_status: Qualification status from analysis
+    - booking_status: Booking status from analysis
     
-    Returns list of calls where this objection was raised.
+    - **objection_type**: Type of objection (e.g., price, timing, authority)
+    - **company_id**: Company UUID (required)
+    - **owner_id**: Optional - Filter by specific CSR/owner UUID
+    - **start_date**: Currently ignored
+    - **end_date**: Currently ignored
+    - **limit**: Optional limit on number of calls returned
     
-    Required role: Any authenticated user
+    Required role: CSR, SALES_REP, or EXECUTIVE
     """
-    service = MetricsService(db)
-    return await service.get_objection_calls(
+    service = AnalyticsService(db)
+    result = await service.get_objection_calls(
         company_id=company_id,
-        objection_type=objection_type,
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit,
+        objection=objection_type,
+        owner_id=owner_id,
     )
+    
+    # Apply limit if provided
+    if limit is not None:
+        result = result[:limit]
+    
+    return result
 
 
 @router.get("/coaching/opportunities")

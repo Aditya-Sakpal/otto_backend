@@ -20,6 +20,7 @@ class Company(BaseModel):
     phone_number: Optional[str] = Field(None, description="Company phone number")
     address: Optional[str] = Field(None, description="Company address")
     reference_doc_url: Optional[str] = Field(None, description="S3 URL for reference document")
-    sop_doc_url: Optional[str] = Field(None, description="S3 URL for SOP document")
+    csr_sop_doc_url: Optional[str] = Field(None, description="S3 URL for CSR SOP document")
+    sales_sop_doc_url: Optional[str] = Field(None, description="S3 URL for Sales SOP document")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
 

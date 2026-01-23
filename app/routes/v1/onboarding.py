@@ -3,13 +3,17 @@ Onboarding API routes.
 
 Handles user/company creation, GHL integration, and document storage.
 """
-from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
+import tempfile
+import os
+import httpx
+from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form, BackgroundTasks
 from pydantic import EmailStr
 
 from app.core.dependencies import DbSession
 from app.core.logging import get_logger
 from app.core.s3 import get_s3_service
 from app.core.security import get_password_hash
+from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.domain.schemas.onboarding import (
     OnboardingCompleteResponse,
     ValidateGHLRequest,
@@ -108,6 +112,7 @@ async def validate_ctm(
 
 @router.post("/complete", response_model=OnboardingCompleteResponse, status_code=status.HTTP_201_CREATED)
 async def complete_onboarding(
+    background_tasks: BackgroundTasks,
     db: DbSession,
     firstName: str = Form(...),
     lastName: str = Form(...),
@@ -115,7 +120,9 @@ async def complete_onboarding(
     password: str = Form(...),
     companyName: str = Form(...),
     reference_doc: UploadFile = File(...),
-    sop_doc: UploadFile = File(...),
+    # Optional SOP_documents (Handled to have atleast one from the frontend)
+    csr_sop_doc: UploadFile | None = File(None),
+    sales_sop_doc: UploadFile | None = File(None),
     # Optional company fields
     phone_number: str | None = Form(None),
     address: str | None = Form(None),
@@ -147,9 +154,10 @@ async def complete_onboarding(
         password: User's password
         companyName: Company name
         reference_doc: Reference document file
-        sop_doc: SOP document file
 
     Optional Args:
+        csr_sop_doc: CSR SOP document file (optional)
+        sales_sop_doc: Sales SOP document file (optional)
         phone_number: Company phone number
         address: Company address
         location_id: GHL location ID
@@ -167,16 +175,11 @@ async def complete_onboarding(
     Raises:
         HTTPException: 400 if validation fails, 500 if creation fails
     """
-    # Validate that files are present
+    # Validate that required files are present
     if not reference_doc.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="reference_doc file is required"
-        )
-    if not sop_doc.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="sop_doc file is required"
         )
 
     # Get S3 service
@@ -227,7 +230,6 @@ async def complete_onboarding(
     # Step 2: Upload documents to S3 (only after confirming no existing user)
     try:
         reference_doc_bytes = await reference_doc.read()
-        sop_doc_bytes = await sop_doc.read()
 
         # Generate S3 keys
         reference_s3_key = s3_service.generate_s3_key(
@@ -235,13 +237,8 @@ async def complete_onboarding(
             filename=f"{email}_{reference_doc.filename}",
             extension=reference_doc.filename.split(".")[-1] if "." in reference_doc.filename else "pdf"
         )
-        sop_s3_key = s3_service.generate_s3_key(
-            prefix="user-onboarding-docs",
-            filename=f"{email}_{sop_doc.filename}",
-            extension=sop_doc.filename.split(".")[-1] if "." in sop_doc.filename else "pdf"
-        )
 
-        # Upload files to documents bucket
+        # Upload reference document to documents bucket
         reference_doc_url = await s3_service.upload_file(
             file_bytes=reference_doc_bytes,
             s3_key=reference_s3_key,
@@ -250,13 +247,39 @@ async def complete_onboarding(
         )
         uploaded_s3_keys.append((reference_s3_key, "documents"))
 
-        sop_doc_url = await s3_service.upload_file(
-            file_bytes=sop_doc_bytes,
-            s3_key=sop_s3_key,
-            content_type=sop_doc.content_type,
-            bucket_type="documents"
-        )
-        uploaded_s3_keys.append((sop_s3_key, "documents"))
+        # Handle CSR SOP document (optional)
+        csr_sop_doc_url = None
+        if csr_sop_doc and csr_sop_doc.filename:
+            csr_sop_doc_bytes = await csr_sop_doc.read()
+            csr_sop_s3_key = s3_service.generate_s3_key(
+                prefix="user-onboarding-docs",
+                filename=f"{email}_csr_{csr_sop_doc.filename}",
+                extension=csr_sop_doc.filename.split(".")[-1] if "." in csr_sop_doc.filename else "pdf"
+            )
+            csr_sop_doc_url = await s3_service.upload_file(
+                file_bytes=csr_sop_doc_bytes,
+                s3_key=csr_sop_s3_key,
+                content_type=csr_sop_doc.content_type,
+                bucket_type="documents"
+            )
+            uploaded_s3_keys.append((csr_sop_s3_key, "documents"))
+
+        # Handle Sales SOP document (optional)
+        sales_sop_doc_url = None
+        if sales_sop_doc and sales_sop_doc.filename:
+            sales_sop_doc_bytes = await sales_sop_doc.read()
+            sales_sop_s3_key = s3_service.generate_s3_key(
+                prefix="user-onboarding-docs",
+                filename=f"{email}_sales_{sales_sop_doc.filename}",
+                extension=sales_sop_doc.filename.split(".")[-1] if "." in sales_sop_doc.filename else "pdf"
+            )
+            sales_sop_doc_url = await s3_service.upload_file(
+                file_bytes=sales_sop_doc_bytes,
+                s3_key=sales_sop_s3_key,
+                content_type=sales_sop_doc.content_type,
+                bucket_type="documents"
+            )
+            uploaded_s3_keys.append((sales_sop_s3_key, "documents"))
 
         logger.info(f"Uploaded documents to S3 for {email}")
 
@@ -288,14 +311,20 @@ async def complete_onboarding(
                     detail=f"Unexpected state during idempotent onboarding check for {email}"
                 )
 
+            # Build extra_metadata with any existing metadata
+            extra_metadata = {}
+            if crm_company_id:
+                extra_metadata["crm_company_id"] = crm_company_id
+
             # Create Company with all fields
             company_orm = await company_service.create_company(
                 name=companyName,
                 phone_number=phone_number,
                 address=address,
                 reference_doc_url=reference_doc_url,
-                sop_doc_url=sop_doc_url,
-                extra_metadata={"crm_company_id": crm_company_id} if crm_company_id else None
+                csr_sop_doc_url=csr_sop_doc_url,  
+                sales_sop_doc_url=sales_sop_doc_url,
+                extra_metadata=extra_metadata if extra_metadata else None
             )
             company_id = company_orm.id
 
@@ -336,6 +365,24 @@ async def complete_onboarding(
             user = user_repo._to_domain(user_orm)
 
             logger.info(f"Created user {email} with company {companyName}")
+
+            # Schedule background tasks to upload SOP documents to Shoonya
+            if csr_sop_doc_url:
+                background_tasks.add_task(
+                    _upload_sop_to_shoonya,
+                    s3_url=csr_sop_doc_url,
+                    company_id=str(company_id),
+                    sop_name="CSR SOP",
+                    target_role="csr"
+                )
+            if sales_sop_doc_url:
+                background_tasks.add_task(
+                    _upload_sop_to_shoonya,
+                    s3_url=sales_sop_doc_url,
+                    company_id=str(company_id),
+                    sop_name="Sales SOP",
+                    target_role="sales_rep"
+                )
 
             return OnboardingCompleteResponse(
                 id=user.id,
@@ -406,3 +453,80 @@ async def _cleanup_s3_files(s3_service, uploaded_keys: list[tuple[str, str]]) ->
             logger.info(f"Cleaned up S3 file: {s3_key}")
         except Exception as e:
             logger.warning(f"Failed to cleanup S3 file {s3_key}: {e}")
+
+
+async def _upload_sop_to_shoonya(
+    s3_url: str,
+    company_id: str,
+    sop_name: str,
+    target_role: str | None = None,
+) -> None:
+    """
+    Background task to upload SOP document from S3 to Shoonya.
+
+    Downloads the file from S3 URL, saves to temp file, uploads to Shoonya, then cleans up.
+
+    Args:
+        s3_url: S3 URL of the SOP document
+        company_id: Company ID
+        sop_name: Name of the SOP
+        target_role: Target role (csr, sales_rep, or None for company-wide)
+    """
+    temp_file_path = None
+    try:
+        shoonya = get_shoonya_client()
+        if not shoonya.is_available():
+            logger.warning(f"Shoonya not available, skipping SOP upload for {sop_name}")
+            return
+
+        # Download file from S3 URL using httpx
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(s3_url)
+            response.raise_for_status()
+            file_bytes = response.content
+
+        if not file_bytes:
+            logger.error(f"Failed to download file from S3 URL: {s3_url}")
+            return
+
+        # Determine file extension from URL or default to .pdf
+        file_extension = ".pdf"
+        if "." in s3_url:
+            # Extract extension from URL
+            url_parts = s3_url.split("?")[0]  # Remove query parameters
+            file_extension = os.path.splitext(url_parts)[1] or ".pdf"
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
+            temp_file.write(file_bytes)
+            temp_file_path = temp_file.name
+
+        # Upload to Shoonya
+        result = await shoonya.upload_sop_document(
+            file_path=temp_file_path,
+            company_id=company_id,
+            sop_name=sop_name,
+            target_role=target_role,
+        )
+
+        logger.info(
+            f"Successfully uploaded SOP to Shoonya",
+            sop_name=sop_name,
+            company_id=company_id,
+            job_id=result.get("job_id"),
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error uploading SOP to Shoonya: {e}",
+            sop_name=sop_name,
+            company_id=company_id,
+            exc_info=True,
+        )
+    finally:
+        # Clean up temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file {temp_file_path}: {e}")

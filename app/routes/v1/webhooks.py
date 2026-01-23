@@ -16,13 +16,15 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Request, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.dependencies import DbSession
 from app.core.logging import get_logger
 from app.core.encryption import decrypt_api_key
 from app.infrastructure.integrations.crm_mapping import LEAD_UPDATE_EVENT_TYPES
 from app.infrastructure.integrations.shoonya import get_shoonya_client
+from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.infrastructure.repositories.company_integration import CompanyIntegrationRepository
-from app.services.call_service import CallService
+from app.services.call_service import CallService, transform_summary_to_analysis_data
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
 
@@ -137,7 +139,6 @@ async def shoonya_job_complete_webhook(
         payload = await request.json()
         logger.info("Shunya job complete webhook received", payload=payload)
 
-        # Extract required fields
         job_status = payload.get("status")
         if job_status != "completed":
             logger.warning(
@@ -271,17 +272,13 @@ async def shoonya_job_complete_webhook(
             analysis_data=complete_summary_data,
             transcript=transcript,
         )
-        
-        # Commit all changes in single transaction
         await db.commit()
-
         logger.info(
             "Shunya webhook processed successfully",
             call_id=str(call_id),
             analysis_id=str(analysis.id),
             job_id=payload.get("job_id") or payload.get("shunya_job_id"),
         )
-
         return {
             "status": "success",
             "call_id": str(call_id),
@@ -359,6 +356,7 @@ async def ghl_message(
                 event=event,
                 db_session=db,
                 company_id=company_id,
+                webhook_url=f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete",
             )
             return result
         except Exception as e:

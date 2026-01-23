@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role
 from app.core.logging import get_logger
@@ -163,7 +164,7 @@ async def initiate_recording(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
-        
+
 class RecordingCompleteRequest(BaseModel):
     """Request to complete recording upload."""
     call_id: UUID = Field(..., description="Call ID from initiate response")
@@ -243,6 +244,7 @@ async def complete_recording(
                     phone_number=call.phone_number or "",
                     duration=call.duration_seconds or 0,
                     call_date=call.created_at.isoformat() if call.created_at else datetime.utcnow().isoformat(),
+                    webhook_url=f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete",
                     metadata={
                         "interaction_type": call.interaction_type or "meeting",
                         "appointment_id": str(call.lead_id) if call.lead_id else None,

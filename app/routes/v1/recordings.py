@@ -250,7 +250,6 @@ async def complete_recording(
                         "appointment_id": str(call.lead_id) if call.lead_id else None,
                         **(call.extra_metadata or {}),
                     },
-                    webhook_url=webhook_url,
                 )
                 processing_job_id = result.get("job_id")
                 # Note: shunya_job_id is stored in call_processing_jobs table, not in calls table

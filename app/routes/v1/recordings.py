@@ -231,6 +231,11 @@ async def complete_recording(
         if shoonya.is_available():
             try:
                 from datetime import datetime
+                from app.core.config import settings
+                
+                # Construct webhook URL for Shunya to notify us when processing completes
+                webhook_url = f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
+                
                 result = await shoonya.process_call(
                     call_id=str(call.id),
                     company_id=str(call.company_id),
@@ -243,6 +248,7 @@ async def complete_recording(
                         "appointment_id": str(call.lead_id) if call.lead_id else None,
                         **(call.extra_metadata or {}),
                     },
+                    webhook_url=webhook_url,
                 )
                 processing_job_id = result.get("job_id")
                 # Note: shunya_job_id is stored in call_processing_jobs table, not in calls table

@@ -10,6 +10,7 @@ import traceback
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from uuid import UUID
+from dateutil import parser as date_parser
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +18,7 @@ from app.core.logging import get_logger
 from app.domain.models.call import Call
 from app.domain.models.analysis import CallAnalysis
 from app.domain.models.pending_action import PendingAction
-from app.domain.enums import AnalysisStatus, ObjectionType, SOPStage, PendingActionStatus
+from app.domain.enums import AnalysisStatus, PendingActionStatus
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.analysis import CallAnalysisRepository
 from app.infrastructure.repositories.pending_action import PendingActionRepository
@@ -110,6 +111,11 @@ class CallService:
             if self.shoonya.is_available():
                 try:
                     from datetime import datetime
+                    from app.core.config import settings
+                    
+                    # Construct webhook URL for Shunya to notify us when processing completes
+                    webhook_url = f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
+                    
                     result = await self.shoonya.process_call(
                         call_id=str(call.id),
                         company_id=str(call.company_id),
@@ -121,6 +127,7 @@ class CallService:
                             "call_type": call.call_type.value if call.call_type else "csr_call",
                             **(call.extra_metadata or {}),
                         },
+                        webhook_url=webhook_url,
                     )
                     logger.info(
                         "Call processing job submitted",
@@ -142,15 +149,62 @@ class CallService:
         transcript: Optional[str] = None,
     ) -> CallAnalysis:
         """
-        Process call analysis data from Shoonya webhook.
+        Process call analysis data from Shunya Summary API or webhook.
 
         Args:
             call_id: Call ID
-            analysis_data: Analysis data from Shoonya
+            analysis_data: Complete analysis data from Shunya (Summary API structure)
             transcript: Optional transcript text
 
         Returns:
             Created or updated CallAnalysis
+
+        Expected structure from Shunya Summary API:
+        {
+            "summary": {
+                "summary": "...",
+                "key_points": [...],
+                "action_items": [...],
+                "next_steps": [...],
+                "pending_actions": [...],
+                "sentiment_score": 0.82,
+                "confidence_score": 0.86
+            },
+            "compliance": {
+                "sop_compliance": {
+                    "score": 0.72,
+                    "compliance_rate": 0.72,
+                    "stages": {
+                        "total": 7,
+                        "followed": [...],
+                        "missed": [...]
+                    },
+                    "issues": [...],
+                    "positive_behaviors": [...],
+                    "confidence": 0.84
+                }
+            },
+            "objections": {
+                "objections": [...],
+                "total_count": 0
+            },
+            "qualification": {
+                "bant_scores": {
+                    "need": 0.8,
+                    "budget": 0.0,
+                    "timeline": 0.0,
+                    "authority": 1.0
+                },
+                "overall_score": 0.45,
+                "qualification_status": "cold",
+                "booking_status": "not_booked",
+                "call_outcome_category": "qualified_but_unbooked",
+                "appointment_*": {...},
+                "service_*": {...},
+                "customer_*": {...},
+                "follow_up_*": {...}
+            }
+        }
         """
         try:
             # Get the call
@@ -164,90 +218,300 @@ class CallService:
                 await self.call_repo.update(call_id, call)
                 logger.info("Call transcript updated", call_id=str(call_id))
 
-            # Parse analysis data from Shoonya
-            # Expected format from Shoonya (adjust based on actual format):
-            # {
-            #   "qualification_status": "...",
-            #   "booking_status": "...",
-            #   "objections": [...],
-            #   "objection_texts": [...],
-            #   "sop_stages_completed": [...],
-            #   "sop_stages_missed": [...],
-            #   "sop_compliance_score": 0.85,
-            #   "sentiment_score": 0.5,
-            #   "summary": "...",
-            #   "key_points": [...],
-            #   ...
-            # }
+            # Parse complete summary structure from Shunya Summary API
+            # Handle both old webhook format and new Summary API format
+            
+            # Extract summary section
+            summary_section = analysis_data.get("summary", {})
+            if isinstance(summary_section, dict):
+                summary = summary_section.get("summary") or analysis_data.get("summary")  # Fallback to direct field
+                key_points = summary_section.get("key_points", [])
+                action_items = summary_section.get("action_items", [])
+                next_steps = summary_section.get("next_steps", [])
+                pending_actions = summary_section.get("pending_actions", [])
+                sentiment_score = summary_section.get("sentiment_score") or analysis_data.get("sentiment_score")
+                summary_confidence_score = summary_section.get("confidence_score")
+            else:
+                # Old format: summary is a string
+                summary = summary_section if isinstance(summary_section, str) else analysis_data.get("summary")
+                key_points = analysis_data.get("key_points", [])
+                action_items = []
+                next_steps = []
+                pending_actions = None
+                sentiment_score = analysis_data.get("sentiment_score")
+                summary_confidence_score = None
 
-            # Extract and normalize data
-            qualification_status = analysis_data.get("qualification_status")
-            booking_status = analysis_data.get("booking_status")
+            # Extract compliance section
+            compliance_section = analysis_data.get("compliance", {})
+            sop_compliance = compliance_section.get("sop_compliance", {}) if isinstance(compliance_section, dict) else {}
+            
+            # Extract target_role from compliance section
+            compliance_target_role = compliance_section.get("target_role") if isinstance(compliance_section, dict) else None
+            
+            if sop_compliance:
+                sop_compliance_score = sop_compliance.get("score")
+                sop_compliance_rate = sop_compliance.get("compliance_rate")
+                sop_compliance_confidence = sop_compliance.get("confidence")
+                sop_stages = sop_compliance.get("stages", {})
+                sop_stages_total = sop_stages.get("total")
+                sop_stages_followed = sop_stages.get("followed", [])
+                sop_stages_missed_list = sop_stages.get("missed", [])
+                sop_compliance_issues = sop_compliance.get("issues", [])
+                sop_compliance_positive_behaviors = sop_compliance.get("positive_behaviors", [])
+            else:
+                # Fallback to old format
+                sop_compliance_score = analysis_data.get("sop_compliance_score")
+                sop_compliance_rate = None
+                sop_compliance_confidence = None
+                sop_stages_total = None
+                sop_stages_followed = analysis_data.get("sop_stages_completed", [])
+                sop_stages_missed_list = analysis_data.get("sop_stages_missed", [])
+                sop_compliance_issues = []
+                sop_compliance_positive_behaviors = []
 
-            # Parse objections (convert strings to enum if needed)
-            objections_raw = analysis_data.get("objections", [])
+            # Parse SOP stages (store as strings - Shunya sends descriptive names that don't match our enums)
+            sop_completed = []
+            for stage in sop_stages_followed:
+                if isinstance(stage, str):
+                    sop_completed.append(stage)  # Store as string directly
+                else:
+                    sop_completed.append(str(stage))
+
+            sop_missed = []
+            for stage in sop_stages_missed_list:
+                if isinstance(stage, str):
+                    sop_missed.append(stage)  # Store as string directly
+                else:
+                    sop_missed.append(str(stage))
+
+            # Extract objections section
+            objections_section = analysis_data.get("objections", {})
+            if isinstance(objections_section, dict):
+                objections_raw = objections_section.get("objections", [])
+                # Shunya Summary API uses "total_objections", but also check "total_count" for backward compatibility
+                objections_total_count = objections_section.get("total_objections") or objections_section.get("total_count") or len(objections_raw)
+            else:
+                # Old format: objections is a list
+                objections_raw = objections_section if isinstance(objections_section, list) else analysis_data.get("objections", [])
+                objections_total_count = len(objections_raw)
+
+            # Parse objections (store as strings - Shunya sends rich objection objects)
+            # Extract category_text for the objections array, but keep full objects in raw_analysis
             objections = []
+            objection_texts = []
             for obj in objections_raw:
                 if isinstance(obj, str):
-                    try:
-                        objections.append(ObjectionType(obj.lower()))
-                    except ValueError:
-                        logger.warning(f"Unknown objection type: {obj}")
+                    objections.append(obj)  # Store as string directly
+                    objection_texts.append(obj)  # Use as text too
+                elif isinstance(obj, dict):
+                    # Handle rich objection objects with category_id, category_text, objection_text, etc.
+                    # Extract category_text for the objections array
+                    obj_type = obj.get("category_text") or obj.get("type") or obj.get("category")
+                    if obj_type:
+                        objections.append(str(obj_type))  # Store category_text as string
+                    else:
+                        # If no type found, try to extract from object
+                        objections.append(str(obj))
+                    
+                    # Extract objection_text for objection_texts array
+                    obj_text = obj.get("objection_text") or obj.get("text") or ""
+                    if obj_text:
+                        objection_texts.append(str(obj_text))
                 else:
-                    objections.append(obj)
+                    objections.append(str(obj))
+                    objection_texts.append(str(obj))
 
-            objection_texts = analysis_data.get("objection_texts", [])
-
-            # Parse SOP stages
-            sop_completed_raw = analysis_data.get("sop_stages_completed", [])
-            sop_completed = []
-            for stage in sop_completed_raw:
-                if isinstance(stage, str):
+            # Extract qualification section
+            qualification_section = analysis_data.get("qualification", {})
+            if isinstance(qualification_section, dict):
+                bant_scores = qualification_section.get("bant_scores", {})
+                bant_need_score = bant_scores.get("need")
+                bant_budget_score = bant_scores.get("budget")
+                bant_timeline_score = bant_scores.get("timeline")
+                bant_authority_score = bant_scores.get("authority")
+                qualification_overall_score = qualification_section.get("overall_score")
+                qualification_status = qualification_section.get("qualification_status")
+                booking_status = qualification_section.get("booking_status")
+                call_outcome_category = qualification_section.get("call_outcome_category")
+                qualification_confidence_score = qualification_section.get("confidence_score")
+                
+                # Appointment fields
+                appointment_confirmed = qualification_section.get("appointment_confirmed", False)
+                appointment_date_str = qualification_section.get("appointment_date")
+                appointment_date = None
+                if appointment_date_str:
                     try:
-                        sop_completed.append(SOPStage(stage.lower()))
-                    except ValueError:
-                        logger.warning(f"Unknown SOP stage: {stage}")
-                else:
-                    sop_completed.append(stage)
-
-            sop_missed_raw = analysis_data.get("sop_stages_missed", [])
-            sop_missed = []
-            for stage in sop_missed_raw:
-                if isinstance(stage, str):
+                        appointment_date = date_parser.parse(appointment_date_str) if isinstance(appointment_date_str, str) else appointment_date_str
+                    except Exception as e:
+                        logger.warning(f"Failed to parse appointment_date: {e}")
+                
+                appointment_type = qualification_section.get("appointment_type")
+                appointment_timezone = qualification_section.get("appointment_timezone")
+                appointment_time_confidence = qualification_section.get("appointment_time_confidence")
+                preferred_time_window = qualification_section.get("preferred_time_window")
+                appointment_intent = qualification_section.get("appointment_intent")
+                
+                original_appointment_datetime_str = qualification_section.get("original_appointment_datetime")
+                original_appointment_datetime = None
+                if original_appointment_datetime_str:
                     try:
-                        sop_missed.append(SOPStage(stage.lower()))
-                    except ValueError:
-                        logger.warning(f"Unknown SOP stage: {stage}")
-                else:
-                    sop_missed.append(stage)
+                        original_appointment_datetime = date_parser.parse(original_appointment_datetime_str) if isinstance(original_appointment_datetime_str, str) else original_appointment_datetime_str
+                    except Exception as e:
+                        logger.warning(f"Failed to parse original_appointment_datetime: {e}")
+                
+                new_requested_time_str = qualification_section.get("new_requested_time")
+                new_requested_time = None
+                if new_requested_time_str:
+                    try:
+                        new_requested_time = date_parser.parse(new_requested_time_str) if isinstance(new_requested_time_str, str) else new_requested_time_str
+                    except Exception as e:
+                        logger.warning(f"Failed to parse new_requested_time: {e}")
+                
+                # Service fields
+                service_requested = qualification_section.get("service_requested")
+                service_not_offered_reason = qualification_section.get("service_not_offered_reason")
+                service_address_raw = qualification_section.get("service_address_raw")
+                service_address_structured = qualification_section.get("service_address_structured")
+                address_confidence = qualification_section.get("address_confidence")
+                
+                # Customer fields
+                customer_name = qualification_section.get("customer_name")
+                customer_name_confidence = qualification_section.get("customer_name_confidence")
+                decision_makers = qualification_section.get("decision_makers", [])
+                urgency_signals = qualification_section.get("urgency_signals", [])
+                budget_indicators = qualification_section.get("budget_indicators", [])
+                
+                # Follow-up fields
+                follow_up_required = qualification_section.get("follow_up_required", False)
+                follow_up_reason = qualification_section.get("follow_up_reason")
+                
+                # Additional qualification fields (new in Shunya Summary API)
+                detected_call_type = qualification_section.get("detected_call_type")
+                is_existing_customer = qualification_section.get("is_existing_customer")
+                is_deprioritized = qualification_section.get("is_deprioritized", False)
+                service_wait_time_weeks = qualification_section.get("service_wait_time_weeks")
+                applied_rules = qualification_section.get("applied_rules", [])
+                property_details = qualification_section.get("property_details")
+                customer_details = qualification_section.get("customer_details")
+            else:
+                # Old format: direct fields
+                bant_need_score = None
+                bant_budget_score = None
+                bant_timeline_score = None
+                bant_authority_score = None
+                qualification_overall_score = None
+                qualification_status = analysis_data.get("qualification_status")
+                booking_status = analysis_data.get("booking_status")
+                call_outcome_category = None
+                qualification_confidence_score = None
+                appointment_confirmed = False
+                appointment_date = None
+                appointment_type = None
+                appointment_timezone = None
+                appointment_time_confidence = None
+                preferred_time_window = None
+                appointment_intent = None
+                original_appointment_datetime = None
+                new_requested_time = None
+                service_requested = None
+                service_not_offered_reason = None
+                service_address_raw = None
+                service_address_structured = None
+                address_confidence = None
+                customer_name = None
+                customer_name_confidence = None
+                decision_makers = []
+                urgency_signals = []
+                budget_indicators = []
+                follow_up_required = False
+                follow_up_reason = None
+                # New fields default to None/empty
+                detected_call_type = None
+                is_existing_customer = None
+                is_deprioritized = None
+                service_wait_time_weeks = None
+                applied_rules = []
+                property_details = None
+                customer_details = None
 
-            sop_compliance_score = analysis_data.get("sop_compliance_score")
-            if sop_compliance_score is not None:
-                sop_compliance_score = float(sop_compliance_score)
+            # Convert float values
+            def safe_float(value):
+                return float(value) if value is not None else None
 
-            sentiment_score = analysis_data.get("sentiment_score")
-            if sentiment_score is not None:
-                sentiment_score = float(sentiment_score)
-
-            summary = analysis_data.get("summary")
-            key_points = analysis_data.get("key_points", [])
-
-            # Create CallAnalysis domain model
+            # Create CallAnalysis domain model with all fields
             call_analysis = CallAnalysis(
                 call_id=call_id,
                 company_id=call.company_id,
                 status=AnalysisStatus.COMPLETED,
+                # Qualification
                 qualification_status=qualification_status,
                 booking_status=booking_status,
+                # Objections
                 objections=objections,
                 objection_texts=objection_texts,
+                objections_total_count=objections_total_count,
+                # SOP Compliance
                 sop_stages_completed=sop_completed,
                 sop_stages_missed=sop_missed,
-                sop_compliance_score=sop_compliance_score,
-                sentiment_score=sentiment_score,
+                sop_stages_total=sop_stages_total,
+                sop_compliance_score=safe_float(sop_compliance_score),
+                sop_compliance_rate=safe_float(sop_compliance_rate),
+                sop_compliance_confidence=safe_float(sop_compliance_confidence),
+                sop_compliance_issues=sop_compliance_issues,
+                sop_compliance_positive_behaviors=sop_compliance_positive_behaviors,
+                compliance_target_role=compliance_target_role,
+                # Sentiment
+                sentiment_score=safe_float(sentiment_score),
+                # Summary
                 summary=summary,
                 key_points=key_points,
-                raw_analysis=analysis_data,  # Store raw data for reference
+                action_items=action_items,
+                next_steps=next_steps,
+                pending_actions=pending_actions,
+                summary_confidence_score=safe_float(summary_confidence_score),
+                # BANT Scores
+                bant_need_score=safe_float(bant_need_score),
+                bant_budget_score=safe_float(bant_budget_score),
+                bant_timeline_score=safe_float(bant_timeline_score),
+                bant_authority_score=safe_float(bant_authority_score),
+                qualification_overall_score=safe_float(qualification_overall_score),
+                qualification_confidence_score=safe_float(qualification_confidence_score),
+                call_outcome_category=call_outcome_category,
+                # Appointment
+                appointment_confirmed=appointment_confirmed,
+                appointment_date=appointment_date,
+                appointment_type=appointment_type,
+                appointment_timezone=appointment_timezone,
+                appointment_time_confidence=safe_float(appointment_time_confidence),
+                preferred_time_window=preferred_time_window,
+                appointment_intent=appointment_intent,
+                original_appointment_datetime=original_appointment_datetime,
+                new_requested_time=new_requested_time,
+                # Service
+                service_requested=service_requested,
+                service_not_offered_reason=service_not_offered_reason,
+                service_address_raw=service_address_raw,
+                service_address_structured=service_address_structured,
+                address_confidence=safe_float(address_confidence),
+                # Customer
+                customer_name=customer_name,
+                customer_name_confidence=safe_float(customer_name_confidence),
+                decision_makers=decision_makers,
+                urgency_signals=urgency_signals,
+                budget_indicators=budget_indicators,
+                # Follow-up
+                follow_up_required=follow_up_required,
+                follow_up_reason=follow_up_reason,
+                # Additional qualification fields
+                detected_call_type=detected_call_type,
+                is_existing_customer=is_existing_customer,
+                is_deprioritized=is_deprioritized,
+                service_wait_time_weeks=service_wait_time_weeks,
+                applied_rules=applied_rules,
+                property_details=property_details,
+                customer_details=customer_details,
+                # Raw data
+                raw_analysis=analysis_data,  # Store complete raw data for reference (includes full objection objects)
             )
 
             # Upsert analysis
@@ -336,35 +600,65 @@ class CallService:
 
         Args:
             call: The call record
-            analysis_data: Raw analysis data from Shoonya
+            analysis_data: Raw analysis data from Shunya (can be top-level or nested in summary/compliance/qualification)
             analysis: The created/updated analysis
         """
         try:
             # Extract pending_actions from analysis_data
-            # Expected format: list of dicts with action_type, raw_text, due_at, priority, etc.
-            pending_actions_data = analysis_data.get("pending_actions", [])
+            # Shunya Summary API structure: {summary: {pending_actions: [...]}, ...}
+            # Also check top-level for backward compatibility
+            pending_actions_data = None
+            
+            # Check in summary section first (Shunya Summary API format)
+            summary_section = analysis_data.get("summary", {})
+            if isinstance(summary_section, dict):
+                pending_actions_data = summary_section.get("pending_actions", [])
+                if pending_actions_data:
+                    logger.debug(f"Found {len(pending_actions_data)} pending actions in summary section", call_id=str(call.id))
+            
+            # Fallback to top-level (legacy format)
+            if not pending_actions_data:
+                pending_actions_data = analysis_data.get("pending_actions", [])
+                if pending_actions_data:
+                    logger.debug(f"Found {len(pending_actions_data)} pending actions at top level", call_id=str(call.id))
+            
+            # If still not found, check if analysis_data itself is the summary section
+            if not pending_actions_data and isinstance(analysis_data, dict) and "pending_actions" in analysis_data:
+                pending_actions_data = analysis_data.get("pending_actions", [])
+                if pending_actions_data:
+                    logger.debug(f"Found {len(pending_actions_data)} pending actions in analysis_data", call_id=str(call.id))
 
             if not pending_actions_data:
+                logger.debug("No pending actions found in analysis data", call_id=str(call.id))
                 return
 
             for action_data in pending_actions_data:
                 try:
+                    # Initialize variables
+                    owner = None
+                    confidence = None
+                    contact_method = None
+                    due_at = None
+                    priority = None
+                    
                     # Handle both dict and string formats
                     if isinstance(action_data, str):
                         # Legacy format: simple string
                         action_type = action_data
                         raw_text = action_data
-                        due_at = None
-                        priority = None
                     else:
-                        # New format: dict with fields
-                        action_type = action_data.get("action_type") or action_data.get("action") or action_data.get("type") or ""
+                        # New format: dict with fields (Shunya format)
+                        action_type = action_data.get("action_type") or action_data.get("action") or action_data.get("type") or "unknown"
                         raw_text = action_data.get("raw_text") or action_data.get("action") or action_type
                         due_at_str = action_data.get("due_at")
                         priority = action_data.get("priority")
+                        
+                        # Extract additional fields from Shunya payload
+                        owner = action_data.get("owner")  # "company" or user ID
+                        confidence = action_data.get("confidence")
+                        contact_method = action_data.get("contact_method")
 
                         # Parse due_at if provided (should be UTC)
-                        due_at = None
                         if due_at_str:
                             if isinstance(due_at_str, datetime):
                                 due_at = due_at_str
@@ -387,6 +681,20 @@ class CallService:
                         elif priority is None:
                             priority = 2  # Default to medium
 
+                    # Determine owner_id
+                    # Shunya sends "owner": "company" or a user ID
+                    # If owner is "company", use call.handled_by_user_id or leave as None
+                    owner_id = None
+                    if owner and owner != "company":
+                        try:
+                            owner_id = UUID(owner) if isinstance(owner, str) else owner
+                        except (ValueError, TypeError):
+                            logger.warning(f"Invalid owner ID format: {owner}, using call owner")
+                            owner_id = call.handled_by_user_id
+                    else:
+                        # Use call owner if available, otherwise leave as None (will be assigned based on action type)
+                        owner_id = call.handled_by_user_id
+                    
                     # Create PendingAction domain model
                     pending_action = PendingAction(
                         company_id=call.company_id,
@@ -398,10 +706,13 @@ class CallService:
                         status=PendingActionStatus.PENDING,
                         due_at=due_at,
                         priority=priority,
-                        owner_id=call.handled_by_user_id,  # Use call owner or determine from action type
+                        owner_id=owner_id,  # May be None if call wasn't handled by a user
                         source="shunya",
                         extra_metadata={
                             "from_analysis": str(analysis.id),
+                            "shunya_owner": owner,  # Store original owner value from Shunya
+                            "confidence": confidence,
+                            "contact_method": contact_method,
                             "analysis_data": action_data if isinstance(action_data, dict) else None,
                         },
                     )
@@ -428,7 +739,7 @@ class CallService:
             logger.info(
                 "Pending actions processed",
                 call_id=str(call.id),
-                count=len(pending_actions_data),
+                count=len(pending_actions_data) if pending_actions_data else 0,
             )
 
         except Exception as e:

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.domain.models.analysis import CallAnalysis
-from app.domain.enums import ObjectionType, SOPStage, AnalysisStatus
+from app.domain.enums import AnalysisStatus
 from app.infrastructure.database.models.analysis import CallAnalysisORM
 from app.infrastructure.repositories.base import BaseRepository
 
@@ -110,23 +110,16 @@ class CallAnalysisRepository(BaseRepository[CallAnalysisORM, CallAnalysis]):
         if "status" in data and isinstance(data["status"], AnalysisStatus):
             data["status"] = data["status"].value
         
+        # Convert objections and SOP stages to strings (they're already strings from domain model)
+        # This conversion is kept for backward compatibility and to ensure all values are strings
         if "objections" in data and data["objections"]:
-            data["objections"] = [
-                obj.value if isinstance(obj, ObjectionType) else str(obj)
-                for obj in data["objections"]
-            ]
+            data["objections"] = [str(obj) for obj in data["objections"]]
         
         if "sop_stages_completed" in data and data["sop_stages_completed"]:
-            data["sop_stages_completed"] = [
-                stage.value if isinstance(stage, SOPStage) else str(stage)
-                for stage in data["sop_stages_completed"]
-            ]
+            data["sop_stages_completed"] = [str(stage) for stage in data["sop_stages_completed"]]
         
         if "sop_stages_missed" in data and data["sop_stages_missed"]:
-            data["sop_stages_missed"] = [
-                stage.value if isinstance(stage, SOPStage) else str(stage)
-                for stage in data["sop_stages_missed"]
-            ]
+            data["sop_stages_missed"] = [str(stage) for stage in data["sop_stages_missed"]]
         
         return self.orm_model(**data)
 

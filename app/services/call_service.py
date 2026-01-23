@@ -174,7 +174,6 @@ class CallService:
                             "call_type": call.call_type.value if call.call_type else "csr_call",
                             **(call.extra_metadata or {}),
                         },
-                        webhook_url=webhook_url,
                     )
                     logger.info(
                         "Call processing job submitted",

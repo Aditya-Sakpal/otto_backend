@@ -75,6 +75,10 @@ async def process_call(
                 detail="Shunya service not available",
             )
         
+        # Use provided webhook_url or default to our webhook endpoint
+        from app.core.config import settings
+        webhook_url = f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
+        
         # Submit to Shunya
         result = await shoonya.process_call(
             call_id=body.call_id,
@@ -84,7 +88,7 @@ async def process_call(
             duration=body.duration,
             call_date=body.call_date,
             metadata=body.metadata,
-            webhook_url=body.webhook_url,
+            webhook_url=webhook_url,
             options=body.options,
         )
         

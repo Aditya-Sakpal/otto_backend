@@ -1359,16 +1359,16 @@ GET /api/v1/metrics/objections/top?company_id=11111111-1111-1111-1111-1111111111
 **Response:** `200 OK`
 ```json
 [
-  {
+    {
     "objection_type": "pricing",
     "count": 3,
     "affected_leads_count": 2
-  },
-  {
+    },
+    {
     "objection_type": "price",
     "count": 2,
     "affected_leads_count": 2
-  }
+    }
 ]
 ```
 
@@ -1432,7 +1432,7 @@ GET /api/v1/metrics/objections/price/calls?company_id=11111111-1111-1111-1111-11
 **Response:** `200 OK`
 ```json
 [
-  {
+{
     "call_id": "30000000-0000-0000-0000-000000000001",
     "contact_card": {
       "id": "10000000-0000-0000-0000-000000000001",
@@ -2298,21 +2298,160 @@ X-Company-Id: 11111111-1111-1111-1111-111111111111
 
 ### POST `/webhooks/shoonya/job-complete`
 
-Handle job completion webhook from Shoonya (call analysis).
+Handle job completion webhook from Shunya (call analysis).
 
-**Request Body:**
+**Note:** When this webhook is received with `status: "completed"`, the backend automatically fetches the complete call summary from Shunya's Summary API (`GET /api/v1/call-processing/summary/{call_id}`) to ensure all analysis data is stored. The webhook payload contains URLs to the summary data, not the actual data itself.
+
+**Request Body (Shunya sends this format):**
 ```json
 {
-  "job_id": "shunya_job_completed_003",
+  "job_id": "job_a1b2c3d4e5f6",
+  "call_id": "30000000-0000-0000-0000-000000000001",
+  "status": "completed",
+  "progress": {
+    "percent": 100,
+    "current_step": "completed",
+    "steps_completed": ["downloading", "transcribing", "chunking", "summarizing", "validation", "storage"],
+    "steps_remaining": [],
+    "steps_failed": []
+  },
+  "started_at": "2026-01-12T15:00:05Z",
+  "updated_at": "2026-01-12T15:05:00Z",
+  "completed_at": "2026-01-12T15:05:00Z",
+  "failed_at": null,
+  "duration_seconds": 295,
+  "estimated_completion": null,
+  "results": {
+    "summary_url": "/api/v1/call-processing/summary/call_abc123",
+    "chunks_url": "/api/v1/call-processing/chunks/call_abc123",
+    "transcript_url": "/api/v1/call-processing/transcript/call_abc123"
+  },
+  "metadata": null,
+  "error": null,
+  "retry_available": false,
+  "retry_url": null
+}
+```
+
+**Note:** The webhook payload contains URLs, not the actual data. The backend automatically:
+1. Extracts `call_id` from the webhook payload
+2. Calls Shunya's Summary API using the `call_id` to fetch complete analysis data
+3. Stores all data in the database
+
+**Legacy Format (also supported):**
+```json
+{
+  "shunya_job_id": "shunya_job_abc123",
   "status": "completed",
   "call_id": "30000000-0000-0000-0000-000000000001",
   "company_id": "11111111-1111-1111-1111-111111111111",
-  "results": {
-    "summary_url": "https://storage.example.com/summaries/job003.json",
-    "chunks_url": "https://storage.example.com/chunks/job003.json",
-    "transcript_url": "https://storage.example.com/transcripts/job003.txt"
-  },
-  "metadata": {}
+  "result": {
+    "transcript": "Full call transcript text here...",
+    "analysis": {
+      "summary": {
+        "summary": "Customer called to request a roof replacement estimate and asked about solar panel handling.",
+        "key_points": [
+          "Customer requested roof replacement estimate",
+          "Confirmed solar panel detach and reset capability"
+        ],
+        "action_items": [
+          "Have technician contact customer to schedule site visit",
+          "Send written proposal via email after assessment"
+        ],
+        "next_steps": [
+          "Technician to call customer to coordinate appointment time",
+          "Proceed with on-site evaluation"
+        ],
+        "pending_actions": [
+          {
+            "type": "schedule_visit",
+            "owner": "company",
+            "due_at": null,
+            "raw_text": "Technician will reach out to schedule",
+            "confidence": 0.86,
+            "contact_method": "phone"
+          }
+        ],
+        "sentiment_score": 0.82,
+        "confidence_score": 0.86
+      },
+      "compliance": {
+        "sop_compliance": {
+          "score": 0.72,
+          "compliance_rate": 0.72,
+          "stages": {
+            "total": 7,
+            "followed": [
+              "Greeting & Identification",
+              "Needs Discovery",
+              "Qualifying (BANT)"
+            ],
+            "missed": [
+              "Scheduling (if applicable)",
+              "Setting Expectations"
+            ]
+          },
+          "issues": [
+            "Did not schedule inspection during call",
+            "Needs discovery was incomplete"
+          ],
+          "positive_behaviors": [
+            "Opened with professional greeting",
+            "Collected core contact details"
+          ],
+          "confidence": 0.84
+        }
+      },
+      "objections": {
+        "objections": [],
+        "total_count": 0
+      },
+      "qualification": {
+        "bant_scores": {
+          "need": 0.8,
+          "budget": 0.0,
+          "timeline": 0.0,
+          "authority": 1.0
+        },
+        "overall_score": 0.45,
+        "qualification_status": "cold",
+        "booking_status": "not_booked",
+        "call_outcome_category": "qualified_but_unbooked",
+        "appointment_confirmed": false,
+        "appointment_date": null,
+        "appointment_type": "in-person",
+        "appointment_timezone": "UTC",
+        "appointment_time_confidence": 0.0,
+        "preferred_time_window": null,
+        "appointment_intent": "new",
+        "original_appointment_datetime": null,
+        "new_requested_time": null,
+        "service_requested": "Roof replacement estimate",
+        "service_not_offered_reason": null,
+        "service_address_raw": "123 Main St, City, State",
+        "service_address_structured": {
+          "line1": "123 Main St",
+          "city": "City",
+          "state": "State",
+          "postal_code": "12345",
+          "country": "US"
+        },
+        "address_confidence": 0.8,
+        "customer_name": "John Doe",
+        "customer_name_confidence": 1.0,
+        "decision_makers": [
+          "John Doe (homeowner)"
+        ],
+        "urgency_signals": [
+          "Roof has had issues with pieces flying off"
+        ],
+        "budget_indicators": [],
+        "confidence_score": 0.86,
+        "follow_up_required": true,
+        "follow_up_reason": "Customer wants estimate; technician will reach out to schedule"
+      }
+    }
+  }
 }
 ```
 
@@ -2325,7 +2464,20 @@ Handle job completion webhook from Shoonya (call analysis).
 }
 ```
 
-**Error:** `400 Bad Request` - Missing required fields or invalid format
+**Error Responses:**
+- `400 Bad Request` - Missing required fields (`call_id`, `company_id`, `status`, or `result`)
+- `404 Not Found` - Call not found
+- `500 Internal Server Error` - Error processing webhook or fetching summary
+
+**Note:** 
+- The webhook handler automatically calls Shunya's Summary API (`GET /api/v1/call-processing/summary/{call_id}`) when `status: "completed"` to fetch the complete analysis structure
+- All fields from the summary are parsed and stored in the `call_analyses` table, including:
+  - Summary section: action_items, next_steps, pending_actions, confidence_score
+  - Compliance section: issues, positive_behaviors, compliance_rate, confidence
+  - Objections section: objections array and total_count
+  - Qualification section: BANT scores, appointment details, service details, customer details, follow-up information
+- If the Summary API call fails, the handler falls back to using data from the webhook payload
+- The complete raw analysis data is stored in the `raw_analysis` JSON field for reference
 
 ---
 

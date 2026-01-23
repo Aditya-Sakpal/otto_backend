@@ -1676,7 +1676,7 @@
 					"response": []
 				},
 				{
-					"name": "Shoonya Job Complete",
+					"name": "Shunya Job Complete",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -1687,14 +1687,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"job_id\": \"shunya_job_completed_003\",\n    \"status\": \"completed\",\n    \"call_id\": \"{{call_id}}\",\n    \"company_id\": \"{{company_id}}\",\n    \"results\": {\n        \"summary_url\": \"https://storage.example.com/summaries/job003.json\",\n        \"chunks_url\": \"https://storage.example.com/chunks/job003.json\",\n        \"transcript_url\": \"https://storage.example.com/transcripts/job003.txt\"\n    },\n    \"metadata\": {}\n}"
+							"raw": "{\n    \"job_id\": \"job_a1b2c3d4e5f6\",\n    \"call_id\": \"{{call_id}}\",\n    \"status\": \"completed\",\n    \"progress\": {\n        \"percent\": 100,\n        \"current_step\": \"completed\",\n        \"steps_completed\": [\"downloading\", \"transcribing\", \"chunking\", \"summarizing\", \"validation\", \"storage\"],\n        \"steps_remaining\": [],\n        \"steps_failed\": []\n    },\n    \"started_at\": \"2026-01-12T15:00:05Z\",\n    \"updated_at\": \"2026-01-12T15:05:00Z\",\n    \"completed_at\": \"2026-01-12T15:05:00Z\",\n    \"failed_at\": null,\n    \"duration_seconds\": 295,\n    \"estimated_completion\": null,\n    \"results\": {\n        \"summary_url\": \"/api/v1/call-processing/summary/{{call_id}}\",\n        \"chunks_url\": \"/api/v1/call-processing/chunks/{{call_id}}\",\n        \"transcript_url\": \"/api/v1/call-processing/transcript/{{call_id}}\"\n    },\n    \"metadata\": null,\n    \"error\": null,\n    \"retry_available\": false,\n    \"retry_url\": null\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/webhooks/shoonya/job-complete",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "webhooks", "shoonya", "job-complete"]
 						},
-						"description": "Handle job completion webhook from Shoonya"
+						"description": "Handle job completion webhook from Shunya. The webhook payload contains URLs (summary_url, chunks_url, transcript_url) but NOT the actual analysis data. The backend automatically: 1) Extracts call_id from the payload, 2) Calls Shunya's Summary API (GET /api/v1/call-processing/summary/{call_id}) to fetch the complete analysis data, 3) Stores everything in the database. This simulates the actual webhook format that Shunya sends according to their API documentation."
 					},
 					"response": []
 				}

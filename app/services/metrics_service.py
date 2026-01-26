@@ -326,12 +326,22 @@ class MetricsService:
     
     async def get_booking_rate_improvement(
         self,
-        company_id: UUID,
+        company_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
         """Get booking rate improvement metrics comparing current period to previous period."""
         try:
+            if not company_id:
+                if not user_id:
+                    raise ValueError("company_id or user_id is required")
+                user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
+                user = user_result.scalar_one_or_none()
+                if not user or not user.company_id:
+                    raise ValueError("user_id must belong to a user with a company_id")
+                company_id = user.company_id
+
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
             # Calculate period length
@@ -339,10 +349,19 @@ class MetricsService:
             previous_start = start_dt - timedelta(days=period_length)
             previous_end = start_dt
             
+            # Optional user scoping:
+            # - Appointments: by assigned_rep_id
+            # - Leads: by assigned_rep_id
+            appointment_scope = [AppointmentORM.company_id == company_id]
+            lead_scope = [LeadORM.company_id == company_id]
+            if user_id:
+                appointment_scope.append(AppointmentORM.assigned_rep_id == user_id)
+                lead_scope.append(LeadORM.assigned_rep_id == user_id)
+
             # Current period bookings
             current_bookings = await self.session.execute(
                 select(func.count(AppointmentORM.id)).where(
-                    AppointmentORM.company_id == company_id,
+                    *appointment_scope,
                     AppointmentORM.created_at >= start_dt,
                     AppointmentORM.created_at <= end_dt,
                 )
@@ -352,7 +371,7 @@ class MetricsService:
             # Current period qualified leads
             current_qualified = await self.session.execute(
                 select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
+                    *lead_scope,
                     LeadORM.status.in_(["qualified_booked", "qualified_unbooked"]),
                     LeadORM.created_at >= start_dt,
                     LeadORM.created_at <= end_dt,
@@ -363,7 +382,7 @@ class MetricsService:
             # Previous period bookings
             previous_bookings = await self.session.execute(
                 select(func.count(AppointmentORM.id)).where(
-                    AppointmentORM.company_id == company_id,
+                    *appointment_scope,
                     AppointmentORM.created_at >= previous_start,
                     AppointmentORM.created_at < previous_end,
                 )
@@ -373,7 +392,7 @@ class MetricsService:
             # Previous period qualified
             previous_qualified = await self.session.execute(
                 select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
+                    *lead_scope,
                     LeadORM.status.in_(["qualified_booked", "qualified_unbooked"]),
                     LeadORM.created_at >= previous_start,
                     LeadORM.created_at < previous_end,

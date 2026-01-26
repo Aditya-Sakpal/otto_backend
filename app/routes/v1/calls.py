@@ -60,12 +60,13 @@ async def list_calls(
 
 @router.get("/logs")
 async def get_call_logs(
-    company_id: UUID = Query(..., description="Company UUID"),
+    company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
     db: DbSession = None,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     search: Optional[str] = Query(None, description="Search by customer name, CSR name, or phone number"),
     csr_id: Optional[UUID] = Query(None, description="Filter by CSR/owner UUID"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user UUID (alias for csr_id; also allows deriving company_id)"),
     status_filter: Optional[str] = Query(None, description="Filter by qualification status (qualified/unqualified/all)"),
     booking_filter: Optional[str] = Query(None, description="Filter by booking status (booked/unbooked/all)"),
     quick_filter: Optional[str] = Query(None, description="Quick filter (hot_lead, qualified_unbooked, qualified_booked, abandoned, residential, commercial, etc.)"),
@@ -113,6 +114,28 @@ async def get_call_logs(
     """
     try:
         service = CallService(db)
+
+        # Allow filtering by user_id (alias for csr_id)
+        if user_id and not csr_id:
+            csr_id = user_id
+
+        # Allow company_id to be derived from user_id (or csr_id) when not provided
+        if not company_id:
+            lookup_user_id = user_id or csr_id
+            if lookup_user_id:
+                db_user = await service.user_repo.get_by_id(lookup_user_id)
+                if not db_user or not getattr(db_user, "company_id", None):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="company_id is required, or user_id must belong to a user with a company_id",
+                    )
+                company_id = db_user.company_id
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="company_id or user_id is required",
+                )
+
         result = await service.get_call_logs(
             company_id=company_id,
             search=search,

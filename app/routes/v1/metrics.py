@@ -142,7 +142,8 @@ async def get_auto_queued_leads(
 
 @router.get("/booking-rate-improvement")
 async def get_booking_rate_improvement(
-    company_id: UUID,
+    company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
+    user_id: Optional[UUID] = Query(None, description="User UUID to scope booking rate improvement to a single user (optional)"),
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
@@ -152,7 +153,8 @@ async def get_booking_rate_improvement(
     """
     Get booking rate improvement metrics within date range.
     
-    - **company_id**: Company UUID
+    - **company_id**: Company UUID (optional if user_id is provided)
+    - **user_id**: User UUID (optional). If provided, the metrics are calculated only for that user.
     - **start_date**: Start of the current period (defaults to 30 days ago)
     - **end_date**: End of the current period (defaults to today)
     
@@ -164,6 +166,7 @@ async def get_booking_rate_improvement(
     service = MetricsService(db)
     return await service.get_booking_rate_improvement(
         company_id=company_id,
+        user_id=user_id,
         start_date=start_date,
         end_date=end_date,
     )

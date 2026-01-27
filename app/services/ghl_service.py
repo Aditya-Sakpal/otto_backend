@@ -67,8 +67,13 @@ class GHLService:
         """
         Verify GHL webhook signature using public key from environment.
 
+        According to GHL documentation:
+        - The signature is in the x-wh-signature header as base64
+        - The payload should be the raw JSON string
+        - Verification uses SHA256 with RSA PKCS1v15 padding
+
         Args:
-            raw_body: Raw request body bytes
+            raw_body: Raw request body bytes (JSON string)
             signature_b64: Base64-encoded signature from x-wh-signature header
 
         Returns:
@@ -81,19 +86,60 @@ class GHLService:
                 logger.warning("GHL_PUBLIC_KEY not configured, skipping signature verification")
                 return False
 
-            # Ensure key has proper PEM format
-            if not public_key_pem.strip().startswith("-----BEGIN PUBLIC KEY-----"):
-                # If it's just the key content, wrap it
-                if isinstance(public_key_pem, str):
-                    public_key_pem = f"-----BEGIN PUBLIC KEY-----\n{public_key_pem}\n-----END PUBLIC KEY-----"
+            # Clean and format the public key
+            # Handle cases where the key might be:
+            # 1. Already in PEM format with BEGIN/END markers
+            # 2. Just the base64 content (needs wrapping)
+            # 3. Has escaped newlines (\n) that need to be converted
+            public_key_pem = public_key_pem.strip()
+
+            # Replace escaped newlines with actual newlines
+            public_key_pem = public_key_pem.replace("\\n", "\n")
+
+            # If it doesn't start with BEGIN marker, it's just the key content
+            if not public_key_pem.startswith("-----BEGIN PUBLIC KEY-----"):
+                # Remove any existing whitespace/newlines and wrap properly
+                # The key content should be 64 chars per line for proper PEM format
+                key_content = public_key_pem.replace("\n", "").replace(" ", "").replace("-----BEGIN PUBLIC KEY-----", "").replace("-----END PUBLIC KEY-----", "")
+                # Format with proper line breaks (64 chars per line)
+                formatted_key = "\n".join([key_content[i:i+64] for i in range(0, len(key_content), 64)])
+                public_key_pem = f"-----BEGIN PUBLIC KEY-----\n{formatted_key}\n-----END PUBLIC KEY-----"
+            else:
+                # Already has BEGIN/END markers, but ensure proper formatting
+                # Extract the key content and reformat if needed
+                lines = public_key_pem.split("\n")
+                key_lines = [line for line in lines if line and not line.startswith("-----")]
+                if key_lines:
+                    # Check if lines are properly formatted (64 chars)
+                    key_content = "".join(key_lines).replace(" ", "")
+                    if len(key_lines[0]) != 64:
+                        # Reformat with proper line breaks
+                        formatted_key = "\n".join([key_content[i:i+64] for i in range(0, len(key_content), 64)])
+                        public_key_pem = f"-----BEGIN PUBLIC KEY-----\n{formatted_key}\n-----END PUBLIC KEY-----"
 
             # Load public key
-            public_key = serialization.load_pem_public_key(
-                public_key_pem.encode() if isinstance(public_key_pem, str) else public_key_pem
-            )
+            try:
+                public_key = serialization.load_pem_public_key(
+                    public_key_pem.encode('utf-8')
+                )
+            except Exception as key_error:
+                logger.error(f"Error loading GHL public key: {key_error}")
+                logger.debug(f"Public key PEM (first 100 chars): {public_key_pem[:100]}")
+                return False
+
+            # Clean and decode the signature
+            # Remove any whitespace from the base64 string
+            signature_b64_clean = signature_b64.strip().replace(" ", "").replace("\n", "").replace("\r", "")
+
+            try:
+                sig_bytes = base64.b64decode(signature_b64_clean, validate=True)
+            except Exception as decode_error:
+                logger.error(f"Error decoding GHL signature (base64): {decode_error}")
+                logger.debug(f"Signature (first 50 chars): {signature_b64_clean[:50]}")
+                return False
 
             # Verify signature
-            sig_bytes = base64.b64decode(signature_b64)
+            # According to GHL docs: SHA256 hash of the payload, signed with RSA
             public_key.verify(
                 sig_bytes,
                 raw_body,
@@ -102,10 +148,10 @@ class GHLService:
             )
             return True
         except Exception as e:
-            logger.error(f"Error verifying GHL signature: {e}")
+            logger.error(f"Error verifying GHL signature: {e}", exc_info=True)
             return False
 
-    async def get_contact_info(self, contact_id: str) -> ContactInfo:
+    async def get_contact_info(self, contact_id: str) -> Optional[ContactInfo]:
         """
         Fetch contact information from GHL.
 
@@ -116,45 +162,57 @@ class GHLService:
             contact_id: GHL contact ID
 
         Returns:
-            ContactInfo with contact details
-
-        Raises:
-            httpx.HTTPStatusError: If API call fails
+            ContactInfo with contact details, or None if bearer token is not configured or API call fails
         """
         if not self.bearer_token:
-            raise ValueError("GHL bearer token not configured")
+            logger.warning(f"GHL bearer token not configured, cannot fetch contact info for {contact_id}")
+            return None
 
         url = f"{self.BASE_URL}/contacts/{contact_id}"
         headers = {
             "Authorization": f"Bearer {self.bearer_token}",
             "Accept": "application/json",
+            "Version": "2021-07-28",
         }
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url, headers=headers)
-            resp.raise_for_status()
-            data: Dict[str, Any] = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(url, headers=headers)
+                resp.raise_for_status()
+                data: Dict[str, Any] = resp.json()
 
-        # Some GHL endpoints return { "contact": {...} }, others return the object directly.
-        contact = data.get("contact") if isinstance(data, dict) else None
-        if not isinstance(contact, dict):
-            contact = data if isinstance(data, dict) else {}
+            # Some GHL endpoints return { "contact": {...} }, others return the object directly.
+            contact = data.get("contact") if isinstance(data, dict) else None
+            if not isinstance(contact, dict):
+                contact = data if isinstance(data, dict) else {}
 
-        # Name fields present in GHL contact records: firstName, lastName, name
-        first = (contact.get("firstName") or "").strip()
-        last = (contact.get("lastName") or "").strip()
-        name = (contact.get("name") or "").strip()
+            # Name fields present in GHL contact records: firstName, lastName, name
+            first = (contact.get("firstName") or "").strip()
+            last = (contact.get("lastName") or "").strip()
+            name = (contact.get("name") or "").strip()
 
-        if first and last:
-            full_name = f"{first} {last}".strip()
-        elif name:
-            full_name = name
-        else:
-            full_name = None
+            if first and last:
+                full_name = f"{first} {last}".strip()
+            elif name:
+                full_name = name
+            else:
+                full_name = None
 
-        phone = (contact.get("phone") or "").strip() or None
+            phone = (contact.get("phone") or "").strip() or None
 
-        return ContactInfo(contact_id=contact_id, full_name=full_name, phone=phone)
+            return ContactInfo(contact_id=contact_id, full_name=full_name, phone=phone)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                logger.warning(f"GHL API returned 401 Unauthorized for contact {contact_id}. Bearer token may be invalid or expired.")
+            else:
+                logger.error(f"GHL API error fetching contact {contact_id}: {e.response.status_code} {e.response.reason_phrase}")
+            return None
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error fetching contact info for {contact_id}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching contact info for {contact_id}: {e}", exc_info=True)
+            return None
 
     def _parse_filename(self, content_disposition: Optional[str]) -> Optional[str]:
         """Parse filename from Content-Disposition header."""
@@ -197,6 +255,7 @@ class GHLService:
         headers = {
             "Authorization": f"Bearer {self.bearer_token}",
             "Accept": "*/*",
+            "Version": "2021-07-28",
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -263,32 +322,43 @@ class GHLService:
             event_id: GHL event/appointment ID
 
         Returns:
-            Dict with appointment details from the "event" key in the response
-
-        Raises:
-            ValueError: If bearer token is not configured
-            httpx.HTTPStatusError: If API call fails
+            Dict with appointment details from the "event" key in the response, or empty dict if bearer token is not configured or API call fails
         """
         if not self.bearer_token:
-            raise ValueError("GHL bearer token not configured")
+            logger.warning(f"GHL bearer token not configured, cannot fetch appointment info for {event_id}")
+            return {}
 
         url = f"{self.BASE_URL}/calendars/events/appointments/{event_id}"
         headers = {
             "Authorization": f"Bearer {self.bearer_token}",
             "Accept": "application/json",
+            "Version": "2021-07-28",
         }
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url, headers=headers)
-            resp.raise_for_status()
-            data: Dict[str, Any] = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(url, headers=headers)
+                resp.raise_for_status()
+                data: Dict[str, Any] = resp.json()
 
-        # GHL returns { "event": {...} } according to the API documentation
-        event = data.get("event") if isinstance(data, dict) else None
-        if not isinstance(event, dict):
-            event = data if isinstance(data, dict) else {}
+            # GHL returns { "event": {...} } according to the API documentation
+            event = data.get("event") if isinstance(data, dict) else None
+            if not isinstance(event, dict):
+                event = data if isinstance(data, dict) else {}
 
-        return event
+            return event
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                logger.warning(f"GHL API returned 401 Unauthorized for appointment {event_id}. Bearer token may be invalid or expired.")
+            else:
+                logger.error(f"GHL API error fetching appointment {event_id}: {e.response.status_code} {e.response.reason_phrase}")
+            return {}
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error fetching appointment info for {event_id}: {e}")
+            return {}
+        except Exception as e:
+            logger.error(f"Unexpected error fetching appointment info for {event_id}: {e}", exc_info=True)
+            return {}
 
     async def get_opportunity_info(self, opportunity_id: str) -> Dict[str, Any]:
         """
@@ -301,32 +371,43 @@ class GHLService:
             opportunity_id: GHL opportunity ID
 
         Returns:
-            Dict with opportunity details from the "opportunity" key in the response
-
-        Raises:
-            ValueError: If bearer token is not configured
-            httpx.HTTPStatusError: If API call fails
+            Dict with opportunity details from the "opportunity" key in the response, or empty dict if bearer token is not configured or API call fails
         """
         if not self.bearer_token:
-            raise ValueError("GHL bearer token not configured")
+            logger.warning(f"GHL bearer token not configured, cannot fetch opportunity info for {opportunity_id}")
+            return {}
 
         url = f"{self.BASE_URL}/opportunities/{opportunity_id}"
         headers = {
             "Authorization": f"Bearer {self.bearer_token}",
             "Accept": "application/json",
+            "Version": "2021-07-28",
         }
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url, headers=headers)
-            resp.raise_for_status()
-            data: Dict[str, Any] = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(url, headers=headers)
+                resp.raise_for_status()
+                data: Dict[str, Any] = resp.json()
 
-        # GHL returns { "opportunity": {...} } according to the API documentation
-        opportunity = data.get("opportunity") if isinstance(data, dict) else None
-        if not isinstance(opportunity, dict):
-            opportunity = data if isinstance(data, dict) else {}
+            # GHL returns { "opportunity": {...} } according to the API documentation
+            opportunity = data.get("opportunity") if isinstance(data, dict) else None
+            if not isinstance(opportunity, dict):
+                opportunity = data if isinstance(data, dict) else {}
 
-        return opportunity
+            return opportunity
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                logger.warning(f"GHL API returned 401 Unauthorized for opportunity {opportunity_id}. Bearer token may be invalid or expired.")
+            else:
+                logger.error(f"GHL API error fetching opportunity {opportunity_id}: {e.response.status_code} {e.response.reason_phrase}")
+            return {}
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error fetching opportunity info for {opportunity_id}: {e}")
+            return {}
+        except Exception as e:
+            logger.error(f"Unexpected error fetching opportunity info for {opportunity_id}: {e}", exc_info=True)
+            return {}
 
     async def get_user_info(self, user_id: str) -> Dict[str, Any]:
         """
@@ -339,29 +420,40 @@ class GHLService:
             user_id: GHL user ID
 
         Returns:
-            Dict with user details (the API returns the user object directly)
-
-        Raises:
-            ValueError: If bearer token is not configured
-            httpx.HTTPStatusError: If API call fails
+            Dict with user details (the API returns the user object directly), or empty dict if bearer token is not configured or API call fails
         """
         if not self.bearer_token:
-            raise ValueError("GHL bearer token not configured")
+            logger.warning(f"GHL bearer token not configured, cannot fetch user info for {user_id}")
+            return {}
 
         url = f"{self.BASE_URL}/users/{user_id}"
         headers = {
             "Authorization": f"Bearer {self.bearer_token}",
             "Accept": "application/json",
+            "Version": "2021-07-28",
         }
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url, headers=headers)
-            resp.raise_for_status()
-            data: Dict[str, Any] = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(url, headers=headers)
+                resp.raise_for_status()
+                data: Dict[str, Any] = resp.json()
 
-        # GHL returns the user object directly according to the API documentation
-        # (not wrapped in a "user" key)
-        return data if isinstance(data, dict) else {}
+            # GHL returns the user object directly according to the API documentation
+            # (not wrapped in a "user" key)
+            return data if isinstance(data, dict) else {}
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                logger.warning(f"GHL API returned 401 Unauthorized for user {user_id}. Bearer token may be invalid or expired.")
+            else:
+                logger.error(f"GHL API error fetching user {user_id}: {e.response.status_code} {e.response.reason_phrase}")
+            return {}
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error fetching user info for {user_id}: {e}")
+            return {}
+        except Exception as e:
+            logger.error(f"Unexpected error fetching user info for {user_id}: {e}", exc_info=True)
+            return {}
 
     async def update_lead_event(
         self,
@@ -399,17 +491,24 @@ class GHLService:
 
             # Get contact info to find/create contact card
             contact_info = await self.get_contact_info(contact_id)
-            if not contact_info.phone:
-                logger.warning(f"No phone number for contact {contact_id}")
-                return
+            phone = contact_info.phone if contact_info else None
+            if not phone:
+                # Try to get phone from opportunity data or event
+                phone = opp_data.get("contact", {}).get("phone") if isinstance(opp_data, dict) else None
+                if not phone:
+                    phone = event.get("contactId")  # Sometimes contactId might be phone-like, but unlikely
+                if not phone:
+                    logger.warning(f"No phone number available for contact {contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
+                    return
 
             contact_repo = ContactRepository(db_session)
+            full_name = contact_info.full_name if contact_info else None
             contact_card = await contact_repo.find_or_create_by_phone(
                 company_id=company_id,
-                phone=contact_info.phone,
+                phone=phone,
                 email=None,  # Could fetch from contact_info if available
-                first_name=contact_info.full_name.split()[0] if contact_info.full_name else None,
-                last_name=" ".join(contact_info.full_name.split()[1:]) if contact_info.full_name and len(contact_info.full_name.split()) > 1 else None,
+                first_name=full_name.split()[0] if full_name else None,
+                last_name=" ".join(full_name.split()[1:]) if full_name and len(full_name.split()) > 1 else None,
             )
 
             # Find existing lead by GHL opportunity ID in extra_metadata
@@ -441,9 +540,10 @@ class GHLService:
 
             # Get assigned user if available
             assigned_rep_id = None
-            if opp_data.get("assignedTo"):
+            assigned_to = opp_data.get("assignedTo")
+            if assigned_to:
                 try:
-                    user_info = await self.get_user_info(opp_data["assignedTo"])
+                    user_info = await self.get_user_info(assigned_to)
                     if user_info:
                         # Map GHL user to our user by email
                         ghl_user_email = user_info.get("email")
@@ -452,13 +552,13 @@ class GHLService:
                             user_orm = await user_repo.get_by_email(ghl_user_email)
                             if user_orm:
                                 assigned_rep_id = user_orm.id
-                                logger.info(f"Mapped GHL user {opp_data['assignedTo']} ({ghl_user_email}) to our user {assigned_rep_id}")
+                                logger.info(f"Mapped GHL user {assigned_to} ({ghl_user_email}) to our user {assigned_rep_id}")
                             else:
-                                logger.warning(f"GHL user {opp_data['assignedTo']} has email {ghl_user_email} but no matching user found in our database")
+                                logger.warning(f"GHL user {assigned_to} has email {ghl_user_email} but no matching user found in our database")
                         else:
-                            logger.warning(f"GHL user {opp_data['assignedTo']} has no email field, cannot map to our user")
+                            logger.warning(f"GHL user {assigned_to} has no email field, cannot map to our user")
                 except Exception as e:
-                    logger.warning(f"Failed to fetch user {opp_data['assignedTo']}: {e}")
+                    logger.warning(f"Failed to fetch user {assigned_to}: {e}")
 
             # Prepare lead data
             lead_data = {
@@ -519,40 +619,66 @@ class GHLService:
                 logger.warning("Missing contact_id in event", event=event)
                 return
 
-            # Get full contact details
-            contact_info = await self.get_contact_info(contact_id)
-            if not contact_info.phone:
-                logger.warning(f"No phone number for contact {contact_id}")
-                return
-
-            # Get full contact details from GHL API
-            url = f"{self.BASE_URL}/contacts/{contact_id}"
-            headers = {
-                "Authorization": f"Bearer {self.bearer_token}",
-                "Accept": "application/json",
-            }
-
+            # Get full contact details from GHL API (if bearer token is configured)
             full_contact_data = {}
+            contact_info = None
             if self.bearer_token:
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    try:
-                        resp = await client.get(url, headers=headers)
-                        resp.raise_for_status()
-                        data = resp.json()
-                        full_contact_data = data.get("contact") or data
-                    except httpx.HTTPError:
-                        pass
+                try:
+                    contact_info = await self.get_contact_info(contact_id)
+
+                    # Get full contact details from GHL API
+                    url = f"{self.BASE_URL}/contacts/{contact_id}"
+                    headers = {
+                        "Authorization": f"Bearer {self.bearer_token}",
+                        "Accept": "application/json",
+                        "Version": "2021-07-28",
+                    }
+                    async with httpx.AsyncClient(timeout=15.0) as client:
+                        try:
+                            resp = await client.get(url, headers=headers)
+                            resp.raise_for_status()
+                            data = resp.json()
+                            full_contact_data = data.get("contact") or data
+                        except httpx.HTTPStatusError as e:
+                            if e.response.status_code == 401:
+                                logger.warning(f"GHL API returned 401 Unauthorized for contact {contact_id}. Bearer token may be invalid or expired.")
+                            else:
+                                logger.warning(f"GHL API error fetching full contact data for {contact_id}: {e.response.status_code}")
+                        except httpx.HTTPError:
+                            pass
+                except Exception as e:
+                    logger.warning(f"Error fetching contact info from GHL API for {contact_id}: {e}. Continuing with webhook payload data.")
+
+            # Extract phone number - prefer from API, fallback to event payload
+            phone = None
+            if contact_info and contact_info.phone:
+                phone = contact_info.phone
+            elif full_contact_data.get("phone"):
+                phone = full_contact_data.get("phone")
+            elif event.get("phone"):
+                phone = event.get("phone")
+
+            if not phone:
+                logger.warning(f"No phone number available for contact {contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
+                return
 
             contact_repo = ContactRepository(db_session)
 
-            # Parse name
-            first_name = full_contact_data.get("firstName") or (contact_info.full_name.split()[0] if contact_info.full_name else None)
-            last_name = full_contact_data.get("lastName") or (" ".join(contact_info.full_name.split()[1:]) if contact_info.full_name and len(contact_info.full_name.split()) > 1 else None)
+            # Parse name - prefer from API, fallback to event payload
+            first_name = full_contact_data.get("firstName") or event.get("firstName")
+            if not first_name and contact_info and contact_info.full_name:
+                name_parts = contact_info.full_name.split()
+                first_name = name_parts[0] if name_parts else None
+
+            last_name = full_contact_data.get("lastName") or event.get("lastName")
+            if not last_name and contact_info and contact_info.full_name:
+                name_parts = contact_info.full_name.split()
+                last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else None
 
             # Update or create contact
             contact_card = await contact_repo.find_or_create_by_phone(
                 company_id=company_id,
-                phone=contact_info.phone,
+                phone=phone,
                 email=full_contact_data.get("email") or event.get("email"),
                 first_name=first_name,
                 last_name=last_name,
@@ -626,14 +752,20 @@ class GHLService:
 
             # Get contact info
             contact_info = await self.get_contact_info(contact_id)
-            if not contact_info.phone:
-                logger.warning(f"No phone number for contact {contact_id}")
-                return
+            phone = contact_info.phone if contact_info else None
+            if not phone:
+                # Try to get phone from appointment data or event
+                phone = full_appt_data.get("contact", {}).get("phone") if isinstance(full_appt_data, dict) else None
+                if not phone:
+                    phone = appointment_data.get("contact", {}).get("phone") if isinstance(appointment_data, dict) else None
+                if not phone:
+                    logger.warning(f"No phone number available for contact {contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
+                    return
 
             contact_repo = ContactRepository(db_session)
             contact_card = await contact_repo.find_or_create_by_phone(
                 company_id=company_id,
-                phone=contact_info.phone,
+                phone=phone,
             )
 
             # Find or create lead for this contact
@@ -680,9 +812,10 @@ class GHLService:
 
             # Get assigned user
             assigned_rep_id = None
-            if full_appt_data.get("assignedUserId"):
+            assigned_user_id = full_appt_data.get("assignedUserId")
+            if assigned_user_id:
                 try:
-                    user_info = await self.get_user_info(full_appt_data["assignedUserId"])
+                    user_info = await self.get_user_info(assigned_user_id)
                     if user_info:
                         # Map GHL user to our user by email
                         ghl_user_email = user_info.get("email")
@@ -691,13 +824,13 @@ class GHLService:
                             user_orm = await user_repo.get_by_email(ghl_user_email)
                             if user_orm:
                                 assigned_rep_id = user_orm.id
-                                logger.info(f"Mapped GHL user {full_appt_data['assignedUserId']} ({ghl_user_email}) to our user {assigned_rep_id}")
+                                logger.info(f"Mapped GHL user {assigned_user_id} ({ghl_user_email}) to our user {assigned_rep_id}")
                             else:
-                                logger.warning(f"GHL user {full_appt_data['assignedUserId']} has email {ghl_user_email} but no matching user found in our database")
+                                logger.warning(f"GHL user {assigned_user_id} has email {ghl_user_email} but no matching user found in our database")
                         else:
-                            logger.warning(f"GHL user {full_appt_data['assignedUserId']} has no email field, cannot map to our user")
+                            logger.warning(f"GHL user {assigned_user_id} has no email field, cannot map to our user")
                 except Exception as e:
-                    logger.warning(f"Failed to fetch user {full_appt_data['assignedUserId']}: {e}")
+                    logger.warning(f"Failed to fetch user {assigned_user_id}: {e}")
 
             # Find existing appointment by GHL appointment ID
             appt_repo = AppointmentRepository(db_session)
@@ -818,9 +951,13 @@ class GHLService:
 
             # Get contact info to find the contact card
             contact_info = await self.get_contact_info(contact_id)
-            if not contact_info.phone:
-                logger.warning(f"No phone number for contact {contact_id}")
-                return
+            phone = contact_info.phone if contact_info else None
+            if not phone:
+                # Try to get phone from event payload
+                phone = event.get("phone")
+                if not phone:
+                    logger.warning(f"No phone number available for contact {contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
+                    return
 
             contact_repo = ContactRepository(db_session)
             # Find contact by phone
@@ -955,35 +1092,70 @@ class GHLService:
             user_id: Optional[str] = event.get("userId")
             message_id: Optional[str] = event.get("messageId")
             status: Optional[str] = event.get("status")
+            call_from: Optional[str] = event.get("from")  # For outbound webhooks
+            call_to: Optional[str] = event.get("to")  # For outbound webhooks
+            call_duration: Optional[int] = event.get("callDuration") or event.get("duration")
 
             # Filter for completed calls only
-            if status and status.lower() != "completed":
-                logger.info(f"Skipping call with status {status}, only processing completed calls")
+            # Accept both "completed" and "answered" statuses
+            if status and status.lower() not in ("completed", "answered"):
+                logger.info(f"Skipping call with status {status}, only processing completed/answered calls")
                 return {
                     "ok": True,
                     "isCall": True,
                     "skipped": True,
-                    "reason": f"Status is {status}, not completed",
+                    "reason": f"Status is {status}, not completed or answered",
                 }
 
             logger.info(
-                "Processing CALL webhook: locationId=%s userId=%s messageId=%s contactId=%s",
-                location_id, user_id, message_id, contact_id
+                "Processing CALL webhook: locationId=%s userId=%s messageId=%s contactId=%s direction=%s",
+                location_id, user_id, message_id, contact_id, direction
             )
 
-            # Get contact info from GHL
+            # Get contact info from GHL or extract from webhook payload
             contact_full_name = None
             contact_phone = None
-            if contact_id:
-                try:
+
+            # For inbound calls: contact is the caller (from field)
+            # For outbound calls: contact is the recipient (to field)
+            if direction and direction.lower() in ("inbound", "incoming"):
+                # Inbound: contact is the caller
+                if call_from:
+                    contact_phone = call_from
+                elif contact_id:
                     contact_info = await self.get_contact_info(contact_id=contact_id)
-                    contact_full_name = contact_info.full_name
-                    contact_phone = contact_info.phone
-                except Exception:
-                    logger.exception(f"Failed to fetch contact info for contactId={contact_id}")
+                    if contact_info:
+                        contact_full_name = contact_info.full_name
+                        contact_phone = contact_info.phone
+                    else:
+                        logger.warning(f"Could not fetch contact info for contactId={contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
+            elif direction and direction.lower() in ("outbound", "outgoing"):
+                # Outbound: contact is the recipient
+                if call_to:
+                    contact_phone = call_to
+                elif contact_id:
+                    contact_info = await self.get_contact_info(contact_id=contact_id)
+                    if contact_info:
+                        contact_full_name = contact_info.full_name
+                        contact_phone = contact_info.phone
+                    else:
+                        logger.warning(f"Could not fetch contact info for contactId={contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
+            else:
+                # Fallback: try to get from contact_id or use from/to fields
+                if contact_id:
+                    contact_info = await self.get_contact_info(contact_id=contact_id)
+                    if contact_info:
+                        contact_full_name = contact_info.full_name
+                        contact_phone = contact_info.phone
+                    else:
+                        logger.warning(f"Could not fetch contact info for contactId={contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
+
+                # If still no phone, try from/to fields
+                if not contact_phone:
+                    contact_phone = call_from or call_to
 
             if not contact_phone:
-                logger.warning(f"No phone number found for contact {contact_id}, cannot process call")
+                logger.warning(f"No phone number found for contact (contactId={contact_id}, from={call_from}, to={call_to}), cannot process call")
                 return {
                     "ok": False,
                     "isCall": True,
@@ -1151,6 +1323,9 @@ class GHLService:
                 "ghl_date_added": date_added,
                 "ghl_user_id": user_id,
                 "ghl_contact_full_name": contact_full_name,
+                "ghl_call_from": call_from,  # For outbound webhooks
+                "ghl_call_to": call_to,  # For outbound webhooks
+                "ghl_call_duration": call_duration,  # Duration in seconds
                 "recording_filename": recording_filename,
                 "recording_content_type": recording_content_type,
                 "recording_num_bytes": recording_num_bytes,
@@ -1165,6 +1340,7 @@ class GHLService:
                 phone_number=contact_phone,
                 call_type=call_type,
                 audio_url=recording_s3_url,
+                duration_seconds=call_duration,  # From callDuration field in webhook
                 missed_call=False,  # GHL calls are typically not missed
                 handled_by_user_id=handled_by_user_id,
                 interaction_type="call",
@@ -1205,6 +1381,17 @@ class GHLService:
                     logger.info(f"Updated lead {lead.id} with last call metadata")
                 except Exception as e:
                     logger.exception(f"Failed to update lead metadata: {e}")
+
+            # Trigger Shunya analysis if audio URL is available
+            if recording_s3_url and not call.missed_call:
+                try:
+                    from app.services.call_service import CallService
+                    call_service = CallService(db_session)
+                    await call_service.trigger_analysis(call.id)
+                    logger.info(f"Triggered Shunya analysis for GHL call {call.id}")
+                except Exception as e:
+                    logger.error(f"Failed to trigger Shunya analysis for call {call.id}: {e}", exc_info=True)
+                    # Don't raise - analysis is non-critical
 
             return {
                 "ok": True,

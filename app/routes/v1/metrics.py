@@ -142,9 +142,9 @@ async def get_auto_queued_leads(
 
 @router.get("/booking-rate-improvement")
 async def get_booking_rate_improvement(
+    db: DbSession,
     company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
     user_id: Optional[UUID] = Query(None, description="User UUID to scope booking rate improvement to a single user (optional)"),
-    db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
@@ -163,6 +163,20 @@ async def get_booking_rate_improvement(
     
     Required role: Any authenticated user
     """
+    # Resolution rules:
+    # - If user_id is provided: prefer user_id (even if company_id is also provided)
+    # - Else if company_id is provided: use company_id
+    # - Else: error
+    if not company_id and not user_id:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either company_id or user_id is required",
+        )
+
+    if user_id:
+        company_id = None  # ensure user_id takes precedence (service will derive company_id from user)
+
     service = MetricsService(db)
     return await service.get_booking_rate_improvement(
         company_id=company_id,

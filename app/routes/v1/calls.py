@@ -115,26 +115,24 @@ async def get_call_logs(
     try:
         service = CallService(db)
 
-        # Allow filtering by user_id (alias for csr_id)
-        if user_id and not csr_id:
-            csr_id = user_id
-
-        # Allow company_id to be derived from user_id (or csr_id) when not provided
-        if not company_id:
-            lookup_user_id = user_id or csr_id
-            if lookup_user_id:
-                db_user = await service.user_repo.get_by_id(lookup_user_id)
-                if not db_user or not getattr(db_user, "company_id", None):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="company_id is required, or user_id must belong to a user with a company_id",
-                    )
-                company_id = db_user.company_id
-            else:
+        # Resolution rules:
+        # - If user_id is provided: prefer user_id (even if company_id is also provided)
+        # - Else if company_id is provided: use company_id
+        # - Else: error
+        if user_id:
+            csr_id = user_id  # enforce preference for user_id
+            db_user = await service.user_repo.get_by_id(user_id)
+            if not db_user or not getattr(db_user, "company_id", None):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="company_id or user_id is required",
+                    detail="Either provide company_id, or provide user_id that belongs to a user with a company_id",
                 )
+            company_id = db_user.company_id
+        elif not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either company_id or user_id is required",
+            )
 
         result = await service.get_call_logs(
             company_id=company_id,

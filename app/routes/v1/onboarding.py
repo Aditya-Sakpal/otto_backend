@@ -3,9 +3,6 @@ Onboarding API routes.
 
 Handles user/company creation, GHL integration, and document storage.
 """
-import tempfile
-import os
-import httpx
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form, BackgroundTasks
 from pydantic import EmailStr
 
@@ -322,7 +319,7 @@ async def complete_onboarding(
                 phone_number=phone_number,
                 address=address,
                 reference_doc_url=reference_doc_url,
-                csr_sop_doc_url=csr_sop_doc_url,  
+                csr_sop_doc_url=csr_sop_doc_url,
                 sales_sop_doc_url=sales_sop_doc_url,
                 extra_metadata=extra_metadata if extra_metadata else None
             )
@@ -464,49 +461,38 @@ async def _upload_sop_to_shoonya(
     """
     Background task to upload SOP document from S3 to Shoonya.
 
-    Downloads the file from S3 URL, saves to temp file, uploads to Shoonya, then cleans up.
+    Uploads directly from S3 URL to Shoonya without downloading the file locally.
 
     Args:
-        s3_url: S3 URL of the SOP document
+        s3_url: S3 URL of the SOP document (HTTPS URL)
         company_id: Company ID
         sop_name: Name of the SOP
         target_role: Target role (csr, sales_rep, or None for company-wide)
+                    Note: "csr" will be mapped to "customer_rep" for the API
     """
-    temp_file_path = None
     try:
         shoonya = get_shoonya_client()
         if not shoonya.is_available():
             logger.warning(f"Shoonya not available, skipping SOP upload for {sop_name}")
             return
 
-        # Download file from S3 URL using httpx
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.get(s3_url)
-            response.raise_for_status()
-            file_bytes = response.content
+        # Map target_role to API format
+        # API expects "customer_rep" for CSR phone call SOPs, "sales_rep" for sales meeting SOPs
+        api_target_role = None
+        if target_role == "csr":
+            api_target_role = "customer_rep"
+        elif target_role == "sales_rep":
+            api_target_role = "sales_rep"
+        elif target_role:
+            # Pass through other roles as-is
+            api_target_role = target_role
 
-        if not file_bytes:
-            logger.error(f"Failed to download file from S3 URL: {s3_url}")
-            return
-
-        # Determine file extension from URL or default to .pdf
-        file_extension = ".pdf"
-        if "." in s3_url:
-            # Extract extension from URL
-            url_parts = s3_url.split("?")[0]  # Remove query parameters
-            file_extension = os.path.splitext(url_parts)[1] or ".pdf"
-
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
-            temp_file.write(file_bytes)
-            temp_file_path = temp_file.name
-
-        # Upload to Shoonya
+        # Upload directly from S3 URL to Shoonya
         result = await shoonya.upload_sop_document(
-            file_path=temp_file_path,
+            file_url=s3_url,
             company_id=company_id,
             sop_name=sop_name,
-            target_role=target_role,
+            target_role=api_target_role,
         )
 
         logger.info(
@@ -523,10 +509,3 @@ async def _upload_sop_to_shoonya(
             company_id=company_id,
             exc_info=True,
         )
-    finally:
-        # Clean up temporary file
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-            except Exception as e:
-                logger.warning(f"Failed to delete temp file {temp_file_path}: {e}")

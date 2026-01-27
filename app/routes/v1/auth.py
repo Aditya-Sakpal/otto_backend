@@ -70,7 +70,7 @@ async def signup(
         if user.first_name or user.last_name:
             name_parts = [part for part in [user.first_name, user.last_name] if part]
             full_name = " ".join(name_parts) if name_parts else None
-        
+
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,  # Use .value for consistency
@@ -132,7 +132,7 @@ async def login(
         if user.first_name or user.last_name:
             name_parts = [part for part in [user.first_name, user.last_name] if part]
             full_name = " ".join(name_parts) if name_parts else None
-        
+
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,  # Use .value for consistency with refresh endpoint
@@ -198,7 +198,7 @@ async def refresh_token(
         if user.first_name or user.last_name:
             name_parts = [part for part in [user.first_name, user.last_name] if part]
             full_name = " ".join(name_parts) if name_parts else None
-        
+
         access_token = create_access_token(
             user_id=user.id,
             role=user.role,

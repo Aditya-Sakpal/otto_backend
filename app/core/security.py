@@ -128,11 +128,11 @@ def create_access_token(
         "exp": expire,
         "iat": datetime.utcnow(),
     }
-    
+
     # Add company_id to payload if provided
     if company_id:
         payload["company_id"] = str(company_id)
-    
+
     # Add name to payload if provided
     if name:
         payload["name"] = name

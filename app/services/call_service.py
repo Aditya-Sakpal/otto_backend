@@ -158,10 +158,10 @@ class CallService:
                 try:
                     from datetime import datetime
                     from app.core.config import settings
-                    
+
                     # Construct webhook URL for Shunya to notify us when processing completes
                     webhook_url = f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
-                    
+
                     result = await self.shoonya.process_call(
                         call_id=str(call.id),
                         company_id=str(call.company_id),
@@ -266,7 +266,7 @@ class CallService:
 
             # Parse complete summary structure from Shunya Summary API
             # Handle both old webhook format and new Summary API format
-            
+
             # Extract summary section
             summary_section = analysis_data.get("summary", {})
             if isinstance(summary_section, dict):
@@ -290,10 +290,10 @@ class CallService:
             # Extract compliance section
             compliance_section = analysis_data.get("compliance", {})
             sop_compliance = compliance_section.get("sop_compliance", {}) if isinstance(compliance_section, dict) else {}
-            
+
             # Extract target_role from compliance section
             compliance_target_role = compliance_section.get("target_role") if isinstance(compliance_section, dict) else None
-            
+
             if sop_compliance:
                 sop_compliance_score = sop_compliance.get("score")
                 sop_compliance_rate = sop_compliance.get("compliance_rate")
@@ -358,7 +358,7 @@ class CallService:
                     else:
                         # If no type found, try to extract from object
                         objections.append(str(obj))
-                    
+
                     # Extract objection_text for objection_texts array
                     obj_text = obj.get("objection_text") or obj.get("text") or ""
                     if obj_text:
@@ -380,7 +380,7 @@ class CallService:
                 booking_status = qualification_section.get("booking_status")
                 call_outcome_category = qualification_section.get("call_outcome_category")
                 qualification_confidence_score = qualification_section.get("confidence_score")
-                
+
                 # Appointment fields
                 appointment_confirmed = qualification_section.get("appointment_confirmed", False)
                 appointment_date_str = qualification_section.get("appointment_date")
@@ -390,13 +390,13 @@ class CallService:
                         appointment_date = date_parser.parse(appointment_date_str) if isinstance(appointment_date_str, str) else appointment_date_str
                     except Exception as e:
                         logger.warning(f"Failed to parse appointment_date: {e}")
-                
+
                 appointment_type = qualification_section.get("appointment_type")
                 appointment_timezone = qualification_section.get("appointment_timezone")
                 appointment_time_confidence = qualification_section.get("appointment_time_confidence")
                 preferred_time_window = qualification_section.get("preferred_time_window")
                 appointment_intent = qualification_section.get("appointment_intent")
-                
+
                 original_appointment_datetime_str = qualification_section.get("original_appointment_datetime")
                 original_appointment_datetime = None
                 if original_appointment_datetime_str:
@@ -404,7 +404,7 @@ class CallService:
                         original_appointment_datetime = date_parser.parse(original_appointment_datetime_str) if isinstance(original_appointment_datetime_str, str) else original_appointment_datetime_str
                     except Exception as e:
                         logger.warning(f"Failed to parse original_appointment_datetime: {e}")
-                
+
                 new_requested_time_str = qualification_section.get("new_requested_time")
                 new_requested_time = None
                 if new_requested_time_str:
@@ -412,25 +412,25 @@ class CallService:
                         new_requested_time = date_parser.parse(new_requested_time_str) if isinstance(new_requested_time_str, str) else new_requested_time_str
                     except Exception as e:
                         logger.warning(f"Failed to parse new_requested_time: {e}")
-                
+
                 # Service fields
                 service_requested = qualification_section.get("service_requested")
                 service_not_offered_reason = qualification_section.get("service_not_offered_reason")
                 service_address_raw = qualification_section.get("service_address_raw")
                 service_address_structured = qualification_section.get("service_address_structured")
                 address_confidence = qualification_section.get("address_confidence")
-                
+
                 # Customer fields
                 customer_name = qualification_section.get("customer_name")
                 customer_name_confidence = qualification_section.get("customer_name_confidence")
                 decision_makers = qualification_section.get("decision_makers", [])
                 urgency_signals = qualification_section.get("urgency_signals", [])
                 budget_indicators = qualification_section.get("budget_indicators", [])
-                
+
                 # Follow-up fields
                 follow_up_required = qualification_section.get("follow_up_required", False)
                 follow_up_reason = qualification_section.get("follow_up_reason")
-                
+
                 # Additional qualification fields (new in Shunya Summary API)
                 detected_call_type = qualification_section.get("detected_call_type")
                 is_existing_customer = qualification_section.get("is_existing_customer")
@@ -654,20 +654,20 @@ class CallService:
             # Shunya Summary API structure: {summary: {pending_actions: [...]}, ...}
             # Also check top-level for backward compatibility
             pending_actions_data = None
-            
+
             # Check in summary section first (Shunya Summary API format)
             summary_section = analysis_data.get("summary", {})
             if isinstance(summary_section, dict):
                 pending_actions_data = summary_section.get("pending_actions", [])
                 if pending_actions_data:
                     logger.debug(f"Found {len(pending_actions_data)} pending actions in summary section", call_id=str(call.id))
-            
+
             # Fallback to top-level (legacy format)
             if not pending_actions_data:
                 pending_actions_data = analysis_data.get("pending_actions", [])
                 if pending_actions_data:
                     logger.debug(f"Found {len(pending_actions_data)} pending actions at top level", call_id=str(call.id))
-            
+
             # If still not found, check if analysis_data itself is the summary section
             if not pending_actions_data and isinstance(analysis_data, dict) and "pending_actions" in analysis_data:
                 pending_actions_data = analysis_data.get("pending_actions", [])
@@ -686,7 +686,7 @@ class CallService:
                     contact_method = None
                     due_at = None
                     priority = None
-                    
+
                     # Handle both dict and string formats
                     if isinstance(action_data, str):
                         # Legacy format: simple string
@@ -698,7 +698,7 @@ class CallService:
                         raw_text = action_data.get("raw_text") or action_data.get("action") or action_type
                         due_at_str = action_data.get("due_at")
                         priority = action_data.get("priority")
-                        
+
                         # Extract additional fields from Shunya payload
                         owner = action_data.get("owner")  # "company" or user ID
                         confidence = action_data.get("confidence")
@@ -740,7 +740,7 @@ class CallService:
                     else:
                         # Use call owner if available, otherwise leave as None (will be assigned based on action type)
                         owner_id = call.handled_by_user_id
-                    
+
                     # Create PendingAction domain model
                     pending_action = PendingAction(
                         company_id=call.company_id,

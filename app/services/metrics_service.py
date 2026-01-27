@@ -564,6 +564,167 @@ class MetricsService:
             logger.error(f"Error getting coaching opportunities: {e}")
             raise e
     
+    async def get_most_coaching_opportunities(
+        self,
+        company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get most coaching opportunities - top 5 employees with least success rate.
+        
+        Success rate = qualified_leads / booked_leads
+        - Qualified leads: qualification_status in ['hot', 'cold', 'warm', 'qualified']
+        - Booked leads: booking_status == 'booked'
+        
+        For each employee, also returns top 3 objections (most coaching need).
+        """
+        try:
+            start_dt, end_dt = self._get_date_range(start_date, end_date)
+            
+            # Join call_analyses with calls to get handled_by_user_id
+            # Filter by company_id and date range
+            # Count qualified and booked leads per employee
+            from sqlalchemy import join
+            
+            # Build the join
+            call_analysis_call_join = join(
+                CallAnalysisORM,
+                CallORM,
+                CallAnalysisORM.call_id == CallORM.id
+            )
+            
+            # Get all analyses with calls for this company
+            analyses_query = select(
+                CallORM.handled_by_user_id,
+                CallAnalysisORM.qualification_status,
+                CallAnalysisORM.booking_status,
+                CallAnalysisORM.objections,
+                CallORM.id.label('call_id')
+            ).select_from(call_analysis_call_join).where(
+                CallAnalysisORM.company_id == company_id,
+                CallAnalysisORM.created_at >= start_dt,
+                CallAnalysisORM.created_at <= end_dt,
+                CallORM.handled_by_user_id.isnot(None)  # Only include calls with assigned users
+            )
+            
+            analyses_result = await self.session.execute(analyses_query)
+            analyses_list = analyses_result.all()
+            
+            # Group by employee and calculate metrics
+            employee_stats: Dict[UUID, Dict[str, Any]] = {}
+            
+            for row in analyses_list:
+                user_id = row.handled_by_user_id
+                if not user_id:
+                    continue
+                
+                if user_id not in employee_stats:
+                    employee_stats[user_id] = {
+                        'qualified_leads': 0,
+                        'booked_leads': 0,
+                        'total_calls': 0,
+                        'objections': {}  # Will count objections
+                    }
+                
+                stats = employee_stats[user_id]
+                stats['total_calls'] += 1
+                
+                # Check if qualified
+                qual_status = row.qualification_status
+                if qual_status and qual_status.lower() in ['hot', 'cold', 'warm', 'qualified']:
+                    stats['qualified_leads'] += 1
+                
+                # Check if booked
+                booking_status = row.booking_status
+                if booking_status and booking_status.lower() == 'booked':
+                    stats['booked_leads'] += 1
+                
+                # Count objections
+                if row.objections:
+                    for obj in row.objections:
+                        if obj:  # Skip empty strings
+                            stats['objections'][obj] = stats['objections'].get(obj, 0) + 1
+            
+            # Calculate success rate and prepare results
+            employee_results = []
+            for user_id, stats in employee_stats.items():
+                qualified = stats['qualified_leads']
+                booked = stats['booked_leads']
+                
+                # Calculate success rate: booked_leads / qualified_leads (as percentage)
+                # This matches the image format where 7/11 = 64%
+                # If qualified is 0, success_rate is 0
+                if qualified > 0:
+                    success_rate = (booked / qualified) * 100
+                else:
+                    # If no qualified leads, set success_rate to 0
+                    # This ensures employees with no qualified leads are prioritized for coaching
+                    success_rate = 0.0
+                
+                # Get top 3 objections
+                objections_sorted = sorted(
+                    stats['objections'].items(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )[:3]
+                top_objections = [obj[0] for obj in objections_sorted]
+                
+                employee_results.append({
+                    'user_id': str(user_id),
+                    'qualified_leads': qualified,
+                    'booked_leads': booked,
+                    'total_calls': stats['total_calls'],
+                    'success_rate': round(success_rate, 2),
+                    'top_objections': top_objections
+                })
+            
+            # Sort by success_rate ascending (least success rate first) and get top 5
+            employee_results.sort(key=lambda x: x['success_rate'])
+            top_5_employees = employee_results[:5]
+            
+            # Get user details for the top 5 employees
+            user_ids = [UUID(emp['user_id']) for emp in top_5_employees]
+            users_query = select(UserORM).where(
+                UserORM.id.in_(user_ids),
+                UserORM.company_id == company_id
+            )
+            users_result = await self.session.execute(users_query)
+            users_list = users_result.scalars().all()
+            
+            # Create a mapping of user_id to user details
+            users_map = {user.id: user for user in users_list}
+            
+            # Build final response with user names
+            opportunities = []
+            for emp in top_5_employees:
+                user_id = UUID(emp['user_id'])
+                user = users_map.get(user_id)
+                
+                # Format booked/qualified ratio
+                booked_qualified_ratio = f"{emp['booked_leads']}/{emp['qualified_leads']}"
+                
+                opportunities.append({
+                    'user_id': emp['user_id'],
+                    'csr_name': f"{user.first_name} {user.last_name}".strip() if user else "Unknown",
+                    'success_rate': emp['success_rate'],
+                    'booked_qualified_ratio': booked_qualified_ratio,
+                    'booked_leads': emp['booked_leads'],
+                    'qualified_leads': emp['qualified_leads'],
+                    'total_calls': emp['total_calls'],
+                    'most_coaching_need': emp['top_objections']  # Top 3 objections
+                })
+            
+            return {
+                'opportunities': opportunities,
+                'total_count': len(opportunities),
+                'start_date': start_dt.isoformat(),
+                'end_date': end_dt.isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error getting most coaching opportunities: {e}")
+            raise e
+    
     async def get_lead_to_sale_conversion(
         self,
         company_id: UUID,

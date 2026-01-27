@@ -409,6 +409,38 @@ async def get_coaching_opportunities(
     )
 
 
+@router.get("/coaching/most-opportunities")
+async def get_most_coaching_opportunities(
+    company_id: UUID,
+    db: DbSession,
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
+    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
+):
+    """
+    Get most coaching opportunities - top 5 employees with least success rate.
+    
+    - **company_id**: Company UUID
+    - **start_date**: Start of the date range (defaults to 30 days ago)
+    - **end_date**: End of the date range (defaults to today)
+    
+    Returns top 5 employees with least success rate, where:
+    - Success rate = qualified_leads / booked_leads
+    - Qualified leads: qualification_status in ['hot', 'cold', 'warm', 'qualified']
+    - Booked leads: booking_status == 'booked'
+    - For each employee, includes top 3 objections (most coaching need)
+    
+    Required role: EXECUTIVE
+    """
+    service = MetricsService(db)
+    return await service.get_most_coaching_opportunities(
+        company_id=company_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
 @router.get("/conversion/lead-to-sale")
 async def get_lead_to_sale_conversion(
     company_id: UUID,

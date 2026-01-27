@@ -1496,6 +1496,65 @@ Get coaching opportunities based on low SOP compliance within date range.
 
 ---
 
+### GET `/metrics/coaching/most-opportunities`
+
+Get most coaching opportunities - top 5 employees with least success rate.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `start_date` (date, optional) - Start date (YYYY-MM-DD, defaults to 30 days ago)
+- `end_date` (date, optional) - End date (YYYY-MM-DD, defaults to today)
+
+**Response:** `200 OK`
+```json
+{
+  "opportunities": [
+    {
+      "user_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      "csr_name": "Jayda Smith",
+      "success_rate": 64.0,
+      "booked_qualified_ratio": "7/11",
+      "booked_leads": 7,
+      "qualified_leads": 11,
+      "total_calls": 147,
+      "most_coaching_need": [
+        "price",
+        "timing",
+        "competitor"
+      ]
+    },
+    {
+      "user_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+      "csr_name": "Nadia Johnson",
+      "success_rate": 76.0,
+      "booked_qualified_ratio": "110/144",
+      "booked_leads": 110,
+      "qualified_leads": 144,
+      "total_calls": 551,
+      "most_coaching_need": [
+        "authority",
+        "need",
+        "price"
+      ]
+    }
+  ],
+  "total_count": 5,
+  "start_date": "2025-12-16T00:00:00",
+  "end_date": "2026-01-15T23:59:59"
+}
+```
+
+**Note:**
+- Success rate = qualified_leads / booked_leads (as percentage)
+- Qualified leads: qualification_status in ['hot', 'cold', 'warm', 'qualified']
+- Booked leads: booking_status == 'booked'
+- Returns top 5 employees with least success rate
+- Most coaching need shows top 3 objections faced by each employee
+
+**Required Role:** `EXECUTIVE`
+
+---
+
 ### GET `/metrics/conversion/lead-to-sale`
 
 Get lead to sale conversion metrics within date range.

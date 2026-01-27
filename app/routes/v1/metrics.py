@@ -54,8 +54,9 @@ async def get_company_overview(
 
 @router.get("/exec/csr/dashboard")
 async def get_csr_dashboard(
-    company_id: UUID,
     db: DbSession,
+    company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
+    user_id: Optional[UUID] = Query(None, description="User UUID to scope dashboard metrics to a single user (optional)"),
     # RBAC DISABLED - current_user: User = Depends(require_executive),
     current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
@@ -64,7 +65,8 @@ async def get_csr_dashboard(
     """
     Get CSR dashboard metrics within date range.
     
-    - **company_id**: Company UUID
+    - **company_id**: Company UUID (optional if user_id is provided)
+    - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.
     - **start_date**: Start of the date range (defaults to 30 days ago)
     - **end_date**: End of the date range (defaults to today)
     
@@ -73,9 +75,24 @@ async def get_csr_dashboard(
     
     Required role: EXECUTIVE
     """
+    # Resolution rules:
+    # - If user_id is provided: prefer user_id (even if company_id is also provided)
+    # - Else if company_id is provided: use company_id
+    # - Else: error
+    if not company_id and not user_id:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either company_id or user_id is required",
+        )
+
+    if user_id:
+        company_id = None  # ensure user_id takes precedence (service will derive company_id from user)
+
     service = MetricsService(db)
     return await service.get_csr_dashboard(
         company_id=company_id,
+        user_id=user_id,
         start_date=start_date,
         end_date=end_date,
     )
@@ -216,8 +233,9 @@ async def get_bookings_summary(
 
 @router.get("/objections/top")
 async def get_top_objections(
-    company_id: UUID,
     db: DbSession,
+    company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
+    user_id: Optional[UUID] = Query(None, description="User UUID to scope top objections to a single user (optional)"),
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD) - currently ignored, returns all objections"),
@@ -225,22 +243,37 @@ async def get_top_objections(
     limit: Optional[int] = Query(None, ge=1, le=20, description="Number of top objections to return (optional, returns all if not specified)"),
 ):
     """
-    Get top objections aggregated by company.
+    Get top objections aggregated by company or user.
     
     Returns ALL objections sorted from most occurred to least occurred, with:
     - objection_type: Type of objection
     - count: Number of times this objection appeared
     - affected_leads_count: Number of unique leads affected by this objection
     
-    - **company_id**: Company UUID (required)
+    - **company_id**: Company UUID (optional if user_id is provided)
+    - **user_id**: User UUID (optional). If provided, objections are scoped to that user. If both company_id and user_id are provided, user_id is used.
     - **start_date**: Currently ignored - returns all objections
     - **end_date**: Currently ignored - returns all objections
     - **limit**: Optional limit - if not provided, returns all objections
     
     Required role: CSR, SALES_REP, or EXECUTIVE
     """
+    # Resolution rules:
+    # - If user_id is provided: prefer user_id (even if company_id is also provided)
+    # - Else if company_id is provided: use company_id
+    # - Else: error
+    if not company_id and not user_id:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either company_id or user_id is required",
+        )
+
+    if user_id:
+        company_id = None  # ensure user_id takes precedence (service will derive company_id from user)
+
     service = AnalyticsService(db)
-    result = await service.get_top_objections(company_id=company_id)
+    result = await service.get_top_objections(company_id=company_id, user_id=user_id)
     
     # Apply limit if provided
     if limit is not None:

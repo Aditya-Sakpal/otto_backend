@@ -27,10 +27,11 @@ class AnalyticsService:
     
     async def get_top_objections(
         self,
-        company_id: UUID,
+        company_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Get top objections aggregated by company.
+        Get top objections aggregated by company or user.
         
         Returns ALL objections sorted from most occurred to least occurred, with:
         - objection_type: Type of objection
@@ -38,6 +39,20 @@ class AnalyticsService:
         - affected_leads_count: Number of unique leads affected by this objection
         """
         try:
+            from app.infrastructure.database.models.user import UserORM
+            
+            # Resolution rules:
+            # - If user_id is provided: prefer user_id and derive company_id from user
+            # - Else: company_id must be provided
+            if user_id:
+                user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
+                user = user_result.scalar_one_or_none()
+                if not user or not user.company_id:
+                    raise ValueError("Either provide company_id, or provide user_id that belongs to a user with a company_id")
+                company_id = user.company_id
+            elif not company_id:
+                raise ValueError("Either company_id or user_id is required")
+            
             # Get all analyses with objections for this company, joined with calls to get lead_id
             # Filter for non-null objections arrays
             query = select(
@@ -49,6 +64,10 @@ class AnalyticsService:
                 CallAnalysisORM.company_id == company_id,
                 CallAnalysisORM.objections.isnot(None)
             )
+            
+            # Add user_id filtering if provided
+            if user_id:
+                query = query.where(CallORM.handled_by_user_id == user_id)
             
             results = await self.session.execute(query)
             rows = results.all()

@@ -176,74 +176,93 @@ class MetricsService:
     
     async def get_csr_dashboard(
         self,
-        company_id: UUID,
+        company_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
         """Get CSR dashboard metrics within date range."""
         try:
+            # Resolution rules:
+            # - If user_id is provided: prefer user_id and derive company_id from user
+            # - Else: company_id must be provided
+            if user_id:
+                user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
+                user = user_result.scalar_one_or_none()
+                if not user or not user.company_id:
+                    raise ValueError("Either provide company_id, or provide user_id that belongs to a user with a company_id")
+                company_id = user.company_id
+            elif not company_id:
+                raise ValueError("Either company_id or user_id is required")
+
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             today = datetime.utcnow().date()
             today_start = datetime.combine(today, datetime.min.time())
             
+            # Build base filters
+            call_filters = [
+                CallORM.company_id == company_id,
+                CallORM.created_at >= start_dt,
+                CallORM.created_at <= end_dt,
+            ]
+            lead_filters = [
+                LeadORM.company_id == company_id,
+                LeadORM.created_at >= start_dt,
+                LeadORM.created_at <= end_dt,
+            ]
+            appointment_filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.created_at >= start_dt,
+                AppointmentORM.created_at <= end_dt,
+            ]
+            
+            # Add user_id filtering if provided
+            if user_id:
+                call_filters.append(CallORM.handled_by_user_id == user_id)
+                lead_filters.append(LeadORM.assigned_rep_id == user_id)
+                appointment_filters.append(AppointmentORM.assigned_rep_id == user_id)
+            
             # Total calls in date range
             total_calls = await self.session.execute(
-                select(func.count(CallORM.id)).where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= start_dt,
-                    CallORM.created_at <= end_dt,
-                )
+                select(func.count(CallORM.id)).where(*call_filters)
             )
             total_calls_count = total_calls.scalar() or 0
             
             # Missed calls in date range
+            missed_calls_filters = call_filters + [CallORM.missed_call == True]
             missed_calls = await self.session.execute(
-                select(func.count(CallORM.id)).where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= start_dt,
-                    CallORM.created_at <= end_dt,
-                    CallORM.missed_call == True
-                )
+                select(func.count(CallORM.id)).where(*missed_calls_filters)
             )
             missed_calls_count = missed_calls.scalar() or 0
             
             # Calls today
+            calls_today_filters = [
+                CallORM.company_id == company_id,
+                CallORM.created_at >= today_start,
+            ]
+            if user_id:
+                calls_today_filters.append(CallORM.handled_by_user_id == user_id)
             calls_today = await self.session.execute(
-                select(func.count(CallORM.id)).where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= today_start
-                )
+                select(func.count(CallORM.id)).where(*calls_today_filters)
             )
             calls_today_count = calls_today.scalar() or 0
             
             # Average call duration in date range
+            avg_duration_filters = call_filters + [CallORM.duration_seconds.isnot(None)]
             avg_duration = await self.session.execute(
-                select(func.avg(CallORM.duration_seconds)).where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= start_dt,
-                    CallORM.created_at <= end_dt,
-                    CallORM.duration_seconds.isnot(None)
-                )
+                select(func.avg(CallORM.duration_seconds)).where(*avg_duration_filters)
             )
             avg_duration_val = avg_duration.scalar() or 0.0
             
             # Leads count in date range
             leads_count = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                )
+                select(func.count(LeadORM.id)).where(*lead_filters)
             )
             leads_assigned = leads_count.scalar() or 0
             
             # Appointments scheduled in date range
             appointments = await self.session.execute(
-                select(func.count(AppointmentORM.id)).where(
-                    AppointmentORM.company_id == company_id,
-                    AppointmentORM.created_at >= start_dt,
-                    AppointmentORM.created_at <= end_dt,
-                )
+                select(func.count(AppointmentORM.id)).where(*appointment_filters)
             )
             appointments_count = appointments.scalar() or 0
             

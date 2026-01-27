@@ -1152,13 +1152,21 @@ All metrics endpoints support date range filtering with `start_date` and `end_da
 Get company overview metrics within date range.
 
 **Query Parameters:**
-- `company_id` (UUID, required) - Company UUID
+- `company_id` (UUID, optional) - Company UUID (optional if user_id is provided)
+- `user_id` (UUID, optional) - User UUID to scope overview metrics to a single user. If provided, metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.
 - `start_date` (date, optional) - Start date (YYYY-MM-DD, defaults to 30 days ago)
 - `end_date` (date, optional) - End date (YYYY-MM-DD, defaults to today)
+
+**Note:** Either `company_id` or `user_id` is required. If both are provided, `user_id` takes precedence.
 
 **Example Request:**
 ```
 GET /api/v1/metrics/exec/company-overview?company_id=11111111-1111-1111-1111-111111111111
+```
+
+**Example Request (with user_id):**
+```
+GET /api/v1/metrics/exec/company-overview?user_id=ffffffff-ffff-ffff-ffff-ffffffffffff
 ```
 
 **Headers:**
@@ -1183,6 +1191,9 @@ Authorization: Bearer <access_token>
 ```
 
 **Note:** Response values reflect actual data from seed_dummy_data.sql
+
+**Errors:**
+- `400 Bad Request` - Either company_id or user_id is required
 
 **Required Role:** `EXECUTIVE`
 

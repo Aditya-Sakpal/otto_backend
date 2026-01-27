@@ -23,8 +23,9 @@ router = APIRouter(tags=["metrics"])
 
 @router.get("/exec/company-overview")
 async def get_company_overview(
-    company_id: UUID,
     db: DbSession,
+    company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
+    user_id: Optional[UUID] = Query(None, description="User UUID to scope overview metrics to a single user (optional)"),
     # RBAC DISABLED - current_user: User = Depends(require_executive),
     current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
@@ -33,7 +34,8 @@ async def get_company_overview(
     """
     Get company overview metrics within date range.
     
-    - **company_id**: Company UUID
+    - **company_id**: Company UUID (optional if user_id is provided)
+    - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.
     - **start_date**: Start of the date range (defaults to 30 days ago)
     - **end_date**: End of the date range (defaults to today)
     
@@ -45,9 +47,24 @@ async def get_company_overview(
     
     Required role: EXECUTIVE
     """
+    # Resolution rules:
+    # - If user_id is provided: prefer user_id (even if company_id is also provided)
+    # - Else if company_id is provided: use company_id
+    # - Else: error
+    if not company_id and not user_id:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either company_id or user_id is required",
+        )
+
+    if user_id:
+        company_id = None  # ensure user_id takes precedence (service will derive company_id from user)
+
     service = MetricsService(db)
     return await service.get_company_overview(
         company_id=company_id,
+        user_id=user_id,
         start_date=start_date,
         end_date=end_date,
     )

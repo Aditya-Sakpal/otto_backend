@@ -59,102 +59,108 @@ class MetricsService:
     
     async def get_company_overview(
         self,
-        company_id: UUID,
+        company_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
         """Get company overview metrics within date range."""
         try:
+            # Resolution rules:
+            # - If user_id is provided: prefer user_id and derive company_id from user
+            # - Else: company_id must be provided
+            if user_id:
+                user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
+                user = user_result.scalar_one_or_none()
+                if not user or not user.company_id:
+                    raise ValueError("Either provide company_id, or provide user_id that belongs to a user with a company_id")
+                company_id = user.company_id
+            elif not company_id:
+                raise ValueError("Either company_id or user_id is required")
+
             start_dt, end_dt = self._get_date_range(start_date, end_date)
+            
+            # Build base filters
+            lead_filters = [
+                LeadORM.company_id == company_id,
+                LeadORM.created_at >= start_dt,
+                LeadORM.created_at <= end_dt,
+            ]
+            call_filters = [
+                CallORM.company_id == company_id,
+                CallORM.created_at >= start_dt,
+                CallORM.created_at <= end_dt,
+            ]
+            appointment_filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.created_at >= start_dt,
+                AppointmentORM.created_at <= end_dt,
+            ]
+            
+            # Add user_id filtering if provided
+            if user_id:
+                lead_filters.append(LeadORM.assigned_rep_id == user_id)
+                call_filters.append(CallORM.handled_by_user_id == user_id)
+                appointment_filters.append(AppointmentORM.assigned_rep_id == user_id)
             
             # Total leads in date range
             total_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                )
+                select(func.count(LeadORM.id)).where(*lead_filters)
             )
             total_leads_count = total_leads.scalar() or 0
             
             # Active leads (not closed) in date range
+            active_leads_filters = lead_filters + [LeadORM.status.notin_(["closed_won", "closed_lost", "abandoned", "dormant"])]
             active_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    LeadORM.status.notin_(["closed_won", "closed_lost", "abandoned", "dormant"])
-                )
+                select(func.count(LeadORM.id)).where(*active_leads_filters)
             )
             active_leads_count = active_leads.scalar() or 0
             
             # Qualified leads in date range
             # Count leads with deal_status = "qualified" OR status in qualified statuses
             # This handles both the deal_status field and the status field for qualification
-            qualified_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    or_(
-                        LeadORM.deal_status == "qualified",
-                        LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
-                    )
+            qualified_leads_filters = lead_filters + [
+                or_(
+                    LeadORM.deal_status == "qualified",
+                    LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
                 )
+            ]
+            qualified_leads = await self.session.execute(
+                select(func.count(LeadORM.id)).where(*qualified_leads_filters)
             )
             qualified_leads_count = qualified_leads.scalar() or 0
             
             # Total calls in date range
             total_calls = await self.session.execute(
-                select(func.count(CallORM.id)).where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= start_dt,
-                    CallORM.created_at <= end_dt,
-                )
+                select(func.count(CallORM.id)).where(*call_filters)
             )
             total_calls_count = total_calls.scalar() or 0
             
             # Missed calls in date range
+            missed_calls_filters = call_filters + [CallORM.missed_call == True]
             missed_calls = await self.session.execute(
-                select(func.count(CallORM.id)).where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= start_dt,
-                    CallORM.created_at <= end_dt,
-                    CallORM.missed_call == True
-                )
+                select(func.count(CallORM.id)).where(*missed_calls_filters)
             )
             missed_calls_count = missed_calls.scalar() or 0
             
             # Total appointments in date range
             total_appointments = await self.session.execute(
-                select(func.count(AppointmentORM.id)).where(
-                    AppointmentORM.company_id == company_id,
-                    AppointmentORM.created_at >= start_dt,
-                    AppointmentORM.created_at <= end_dt,
-                )
+                select(func.count(AppointmentORM.id)).where(*appointment_filters)
             )
             total_appointments_count = total_appointments.scalar() or 0
             
             # Conversion rate (closed_won / total leads) in date range
+            won_leads_filters = lead_filters + [LeadORM.status == "closed_won"]
             won_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    LeadORM.status == "closed_won"
-                )
+                select(func.count(LeadORM.id)).where(*won_leads_filters)
             )
             won_count = won_leads.scalar() or 0
             conversion_rate = (won_count / total_leads_count * 100) if total_leads_count > 0 else 0.0
             
             # Total revenue in date range
+            revenue_filters = lead_filters + [LeadORM.status == "closed_won"]
             total_revenue = await self.session.execute(
-                select(func.sum(LeadORM.deal_size)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    LeadORM.status == "closed_won"
-                )
+                select(func.sum(LeadORM.deal_size)).where(*revenue_filters)
             )
             revenue = total_revenue.scalar() or 0.0
             

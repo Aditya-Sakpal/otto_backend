@@ -712,7 +712,14 @@
 							"query": [
 								{
 									"key": "company_id",
-									"value": "{{company_id}}"
+									"value": "{{company_id}}",
+									"description": "Company UUID (optional if user_id is provided)"
+								},
+								{
+									"key": "user_id",
+									"value": "{{user_id}}",
+									"description": "User UUID (optional). If provided, overview metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.",
+									"disabled": true
 								},
 								{
 									"key": "start_date",
@@ -726,7 +733,7 @@
 								}
 							]
 						},
-						"description": "Get company overview metrics"
+						"description": "Get company overview metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
 					},
 					"response": []
 				},

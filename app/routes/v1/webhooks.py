@@ -158,7 +158,7 @@ async def shoonya_job_complete_webhook(
             result = payload.get("result", {})
             if result and isinstance(result, dict):
                 call_id_raw = result.get("call_id")
-        
+
         if not call_id_raw:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -190,11 +190,11 @@ async def shoonya_job_complete_webhook(
 
         # Get company_id - try multiple sources
         company_id = payload.get("company_id") or request.headers.get("X-Company-Id")
-        
+
         # Initialize service to get call and company_id
         service = CallService(db)
         call = await service.call_repo.get_by_id(call_id)
-        
+
         if not call:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -211,7 +211,7 @@ async def shoonya_job_complete_webhook(
         complete_summary_data = None
         transcript = None
         shoonya = get_shoonya_client()
-        
+
         if shoonya.is_available():
             try:
                 logger.info(f"Fetching complete call summary from Shunya Summary API for call {call_id}")
@@ -221,10 +221,10 @@ async def shoonya_job_complete_webhook(
                     include_chunks=False,
                 )
                 logger.info(f"Successfully fetched complete summary for call {call_id}")
-                
+
                 # Extract transcript from summary if available
                 transcript = complete_summary_data.get("transcript")
-                
+
             except Exception as e:
                 logger.error(
                     f"Failed to fetch complete summary from Shunya Summary API: {e}",
@@ -238,7 +238,7 @@ async def shoonya_job_complete_webhook(
                     analysis_data = result.get("analysis", {})
                     if analysis_data:
                         complete_summary_data = analysis_data
-                
+
                 if not complete_summary_data:
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -266,7 +266,7 @@ async def shoonya_job_complete_webhook(
 
         # Process analysis with complete data from Summary API
         logger.info(f"Processing analysis for call {call_id} with complete summary data")
-        
+
         analysis = await service.process_analysis(
             call_id=call_id,
             analysis_data=complete_summary_data,
@@ -304,7 +304,14 @@ async def ghl_message(
     """
     Handle GHL message webhooks (including call recordings).
 
-    Processes call events, fetches recordings, and uploads them to S3.
+    Processes both inbound and outbound call events:
+    - Standard GHL format: InboundMessage/OutboundMessage with messageType="CALL"
+    - Custom outbound webhooks: POST from GHL workflows with callDirection, callFrom, callTo, callStatus fields
+
+    For inbound calls: contact is the caller (from field)
+    For outbound calls: contact is the recipient (to field)
+
+    Fetches recordings (when available) and uploads them to S3.
     """
     raw = await request.body()
 
@@ -321,42 +328,75 @@ async def ghl_message(
 
     event = GHLService.extract_event_payload(body)
 
-    # Identify call events: In GHL InboundMessage schema, call events have messageType "CALL".
+    # Normalize outbound webhook format to standard GHL format
+    # Outbound webhooks from GHL workflows may use different field names:
+    # callDirection -> direction, callFrom -> from, callTo -> to, callStatus -> status
+    if "callDirection" in event and "direction" not in event:
+        event["direction"] = event.pop("callDirection")
+    if "callFrom" in event and "from" not in event:
+        event["from"] = event.pop("callFrom")
+    if "callTo" in event and "to" not in event:
+        event["to"] = event.pop("callTo")
+    if "callStatus" in event and "status" not in event:
+        event["status"] = event.pop("callStatus")
+    # callDuration might already be in the event, keep both if present
+
+    # Identify call events:
+    # 1. Standard GHL format: messageType "CALL" (InboundMessage/OutboundMessage)
+    # 2. Custom outbound webhook: type "InboundMessage" or "OutboundMessage" with call data
+    # 3. Direct call webhook: has call-related fields (direction, status, etc.)
     message_type = (event.get("messageType") or "").upper()
-    if message_type == "CALL":
+    webhook_type = (event.get("type") or "").upper()
+    has_call_fields = any(key in event for key in ["direction", "callDirection", "status", "callStatus", "callDuration"])
+
+    is_call_event = (
+        message_type == "CALL" or
+        webhook_type in ("INBOUNDMESSAGE", "OUTBOUNDMESSAGE") or
+        (has_call_fields and event.get("status", "").lower() in ("completed", "answered"))
+    )
+
+    if is_call_event:
         # Get company_id from location_id using repository
+        # For outbound webhooks, location_id might not be present
         from app.infrastructure.repositories.company_integration import CompanyIntegrationRepository
         from uuid import UUID
 
         location_id: Optional[str] = event.get("locationId")
         integration_repo = CompanyIntegrationRepository(db)
         company_id = None
+
         if location_id:
             try:
                 company_id = await integration_repo.get_company_id_by_location_id(location_id)
                 if not company_id:
                     logger.warning(f"No company found for location_id {location_id}")
-                    return {
-                        "ok": False,
-                        "isCall": True,
-                        "error": f"No company found for location_id {location_id}",
-                    }
+                    # For outbound webhooks, continue without company_id if location_id not found
+                    # The process_call_webhook will handle gracefully
+                else:
+                    # Convert company_id to Python UUID if needed (handles asyncpg UUID objects)
+                    if not isinstance(company_id, UUID):
+                        company_id = UUID(str(company_id))
             except Exception as e:
                 logger.error(f"Error getting company_id for location_id {location_id}: {e}")
-                return {
-                    "ok": False,
-                    "isCall": True,
-                    "error": f"Error getting company_id: {e}",
-                }
+                # Continue processing even if we can't get company_id
+                # Some outbound webhooks might not have location_id
 
         # Initialize GHL service and process call webhook
-        ghl_service = GHLService()
+        # Note: company_id can be None for outbound webhooks without location_id
+        # Get decrypted CRM API key from database if company_id is available
+        bearer_token = None
+        if company_id:
+            try:
+                bearer_token = await integration_repo.get_decrypted_crm_key(company_id)
+            except Exception as e:
+                logger.warning(f"Failed to get CRM API key for company {company_id}: {e}")
+
+        ghl_service = GHLService(bearer_token=bearer_token)
         try:
             result = await ghl_service.process_call_webhook(
                 event=event,
                 db_session=db,
                 company_id=company_id,
-                webhook_url=f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete",
             )
             return result
         except Exception as e:
@@ -429,30 +469,43 @@ async def ghl_lead_updates(
             "locationId": location_id,
         }
 
+    # Convert company_id to Python UUID if needed (handles asyncpg UUID objects)
+    # asyncpg returns UUID objects that need to be converted to Python UUID
+    if not isinstance(company_id, UUID):
+        # If it's an asyncpg UUID or other UUID-like object, convert via string
+        company_id = UUID(str(company_id))
+
     # Extract event payload (handle both envelope and direct formats)
     event = GHLService.extract_event_payload(body)
     if not event:
         event = body
 
-    # Initialize GHL service
-    ghl_service = GHLService()
+    # Get decrypted CRM API key from database for this company
+    bearer_token = None
+    try:
+        bearer_token = await integration_repo.get_decrypted_crm_key(company_id)
+    except Exception as e:
+        logger.warning(f"Failed to get CRM API key for company {company_id}: {e}")
+
+    # Initialize GHL service with bearer token from database
+    ghl_service = GHLService(bearer_token=bearer_token)
 
     try:
         # Route to appropriate handler based on event type
         if event_type == "ContactCreate":
-            await ghl_service.insert_contact_event(event, db, UUID(company_id))
+            await ghl_service.insert_contact_event(event, db, company_id)
         elif event_type == "ContactUpdate" or event_type == "ContactTagUpdate":
-            await ghl_service.update_contact_event(event, db, UUID(company_id))
+            await ghl_service.update_contact_event(event, db, company_id)
         elif event_type == "ContactDelete":
-            await ghl_service.delete_contact_event(event, db, UUID(company_id))
+            await ghl_service.delete_contact_event(event, db, company_id)
         elif event_type == "AppointmentCreate":
-            await ghl_service.insert_appointment_event(event, db, UUID(company_id))
+            await ghl_service.insert_appointment_event(event, db, company_id)
         elif event_type == "AppointmentUpdate":
-            await ghl_service.update_appointment_event(event, db, UUID(company_id))
+            await ghl_service.update_appointment_event(event, db, company_id)
         elif event_type == "AppointmentDelete":
-            await ghl_service.delete_appointment_event(event, db, UUID(company_id))
+            await ghl_service.delete_appointment_event(event, db, company_id)
         elif event_type == "OpportunityCreate":
-            await ghl_service.insert_lead_event(event, db, UUID(company_id))
+            await ghl_service.insert_lead_event(event, db, company_id)
         elif event_type in [
             "OpportunityUpdate",
             "OpportunityStatusUpdate",
@@ -460,9 +513,9 @@ async def ghl_lead_updates(
             "OpportunityMonetaryValueUpdate",
             "OpportunityAssignedToUpdate",
         ]:
-            await ghl_service.update_lead_event(event, db, UUID(company_id))
+            await ghl_service.update_lead_event(event, db, company_id)
         elif event_type == "OpportunityDelete":
-            await ghl_service.delete_lead_event(event, db, UUID(company_id))
+            await ghl_service.delete_lead_event(event, db, company_id)
         else:
             logger.warning(f"Unhandled event type: {event_type}")
 

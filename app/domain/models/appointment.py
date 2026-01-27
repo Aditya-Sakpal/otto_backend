@@ -1,0 +1,31 @@
+"""
+Appointment domain model.
+
+Represents a scheduled meeting/visit.
+"""
+from typing import Optional
+from datetime import datetime
+from uuid import UUID
+from pydantic import Field
+
+from app.domain.models.base import BaseModel
+from app.domain.enums import AppointmentOutcome
+
+
+class Appointment(BaseModel):
+    """
+    Appointment model.
+    
+    Represents a scheduled meeting or sales visit.
+    """
+    company_id: UUID = Field(..., description="Company/tenant ID")
+    lead_id: UUID = Field(..., description="Associated lead")
+    contact_card_id: UUID = Field(..., description="Associated contact")
+    scheduled_start: datetime = Field(..., description="Scheduled start time")
+    scheduled_end: Optional[datetime] = Field(None, description="Scheduled end time")
+    location_address: Optional[str] = Field(None, description="Location address")
+    outcome: Optional[AppointmentOutcome] = Field(None, description="Appointment outcome")
+    assigned_rep_id: Optional[UUID] = Field(None, description="Assigned sales rep")
+    interaction_id: Optional[UUID] = Field(None, description="Associated call/interaction ID")
+    extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
+

@@ -59,102 +59,108 @@ class MetricsService:
     
     async def get_company_overview(
         self,
-        company_id: UUID,
+        company_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
         """Get company overview metrics within date range."""
         try:
+            # Resolution rules:
+            # - If user_id is provided: prefer user_id and derive company_id from user
+            # - Else: company_id must be provided
+            if user_id:
+                user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
+                user = user_result.scalar_one_or_none()
+                if not user or not user.company_id:
+                    raise ValueError("Either provide company_id, or provide user_id that belongs to a user with a company_id")
+                company_id = user.company_id
+            elif not company_id:
+                raise ValueError("Either company_id or user_id is required")
+
             start_dt, end_dt = self._get_date_range(start_date, end_date)
+            
+            # Build base filters
+            lead_filters = [
+                LeadORM.company_id == company_id,
+                LeadORM.created_at >= start_dt,
+                LeadORM.created_at <= end_dt,
+            ]
+            call_filters = [
+                CallORM.company_id == company_id,
+                CallORM.created_at >= start_dt,
+                CallORM.created_at <= end_dt,
+            ]
+            appointment_filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.created_at >= start_dt,
+                AppointmentORM.created_at <= end_dt,
+            ]
+            
+            # Add user_id filtering if provided
+            if user_id:
+                lead_filters.append(LeadORM.assigned_rep_id == user_id)
+                call_filters.append(CallORM.handled_by_user_id == user_id)
+                appointment_filters.append(AppointmentORM.assigned_rep_id == user_id)
             
             # Total leads in date range
             total_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                )
+                select(func.count(LeadORM.id)).where(*lead_filters)
             )
             total_leads_count = total_leads.scalar() or 0
             
             # Active leads (not closed) in date range
+            active_leads_filters = lead_filters + [LeadORM.status.notin_(["closed_won", "closed_lost", "abandoned", "dormant"])]
             active_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    LeadORM.status.notin_(["closed_won", "closed_lost", "abandoned", "dormant"])
-                )
+                select(func.count(LeadORM.id)).where(*active_leads_filters)
             )
             active_leads_count = active_leads.scalar() or 0
             
             # Qualified leads in date range
             # Count leads with deal_status = "qualified" OR status in qualified statuses
             # This handles both the deal_status field and the status field for qualification
-            qualified_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    or_(
-                        LeadORM.deal_status == "qualified",
-                        LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
-                    )
+            qualified_leads_filters = lead_filters + [
+                or_(
+                    LeadORM.deal_status == "qualified",
+                    LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
                 )
+            ]
+            qualified_leads = await self.session.execute(
+                select(func.count(LeadORM.id)).where(*qualified_leads_filters)
             )
             qualified_leads_count = qualified_leads.scalar() or 0
             
             # Total calls in date range
             total_calls = await self.session.execute(
-                select(func.count(CallORM.id)).where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= start_dt,
-                    CallORM.created_at <= end_dt,
-                )
+                select(func.count(CallORM.id)).where(*call_filters)
             )
             total_calls_count = total_calls.scalar() or 0
             
             # Missed calls in date range
+            missed_calls_filters = call_filters + [CallORM.missed_call == True]
             missed_calls = await self.session.execute(
-                select(func.count(CallORM.id)).where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= start_dt,
-                    CallORM.created_at <= end_dt,
-                    CallORM.missed_call == True
-                )
+                select(func.count(CallORM.id)).where(*missed_calls_filters)
             )
             missed_calls_count = missed_calls.scalar() or 0
             
             # Total appointments in date range
             total_appointments = await self.session.execute(
-                select(func.count(AppointmentORM.id)).where(
-                    AppointmentORM.company_id == company_id,
-                    AppointmentORM.created_at >= start_dt,
-                    AppointmentORM.created_at <= end_dt,
-                )
+                select(func.count(AppointmentORM.id)).where(*appointment_filters)
             )
             total_appointments_count = total_appointments.scalar() or 0
             
             # Conversion rate (closed_won / total leads) in date range
+            won_leads_filters = lead_filters + [LeadORM.status == "closed_won"]
             won_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    LeadORM.status == "closed_won"
-                )
+                select(func.count(LeadORM.id)).where(*won_leads_filters)
             )
             won_count = won_leads.scalar() or 0
             conversion_rate = (won_count / total_leads_count * 100) if total_leads_count > 0 else 0.0
             
             # Total revenue in date range
+            revenue_filters = lead_filters + [LeadORM.status == "closed_won"]
             total_revenue = await self.session.execute(
-                select(func.sum(LeadORM.deal_size)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    LeadORM.status == "closed_won"
-                )
+                select(func.sum(LeadORM.deal_size)).where(*revenue_filters)
             )
             revenue = total_revenue.scalar() or 0.0
             
@@ -556,6 +562,167 @@ class MetricsService:
             }
         except Exception as e:
             logger.error(f"Error getting coaching opportunities: {e}")
+            raise e
+    
+    async def get_most_coaching_opportunities(
+        self,
+        company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get most coaching opportunities - top 5 employees with least success rate.
+        
+        Success rate = qualified_leads / booked_leads
+        - Qualified leads: qualification_status in ['hot', 'cold', 'warm', 'qualified']
+        - Booked leads: booking_status == 'booked'
+        
+        For each employee, also returns top 3 objections (most coaching need).
+        """
+        try:
+            start_dt, end_dt = self._get_date_range(start_date, end_date)
+            
+            # Join call_analyses with calls to get handled_by_user_id
+            # Filter by company_id and date range
+            # Count qualified and booked leads per employee
+            from sqlalchemy import join
+            
+            # Build the join
+            call_analysis_call_join = join(
+                CallAnalysisORM,
+                CallORM,
+                CallAnalysisORM.call_id == CallORM.id
+            )
+            
+            # Get all analyses with calls for this company
+            analyses_query = select(
+                CallORM.handled_by_user_id,
+                CallAnalysisORM.qualification_status,
+                CallAnalysisORM.booking_status,
+                CallAnalysisORM.objections,
+                CallORM.id.label('call_id')
+            ).select_from(call_analysis_call_join).where(
+                CallAnalysisORM.company_id == company_id,
+                CallAnalysisORM.created_at >= start_dt,
+                CallAnalysisORM.created_at <= end_dt,
+                CallORM.handled_by_user_id.isnot(None)  # Only include calls with assigned users
+            )
+            
+            analyses_result = await self.session.execute(analyses_query)
+            analyses_list = analyses_result.all()
+            
+            # Group by employee and calculate metrics
+            employee_stats: Dict[UUID, Dict[str, Any]] = {}
+            
+            for row in analyses_list:
+                user_id = row.handled_by_user_id
+                if not user_id:
+                    continue
+                
+                if user_id not in employee_stats:
+                    employee_stats[user_id] = {
+                        'qualified_leads': 0,
+                        'booked_leads': 0,
+                        'total_calls': 0,
+                        'objections': {}  # Will count objections
+                    }
+                
+                stats = employee_stats[user_id]
+                stats['total_calls'] += 1
+                
+                # Check if qualified
+                qual_status = row.qualification_status
+                if qual_status and qual_status.lower() in ['hot', 'cold', 'warm', 'qualified']:
+                    stats['qualified_leads'] += 1
+                
+                # Check if booked
+                booking_status = row.booking_status
+                if booking_status and booking_status.lower() == 'booked':
+                    stats['booked_leads'] += 1
+                
+                # Count objections
+                if row.objections:
+                    for obj in row.objections:
+                        if obj:  # Skip empty strings
+                            stats['objections'][obj] = stats['objections'].get(obj, 0) + 1
+            
+            # Calculate success rate and prepare results
+            employee_results = []
+            for user_id, stats in employee_stats.items():
+                qualified = stats['qualified_leads']
+                booked = stats['booked_leads']
+                
+                # Calculate success rate: booked_leads / qualified_leads (as percentage)
+                # This matches the image format where 7/11 = 64%
+                # If qualified is 0, success_rate is 0
+                if qualified > 0:
+                    success_rate = (booked / qualified) * 100
+                else:
+                    # If no qualified leads, set success_rate to 0
+                    # This ensures employees with no qualified leads are prioritized for coaching
+                    success_rate = 0.0
+                
+                # Get top 3 objections
+                objections_sorted = sorted(
+                    stats['objections'].items(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )[:3]
+                top_objections = [obj[0] for obj in objections_sorted]
+                
+                employee_results.append({
+                    'user_id': str(user_id),
+                    'qualified_leads': qualified,
+                    'booked_leads': booked,
+                    'total_calls': stats['total_calls'],
+                    'success_rate': round(success_rate, 2),
+                    'top_objections': top_objections
+                })
+            
+            # Sort by success_rate ascending (least success rate first) and get top 5
+            employee_results.sort(key=lambda x: x['success_rate'])
+            top_5_employees = employee_results[:5]
+            
+            # Get user details for the top 5 employees
+            user_ids = [UUID(emp['user_id']) for emp in top_5_employees]
+            users_query = select(UserORM).where(
+                UserORM.id.in_(user_ids),
+                UserORM.company_id == company_id
+            )
+            users_result = await self.session.execute(users_query)
+            users_list = users_result.scalars().all()
+            
+            # Create a mapping of user_id to user details
+            users_map = {user.id: user for user in users_list}
+            
+            # Build final response with user names
+            opportunities = []
+            for emp in top_5_employees:
+                user_id = UUID(emp['user_id'])
+                user = users_map.get(user_id)
+                
+                # Format booked/qualified ratio
+                booked_qualified_ratio = f"{emp['booked_leads']}/{emp['qualified_leads']}"
+                
+                opportunities.append({
+                    'user_id': emp['user_id'],
+                    'csr_name': f"{user.first_name} {user.last_name}".strip() if user else "Unknown",
+                    'success_rate': emp['success_rate'],
+                    'booked_qualified_ratio': booked_qualified_ratio,
+                    'booked_leads': emp['booked_leads'],
+                    'qualified_leads': emp['qualified_leads'],
+                    'total_calls': emp['total_calls'],
+                    'most_coaching_need': emp['top_objections']  # Top 3 objections
+                })
+            
+            return {
+                'opportunities': opportunities,
+                'total_count': len(opportunities),
+                'start_date': start_dt.isoformat(),
+                'end_date': end_dt.isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error getting most coaching opportunities: {e}")
             raise e
     
     async def get_lead_to_sale_conversion(

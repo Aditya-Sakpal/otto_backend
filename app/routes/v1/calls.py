@@ -95,9 +95,10 @@ async def get_call_logs(
     - limit: Maximum number of records returned
     
     Query Parameters:
-    - company_id: Company UUID (required)
+    - company_id: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
+    - user_id: User UUID (optional). If provided, call logs are scoped to this user. If both company_id and user_id are provided, user_id is used.
     - search: Search by customer name, CSR name, or phone number
-    - csr_id: Filter by specific CSR/owner UUID
+    - csr_id: Filter by specific CSR/owner UUID (alternative to user_id)
     - status_filter: Filter by qualification status (qualified/unqualified/all)
     - booking_filter: Filter by booking status (booked/unbooked/all)
     - quick_filter: Quick filter options:
@@ -109,6 +110,11 @@ async def get_call_logs(
       - commercial: Commercial properties
     - skip: Number of records to skip (default: 0)
     - limit: Maximum number of records to return (default: 100, max: 1000)
+    
+    Resolution Rules:
+    - If user_id is provided: prefer user_id (even if company_id is also provided)
+    - Else if company_id is provided: use company_id
+    - Else: return 400 error "Either company_id or user_id is required"
     
     Access: CSR, SALES_REP, EXECUTIVE
     """

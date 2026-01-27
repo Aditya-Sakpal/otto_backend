@@ -2,7 +2,8 @@
 Metrics API routes.
 
 Provides analytics and metrics endpoints with date range filtering.
-All endpoints require company_id and support start_date/end_date for filtering.
+Most endpoints require either company_id or user_id (with user_id taking precedence if both are provided).
+All endpoints support start_date/end_date for filtering.
 """
 from typing import Optional
 from uuid import UUID
@@ -170,13 +171,18 @@ async def get_booking_rate_improvement(
     """
     Get booking rate improvement metrics within date range.
     
-    - **company_id**: Company UUID (optional if user_id is provided)
-    - **user_id**: User UUID (optional). If provided, the metrics are calculated only for that user.
+    - **company_id**: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
+    - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.
     - **start_date**: Start of the current period (defaults to 30 days ago)
     - **end_date**: End of the current period (defaults to today)
     
     Compares booking rate between current period and previous period of same length.
     Returns current rate, previous rate, improvement percentage, and totals.
+    
+    Resolution Rules:
+    - If user_id is provided: prefer user_id (even if company_id is also provided)
+    - Else if company_id is provided: use company_id
+    - Else: return 400 error "Either company_id or user_id is required"
     
     Required role: Any authenticated user
     """

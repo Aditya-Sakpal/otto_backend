@@ -1767,10 +1767,15 @@ class MetricsService:
             
             # 4. Lead Qualification Accuracy
             # Compare qualification_status from analysis with actual lead status
+            # Qualified statuses: hot, cold, warm, qualified
+            qualified_statuses = ['hot', 'cold', 'warm', 'qualified']
             qualification_accuracy_result = await self.session.execute(
                 select(
                     func.count(CallAnalysisORM.id),
-                    func.sum(case((CallAnalysisORM.qualification_status == 'qualified', 1), else_=0))
+                    func.sum(case((
+                        func.lower(CallAnalysisORM.qualification_status).in_(
+                            [s.lower() for s in qualified_statuses]
+                        ), 1), else_=0))
                 ).where(
                     CallAnalysisORM.company_id == company_id,
                     CallORM.handled_by_user_id == user_id,

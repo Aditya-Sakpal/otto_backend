@@ -333,14 +333,17 @@ class MetricsService:
     ) -> Dict[str, Any]:
         """Get booking rate improvement metrics comparing current period to previous period."""
         try:
-            if not company_id:
-                if not user_id:
-                    raise ValueError("company_id or user_id is required")
+            # Resolution rules:
+            # - If user_id is provided: prefer user_id and derive company_id from user
+            # - Else: company_id must be provided
+            if user_id:
                 user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
                 user = user_result.scalar_one_or_none()
                 if not user or not user.company_id:
-                    raise ValueError("user_id must belong to a user with a company_id")
+                    raise ValueError("Either provide company_id, or provide user_id that belongs to a user with a company_id")
                 company_id = user.company_id
+            elif not company_id:
+                raise ValueError("Either company_id or user_id is required")
 
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             

@@ -475,14 +475,20 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/calls/logs?company_id={{company_id}}&skip=0&limit=100",
+							"raw": "{{base_url}}/api/v1/calls/logs?user_id={{user_id}}&skip=0&limit=100",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "calls", "logs"],
 							"query": [
 								{
 									"key": "company_id",
 									"value": "{{company_id}}",
-									"description": "Company UUID (required)"
+									"description": "Company UUID (optional if user_id is provided)",
+									"disabled": true
+								},
+								{
+									"key": "user_id",
+									"value": "{{user_id}}",
+									"description": "User UUID (optional). If provided, call logs are scoped to this user. If both company_id and user_id are provided, user_id is used."
 								},
 								{
 									"key": "search",
@@ -493,7 +499,7 @@
 								{
 									"key": "csr_id",
 									"value": "",
-									"description": "Filter by CSR/owner UUID",
+									"description": "Filter by CSR/owner UUID (alternative to user_id)",
 									"disabled": true
 								},
 								{
@@ -526,7 +532,7 @@
 								}
 							]
 						},
-						"description": "Get call logs with summary statistics (Total Calls, Qualified, Booked, Abandoned) and filtered call list with all details for the call logs dashboard. Returns call information including CSR name, customer name, phone number, qualification status, booking status, score, objections, and tags."
+						"description": "Get call logs with summary statistics (Total Calls, Qualified, Booked, Abandoned) and filtered call list with all details for the call logs dashboard. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
 					},
 					"response": []
 				}
@@ -813,17 +819,24 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/booking-rate-improvement?company_id={{company_id}}",
+							"raw": "{{base_url}}/api/v1/metrics/booking-rate-improvement?user_id={{user_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "booking-rate-improvement"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "{{company_id}}"
+									"value": "{{company_id}}",
+									"description": "Company UUID (optional if user_id is provided)",
+									"disabled": true
+								},
+								{
+									"key": "user_id",
+									"value": "{{user_id}}",
+									"description": "User UUID (optional). If provided, booking rate improvement is calculated only for that user. If both company_id and user_id are provided, user_id is used."
 								}
 							]
 						},
-						"description": "Get booking rate improvement metrics"
+						"description": "Get booking rate improvement metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
 					},
 					"response": []
 				},

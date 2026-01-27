@@ -440,13 +440,20 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/calls/by-objection/authority/details?company_id={{company_id}}&start_date=2025-12-01&end_date=2026-01-15",
+							"raw": "{{base_url}}/api/v1/calls/by-objection/authority/details?user_id={{user_id}}&start_date=2025-12-01&end_date=2026-01-15",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "calls", "by-objection", "authority", "details"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "{{company_id}}"
+									"value": "{{company_id}}",
+									"description": "Company UUID (optional if user_id is provided)",
+									"disabled": true
+								},
+								{
+									"key": "user_id",
+									"value": "{{user_id}}",
+									"description": "User UUID (optional). If provided, objection details are scoped to that user. If both company_id and user_id are provided, user_id is used."
 								},
 								{
 									"key": "start_date",
@@ -460,7 +467,7 @@
 								}
 							]
 						},
-						"description": "Get comprehensive objection details for a single objection (unbooked leads tab with booking rate improvement and graph, most coaching need tab, calls tab)"
+						"description": "Get comprehensive objection details for a single objection (unbooked leads tab with booking rate improvement and graph, most coaching need tab, calls tab). Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
 					},
 					"response": []
 				},
@@ -734,13 +741,20 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/exec/csr/dashboard?company_id={{company_id}}",
+							"raw": "{{base_url}}/api/v1/metrics/exec/csr/dashboard?user_id={{user_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "exec", "csr", "dashboard"],
 							"query": [
 								{
 									"key": "company_id",
-									"value": "{{company_id}}"
+									"value": "{{company_id}}",
+									"description": "Company UUID (optional if user_id is provided)",
+									"disabled": true
+								},
+								{
+									"key": "user_id",
+									"value": "{{user_id}}",
+									"description": "User UUID (optional). If provided, dashboard metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used."
 								},
 								{
 									"key": "start_date",
@@ -754,7 +768,7 @@
 								}
 							]
 						},
-						"description": "Get CSR dashboard metrics"
+						"description": "Get CSR dashboard metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
 					},
 					"response": []
 				},
@@ -876,14 +890,20 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/objections/top?company_id={{company_id}}",
+							"raw": "{{base_url}}/api/v1/metrics/objections/top?user_id={{user_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["api", "v1", "metrics", "objections", "top"],
 							"query": [
 								{
 									"key": "company_id",
 									"value": "{{company_id}}",
-									"description": "Company UUID (required)"
+									"description": "Company UUID (optional if user_id is provided)",
+									"disabled": true
+								},
+								{
+									"key": "user_id",
+									"value": "{{user_id}}",
+									"description": "User UUID (optional). If provided, objections are scoped to that user. If both company_id and user_id are provided, user_id is used."
 								},
 								{
 									"key": "start_date",
@@ -905,7 +925,7 @@
 								}
 							]
 						},
-						"description": "Get top objections aggregated by company. Returns ALL objections sorted from most occurred to least occurred."
+						"description": "Get top objections aggregated by company or user. Returns ALL objections sorted from most occurred to least occurred. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
 					},
 					"response": []
 				},

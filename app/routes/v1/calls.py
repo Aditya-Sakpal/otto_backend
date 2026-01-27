@@ -249,7 +249,8 @@ async def get_objection_details(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),
     user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
-    company_id: Optional[UUID] = Query(None, description="Company UUID"),
+    company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
+    user_id: Optional[UUID] = Query(None, description="User UUID to scope objection details to a single user (optional)"),
     start_date: Optional[str] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
 ):
@@ -263,21 +264,42 @@ async def get_objection_details(
     
     Query Parameters:
     - objection: Objection type (required) - e.g., 'authority', 'price', 'timing', 'competitor', 'need'
-    - company_id: Company UUID (optional, defaults to user's company)
+    - company_id: Company UUID (optional if user_id is provided)
+    - user_id: User UUID (optional). If provided, objection details are scoped to that user. If both company_id and user_id are provided, user_id is used.
     - start_date: Start date for filtering (YYYY-MM-DD, optional, defaults to 30 days ago)
     - end_date: End date for filtering (YYYY-MM-DD, optional, defaults to today)
     
     Access: CSR, EXECUTIVE
     """
     try:
-        # Use company_id from query or fall back to current user's company
-        if not company_id and user.company_id:
+        # Resolution rules:
+        # - If user_id is provided: prefer user_id (even if company_id is also provided)
+        # - Else if company_id is provided: use company_id
+        # - Else: try to use current user's company_id
+        # - Else: error
+        if user_id:
+            # user_id takes precedence - derive company_id from user
+            service = CallService(db)
+            db_user = await service.user_repo.get_by_id(user_id)
+            if not db_user or not getattr(db_user, "company_id", None):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Either provide company_id, or provide user_id that belongs to a user with a company_id",
+                )
+            company_id = db_user.company_id
+            # Use the provided user_id for filtering
+            filter_user_id = user_id
+        elif company_id:
+            # Use company_id, and if current user is CSR, filter by their user_id
+            filter_user_id = user.id if user.role == UserRole.CSR else None
+        elif user.company_id:
+            # Fall back to current user's company_id
             company_id = user.company_id
-        
-        if not company_id:
+            filter_user_id = user.id if user.role == UserRole.CSR else None
+        else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="company_id is required. Either provide it as a query parameter or ensure user has a company_id."
+                detail="Either company_id or user_id is required",
             )
         
         service = AnalyticsService(db)
@@ -286,7 +308,7 @@ async def get_objection_details(
             objection=objection,
             start_date=start_date,
             end_date=end_date,
-            user_id=user.id if user.role == UserRole.CSR else None,  # Filter by user if CSR
+            user_id=filter_user_id,
         )
         
         return result

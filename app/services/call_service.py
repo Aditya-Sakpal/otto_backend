@@ -31,6 +31,20 @@ from app.domain.users.repository import UserRepository
 
 logger = get_logger(__name__)
 
+# Qualified statuses: hot, cold, warm, and qualified are all considered qualified
+QUALIFIED_STATUSES = ['hot', 'cold', 'warm', 'qualified']
+
+
+def is_qualified_status(qualification_status: Optional[str]) -> bool:
+    """
+    Check if a qualification_status is considered qualified.
+    
+    Qualified statuses: 'hot', 'cold', 'warm', 'qualified'
+    """
+    if not qualification_status:
+        return False
+    return qualification_status.lower() in [s.lower() for s in QUALIFIED_STATUSES]
+
 
 def transform_summary_to_analysis_data(summary_json: dict) -> dict:
     """
@@ -849,13 +863,22 @@ class CallService:
                 query = query.where(CallORM.handled_by_user_id == csr_id)
 
             # Status filter (qualification status)
+            # Qualified statuses: hot, cold, warm, qualified
             if status_filter and status_filter.lower() != "all":
                 if status_filter.lower() == "qualified":
-                    query = query.where(CallAnalysisORM.qualification_status == "qualified")
+                    # Consider hot, cold, warm, qualified as qualified
+                    query = query.where(
+                        func.lower(CallAnalysisORM.qualification_status).in_(
+                            [s.lower() for s in QUALIFIED_STATUSES]
+                        )
+                    )
                 elif status_filter.lower() == "unqualified":
+                    # Unqualified: not in qualified statuses and not null
                     query = query.where(
                         or_(
-                            CallAnalysisORM.qualification_status != "qualified",
+                            ~func.lower(CallAnalysisORM.qualification_status).in_(
+                                [s.lower() for s in QUALIFIED_STATUSES]
+                            ),
                             CallAnalysisORM.qualification_status.is_(None)
                         )
                     )
@@ -880,7 +903,9 @@ class CallService:
                 elif quick_filter_lower == "qualified_unbooked":
                     query = query.where(
                         and_(
-                            CallAnalysisORM.qualification_status == "qualified",
+                            func.lower(CallAnalysisORM.qualification_status).in_(
+                                [s.lower() for s in QUALIFIED_STATUSES]
+                            ),
                             or_(
                                 CallAnalysisORM.booking_status != "booked",
                                 CallAnalysisORM.booking_status.is_(None)
@@ -890,7 +915,9 @@ class CallService:
                 elif quick_filter_lower == "qualified_booked":
                     query = query.where(
                         and_(
-                            CallAnalysisORM.qualification_status == "qualified",
+                            func.lower(CallAnalysisORM.qualification_status).in_(
+                                [s.lower() for s in QUALIFIED_STATUSES]
+                            ),
                             CallAnalysisORM.booking_status == "booked"
                         )
                     )
@@ -939,11 +966,14 @@ class CallService:
             rows = results.all()
 
             # Calculate summary statistics (from all calls, not just filtered)
+            # Qualified statuses: hot, cold, warm, qualified
             summary_query = select(
                 func.count(CallORM.id).label('total_calls'),
                 func.sum(
                     case(
-                        (CallAnalysisORM.qualification_status == "qualified", 1),
+                        (func.lower(CallAnalysisORM.qualification_status).in_(
+                            [s.lower() for s in QUALIFIED_STATUSES]
+                        ), 1),
                         else_=0
                     )
                 ).label('qualified'),
@@ -1015,7 +1045,8 @@ class CallService:
                             formatted_phone = f"({clean_phone[:3]}) {clean_phone[3:6]}-{clean_phone[6:]}"
 
                 # Get qualification and booking status
-                is_qualified = analysis and analysis.qualification_status == "qualified" if analysis else False
+                # Qualified statuses: hot, cold, warm, qualified
+                is_qualified = analysis and is_qualified_status(analysis.qualification_status) if analysis else False
                 is_booked = analysis and analysis.booking_status == "booked" if analysis else False
 
                 # Get score (use SOP compliance score or sentiment score)

@@ -1152,12 +1152,6 @@ All metrics endpoints support date range filtering with `start_date` and `end_da
 Get company overview metrics within date range.
 
 **Query Parameters:**
-<<<<<<< HEAD
-- `company_id` (UUID, required) - Company UUID
-- `start_date` (date, optional) - Start date (YYYY-MM-DD, defaults to 30 days ago)
-- `end_date` (date, optional) - End date (YYYY-MM-DD, defaults to today)
-
-=======
 - `company_id` (UUID, optional) - Company UUID (optional if user_id is provided)
 - `user_id` (UUID, optional) - User UUID to scope overview metrics to a single user. If provided, metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.
 - `start_date` (date, optional) - Start date (YYYY-MM-DD, defaults to 30 days ago)
@@ -1165,20 +1159,15 @@ Get company overview metrics within date range.
 
 **Note:** Either `company_id` or `user_id` is required. If both are provided, `user_id` takes precedence.
 
->>>>>>> staging
 **Example Request:**
 ```
 GET /api/v1/metrics/exec/company-overview?company_id=11111111-1111-1111-1111-111111111111
 ```
 
-<<<<<<< HEAD
-=======
 **Example Request (with user_id):**
 ```
 GET /api/v1/metrics/exec/company-overview?user_id=ffffffff-ffff-ffff-ffff-ffffffffffff
 ```
-
->>>>>>> staging
 **Headers:**
 ```
 Authorization: Bearer <access_token>
@@ -1202,12 +1191,9 @@ Authorization: Bearer <access_token>
 
 **Note:** Response values reflect actual data from seed_dummy_data.sql
 
-<<<<<<< HEAD
-=======
 **Errors:**
 - `400 Bad Request` - Either company_id or user_id is required
 
->>>>>>> staging
 **Required Role:** `EXECUTIVE`
 
 ---
@@ -1509,8 +1495,6 @@ Get coaching opportunities based on low SOP compliance within date range.
 
 ---
 
-<<<<<<< HEAD
-=======
 ### GET `/metrics/coaching/most-opportunities`
 
 Get most coaching opportunities - top 5 employees with least success rate.
@@ -1560,7 +1544,7 @@ Get most coaching opportunities - top 5 employees with least success rate.
 ```
 
 **Note:**
-- Success rate = qualified_leads / booked_leads (as percentage)
+- Success rate = booked_leads / qualified_leads (as percentage)
 - Qualified leads: qualification_status in ['hot', 'cold', 'warm', 'qualified']
 - Booked leads: booking_status == 'booked'
 - Returns top 5 employees with least success rate
@@ -1570,7 +1554,6 @@ Get most coaching opportunities - top 5 employees with least success rate.
 
 ---
 
->>>>>>> staging
 ### GET `/metrics/conversion/lead-to-sale`
 
 Get lead to sale conversion metrics within date range.

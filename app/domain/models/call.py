@@ -15,7 +15,7 @@ from app.domain.enums import CallType
 class Call(BaseModel):
     """
     Call model.
-    
+
     Represents a phone call from telephony providers (CallRail, Twilio).
     """
     company_id: UUID = Field(..., description="Company/tenant ID")

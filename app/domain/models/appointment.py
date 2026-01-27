@@ -15,7 +15,7 @@ from app.domain.enums import AppointmentOutcome
 class Appointment(BaseModel):
     """
     Appointment model.
-    
+
     Represents a scheduled meeting or sales visit.
     """
     company_id: UUID = Field(..., description="Company/tenant ID")

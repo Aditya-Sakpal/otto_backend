@@ -1134,9 +1134,10 @@ class ShoonyaClient:
     )
     async def upload_sop_document(
         self,
-        file_path: str,
-        company_id: str,
-        sop_name: str,
+        file_path: Optional[str] = None,
+        file_url: Optional[str] = None,
+        company_id: str = None,
+        sop_name: str = None,
         target_role: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         webhook_url: Optional[str] = None,
@@ -1144,65 +1145,90 @@ class ShoonyaClient:
         """
         Upload a Standard Operating Procedure document for processing.
 
+        Supports two methods:
+        1. Direct file upload via file_path (existing behavior)
+        2. URL-based upload via file_url (new - supports S3 URLs, HTTP/HTTPS URLs)
+
         Args:
-            file_path: Path to the SOP document file (PDF, DOC, DOCX)
+            file_path: Path to the SOP document file (PDF, DOC, DOCX) - for direct upload
+            file_url: URL to download document from (S3, HTTP/HTTPS) - for URL-based upload
             company_id: Company identifier
             sop_name: Name of the SOP
-            target_role: Optional target role (None for company-wide)
+            target_role: Optional target role (None for company-wide).
+                        Use "customer_rep" for CSR phone call SOPs, "sales_rep" for sales meeting SOPs
             metadata: Optional additional metadata
             webhook_url: Optional callback URL for completion notification
 
         Returns:
             Job response with job_id
+
+        Raises:
+            ValueError: If neither file_path nor file_url is provided, or both are provided
         """
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
+
+        # Validate that exactly one of file_path or file_url is provided
+        if not file_path and not file_url:
+            raise ValueError("Either 'file_path' (for file upload) or 'file_url' (for URL download) must be provided")
+        if file_path and file_url:
+            raise ValueError("Provide either 'file_path' OR 'file_url', not both")
 
         url = f"{self.base_url}/api/v1/sop/documents/upload"
         logger.info(f"Calling Shunya API: {url}")
 
         try:
-            import os
+            # Prepare form data
+            data = {
+                "company_id": company_id,
+                "sop_name": sop_name,
+            }
+            if target_role:
+                data["target_role"] = target_role
+            if metadata:
+                import json
+                data["metadata"] = json.dumps(metadata)
+            if webhook_url:
+                data["webhook_url"] = webhook_url
 
-            file_name = os.path.basename(file_path)
+            # For multipart/form-data, don't set Content-Type header (httpx will set it)
+            headers = {"X-API-Key": self.api_key}
+            if company_id:
+                headers["X-Company-Id"] = company_id
 
-            # Determine content type based on file extension
-            content_type = "application/pdf"
-            if file_name.lower().endswith(".doc"):
-                content_type = "application/msword"
-            elif file_name.lower().endswith(".docx"):
-                content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                if file_path:
+                    # Method 1: Direct file upload (existing behavior)
+                    import os
+                    file_name = os.path.basename(file_path)
 
-            # Open file and prepare multipart form data
-            # httpx handles file uploads, so we can use a file-like object
-            with open(file_path, "rb") as f:
-                files = {"file": (file_name, f, content_type)}
-                data = {
-                    "company_id": company_id,
-                    "sop_name": sop_name,
-                }
-                if target_role:
-                    data["target_role"] = target_role
-                if metadata:
-                    import json
-                    data["metadata"] = json.dumps(metadata)
-                if webhook_url:
-                    data["webhook_url"] = webhook_url
+                    # Determine content type based on file extension
+                    content_type = "application/pdf"
+                    if file_name.lower().endswith(".doc"):
+                        content_type = "application/msword"
+                    elif file_name.lower().endswith(".docx"):
+                        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-                # For multipart/form-data, don't set Content-Type header (httpx will set it)
-                headers = {"X-API-Key": self.api_key}
-                if company_id:
-                    headers["X-Company-Id"] = company_id
-
-                async with httpx.AsyncClient(timeout=60.0) as client:
+                    # Open file and prepare multipart form data
+                    with open(file_path, "rb") as f:
+                        files = {"file": (file_name, f, content_type)}
+                        response = await client.post(
+                            url,
+                            files=files,
+                            data=data,
+                            headers=headers,
+                        )
+                else:
+                    # Method 2: URL-based upload (new)
+                    data["file_url"] = file_url
                     response = await client.post(
                         url,
-                        files=files,
                         data=data,
                         headers=headers,
                     )
-                    response.raise_for_status()
-                    return response.json()
+
+                response.raise_for_status()
+                return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",

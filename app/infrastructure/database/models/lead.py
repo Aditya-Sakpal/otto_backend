@@ -12,9 +12,9 @@ from app.infrastructure.database.base import Base
 
 class LeadORM(Base):
     """Lead ORM model."""
-    
+
     __tablename__ = "leads"
-    
+
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id"), nullable=False, index=True)
     contact_card_id: Mapped[UUID] = mapped_column(ForeignKey("contact_cards.id"), nullable=False, index=True)
@@ -34,7 +34,7 @@ class LeadORM(Base):
         nullable=True,
         onupdate=func.current_timestamp(),
     )
-    
+
     # Relationships
     company = relationship("CompanyORM", back_populates="leads")
     contact_card = relationship("ContactCardORM", back_populates="leads")

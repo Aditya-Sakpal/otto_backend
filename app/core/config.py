@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     )
 
 
-    
+
     PINECONE_API_KEY: str = Field(default=os.getenv("PINECONE_API_KEY", ""), description="Pinecone API key")
     PINECONE_ENVIRONMENT: str = Field(default=os.getenv("PINECONE_ENVIRONMENT", ""), description="Pinecone environment")
     PINECONE_INDEX_NAME: str = Field(default=os.getenv("PINECONE_INDEX_NAME", "otto-embeddings"), description="Pinecone index name")

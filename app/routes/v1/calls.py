@@ -33,9 +33,9 @@ async def list_calls(
 ) -> List[Call]:
     """
     List calls for a specific company.
-    
+
     Access: CSR, EXECUTIVE
-    
+
     Args:
         company_id: UUID of the company to retrieve calls for
         skip: Number of records to skip (for pagination)
@@ -75,7 +75,7 @@ async def get_call_logs(
 ):
     """
     Get call logs with summary statistics and filtered call list.
-    
+
     Returns:
     - summary: Statistics (total_calls, qualified, booked, abandoned)
     - calls: List of call log entries with all details:
@@ -93,7 +93,7 @@ async def get_call_logs(
     - total: Total count of calls matching filters
     - skip: Number of records skipped
     - limit: Maximum number of records returned
-    
+
     Query Parameters:
     - company_id: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
     - user_id: User UUID (optional). If provided, call logs are scoped to this user. If both company_id and user_id are provided, user_id is used.
@@ -110,12 +110,12 @@ async def get_call_logs(
       - commercial: Commercial properties
     - skip: Number of records to skip (default: 0)
     - limit: Maximum number of records to return (default: 100, max: 1000)
-    
+
     Resolution Rules:
     - If user_id is provided: prefer user_id (even if company_id is also provided)
     - Else if company_id is provided: use company_id
     - Else: return 400 error "Either company_id or user_id is required"
-    
+
     Access: CSR, SALES_REP, EXECUTIVE
     """
     try:
@@ -169,22 +169,22 @@ async def get_call(
 ) -> Call:
     """
     Get call by ID.
-    
+
     Access: CSR, EXECUTIVE
-    
+
     Args:
         call_id: UUID of the call to retrieve (unique identifier)
     """
     try:
         service = CallService(db)
         call = await service.call_repo.get_by_id(call_id)
-        
+
         if not call:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Call not found",
             )
-        
+
         return call
     except HTTPException:
         raise
@@ -207,36 +207,36 @@ async def get_calls_by_objection_self(
 ):
     """
     Get comprehensive objection details data for the objection details page.
-    
+
     Returns data for three tabs:
     1. Calls: List of calls with that objection (with contact name and recording URL)
     2. Unbooked leads: Leads that are unbooked and have that objection
     3. Most coaching need: CSRs with unbooked calls for that objection
-    
+
     Query Parameters:
     - objection: Objection type (required) - e.g., 'authority', 'price', 'timing', 'competitor', 'need'
     - company_id: Company UUID (optional, defaults to user's company)
-    
+
     Access: CSR, EXECUTIVE
     """
     try:
         # Use company_id from query or fall back to current user's company
         if not company_id and user.company_id:
             company_id = user.company_id
-        
+
         if not company_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="company_id is required. Either provide it as a query parameter or ensure user has a company_id."
             )
-        
+
         service = AnalyticsService(db)
         result = await service.get_calls_by_objection_self(
             company_id=company_id,
             objection=objection,
             user_id=user.id if user.role == UserRole.CSR else None,  # Filter by user if CSR
         )
-        
+
         return result
     except HTTPException:
         raise
@@ -262,19 +262,19 @@ async def get_objection_details(
 ):
     """
     Get comprehensive objection details for a single objection.
-    
+
     Returns all details for the objection details modal including:
     1. Unbooked leads tab: Booking rate improvement, graph data, and unbooked leads list
     2. Most coaching need tab: CSRs with unbooked calls count
     3. Calls tab: Call recordings with contact names
-    
+
     Query Parameters:
     - objection: Objection type (required) - e.g., 'authority', 'price', 'timing', 'competitor', 'need'
     - company_id: Company UUID (optional if user_id is provided)
     - user_id: User UUID (optional). If provided, objection details are scoped to that user. If both company_id and user_id are provided, user_id is used.
     - start_date: Start date for filtering (YYYY-MM-DD, optional, defaults to 30 days ago)
     - end_date: End date for filtering (YYYY-MM-DD, optional, defaults to today)
-    
+
     Access: CSR, EXECUTIVE
     """
     try:
@@ -307,7 +307,7 @@ async def get_objection_details(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Either company_id or user_id is required",
             )
-        
+
         service = AnalyticsService(db)
         result = await service.get_objection_details(
             company_id=company_id,
@@ -316,7 +316,7 @@ async def get_objection_details(
             end_date=end_date,
             user_id=filter_user_id,
         )
-        
+
         return result
     except HTTPException:
         raise

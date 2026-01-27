@@ -21,10 +21,10 @@ logger = get_logger(__name__)
 def _normalize_database_url(url: str) -> str:
     """
     Normalize database URL to use correct async driver.
-    
+
     Args:
         url: Database connection string
-        
+
     Returns:
         Normalized URL with correct async driver
     """
@@ -37,7 +37,7 @@ def _normalize_database_url(url: str) -> str:
     # If it's SQLite, ensure it uses aiosqlite
     elif url.startswith("sqlite://") and "+aiosqlite" not in url:
         url = url.replace("sqlite://", "sqlite+aiosqlite://", 1)
-    
+
     return url
 
 
@@ -77,10 +77,10 @@ AsyncSessionLocal = async_sessionmaker(
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Get database session.
-    
+
     Yields:
         Async database session
-        
+
     Note:
         Session is automatically closed after use.
     """

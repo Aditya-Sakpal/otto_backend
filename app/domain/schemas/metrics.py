@@ -67,6 +67,26 @@ class CoachingOpportunitiesResponse(BaseModel):
     total_count: int
 
 
+class MostCoachingOpportunityResponse(BaseModel):
+    """Most coaching opportunity data for an employee."""
+    user_id: str
+    csr_name: str
+    success_rate: float
+    booked_qualified_ratio: str
+    booked_leads: int
+    qualified_leads: int
+    total_calls: int
+    most_coaching_need: List[str]  # Top 3 objections
+
+
+class MostCoachingOpportunitiesResponse(BaseModel):
+    """Most coaching opportunities list - top 5 employees with least success rate."""
+    opportunities: List[MostCoachingOpportunityResponse]
+    total_count: int
+    start_date: str
+    end_date: str
+
+
 class ConversionMetricsResponse(BaseModel):
     """Lead to sale conversion metrics."""
     total_leads: int

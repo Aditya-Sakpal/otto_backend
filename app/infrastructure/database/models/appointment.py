@@ -12,9 +12,9 @@ from app.infrastructure.database.base import Base
 
 class AppointmentORM(Base):
     """Appointment ORM model."""
-    
+
     __tablename__ = "appointments"
-    
+
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id"), nullable=False, index=True)
     lead_id: Mapped[UUID] = mapped_column(ForeignKey("leads.id"), nullable=False, index=True)

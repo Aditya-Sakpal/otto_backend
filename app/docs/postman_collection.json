@@ -1,2051 +1,2948 @@
 {
-	"info": {
-		"_postman_id": "otto-backend-api-v1",
-		"name": "Otto Backend API v1",
-		"description": "Complete API collection for Otto Backend with all endpoints and dummy test data",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "otto-backend"
-	},
-	"item": [
-		{
-			"name": "Authentication",
-			"item": [
-				{
-					"name": "Signup",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"email\": \"test.user@example.com\",\n    \"password\": \"SecurePassword123!\",\n    \"first_name\": \"Test\",\n    \"last_name\": \"User\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"{{company_id}}\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/auth/signup",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "auth", "signup"]
-						},
-						"description": "Register a new user account"
-					},
-					"response": []
-				},
-				{
-					"name": "Login",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"email\": \"sales1@acme.com\",\n    \"password\": \"SecurePassword123!\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/auth/login",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "auth", "login"]
-						},
-						"description": "Login with email and password"
-					},
-					"response": []
-				},
-				{
-					"name": "Refresh Token",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/auth/refresh",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "auth", "refresh"]
-						},
-						"description": "Refresh access token using refresh token"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Current User",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/auth/me",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "auth", "me"]
-						},
-						"description": "Get current authenticated user information"
-					},
-					"response": []
-				}
-			],
-			"description": "Authentication endpoints"
-		},
-		{
-			"name": "Users",
-			"item": [
-				{
-					"name": "List Users",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/users?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "users"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								},
-								{
-									"key": "skip",
-									"value": "0"
-								},
-								{
-									"key": "limit",
-									"value": "100"
-								},
-								{
-									"key": "role",
-									"value": "sales_rep",
-									"disabled": true
-								},
-								{
-									"key": "is_active",
-									"value": "true",
-									"disabled": true
-								}
-							]
-						},
-						"description": "List users with optional filters"
-					},
-					"response": []
-				},
-				{
-					"name": "Get User by ID",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/users/{{user_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "users", "{{user_id}}"]
-						},
-						"description": "Get user by ID"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Current User Profile",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/users/me",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "users", "me"]
-						},
-						"description": "Get current user's profile"
-					},
-					"response": []
-				},
-				{
-					"name": "List Companies",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/users/companies",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "users", "companies"]
-						},
-						"description": "List all companies"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Sales Reps by Company",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/users/sales-reps?company_id={{company_id}}&is_active=true&skip=0&limit=100",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "users", "sales-reps"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								},
-								{
-									"key": "is_active",
-									"value": "true"
-								},
-								{
-									"key": "skip",
-									"value": "0"
-								},
-								{
-									"key": "limit",
-									"value": "100"
-								}
-							]
-						},
-						"description": "Get all sales reps for a company"
-					},
-					"response": []
-				},
-				{
-					"name": "Create User",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"email\": \"new.user@example.com\",\n    \"password\": \"SecurePassword123!\",\n    \"first_name\": \"New\",\n    \"last_name\": \"User\",\n    \"role\": \"csr\",\n    \"company_id\": \"11111111-1111-1111-1111-111111111111\",\n    \"is_active\": true\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/users",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "users"]
-						},
-						"description": "Create a new user (EXECUTIVE only)"
-					},
-					"response": []
-				},
-				{
-					"name": "Update Current User",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"Name\",\n    \"email\": \"updated@example.com\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/users/me",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "users", "me"]
-						},
-						"description": "Update current user's profile"
-					},
-					"response": []
-				},
-				{
-					"name": "Update User",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"Name\",\n    \"role\": \"executive\",\n    \"is_active\": true\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/users/{{user_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "users", "{{user_id}}"]
-						},
-						"description": "Update user by ID (EXECUTIVE only)"
-					},
-					"response": []
-				},
-				{
-					"name": "Delete User",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/users/{{user_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "users", "{{user_id}}"]
-						},
-						"description": "Delete user by ID (EXECUTIVE only)"
-					},
-					"response": []
-				}
-			],
-			"description": "User management endpoints"
-		},
-		{
-			"name": "Calls",
-			"item": [
-				{
-					"name": "List Calls",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/calls?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "calls"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								},
-								{
-									"key": "skip",
-									"value": "0"
-								},
-								{
-									"key": "limit",
-									"value": "100"
-								}
-							]
-						},
-						"description": "List calls for a specific company"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Call by ID",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/calls/{{call_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "calls", "{{call_id}}"]
-						},
-						"description": "Get call by ID"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Calls by Objection (Self)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/calls/by-objection/self?objection=authority&company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "calls", "by-objection", "self"],
-							"query": [
-								{
-									"key": "objection",
-									"value": "authority",
-									"description": "Objection type (authority, price, timing, competitor, need)"
-								},
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get comprehensive objection details data (calls, unbooked leads, most coaching need)"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Objection Details",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/calls/by-objection/authority/details?user_id={{user_id}}&start_date=2025-12-01&end_date=2026-01-15",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "calls", "by-objection", "authority", "details"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}",
-									"description": "Company UUID (optional if user_id is provided)",
-									"disabled": true
-								},
-								{
-									"key": "user_id",
-									"value": "{{user_id}}",
-									"description": "User UUID (optional). If provided, objection details are scoped to that user. If both company_id and user_id are provided, user_id is used."
-								},
-								{
-									"key": "start_date",
-									"value": "2025-12-01",
-									"description": "Start date (YYYY-MM-DD, optional, defaults to 30 days ago)"
-								},
-								{
-									"key": "end_date",
-									"value": "2026-01-15",
-									"description": "End date (YYYY-MM-DD, optional, defaults to today)"
-								}
-							]
-						},
-						"description": "Get comprehensive objection details for a single objection (unbooked leads tab with booking rate improvement and graph, most coaching need tab, calls tab). Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Call Logs",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/calls/logs?user_id={{user_id}}&skip=0&limit=100",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "calls", "logs"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}",
-									"description": "Company UUID (optional if user_id is provided)",
-									"disabled": true
-								},
-								{
-									"key": "user_id",
-									"value": "{{user_id}}",
-									"description": "User UUID (optional). If provided, call logs are scoped to this user. If both company_id and user_id are provided, user_id is used."
-								},
-								{
-									"key": "search",
-									"value": "",
-									"description": "Search by customer name, CSR name, or phone number",
-									"disabled": true
-								},
-								{
-									"key": "csr_id",
-									"value": "",
-									"description": "Filter by CSR/owner UUID (alternative to user_id)",
-									"disabled": true
-								},
-								{
-									"key": "status_filter",
-									"value": "all",
-									"description": "Filter by qualification status (qualified/unqualified/all)",
-									"disabled": true
-								},
-								{
-									"key": "booking_filter",
-									"value": "all",
-									"description": "Filter by booking status (booked/unbooked/all)",
-									"disabled": true
-								},
-								{
-									"key": "quick_filter",
-									"value": "",
-									"description": "Quick filter (hot_lead, qualified_unbooked, qualified_booked, abandoned, residential, commercial)",
-									"disabled": true
-								},
-								{
-									"key": "skip",
-									"value": "0",
-									"description": "Number of records to skip (for pagination)"
-								},
-								{
-									"key": "limit",
-									"value": "100",
-									"description": "Maximum number of records to return (max: 1000)"
-								}
-							]
-						},
-						"description": "Get call logs with summary statistics (Total Calls, Qualified, Booked, Abandoned) and filtered call list with all details for the call logs dashboard. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
-					},
-					"response": []
-				}
-			],
-			"description": "Call management endpoints"
-		},
-		{
-			"name": "Leads",
-			"item": [
-				{
-					"name": "List Leads",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/leads?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "leads"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								},
-								{
-									"key": "status",
-									"value": "qualified_unbooked",
-									"disabled": true
-								},
-								{
-									"key": "nurturing",
-									"value": "new,warm,hot",
-									"disabled": true
-								},
-								{
-									"key": "sort",
-									"value": "priority",
-									"disabled": true
-								},
-								{
-									"key": "skip",
-									"value": "0"
-								},
-								{
-									"key": "limit",
-									"value": "100"
-								}
-							]
-						},
-						"description": "List leads for a company with optional filters"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Lead by ID",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "leads", "{{lead_id}}"]
-						},
-						"description": "Get lead by ID"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Lead Details",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}/details",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "leads", "{{lead_id}}", "details"]
-						},
-						"description": "Get detailed lead information with contact info, agent info, overall engagement, and conversations"
-					},
-					"response": []
-				},
-				{
-					"name": "Assign Lead to Sales Rep",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"sales_rep_id\": \"{{sales_rep_id}}\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}/assign",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "leads", "{{lead_id}}", "assign"]
-						},
-						"description": "Assign a lead to a sales rep (CSR or Executive can assign). Response includes assigned_rep_name."
-					},
-					"response": []
-				},
-				{
-					"name": "Update Lead Status",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"status\": \"qualified_booked\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}/status",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "leads", "{{lead_id}}", "status"]
-						},
-						"description": "Update lead status (EXECUTIVE or CSR)"
-					},
-					"response": []
-				}
-			],
-			"description": "Lead management endpoints"
-		},
-		{
-			"name": "Metrics",
-			"item": [
-				{
-					"name": "Company Overview",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/exec/company-overview?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "exec", "company-overview"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}",
-									"description": "Company UUID (optional if user_id is provided)"
-								},
-								{
-									"key": "user_id",
-									"value": "{{user_id}}",
-									"description": "User UUID (optional). If provided, overview metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.",
-									"disabled": true
-								},
-								{
-									"key": "start_date",
-									"value": "2024-01-01",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2024-12-31",
-									"disabled": true
-								}
-							]
-						},
-						"description": "Get company overview metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
-					},
-					"response": []
-				},
-				{
-					"name": "CSR Dashboard",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/exec/csr/dashboard?user_id={{user_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "exec", "csr", "dashboard"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}",
-									"description": "Company UUID (optional if user_id is provided)",
-									"disabled": true
-								},
-								{
-									"key": "user_id",
-									"value": "{{user_id}}",
-									"description": "User UUID (optional). If provided, dashboard metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used."
-								},
-								{
-									"key": "start_date",
-									"value": "2024-01-01",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2024-12-31",
-									"disabled": true
-								}
-							]
-						},
-						"description": "Get CSR dashboard metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
-					},
-					"response": []
-				},
-				{
-					"name": "Missed Calls",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/exec/missed-calls?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "exec", "missed-calls"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get missed calls metrics"
-					},
-					"response": []
-				},
-				{
-					"name": "Auto Queued Leads",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/csr/auto-queued-leads?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "csr", "auto-queued-leads"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get auto-queued leads metrics"
-					},
-					"response": []
-				},
-				{
-					"name": "Booking Rate Improvement",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/booking-rate-improvement?user_id={{user_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "booking-rate-improvement"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}",
-									"description": "Company UUID (optional if user_id is provided)",
-									"disabled": true
-								},
-								{
-									"key": "user_id",
-									"value": "{{user_id}}",
-									"description": "User UUID (optional). If provided, booking rate improvement is calculated only for that user. If both company_id and user_id are provided, user_id is used."
-								}
-							]
-						},
-						"description": "Get booking rate improvement metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
-					},
-					"response": []
-				},
-				{
-					"name": "Bookings Summary",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/bookings/summary?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "bookings", "summary"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get bookings summary"
-					},
-					"response": []
-				},
-				{
-					"name": "Top Objections",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/objections/top?user_id={{user_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "objections", "top"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}",
-									"description": "Company UUID (optional if user_id is provided)",
-									"disabled": true
-								},
-								{
-									"key": "user_id",
-									"value": "{{user_id}}",
-									"description": "User UUID (optional). If provided, objections are scoped to that user. If both company_id and user_id are provided, user_id is used."
-								},
-								{
-									"key": "start_date",
-									"value": "",
-									"description": "Currently ignored - returns all objections",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "",
-									"description": "Currently ignored - returns all objections",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "",
-									"description": "Optional limit - if not provided, returns all objections",
-									"disabled": true
-								}
-							]
-						},
-						"description": "Get top objections aggregated by company or user. Returns ALL objections sorted from most occurred to least occurred. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
-					},
-					"response": []
-				},
-				{
-					"name": "Objections Summary",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/objections/summary?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "objections", "summary"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get objections summary"
-					},
-					"response": []
-				},
-				{
-					"name": "Objection Calls",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/objections/price/calls?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "objections", "price", "calls"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}",
-									"description": "Company UUID (required)"
-								},
-								{
-									"key": "owner_id",
-									"value": "",
-									"description": "Filter by CSR/owner UUID",
-									"disabled": true
-								},
-								{
-									"key": "start_date",
-									"value": "",
-									"description": "Currently ignored",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "",
-									"description": "Currently ignored",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "",
-									"description": "Optional limit on number of calls returned",
-									"disabled": true
-								}
-							]
-						},
-						"description": "Get calls filtered by objection type and optionally by CSR owner. Objection matching is case-insensitive and handles variations."
-					},
-					"response": []
-				},
-				{
-					"name": "Coaching Opportunities",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/coaching/opportunities?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "coaching", "opportunities"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get coaching opportunities"
-					},
-					"response": []
-				},
-				{
-					"name": "Most Coaching Opportunities",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/coaching/most-opportunities?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "coaching", "most-opportunities"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								},
-								{
-									"key": "start_date",
-									"value": "2024-01-01",
-									"description": "Start date (YYYY-MM-DD, defaults to 30 days ago)",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2024-12-31",
-									"description": "End date (YYYY-MM-DD, defaults to today)",
-									"disabled": true
-								}
-							]
-						},
-						"description": "Get most coaching opportunities - top 5 employees with least success rate. Success rate = qualified_leads / booked_leads. Returns top 3 objections (most coaching need) for each employee."
-					},
-					"response": []
-				},
-				{
-					"name": "Lead to Sale Conversion",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/conversion/lead-to-sale?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "conversion", "lead-to-sale"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get lead to sale conversion metrics"
-					},
-					"response": []
-				},
-				{
-					"name": "Pending to Booked Conversions",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/conversions/pending-to-booked?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "conversions", "pending-to-booked"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get pending to booked conversions"
-					},
-					"response": []
-				},
-				{
-					"name": "Dropped Emergencies",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/emergencies/dropped?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "emergencies", "dropped"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get dropped emergencies metrics"
-					},
-					"response": []
-				},
-				{
-					"name": "Company Performance",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/company/performance?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "company", "performance"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get company performance metrics"
-					},
-					"response": []
-				},
-				{
-					"name": "Calls Summary",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/calls/summary?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "calls", "summary"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get calls summary"
-					},
-					"response": []
-				},
-				{
-					"name": "Unbooked Leads",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/leads/unbooked?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "leads", "unbooked"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get unbooked leads metrics"
-					},
-					"response": []
-				},
-				{
-					"name": "Pending Actions",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/actions/pending?company_id={{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "actions", "pending"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								}
-							]
-						},
-						"description": "Get pending actions metrics"
-					},
-					"response": []
-				},
-				{
-					"name": "Get My CSR Profile",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/csr/me/profile",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "csr", "me", "profile"],
-							"query": [
-								{
-									"key": "start_date",
-									"value": "2025-12-01",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2026-01-08",
-									"disabled": true
-								}
-							]
-						},
-						"description": "Get current CSR's own profile with all metrics, rank, and coaching insights (CSR only)"
-					},
-					"response": []
-				},
-				{
-					"name": "Get CSR Profile by ID",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/metrics/csr/{{csr_user_id}}/profile",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "metrics", "csr", "{{csr_user_id}}", "profile"],
-							"query": [
-								{
-									"key": "start_date",
-									"value": "2025-12-01",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2026-01-08",
-									"disabled": true
-								}
-							]
-						},
-						"description": "Get comprehensive CSR profile with all metrics, rank, and coaching insights (CSR or Executive)"
-					},
-					"response": []
-				}
-			],
-			"description": "Metrics and analytics endpoints"
-		},
-		{
-			"name": "Call Processing (Shunya)",
-			"item": [
-				{
-					"name": "Process Call",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"call_id\": \"{{call_id}}\",\n    \"company_id\": \"{{company_id}}\",\n    \"audio_url\": \"https://storage.example.com/audio/call1.mp3\",\n    \"phone_number\": \"+1-555-1001\",\n    \"duration\": 180,\n    \"call_date\": \"2025-10-20T10:30:00Z\",\n    \"metadata\": {\n        \"call_type\": \"csr_call\",\n        \"source\": \"twilio\"\n    },\n    \"options\": {\n        \"skip_rag_indexing\": false,\n        \"skip_summary_generation\": false,\n        \"priority\": \"normal\"\n    }\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/call-processing/process",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "call-processing", "process"]
-						},
-						"description": "Submit a call for AI processing"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Job Status",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/call-processing/status/{{job_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "call-processing", "status", "{{job_id}}"],
-							"variable": [
-								{
-									"key": "job_id",
-									"value": "80000000-0000-0000-0000-000000000003"
-								}
-							]
-						},
-						"description": "Get call processing job status"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Call Summary",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/call-processing/summary/{{call_id}}?include_chunks=false",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "call-processing", "summary", "{{call_id}}"],
-							"query": [
-								{
-									"key": "include_chunks",
-									"value": "false"
-								}
-							]
-						},
-						"description": "Get call summary with compliance analysis, objections, qualification"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Call Chunks",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/call-processing/chunks/{{call_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "call-processing", "chunks", "{{call_id}}"]
-						},
-						"description": "Get call chunks with summaries and Milvus IDs"
-					},
-					"response": []
-				},
-				{
-					"name": "Retry Failed Job",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/call-processing/retry/{{job_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "call-processing", "retry", "{{job_id}}"]
-						},
-						"description": "Retry a failed call processing job"
-					},
-					"response": []
-				}
-			],
-			"description": "Shunya Call Processing endpoints"
-		},
-		{
-			"name": "Ask Otto (Shunya)",
-			"item": [
-				{
-					"name": "Create Conversation",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"context\": {\n        \"user_role\": \"executive\",\n        \"focus_area\": \"sales\"\n    }\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/ask-otto/conversations",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "ask-otto", "conversations"]
-						},
-						"description": "Create a new Ask Otto conversation"
-					},
-					"response": []
-				},
-				{
-					"name": "Send Message",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"message\": \"What are the top objections this week?\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}/messages",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "ask-otto", "conversations", "{{conversation_id}}", "messages"]
-						},
-						"description": "Send a message in an Ask Otto conversation"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Messages",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}/messages",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "ask-otto", "conversations", "{{conversation_id}}", "messages"]
-						},
-						"description": "Get all messages in an Ask Otto conversation"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Conversation",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "ask-otto", "conversations", "{{conversation_id}}"]
-						},
-						"description": "Get Ask Otto conversation details"
-					},
-					"response": []
-				},
-				{
-					"name": "Delete Conversation",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "ask-otto", "conversations", "{{conversation_id}}"]
-						},
-						"description": "Delete an Ask Otto conversation"
-					},
-					"response": []
-				}
-			],
-			"description": "Ask Otto conversational AI endpoints"
-		},
-		{
-			"name": "Insights (Shunya)",
-			"item": [
-				{
-					"name": "Generate Insights",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"week_start\": \"2026-01-08\",\n    \"week_end\": \"2026-01-15\",\n    \"company_ids\": [\"{{company_id}}\"],\n    \"insight_types\": [\"company\", \"customer\", \"objection\"],\n    \"webhook_url\": null,\n    \"options\": {\n        \"force_regenerate\": false,\n        \"include_inactive_customers\": false\n    }\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/insights/generate",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "insights", "generate"]
-						},
-						"description": "Generate insights for specified companies and week range"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Job Status",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/insights/status/{{job_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "insights", "status", "{{job_id}}"]
-						},
-						"description": "Get insight generation job status"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Current Company Insight",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/insights/company/{{company_id}}/current",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "insights", "company", "{{company_id}}", "current"]
-						},
-						"description": "Get current company insight"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Customer Insights",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/insights/customers?company_id=11111111-1111-1111-1111-111111111111&page=1&limit=50",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "insights", "customers"],
-							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}"
-								},
-								{
-									"key": "week_start",
-									"value": "2026-01-08",
-									"disabled": true
-								},
-								{
-									"key": "status",
-									"value": "active",
-									"disabled": true
-								},
-								{
-									"key": "priority",
-									"value": "high",
-									"disabled": true
-								},
-								{
-									"key": "page",
-									"value": "1"
-								},
-								{
-									"key": "limit",
-									"value": "50"
-								}
-							]
-						},
-						"description": "Get customer insights with pagination and filters"
-					},
-					"response": []
-				},
-				{
-					"name": "Get Objection Insights",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/v1/insights/objections/{{company_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "insights", "objections", "{{company_id}}"]
-						},
-						"description": "Get objection insights for a company"
-					},
-					"response": []
-				}
-			],
-			"description": "Shunya Insights endpoints"
-		},
-		{
-			"name": "RAG",
-			"item": [
-				{
-					"name": "Query Ask Otto",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"query\": \"What are the top objections this week?\",\n    \"context\": {\n        \"company_id\": \"{{company_id}}\",\n        \"user_role\": \"executive\"\n    }\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/rag/ask-otto",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "rag", "ask-otto"]
-						},
-						"description": "Query Ask Otto (RAG-based AI copilot) - Company scope (EXECUTIVE only)"
-					},
-					"response": []
-				}
-			],
-			"description": "RAG/Ask Otto endpoints"
-		},
-		{
-			"name": "Webhooks",
-			"item": [
-				{
-					"name": "Telephony Call Complete",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "X-Company-Id",
-								"value": "11111111-1111-1111-1111-111111111111"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"phone_number\": \"+1-555-1001\",\n    \"audio_url\": \"https://storage.example.com/audio/call1.mp3\",\n    \"call_type\": \"csr_call\",\n    \"missed_call\": false,\n    \"duration_seconds\": 180,\n    \"call_date\": \"2025-10-20T10:30:00Z\",\n    \"metadata\": {\n        \"source\": \"twilio\",\n        \"call_sid\": \"CA1234567890\"\n    }\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/webhooks/telephony/call-complete",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "webhooks", "telephony", "call-complete"]
-						},
-						"description": "Handle call completion webhook from telephony provider"
-					},
-					"response": []
-				},
-				{
-					"name": "Shunya Job Complete",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"job_id\": \"job_a1b2c3d4e5f6\",\n    \"call_id\": \"{{call_id}}\",\n    \"status\": \"completed\",\n    \"progress\": {\n        \"percent\": 100,\n        \"current_step\": \"completed\",\n        \"steps_completed\": [\"downloading\", \"transcribing\", \"chunking\", \"summarizing\", \"validation\", \"storage\"],\n        \"steps_remaining\": [],\n        \"steps_failed\": []\n    },\n    \"started_at\": \"2026-01-12T15:00:05Z\",\n    \"updated_at\": \"2026-01-12T15:05:00Z\",\n    \"completed_at\": \"2026-01-12T15:05:00Z\",\n    \"failed_at\": null,\n    \"duration_seconds\": 295,\n    \"estimated_completion\": null,\n    \"results\": {\n        \"summary_url\": \"/api/v1/call-processing/summary/{{call_id}}\",\n        \"chunks_url\": \"/api/v1/call-processing/chunks/{{call_id}}\",\n        \"transcript_url\": \"/api/v1/call-processing/transcript/{{call_id}}\"\n    },\n    \"metadata\": null,\n    \"error\": null,\n    \"retry_available\": false,\n    \"retry_url\": null\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/webhooks/shoonya/job-complete",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "webhooks", "shoonya", "job-complete"]
-						},
-						"description": "Handle job completion webhook from Shunya. The webhook payload contains URLs (summary_url, chunks_url, transcript_url) but NOT the actual analysis data. The backend automatically: 1) Extracts call_id from the payload, 2) Calls Shunya's Summary API (GET /api/v1/call-processing/summary/{call_id}) to fetch the complete analysis data, 3) Stores everything in the database. This simulates the actual webhook format that Shunya sends according to their API documentation."
-					},
-					"response": []
-				}
-			],
-			"description": "Webhook endpoints (public, no auth required)"
-		},
-		{
-			"name": "Invites",
-			"item": [
-				{
-					"name": "Create Invitation",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"email\": \"invitee@example.com\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"{{company_id}}\",\n    \"message\": \"Welcome to our team!\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/invites",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "invites"]
-						},
-						"description": "Create a new user invitation"
-					},
-					"response": []
-				},
-				{
-					"name": "Accept Invitation",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"token\": \"{{invitation_token}}\",\n    \"password\": \"SecurePassword123!\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/invites/accept/{{invitation_token}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "invites", "accept", "{{invitation_token}}"]
-						},
-						"description": "Accept an invitation and create user account"
-					},
-					"response": []
-				}
-			],
-			"description": "User invitation endpoints"
-		},
-		{
-			"name": "Onboarding",
-			"item": [
-				{
-					"name": "Validate GHL",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"location_id\": \"NYC-001\",\n    \"api_key\": \"your_ghl_api_key_here\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/onboarding/validate-ghl",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "onboarding", "validate-ghl"]
-						},
-						"description": "Verify GoHighLevel credentials before final submission"
-					},
-					"response": []
-				},
-				{
-					"name": "Validate CTM",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"access_key\": \"your_ctm_access_key\",\n    \"secret_key\": \"your_ctm_secret_key\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/onboarding/validate-ctm",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "onboarding", "validate-ctm"]
-						},
-						"description": "Verify Call Tracking Metrics credentials before final submission"
-					},
-					"response": []
-				},
-				{
-					"name": "Complete Onboarding",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "formdata",
-							"formdata": [
-								{
-									"key": "firstName",
-									"value": "John",
-									"type": "text"
-								},
-								{
-									"key": "lastName",
-									"value": "Doe",
-									"type": "text"
-								},
-								{
-									"key": "email",
-									"value": "john.doe@example.com",
-									"type": "text"
-								},
-								{
-									"key": "password",
-									"value": "SecurePassword123!",
-									"type": "text"
-								},
-								{
-									"key": "companyName",
-									"value": "Acme Corp",
-									"type": "text"
-								},
-								{
-									"key": "location_id",
-									"value": "NYC-001",
-									"type": "text"
-								},
-								{
-									"key": "crm_provider",
-									"value": "gohighlevel",
-									"type": "text"
-								},
-								{
-									"key": "crm_api_key",
-									"value": "ghl_api_key_123",
-									"type": "text"
-								},
-								{
-									"key": "crm_company_id",
-									"value": "sf_company_12345",
-									"type": "text"
-								},
-								{
-									"key": "voip_provider",
-									"value": "ringcentral",
-									"type": "text"
-								},
-								{
-									"key": "voip_api_key",
-									"value": "rc_api_key_456",
-									"type": "text"
-								},
-								{
-									"key": "voip_company_id",
-									"value": "rc_company_67890",
-									"type": "text"
-								},
-								{
-									"key": "reference_doc",
-									"type": "file",
-									"src": []
-								},
-								{
-									"key": "sop_doc",
-									"type": "file",
-									"src": []
-								}
-							]
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/onboarding/complete",
-							"host": ["{{base_url}}"],
-							"path": ["api", "v1", "onboarding", "complete"]
-						},
-						"description": "Complete onboarding: create user, company, integration, and upload documents"
-					},
-					"response": []
-				}
-			],
-			"description": "Onboarding endpoints for new company setup"
-		}
-	],
-	"variable": [
-		{
-			"key": "base_url",
-			"value": "http://127.0.0.1:8000",
-			"type": "string"
-		},
-		{
-			"key": "access_token",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "refresh_token",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "company_id",
-			"value": "11111111-1111-1111-1111-111111111111",
-			"type": "string"
-		},
-		{
-			"key": "user_id",
-			"value": "cccccccc-cccc-cccc-cccc-cccccccccccc",
-			"type": "string"
-		},
-		{
-			"key": "sales_rep_id",
-			"value": "cccccccc-cccc-cccc-cccc-cccccccccccc",
-			"type": "string"
-		},
-		{
-			"key": "call_id",
-			"value": "30000000-0000-0000-0000-000000000001",
-			"type": "string"
-		},
-		{
-			"key": "lead_id",
-			"value": "20000000-0000-0000-0000-000000000001",
-			"type": "string"
-		},
-		{
-			"key": "contact_card_id",
-			"value": "10000000-0000-0000-0000-000000000001",
-			"type": "string"
-		},
-		{
-			"key": "conversation_id",
-			"value": "90000000-0000-0000-0000-000000000001",
-			"type": "string"
-		},
-		{
-			"key": "job_id",
-			"value": "80000000-0000-0000-0000-000000000003",
-			"type": "string"
-		},
-		{
-			"key": "insight_job_id",
-			"value": "b0000000-0000-0000-0000-000000000003",
-			"type": "string"
-		},
-		{
-			"key": "invitation_token",
-			"value": "token_pending_12345",
-			"type": "string"
-		},
-		{
-			"key": "csr_user_id",
-			"value": "ffffffff-ffff-ffff-ffff-ffffffffffff",
-			"type": "string"
-		}
-	]
+  "info": {
+    "_postman_id": "otto-backend-api-v1",
+    "name": "Otto Backend API v1",
+    "description": "Complete API collection for Otto Backend with all endpoints and dummy test data",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "otto-backend"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Signup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"test.user@example.com\",\n    \"password\": \"SecurePassword123!\",\n    \"first_name\": \"Test\",\n    \"last_name\": \"User\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"{{company_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/signup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "signup"
+              ]
+            },
+            "description": "Register a new user account"
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"sales1@acme.com\",\n    \"password\": \"SecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login with email and password"
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Refresh access token using refresh token"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Get current authenticated user information"
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication endpoints"
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "key": "role",
+                  "value": "sales_rep",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List users with optional filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Get user by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            },
+            "description": "Get current user's profile"
+          },
+          "response": []
+        },
+        {
+          "name": "List Companies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/companies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "companies"
+              ]
+            },
+            "description": "List all companies"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sales Reps by Company",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/sales-reps?company_id={{company_id}}&is_active=true&skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "sales-reps"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "is_active",
+                  "value": "true"
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Get all sales reps for a company"
+          },
+          "response": []
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"new.user@example.com\",\n    \"password\": \"SecurePassword123!\",\n    \"first_name\": \"New\",\n    \"last_name\": \"User\",\n    \"role\": \"csr\",\n    \"company_id\": \"11111111-1111-1111-1111-111111111111\",\n    \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
+            },
+            "description": "Create a new user (EXECUTIVE only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Current User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"Name\",\n    \"email\": \"updated@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            },
+            "description": "Update current user's profile"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"first_name\": \"Updated\",\n    \"last_name\": \"Name\",\n    \"role\": \"executive\",\n    \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Update user by ID (EXECUTIVE only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Delete user by ID (EXECUTIVE only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "User management endpoints"
+    },
+    {
+      "name": "Calls",
+      "item": [
+        {
+          "name": "List Calls",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/calls?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calls"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "List calls for a specific company"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Call by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/calls/{{call_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calls",
+                "{{call_id}}"
+              ]
+            },
+            "description": "Get call by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Calls by Objection (Self)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/calls/by-objection/self?objection=authority&company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calls",
+                "by-objection",
+                "self"
+              ],
+              "query": [
+                {
+                  "key": "objection",
+                  "value": "authority",
+                  "description": "Objection type (authority, price, timing, competitor, need)"
+                },
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get comprehensive objection details data (calls, unbooked leads, most coaching need)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Objection Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/calls/by-objection/authority/details?user_id={{user_id}}&start_date=2025-12-01&end_date=2026-01-15",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calls",
+                "by-objection",
+                "authority",
+                "details"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (optional if user_id is provided)",
+                  "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User UUID (optional). If provided, objection details are scoped to that user. If both company_id and user_id are provided, user_id is used."
+                },
+                {
+                  "key": "start_date",
+                  "value": "2025-12-01",
+                  "description": "Start date (YYYY-MM-DD, optional, defaults to 30 days ago)"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-01-15",
+                  "description": "End date (YYYY-MM-DD, optional, defaults to today)"
+                }
+              ]
+            },
+            "description": "Get comprehensive objection details for a single objection (unbooked leads tab with booking rate improvement and graph, most coaching need tab, calls tab). Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Call Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/calls/logs?user_id={{user_id}}&skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calls",
+                "logs"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (optional if user_id is provided)",
+                  "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User UUID (optional). If provided, call logs are scoped to this user. If both company_id and user_id are provided, user_id is used."
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search by customer name, CSR name, or phone number",
+                  "disabled": true
+                },
+                {
+                  "key": "csr_id",
+                  "value": "",
+                  "description": "Filter by CSR/owner UUID (alternative to user_id)",
+                  "disabled": true
+                },
+                {
+                  "key": "status_filter",
+                  "value": "all",
+                  "description": "Filter by qualification status (qualified/unqualified/all)",
+                  "disabled": true
+                },
+                {
+                  "key": "booking_filter",
+                  "value": "all",
+                  "description": "Filter by booking status (booked/unbooked/all)",
+                  "disabled": true
+                },
+                {
+                  "key": "quick_filter",
+                  "value": "",
+                  "description": "Quick filter (hot_lead, qualified_unbooked, qualified_booked, abandoned, residential, commercial)",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "description": "Number of records to skip (for pagination)"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Maximum number of records to return (max: 1000)"
+                }
+              ]
+            },
+            "description": "Get call logs with summary statistics (Total Calls, Qualified, Booked, Abandoned) and filtered call list with all details for the call logs dashboard. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
+          },
+          "response": []
+        }
+      ],
+      "description": "Call management endpoints"
+    },
+    {
+      "name": "Leads",
+      "item": [
+        {
+          "name": "List Leads",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/leads?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "status",
+                  "value": "qualified_unbooked",
+                  "disabled": true
+                },
+                {
+                  "key": "nurturing",
+                  "value": "new,warm,hot",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "priority",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "List leads for a company with optional filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Lead by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/leads/{{lead_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads",
+                "{{lead_id}}"
+              ]
+            },
+            "description": "Get lead by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Lead Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/leads/{{lead_id}}/details",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads",
+                "{{lead_id}}",
+                "details"
+              ]
+            },
+            "description": "Get detailed lead information with contact info, agent info, overall engagement, and conversations"
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Lead to Sales Rep",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sales_rep_id\": \"{{sales_rep_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/leads/{{lead_id}}/assign",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads",
+                "{{lead_id}}",
+                "assign"
+              ]
+            },
+            "description": "Assign a lead to a sales rep (CSR or Executive can assign). Response includes assigned_rep_name."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Lead Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"qualified_booked\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/leads/{{lead_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads",
+                "{{lead_id}}",
+                "status"
+              ]
+            },
+            "description": "Update lead status (EXECUTIVE or CSR)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Lead management endpoints"
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "Company Overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/exec/company-overview?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "exec",
+                "company-overview"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (optional if user_id is provided)"
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User UUID (optional). If provided, overview metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "2024-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2024-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get company overview metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
+          },
+          "response": []
+        },
+        {
+          "name": "CSR Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/exec/csr/dashboard?user_id={{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "exec",
+                "csr",
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (optional if user_id is provided)",
+                  "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User UUID (optional). If provided, dashboard metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used."
+                },
+                {
+                  "key": "start_date",
+                  "value": "2024-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2024-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get CSR dashboard metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
+          },
+          "response": []
+        },
+        {
+          "name": "Missed Calls",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/exec/missed-calls?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "exec",
+                "missed-calls"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get missed calls metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Auto Queued Leads",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/csr/auto-queued-leads?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "csr",
+                "auto-queued-leads"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get auto-queued leads metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Booking Rate Improvement",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/booking-rate-improvement?user_id={{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "booking-rate-improvement"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (optional if user_id is provided)",
+                  "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User UUID (optional). If provided, booking rate improvement is calculated only for that user. If both company_id and user_id are provided, user_id is used."
+                }
+              ]
+            },
+            "description": "Get booking rate improvement metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
+          },
+          "response": []
+        },
+        {
+          "name": "Bookings Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/bookings/summary?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "bookings",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get bookings summary"
+          },
+          "response": []
+        },
+        {
+          "name": "Top Objections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/objections/top?user_id={{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "objections",
+                "top"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (optional if user_id is provided)",
+                  "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User UUID (optional). If provided, objections are scoped to that user. If both company_id and user_id are provided, user_id is used."
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Currently ignored - returns all objections",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "Currently ignored - returns all objections",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Optional limit - if not provided, returns all objections",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get top objections aggregated by company or user. Returns ALL objections sorted from most occurred to least occurred. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
+          },
+          "response": []
+        },
+        {
+          "name": "Objections Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/objections/summary?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "objections",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get objections summary"
+          },
+          "response": []
+        },
+        {
+          "name": "Objection Calls",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/objections/price/calls?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "objections",
+                "price",
+                "calls"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (required)"
+                },
+                {
+                  "key": "owner_id",
+                  "value": "",
+                  "description": "Filter by CSR/owner UUID",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Currently ignored",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "Currently ignored",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Optional limit on number of calls returned",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get calls filtered by objection type and optionally by CSR owner. Objection matching is case-insensitive and handles variations."
+          },
+          "response": []
+        },
+        {
+          "name": "Coaching Opportunities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/coaching/opportunities?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "coaching",
+                "opportunities"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get coaching opportunities"
+          },
+          "response": []
+        },
+        {
+          "name": "Most Coaching Opportunities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/coaching/most-opportunities?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "coaching",
+                "most-opportunities"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "start_date",
+                  "value": "2024-01-01",
+                  "description": "Start date (YYYY-MM-DD, defaults to 30 days ago)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2024-12-31",
+                  "description": "End date (YYYY-MM-DD, defaults to today)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get most coaching opportunities - top 5 employees with least success rate. Success rate = qualified_leads / booked_leads. Returns top 3 objections (most coaching need) for each employee."
+          },
+          "response": []
+        },
+        {
+          "name": "Lead to Sale Conversion",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/conversion/lead-to-sale?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "conversion",
+                "lead-to-sale"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get lead to sale conversion metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Pending to Booked Conversions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/conversions/pending-to-booked?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "conversions",
+                "pending-to-booked"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get pending to booked conversions"
+          },
+          "response": []
+        },
+        {
+          "name": "Dropped Emergencies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/emergencies/dropped?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "emergencies",
+                "dropped"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get dropped emergencies metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Company Performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/company/performance?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "company",
+                "performance"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get company performance metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Calls Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/calls/summary?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "calls",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get calls summary"
+          },
+          "response": []
+        },
+        {
+          "name": "Unbooked Leads",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/leads/unbooked?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "leads",
+                "unbooked"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get unbooked leads metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Pending Actions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/actions/pending?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "actions",
+                "pending"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get pending actions metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get My CSR Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/csr/me/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "csr",
+                "me",
+                "profile"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-12-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-01-08",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get current CSR's own profile with all metrics, rank, and coaching insights (CSR only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get CSR Profile by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/csr/{{csr_user_id}}/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "csr",
+                "{{csr_user_id}}",
+                "profile"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-12-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-01-08",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get comprehensive CSR profile with all metrics, rank, and coaching insights (CSR or Executive)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Metrics and analytics endpoints"
+    },
+    {
+      "name": "Call Processing (Shunya)",
+      "item": [
+        {
+          "name": "Process Call",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"call_id\": \"{{call_id}}\",\n    \"company_id\": \"{{company_id}}\",\n    \"audio_url\": \"https://storage.example.com/audio/call1.mp3\",\n    \"phone_number\": \"+1-555-1001\",\n    \"duration\": 180,\n    \"call_date\": \"2025-10-20T10:30:00Z\",\n    \"metadata\": {\n        \"call_type\": \"csr_call\",\n        \"source\": \"twilio\"\n    },\n    \"options\": {\n        \"skip_rag_indexing\": false,\n        \"skip_summary_generation\": false,\n        \"priority\": \"normal\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/call-processing/process",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "call-processing",
+                "process"
+              ]
+            },
+            "description": "Submit a call for AI processing"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Job Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/call-processing/status/{{job_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "call-processing",
+                "status",
+                "{{job_id}}"
+              ],
+              "variable": [
+                {
+                  "key": "job_id",
+                  "value": "80000000-0000-0000-0000-000000000003"
+                }
+              ]
+            },
+            "description": "Get call processing job status"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Call Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/call-processing/summary/{{call_id}}?include_chunks=false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "call-processing",
+                "summary",
+                "{{call_id}}"
+              ],
+              "query": [
+                {
+                  "key": "include_chunks",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "Get call summary with compliance analysis, objections, qualification"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Call Chunks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/call-processing/chunks/{{call_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "call-processing",
+                "chunks",
+                "{{call_id}}"
+              ]
+            },
+            "description": "Get call chunks with summaries and Milvus IDs"
+          },
+          "response": []
+        },
+        {
+          "name": "Retry Failed Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/call-processing/retry/{{job_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "call-processing",
+                "retry",
+                "{{job_id}}"
+              ]
+            },
+            "description": "Retry a failed call processing job"
+          },
+          "response": []
+        }
+      ],
+      "description": "Shunya Call Processing endpoints"
+    },
+    {
+      "name": "Ask Otto (Shunya)",
+      "item": [
+        {
+          "name": "Create Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"context\": {\n        \"user_role\": \"executive\",\n        \"focus_area\": \"sales\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ask-otto/conversations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ask-otto",
+                "conversations"
+              ]
+            },
+            "description": "Create a new Ask Otto conversation"
+          },
+          "response": []
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"message\": \"What are the top objections this week?\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}/messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ask-otto",
+                "conversations",
+                "{{conversation_id}}",
+                "messages"
+              ]
+            },
+            "description": "Send a message in an Ask Otto conversation"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}/messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ask-otto",
+                "conversations",
+                "{{conversation_id}}",
+                "messages"
+              ]
+            },
+            "description": "Get all messages in an Ask Otto conversation"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Conversation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ask-otto",
+                "conversations",
+                "{{conversation_id}}"
+              ]
+            },
+            "description": "Get Ask Otto conversation details"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Conversation",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ask-otto",
+                "conversations",
+                "{{conversation_id}}"
+              ]
+            },
+            "description": "Delete an Ask Otto conversation"
+          },
+          "response": []
+        }
+      ],
+      "description": "Ask Otto conversational AI endpoints"
+    },
+    {
+      "name": "Insights (Shunya)",
+      "item": [
+        {
+          "name": "Generate Insights",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"week_start\": \"2026-01-08\",\n    \"week_end\": \"2026-01-15\",\n    \"company_ids\": [\"{{company_id}}\"],\n    \"insight_types\": [\"company\", \"customer\", \"objection\"],\n    \"webhook_url\": null,\n    \"options\": {\n        \"force_regenerate\": false,\n        \"include_inactive_customers\": false\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/insights/generate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "insights",
+                "generate"
+              ]
+            },
+            "description": "Generate insights for specified companies and week range"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Job Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/insights/status/{{job_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "insights",
+                "status",
+                "{{job_id}}"
+              ]
+            },
+            "description": "Get insight generation job status"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current Company Insight",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/insights/company/{{company_id}}/current",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "insights",
+                "company",
+                "{{company_id}}",
+                "current"
+              ]
+            },
+            "description": "Get current company insight"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Customer Insights",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/insights/customers?company_id=11111111-1111-1111-1111-111111111111&page=1&limit=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "insights",
+                "customers"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "week_start",
+                  "value": "2026-01-08",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true
+                },
+                {
+                  "key": "priority",
+                  "value": "high",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get customer insights with pagination and filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Objection Insights",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/insights/objections/{{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "insights",
+                "objections",
+                "{{company_id}}"
+              ]
+            },
+            "description": "Get objection insights for a company"
+          },
+          "response": []
+        }
+      ],
+      "description": "Shunya Insights endpoints"
+    },
+    {
+      "name": "RAG",
+      "item": [
+        {
+          "name": "Query Ask Otto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"query\": \"What are the top objections this week?\",\n    \"context\": {\n        \"company_id\": \"{{company_id}}\",\n        \"user_role\": \"executive\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/rag/ask-otto",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rag",
+                "ask-otto"
+              ]
+            },
+            "description": "Query Ask Otto (RAG-based AI copilot) - Company scope (EXECUTIVE only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "RAG/Ask Otto endpoints"
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Telephony Call Complete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Company-Id",
+                "value": "11111111-1111-1111-1111-111111111111"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"phone_number\": \"+1-555-1001\",\n    \"audio_url\": \"https://storage.example.com/audio/call1.mp3\",\n    \"call_type\": \"csr_call\",\n    \"missed_call\": false,\n    \"duration_seconds\": 180,\n    \"call_date\": \"2025-10-20T10:30:00Z\",\n    \"metadata\": {\n        \"source\": \"twilio\",\n        \"call_sid\": \"CA1234567890\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks/telephony/call-complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks",
+                "telephony",
+                "call-complete"
+              ]
+            },
+            "description": "Handle call completion webhook from telephony provider"
+          },
+          "response": []
+        },
+        {
+          "name": "Shunya Job Complete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"job_id\": \"job_a1b2c3d4e5f6\",\n    \"call_id\": \"{{call_id}}\",\n    \"status\": \"completed\",\n    \"progress\": {\n        \"percent\": 100,\n        \"current_step\": \"completed\",\n        \"steps_completed\": [\"downloading\", \"transcribing\", \"chunking\", \"summarizing\", \"validation\", \"storage\"],\n        \"steps_remaining\": [],\n        \"steps_failed\": []\n    },\n    \"started_at\": \"2026-01-12T15:00:05Z\",\n    \"updated_at\": \"2026-01-12T15:05:00Z\",\n    \"completed_at\": \"2026-01-12T15:05:00Z\",\n    \"failed_at\": null,\n    \"duration_seconds\": 295,\n    \"estimated_completion\": null,\n    \"results\": {\n        \"summary_url\": \"/api/v1/call-processing/summary/{{call_id}}\",\n        \"chunks_url\": \"/api/v1/call-processing/chunks/{{call_id}}\",\n        \"transcript_url\": \"/api/v1/call-processing/transcript/{{call_id}}\"\n    },\n    \"metadata\": null,\n    \"error\": null,\n    \"retry_available\": false,\n    \"retry_url\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks/shoonya/job-complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks",
+                "shoonya",
+                "job-complete"
+              ]
+            },
+            "description": "Handle job completion webhook from Shunya. The webhook payload contains URLs (summary_url, chunks_url, transcript_url) but NOT the actual analysis data. The backend automatically: 1) Extracts call_id from the payload, 2) Calls Shunya's Summary API (GET /api/v1/call-processing/summary/{call_id}) to fetch the complete analysis data, 3) Stores everything in the database. This simulates the actual webhook format that Shunya sends according to their API documentation."
+          },
+          "response": []
+        }
+      ],
+      "description": "Webhook endpoints (public, no auth required)"
+    },
+    {
+      "name": "Invites",
+      "item": [
+        {
+          "name": "Create Invitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"invitee@example.com\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"{{company_id}}\",\n    \"message\": \"Welcome to our team!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invites"
+              ]
+            },
+            "description": "Create a new user invitation"
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Invitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token\": \"{{invitation_token}}\",\n    \"password\": \"SecurePassword123!\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/accept/{{invitation_token}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invites",
+                "accept",
+                "{{invitation_token}}"
+              ]
+            },
+            "description": "Accept an invitation and create user account"
+          },
+          "response": []
+        }
+      ],
+      "description": "User invitation endpoints"
+    },
+    {
+      "name": "Onboarding",
+      "item": [
+        {
+          "name": "Validate GHL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"location_id\": \"NYC-001\",\n    \"api_key\": \"your_ghl_api_key_here\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/onboarding/validate-ghl",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "onboarding",
+                "validate-ghl"
+              ]
+            },
+            "description": "Verify GoHighLevel credentials before final submission"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate CTM",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"access_key\": \"your_ctm_access_key\",\n    \"secret_key\": \"your_ctm_secret_key\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/onboarding/validate-ctm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "onboarding",
+                "validate-ctm"
+              ]
+            },
+            "description": "Verify Call Tracking Metrics credentials before final submission"
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Onboarding",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "firstName",
+                  "value": "John",
+                  "type": "text"
+                },
+                {
+                  "key": "lastName",
+                  "value": "Doe",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "john.doe@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "SecurePassword123!",
+                  "type": "text"
+                },
+                {
+                  "key": "companyName",
+                  "value": "Acme Corp",
+                  "type": "text"
+                },
+                {
+                  "key": "location_id",
+                  "value": "NYC-001",
+                  "type": "text"
+                },
+                {
+                  "key": "crm_provider",
+                  "value": "gohighlevel",
+                  "type": "text"
+                },
+                {
+                  "key": "crm_api_key",
+                  "value": "ghl_api_key_123",
+                  "type": "text"
+                },
+                {
+                  "key": "crm_company_id",
+                  "value": "sf_company_12345",
+                  "type": "text"
+                },
+                {
+                  "key": "voip_provider",
+                  "value": "ringcentral",
+                  "type": "text"
+                },
+                {
+                  "key": "voip_api_key",
+                  "value": "rc_api_key_456",
+                  "type": "text"
+                },
+                {
+                  "key": "voip_company_id",
+                  "value": "rc_company_67890",
+                  "type": "text"
+                },
+                {
+                  "key": "reference_doc",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "sop_doc",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/onboarding/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "onboarding",
+                "complete"
+              ]
+            },
+            "description": "Complete onboarding: create user, company, integration, and upload documents"
+          },
+          "response": []
+        }
+      ],
+      "description": "Onboarding endpoints for new company setup"
+    },
+    {
+      "name": "Settings",
+      "item": [
+        {
+          "name": "Get Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get complete settings for a company (integrations and documents)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Integrations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/integrations?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "integrations"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get all integrations for a company"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Integration Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/integrations/{{integration_id}}?company_id={{company_id}}&provider_type=crm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "integrations",
+                "{{integration_id}}"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "provider_type",
+                  "value": "crm",
+                  "description": "Integration type: 'crm' or 'voip'"
+                }
+              ]
+            },
+            "description": "Get integration details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Integration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"crm_provider\": \"Salesforce\",\n    \"crm_api_key\": \"api_key_here\",\n    \"crm_company_id\": \"crm_company_456\",\n    \"voip_provider\": \"Twilio\",\n    \"voip_api_key\": \"voip_api_key_here\",\n    \"voip_company_id\": \"voip_company_789\",\n    \"location_id\": \"location_123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/integrations?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "integrations"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Create a new integration for a company"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Integration",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"crm_provider\": \"Salesforce\",\n    \"crm_api_key\": \"new_api_key_here\",\n    \"crm_company_id\": \"crm_company_456\",\n    \"voip_provider\": \"Twilio\",\n    \"voip_api_key\": \"new_voip_api_key_here\",\n    \"voip_company_id\": \"voip_company_789\",\n    \"location_id\": \"location_123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/integrations/{{integration_id}}?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "integrations",
+                "{{integration_id}}"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Update/configure an existing integration"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Integration Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/integrations/{{integration_id}}/logs?company_id={{company_id}}&limit=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "integrations",
+                "{{integration_id}}",
+                "logs"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Maximum number of log entries (default: 50, max: 100)"
+                }
+              ]
+            },
+            "description": "Get integration logs"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/documents?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Get all documents for a company"
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "document_type",
+                  "value": "reference",
+                  "type": "text",
+                  "description": "Document type: 'reference', 'sop', 'csr_sop', or 'sales_sop'"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Document file to upload"
+                },
+                {
+                  "key": "name",
+                  "value": "Sales Playbook 2026",
+                  "type": "text",
+                  "description": "Document name (optional, defaults to filename)",
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/documents?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Upload a new document"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Document",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Document Name\",\n    \"document_type\": \"reference\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/documents/reference?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "documents",
+                "reference"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Update document metadata (name)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/documents/reference?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "documents",
+                "reference"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                }
+              ]
+            },
+            "description": "Delete a document"
+          },
+          "response": []
+        }
+      ],
+      "description": "Settings endpoints for managing company integrations and documents"
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "company_id",
+      "value": "11111111-1111-1111-1111-111111111111",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      "type": "string"
+    },
+    {
+      "key": "sales_rep_id",
+      "value": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      "type": "string"
+    },
+    {
+      "key": "call_id",
+      "value": "30000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "lead_id",
+      "value": "20000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "contact_card_id",
+      "value": "10000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "90000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "80000000-0000-0000-0000-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "insight_job_id",
+      "value": "b0000000-0000-0000-0000-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "invitation_token",
+      "value": "token_pending_12345",
+      "type": "string"
+    },
+    {
+      "key": "csr_user_id",
+      "value": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      "type": "string"
+    },
+    {
+      "key": "integration_id",
+      "value": "a0000000-0000-0000-0000-000000000001",
+      "type": "string"
+    }
+  ]
 }

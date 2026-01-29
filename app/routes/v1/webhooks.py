@@ -327,6 +327,8 @@ async def ghl_message(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     event = GHLService.extract_event_payload(body)
+    
+    logger.info("GHL message webhook received", payload=body, extracted_event=event)
 
     # Normalize outbound webhook format to standard GHL format
     # Outbound webhooks from GHL workflows may use different field names:
@@ -428,6 +430,8 @@ async def ghl_lead_updates(
         body = json.loads(raw.decode("utf-8"))
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    logger.info("GHL lead-updates webhook received", payload=body)
 
     # For these event types, the envelope is usually:
     # { "type": "...", "locationId": "...", "timestamp": "...", "webhookId": "...", "data": {...} }

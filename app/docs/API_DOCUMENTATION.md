@@ -2842,3 +2842,386 @@ For quick testing, here are the main IDs from seed data:
 | Ask Otto Conversation | `90000000-0000-0000-0000-000000000001` | Sales Performance |
 | Insight Job | `b0000000-0000-0000-0000-000000000003` | Completed insights |
 
+---
+
+## Settings
+
+### GET `/settings`
+
+Get complete settings for a company (integrations and documents).
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Response:** `200 OK`
+```json
+{
+  "integrations": [
+    {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "company_id": "11111111-1111-1111-1111-111111111111",
+      "provider": "Salesforce",
+      "provider_type": "crm",
+      "status": "connected",
+      "description": "Salesforce CRM connection for lead and contact management",
+      "last_sync": "2026-01-27T10:00:00Z",
+      "location_id": "location_123",
+      "company_id_external": "crm_company_456",
+      "extra_metadata": {}
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "company_id": "11111111-1111-1111-1111-111111111111",
+      "provider": "Twilio",
+      "provider_type": "voip",
+      "status": "connected",
+      "description": "Twilio phone system integration for call tracking and recording",
+      "last_sync": "2026-01-27T10:05:00Z",
+      "location_id": "location_123",
+      "company_id_external": "voip_company_789",
+      "extra_metadata": {}
+    }
+  ],
+  "documents": [
+    {
+      "document_type": "reference",
+      "name": "Sales Playbook 2026",
+      "url": "https://s3.amazonaws.com/documents/company-documents/...",
+      "type": "PDF",
+      "size": "2.4 MB",
+      "uploaded_at": "2026-01-05T10:00:00Z",
+      "uploaded_by": "John Smith"
+    },
+    {
+      "document_type": "csr_sop",
+      "name": "Product Training Guide",
+      "url": "https://s3.amazonaws.com/documents/company-documents/...",
+      "type": "PDF",
+      "size": "5.1 MB",
+      "uploaded_at": "2026-01-03T10:00:00Z",
+      "uploaded_by": "Sarah Johnson"
+    }
+  ]
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/settings/integrations`
+
+Get all integrations for a company.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Response:** `200 OK`
+```json
+{
+  "integrations": [
+    {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "company_id": "11111111-1111-1111-1111-111111111111",
+      "provider": "Salesforce",
+      "provider_type": "crm",
+      "status": "connected",
+      "description": "Salesforce CRM connection for lead and contact management",
+      "last_sync": "2026-01-27T10:00:00Z",
+      "location_id": "location_123",
+      "company_id_external": "crm_company_456",
+      "extra_metadata": {}
+    }
+  ],
+  "total_count": 2
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/settings/integrations/{integration_id}`
+
+Get integration details by ID.
+
+**Path Parameters:**
+- `integration_id` (UUID, required) - Integration UUID
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `provider_type` (string, required) - Integration type: `crm` or `voip`
+
+**Response:** `200 OK`
+```json
+{
+  "id": "a0000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "provider": "Salesforce",
+  "provider_type": "crm",
+  "status": "connected",
+  "description": "Salesforce CRM connection for lead and contact management",
+  "last_sync": "2026-01-27T10:00:00Z",
+  "location_id": "location_123",
+  "company_id_external": "crm_company_456",
+  "extra_metadata": {}
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### POST `/settings/integrations`
+
+Create a new integration for a company.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Request Body:**
+```json
+{
+  "crm_provider": "Salesforce",
+  "crm_api_key": "api_key_here",
+  "crm_company_id": "crm_company_456",
+  "voip_provider": "Twilio",
+  "voip_api_key": "voip_api_key_here",
+  "voip_company_id": "voip_company_789",
+  "location_id": "location_123",
+  "extra_metadata": {}
+}
+```
+
+**Response:** `201 Created`
+```json
+[
+  {
+    "id": "a0000000-0000-0000-0000-000000000001",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "provider": "Salesforce",
+    "provider_type": "crm",
+    "status": "connected",
+    "description": "Salesforce CRM connection for lead and contact management",
+    "last_sync": null,
+    "location_id": "location_123",
+    "company_id_external": "crm_company_456",
+    "extra_metadata": {}
+  },
+  {
+    "id": "a0000000-0000-0000-0000-000000000001",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "provider": "Twilio",
+    "provider_type": "voip",
+    "status": "connected",
+    "description": "Twilio phone system integration for call tracking and recording",
+    "last_sync": null,
+    "location_id": "location_123",
+    "company_id_external": "voip_company_789",
+    "extra_metadata": {}
+  }
+]
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### PUT `/settings/integrations/{integration_id}`
+
+Update/configure an existing integration.
+
+**Path Parameters:**
+- `integration_id` (UUID, required) - Integration UUID
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Request Body:**
+```json
+{
+  "crm_provider": "Salesforce",
+  "crm_api_key": "new_api_key_here",
+  "crm_company_id": "crm_company_456",
+  "voip_provider": "Twilio",
+  "voip_api_key": "new_voip_api_key_here",
+  "voip_company_id": "voip_company_789",
+  "location_id": "location_123",
+  "extra_metadata": {
+    "crm_last_sync": "2026-01-27T10:00:00Z"
+  }
+}
+```
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "a0000000-0000-0000-0000-000000000001",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "provider": "Salesforce",
+    "provider_type": "crm",
+    "status": "connected",
+    "description": "Salesforce CRM connection for lead and contact management",
+    "last_sync": "2026-01-27T10:00:00Z",
+    "location_id": "location_123",
+    "company_id_external": "crm_company_456",
+    "extra_metadata": {
+      "crm_last_sync": "2026-01-27T10:00:00Z"
+    }
+  }
+]
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/settings/integrations/{integration_id}/logs`
+
+Get integration logs.
+
+**Path Parameters:**
+- `integration_id` (UUID, required) - Integration UUID
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `limit` (int, optional, default: 50, max: 100) - Maximum number of log entries
+
+**Response:** `200 OK`
+```json
+{
+  "integration_id": "a0000000-0000-0000-0000-000000000001",
+  "logs": [
+    {
+      "timestamp": "2026-01-27T10:00:00Z",
+      "level": "info",
+      "message": "Sync completed successfully",
+      "details": {}
+    }
+  ],
+  "total_count": 1
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/settings/documents`
+
+Get all documents for a company.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Response:** `200 OK`
+```json
+{
+  "documents": [
+    {
+      "document_type": "reference",
+      "name": "Sales Playbook 2026",
+      "url": "https://s3.amazonaws.com/documents/company-documents/...",
+      "type": "PDF",
+      "size": "2.4 MB",
+      "uploaded_at": "2026-01-05T10:00:00Z",
+      "uploaded_by": "John Smith"
+    },
+    {
+      "document_type": "csr_sop",
+      "name": "Product Training Guide",
+      "url": "https://s3.amazonaws.com/documents/company-documents/...",
+      "type": "PDF",
+      "size": "5.1 MB",
+      "uploaded_at": "2026-01-03T10:00:00Z",
+      "uploaded_by": "Sarah Johnson"
+    }
+  ],
+  "total_count": 2
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### POST `/settings/documents`
+
+Upload a new document.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Form Data:**
+- `document_type` (string, required) - Document type: `reference`, `sop`, `csr_sop`, or `sales_sop`
+- `file` (file, required) - Document file to upload
+- `name` (string, optional) - Document name (defaults to filename)
+
+**Response:** `201 Created`
+```json
+{
+  "document_type": "reference",
+  "name": "Sales Playbook 2026",
+  "url": "https://s3.amazonaws.com/documents/company-documents/...",
+  "type": "PDF",
+  "size": "2.4 MB",
+  "uploaded_at": "2026-01-27T10:00:00Z",
+  "uploaded_by": "John Smith"
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### PUT `/settings/documents/{document_type}`
+
+Update document metadata (name).
+
+**Path Parameters:**
+- `document_type` (string, required) - Document type: `reference`, `sop`, `csr_sop`, or `sales_sop`
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Request Body:**
+```json
+{
+  "name": "Updated Document Name"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "document_type": "reference",
+  "name": "Updated Document Name",
+  "url": "https://s3.amazonaws.com/documents/company-documents/...",
+  "type": "PDF",
+  "size": "2.4 MB",
+  "uploaded_at": "2026-01-05T10:00:00Z",
+  "uploaded_by": "John Smith"
+}
+```
+
+**Required Role:** `EXECUTIVE`
+
+---
+
+### DELETE `/settings/documents/{document_type}`
+
+Delete a document.
+
+**Path Parameters:**
+- `document_type` (string, required) - Document type: `reference`, `sop`, `csr_sop`, or `sales_sop`
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+
+**Response:** `204 No Content`
+
+**Required Role:** `EXECUTIVE`
+
+---
+

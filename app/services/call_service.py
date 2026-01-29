@@ -7,7 +7,7 @@ Orchestrates call-related business logic:
 - Transcript processing
 """
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from dateutil import parser as date_parser
@@ -24,10 +24,13 @@ from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.analysis import CallAnalysisRepository
 from app.infrastructure.repositories.pending_action import PendingActionRepository
 from app.infrastructure.repositories.contact import ContactRepository
+from app.infrastructure.repositories.lead import LeadRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.tasks.analysis import analyze_call_task
 from app.core.s3 import get_s3_service
 from app.domain.users.repository import UserRepository
+from app.domain.models.lead import Lead
+from app.domain.enums import LeadStatus, DealStatus
 
 logger = get_logger(__name__)
 
@@ -100,6 +103,7 @@ class CallService:
         self.analysis_repo = CallAnalysisRepository(session)
         self.pending_action_repo = PendingActionRepository(session)
         self.contact_repo = ContactRepository(session)
+        self.lead_repo = LeadRepository(session)
         self.user_repo = UserRepository(session)
         self.shoonya = get_shoonya_client()
 
@@ -125,9 +129,29 @@ class CallService:
             Created call
         """
         try:
+            # Find or create contact card for this phone number
+            contact_card = None
+            try:
+                contact_card = await self.contact_repo.find_or_create_by_phone(
+                    company_id=company_id,
+                    phone=phone_number,
+                )
+                logger.debug(
+                    "Found or created contact card",
+                    contact_card_id=str(contact_card.id),
+                    phone_number=phone_number,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to find or create contact card for phone {phone_number}: {e}",
+                    company_id=str(company_id),
+                )
+                # Continue without contact_card_id - call will still be created
+
             # Create call record
             call = Call(
                 company_id=company_id,
+                contact_card_id=contact_card.id if contact_card else None,
                 phone_number=phone_number,
                 audio_url=audio_url,
                 call_type=call_type,
@@ -135,7 +159,12 @@ class CallService:
             )
 
             call = await self.call_repo.create(call)
-            logger.info("Call ingested", call_id=str(call.id), company_id=str(company_id))
+            logger.info(
+                "Call ingested",
+                call_id=str(call.id),
+                company_id=str(company_id),
+                contact_card_id=str(call.contact_card_id) if call.contact_card_id else None,
+            )
 
             # Trigger analysis if audio URL is available
             if audio_url and not missed_call:
@@ -146,8 +175,6 @@ class CallService:
             return call
         except Exception as e:
             logger.error(f"Error ingesting call: {e}")
-            raise e
-
             traceback.print_exc()
             raise
 
@@ -590,6 +617,113 @@ class CallService:
             logger.error(f"Error processing analysis: {e}", call_id=str(call_id))
             raise e
 
+    def _map_to_lead_status(
+        self,
+        qualification_status: Optional[str],
+        booking_status: Optional[str],
+    ) -> LeadStatus:
+        """
+        Map qualification_status and booking_status to LeadStatus.
+        
+        Args:
+            qualification_status: 'hot', 'warm', 'cold', 'unqualified', or None
+            booking_status: 'booked', 'not_booked', 'service_not_offered', or None
+            
+        Returns:
+            Appropriate LeadStatus enum value
+        """
+        if not qualification_status:
+            return LeadStatus.NEW
+        
+        qual_lower = qualification_status.lower()
+        booking_lower = booking_status.lower() if booking_status else None
+        
+        # If qualified and booked
+        if qual_lower in ['hot', 'warm', 'cold'] and booking_lower == 'booked':
+            return LeadStatus.QUALIFIED_BOOKED
+        
+        # If qualified but service not offered
+        if qual_lower in ['hot', 'warm', 'cold'] and booking_lower == 'service_not_offered':
+            return LeadStatus.QUALIFIED_SERVICE_NOT_OFFERED
+        
+        # If qualified but not booked
+        if qual_lower in ['hot', 'warm', 'cold'] and booking_lower == 'not_booked':
+            return LeadStatus.QUALIFIED_UNBOOKED
+        
+        # Map qualification status directly (when booking_status is None or doesn't match above)
+        if qual_lower == 'hot':
+            return LeadStatus.HOT
+        elif qual_lower == 'warm':
+            return LeadStatus.WARM
+        elif qual_lower == 'cold':
+            return LeadStatus.WARM  # Cold leads are still warm leads
+        elif qual_lower == 'unqualified':
+            return LeadStatus.ABANDONED
+        
+        # Default to NEW if status is unknown
+        return LeadStatus.NEW
+    
+    def _map_to_deal_status(
+        self,
+        booking_status: Optional[str],
+    ) -> Optional[DealStatus]:
+        """
+        Map booking_status to DealStatus.
+        
+        Args:
+            booking_status: 'booked', 'not_booked', 'service_not_offered', or None
+            
+        Returns:
+            Appropriate DealStatus enum value or None
+        """
+        if not booking_status:
+            return None
+        
+        booking_lower = booking_status.lower()
+        
+        if booking_lower == 'booked':
+            return DealStatus.BOOKED
+        elif booking_lower == 'not_booked':
+            return DealStatus.NURTURING
+        elif booking_lower == 'service_not_offered':
+            return DealStatus.NEW
+        
+        return None
+    
+    async def _find_existing_lead(
+        self,
+        contact_card_id: UUID,
+        company_id: UUID,
+    ) -> Optional[Lead]:
+        """
+        Find existing lead by contact_card_id and company_id.
+        
+        Args:
+            contact_card_id: Contact card ID
+            company_id: Company ID
+            
+        Returns:
+            Lead if found, None otherwise
+        """
+        try:
+            from sqlalchemy import select
+            from app.infrastructure.database.models.lead import LeadORM
+            
+            result = await self.session.execute(
+                select(LeadORM).where(
+                    LeadORM.contact_card_id == contact_card_id,
+                    LeadORM.company_id == company_id,
+                )
+            )
+            lead_orm = result.scalar_one_or_none()
+            
+            if lead_orm:
+                return self.lead_repo._to_domain(lead_orm)
+            return None
+        except Exception as e:
+            logger.error(f"Error finding existing lead: {e}")
+            return None
+
     async def _update_dependent_entities(
         self,
         call: Call,
@@ -599,25 +733,125 @@ class CallService:
         Update dependent entities based on call analysis.
 
         Updates:
-        - Lead status based on qualification_status
+        - Lead status based on qualification_status and booking_status
+        - Creates lead if it doesn't exist and call has contact_card_id
+        - Updates call.lead_id after creating/updating lead
         - Appointment status based on booking_status
         - Contact card metadata
         """
         try:
-            # Update lead if exists
+            # Skip if no contact_card_id (can't create/update lead without contact)
+            if not call.contact_card_id:
+                logger.debug(
+                    "Skipping lead creation/update - no contact_card_id",
+                    call_id=str(call.id),
+                )
+                return
+            
+            # Skip if qualification_status is missing (analysis not complete)
+            if not analysis.qualification_status:
+                logger.debug(
+                    "Skipping lead creation/update - no qualification_status",
+                    call_id=str(call.id),
+                )
+                return
+            
+            # Map to lead status and deal status
+            new_lead_status = self._map_to_lead_status(
+                analysis.qualification_status,
+                analysis.booking_status,
+            )
+            new_deal_status = self._map_to_deal_status(analysis.booking_status)
+            
+            # Find existing lead or create new one
+            existing_lead = None
             if call.lead_id:
-                # TODO: Implement LeadRepository and update lead status
-                # based on qualification_status and booking_status
-                # Example logic:
-                # if analysis.qualification_status == "qualified" and analysis.booking_status == "booked":
-                #     lead.status = LeadStatus.QUALIFIED_BOOKED
-                # elif analysis.qualification_status == "qualified":
-                #     lead.status = LeadStatus.QUALIFIED_UNBOOKED
+                # Try to get existing lead by lead_id first
+                existing_lead = await self.lead_repo.get_by_id(call.lead_id)
+            
+            # If not found by lead_id, try to find by contact_card_id and company_id
+            if not existing_lead:
+                existing_lead = await self._find_existing_lead(
+                    call.contact_card_id,
+                    call.company_id,
+                )
+            
+            if existing_lead:
+                # Update existing lead - always update with latest status (even if worse)
                 logger.info(
-                    "Lead update needed",
-                    lead_id=str(call.lead_id),
+                    "Updating existing lead",
+                    lead_id=str(existing_lead.id),
+                    old_status=existing_lead.status,
+                    new_status=new_lead_status,
+                    old_deal_status=existing_lead.deal_status,
+                    new_deal_status=new_deal_status,
+                )
+                
+                # Update lead fields
+                existing_lead.status = new_lead_status
+                existing_lead.deal_status = new_deal_status
+                
+                # Update extra_metadata with call analysis info
+                if existing_lead.extra_metadata is None:
+                    existing_lead.extra_metadata = {}
+                
+                # Store latest call analysis info
+                existing_lead.extra_metadata['last_call_analysis'] = {
+                    'call_id': str(call.id),
+                    'qualification_status': analysis.qualification_status,
+                    'booking_status': analysis.booking_status,
+                    'updated_at': datetime.now(timezone.utc).isoformat(),
+                }
+                
+                # Update lead
+                updated_lead = await self.lead_repo.update(existing_lead.id, existing_lead)
+                
+                # Update call.lead_id if it wasn't set
+                if not call.lead_id:
+                    call.lead_id = updated_lead.id
+                    await self.call_repo.update(call.id, call)
+                    logger.info(
+                        "Linked call to existing lead",
+                        call_id=str(call.id),
+                        lead_id=str(updated_lead.id),
+                    )
+            else:
+                # Create new lead
+                logger.info(
+                    "Creating new lead from call analysis",
+                    call_id=str(call.id),
+                    contact_card_id=str(call.contact_card_id),
                     qualification_status=analysis.qualification_status,
                     booking_status=analysis.booking_status,
+                )
+                
+                new_lead = Lead(
+                    company_id=call.company_id,
+                    contact_card_id=call.contact_card_id,
+                    status=new_lead_status,
+                    deal_status=new_deal_status,
+                    assigned_rep_id=call.handled_by_user_id,  # Assign to call handler
+                    extra_metadata={
+                        'created_from_call': str(call.id),
+                        'last_call_analysis': {
+                            'call_id': str(call.id),
+                            'qualification_status': analysis.qualification_status,
+                            'booking_status': analysis.booking_status,
+                            'created_at': datetime.now(timezone.utc).isoformat(),
+                        },
+                    },
+                )
+                
+                created_lead = await self.lead_repo.create(new_lead)
+                
+                # Update call.lead_id
+                call.lead_id = created_lead.id
+                await self.call_repo.update(call.id, call)
+                
+                logger.info(
+                    "Created new lead and linked to call",
+                    call_id=str(call.id),
+                    lead_id=str(created_lead.id),
                 )
 
             # Update appointment if exists and booking_status indicates one

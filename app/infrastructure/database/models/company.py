@@ -18,6 +18,7 @@ class CompanyORM(Base):
     phone_number: Mapped[str | None] = mapped_column(String, nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     reference_doc_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sop_doc_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     csr_sop_doc_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     sales_sop_doc_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)

@@ -1232,6 +1232,19 @@ class GHLService:
                         f"Failed to fetch recording for locationId={location_id} messageId={message_id}"
                     )
 
+            # Validate company_id is present before creating contact
+            if not company_id:
+                logger.warning(
+                    f"Cannot process call webhook: company_id is required but was None. "
+                    f"locationId={location_id}, contact_phone={contact_phone}, payload={event}"
+                )
+                return {
+                    "ok": False,
+                    "isCall": True,
+                    "error": "Cannot process call: company_id is required but not found for this location_id",
+                    "payload": event,
+                }
+
             # Find or create contact card
             contact_repo = ContactRepository(db_session)
             contact_card = None

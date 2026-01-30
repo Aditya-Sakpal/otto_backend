@@ -624,7 +624,8 @@ class MetricsService:
                         'qualified_leads': 0,
                         'booked_leads': 0,
                         'total_calls': 0,
-                        'objections': {}  # Will count objections
+                        # Per objection: count, qualified count, booked count (for % Unbooked and # Unbooked/Qualified)
+                        'objections': {}  # objection -> {'count': n, 'qualified': q, 'booked': b}
                     }
                 
                 stats = employee_stats[user_id]
@@ -632,19 +633,28 @@ class MetricsService:
                 
                 # Check if qualified
                 qual_status = row.qualification_status
-                if qual_status and qual_status.lower() in ['hot', 'cold', 'warm', 'qualified']:
+                is_qualified = qual_status and qual_status.lower() in ['hot', 'cold', 'warm', 'qualified']
+                if is_qualified:
                     stats['qualified_leads'] += 1
                 
                 # Check if booked
                 booking_status = row.booking_status
-                if booking_status and booking_status.lower() == 'booked':
+                is_booked = booking_status and booking_status.lower() == 'booked'
+                if is_booked:
                     stats['booked_leads'] += 1
                 
-                # Count objections
+                # Count objections and per-objection qualified/booked
                 if row.objections:
                     for obj in row.objections:
                         if obj:  # Skip empty strings
-                            stats['objections'][obj] = stats['objections'].get(obj, 0) + 1
+                            obj_stripped = str(obj).strip()
+                            if obj_stripped not in stats['objections']:
+                                stats['objections'][obj_stripped] = {'count': 0, 'qualified': 0, 'booked': 0}
+                            stats['objections'][obj_stripped]['count'] += 1
+                            if is_qualified:
+                                stats['objections'][obj_stripped]['qualified'] += 1
+                            if is_booked:
+                                stats['objections'][obj_stripped]['booked'] += 1
             
             # Calculate success rate and prepare results
             employee_results = []
@@ -662,13 +672,26 @@ class MetricsService:
                     # This ensures employees with no qualified leads are prioritized for coaching
                     success_rate = 0.0
                 
-                # Get top 3 objections
+                # Get top 3 objections with % Unbooked and # Unbooked/Qualified per objection
                 objections_sorted = sorted(
                     stats['objections'].items(),
-                    key=lambda x: x[1],
+                    key=lambda x: x[1]['count'],
                     reverse=True
                 )[:3]
-                top_objections = [obj[0] for obj in objections_sorted]
+                top_objections_with_metrics = []
+                for obj_name, obj_data in objections_sorted:
+                    q = obj_data['qualified']
+                    b = obj_data['booked']
+                    unbooked = max(0, q - b)
+                    pct_unbooked = (unbooked / q * 100) if q > 0 else 0.0
+                    unbooked_qualified_ratio = f"{unbooked}/{q}"
+                    top_objections_with_metrics.append({
+                        'objection': obj_name,
+                        'pct_unbooked': round(pct_unbooked, 2),
+                        'unbooked_qualified_ratio': unbooked_qualified_ratio,
+                        'unbooked_count': unbooked,
+                        'qualified_count': q,
+                    })
                 
                 employee_results.append({
                     'user_id': str(user_id),
@@ -676,7 +699,7 @@ class MetricsService:
                     'booked_leads': booked,
                     'total_calls': stats['total_calls'],
                     'success_rate': round(success_rate, 2),
-                    'top_objections': top_objections
+                    'top_objections': top_objections_with_metrics
                 })
             
             # Sort by success_rate ascending (least success rate first) and get top 5
@@ -712,7 +735,8 @@ class MetricsService:
                     'booked_leads': emp['booked_leads'],
                     'qualified_leads': emp['qualified_leads'],
                     'total_calls': emp['total_calls'],
-                    'most_coaching_need': emp['top_objections']  # Top 3 objections
+                    # Top 3 objections with % Unbooked and # Unbooked/Qualified per objection
+                    'most_coaching_need': emp['top_objections'],
                 })
             
             return {
@@ -1767,10 +1791,15 @@ class MetricsService:
             
             # 4. Lead Qualification Accuracy
             # Compare qualification_status from analysis with actual lead status
+            # Qualified statuses: hot, cold, warm, qualified
+            qualified_statuses = ['hot', 'cold', 'warm', 'qualified']
             qualification_accuracy_result = await self.session.execute(
                 select(
                     func.count(CallAnalysisORM.id),
-                    func.sum(case((CallAnalysisORM.qualification_status == 'qualified', 1), else_=0))
+                    func.sum(case((
+                        func.lower(CallAnalysisORM.qualification_status).in_(
+                            [s.lower() for s in qualified_statuses]
+                        ), 1), else_=0))
                 ).where(
                     CallAnalysisORM.company_id == company_id,
                     CallORM.handled_by_user_id == user_id,

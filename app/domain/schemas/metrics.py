@@ -67,6 +67,15 @@ class CoachingOpportunitiesResponse(BaseModel):
     total_count: int
 
 
+class MostCoachingNeedItem(BaseModel):
+    """Per-objection coaching need: objection name with % Unbooked and # Unbooked/Qualified."""
+    objection: str
+    pct_unbooked: float = Field(..., description="% Unbooked (unbooked/qualified * 100)")
+    unbooked_qualified_ratio: str = Field(..., description="# Unbooked / Qualified (e.g. '3/10')")
+    unbooked_count: int = 0
+    qualified_count: int = 0
+
+
 class MostCoachingOpportunityResponse(BaseModel):
     """Most coaching opportunity data for an employee."""
     user_id: str
@@ -76,7 +85,7 @@ class MostCoachingOpportunityResponse(BaseModel):
     booked_leads: int
     qualified_leads: int
     total_calls: int
-    most_coaching_need: List[str]  # Top 3 objections
+    most_coaching_need: List[MostCoachingNeedItem]  # Top 3 objections with % Unbooked and # Unbooked/Qualified
 
 
 class MostCoachingOpportunitiesResponse(BaseModel):

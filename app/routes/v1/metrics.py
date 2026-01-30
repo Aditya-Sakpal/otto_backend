@@ -429,7 +429,11 @@ async def get_most_coaching_opportunities(
     - Success rate = qualified_leads / booked_leads
     - Qualified leads: qualification_status in ['hot', 'cold', 'warm', 'qualified']
     - Booked leads: booking_status == 'booked'
-    - For each employee, includes top 3 objections (most coaching need)
+    - For each employee, includes top 3 objections (most coaching need) with:
+      - **objection**: Highest need / objection name
+      - **pct_unbooked**: % Unbooked (unbooked/qualified * 100)
+      - **unbooked_qualified_ratio**: # Unbooked / Qualified (e.g. "3/10")
+      - **unbooked_count**, **qualified_count**: Raw counts
     
     Required role: EXECUTIVE
     """

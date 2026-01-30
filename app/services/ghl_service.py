@@ -222,6 +222,45 @@ class GHLService:
         m = re.search(r'filename="?([^"]+)"?', content_disposition, flags=re.IGNORECASE)
         return m.group(1) if m else None
 
+    async def download_recording_from_url(
+        self,
+        recording_url: str,
+    ) -> RecordingResult:
+        """
+        Download recording from a direct URL (e.g., Twilio recording URL).
+
+        Args:
+            recording_url: Direct URL to the recording file
+
+        Returns:
+            RecordingResult with audio bytes and metadata
+
+        Raises:
+            httpx.HTTPStatusError: If download fails
+        """
+        headers = {
+            "Accept": "*/*",
+        }
+
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            resp = await client.get(recording_url, headers=headers)
+            resp.raise_for_status()
+
+            content_type = resp.headers.get("content-type", "audio/wav")
+            # Try to extract filename from URL
+            filename = None
+            if "/" in recording_url:
+                url_part = recording_url.split("/")[-1]
+                if "." in url_part:
+                    filename = url_part
+            audio_bytes = resp.content
+
+        return RecordingResult(
+            content_type=content_type,
+            filename=filename,
+            audio_bytes=audio_bytes
+        )
+
     async def get_message_recording(
         self,
         location_id: str,
@@ -1168,7 +1207,33 @@ class GHLService:
             recording_content_type = None
             recording_num_bytes = None
 
-            if location_id and message_id:
+            # Check for recording in attachments first (e.g., Twilio URLs)
+            attachments = event.get("attachments", [])
+            recording_url = None
+            rec = None
+            
+            if attachments and isinstance(attachments, list) and len(attachments) > 0:
+                # Use first attachment as recording URL
+                recording_url = attachments[0] if isinstance(attachments[0], str) else None
+                if recording_url:
+                    logger.info(f"Found recording URL in attachments: {recording_url}")
+
+            if recording_url:
+                # Download recording from direct URL (e.g., Twilio)
+                try:
+                    rec = await self.download_recording_from_url(recording_url)
+                    recording_filename = rec.filename
+                    recording_content_type = rec.content_type
+                    recording_num_bytes = len(rec.audio_bytes)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to download recording from attachment URL {recording_url}: {e}. "
+                        f"Falling back to GHL API."
+                    )
+                    rec = None  # Fall back to GHL API
+
+            # Fall back to GHL API if no attachment URL or download failed
+            if not rec and location_id and message_id:
                 try:
                     rec = await self.get_message_recording(
                         location_id=location_id,
@@ -1177,60 +1242,75 @@ class GHLService:
                     recording_filename = rec.filename
                     recording_content_type = rec.content_type
                     recording_num_bytes = len(rec.audio_bytes)
-
-                    # Upload to S3
-                    s3_service = get_s3_service()
-                    if s3_service:
-                        try:
-                            # Generate S3 key with company_id prefix
-                            prefix = f"ghl-recordings/{company_id or 'unknown'}"
-                            extension = "wav"
-                            if recording_filename:
-                                # Extract extension from filename
-                                if "." in recording_filename:
-                                    extension = recording_filename.split(".")[-1]
-
-                            s3_key = s3_service.generate_s3_key(
-                                prefix=prefix,
-                                filename=f"{message_id}",
-                                extension=extension
-                            )
-
-                            # Upload to S3 (audio bucket)
-                            recording_s3_url = await s3_service.upload_file(
-                                file_bytes=rec.audio_bytes,
-                                s3_key=s3_key,
-                                content_type=recording_content_type,
-                                bucket_type="audio",
-                                metadata={
-                                    "location_id": location_id,
-                                    "message_id": message_id,
-                                    "contact_id": contact_id or "",
-                                    "direction": direction or "",
-                                    "date_added": date_added or "",
-                                }
-                            )
-
-                            logger.info(
-                                f"Uploaded recording to S3: {s3_key}",
-                                location_id=location_id,
-                                message_id=message_id,
-                                s3_url=recording_s3_url
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"Failed to upload recording to S3: {e}",
-                                exc_info=True,
-                                location_id=location_id,
-                                message_id=message_id
-                            )
-                    else:
-                        logger.warning("S3 service not available, skipping upload")
-
                 except Exception:
                     logger.exception(
                         f"Failed to fetch recording for locationId={location_id} messageId={message_id}"
                     )
+
+            # Upload to S3 if we have a recording
+            if rec and recording_num_bytes:
+                s3_service = get_s3_service()
+                if s3_service:
+                    try:
+                        # Generate S3 key with company_id prefix
+                        prefix = f"ghl-recordings/{company_id or 'unknown'}"
+                        extension = "wav"
+                        if recording_filename:
+                            # Extract extension from filename
+                            if "." in recording_filename:
+                                extension = recording_filename.split(".")[-1]
+
+                        s3_key = s3_service.generate_s3_key(
+                            prefix=prefix,
+                            filename=f"{message_id or 'recording'}",
+                            extension=extension
+                        )
+
+                        # Upload to S3 (audio bucket)
+                        recording_s3_url = await s3_service.upload_file(
+                            file_bytes=rec.audio_bytes,
+                            s3_key=s3_key,
+                            content_type=recording_content_type,
+                            bucket_type="audio",
+                            metadata={
+                                "location_id": location_id or "",
+                                "message_id": message_id or "",
+                                "contact_id": contact_id or "",
+                                "direction": direction or "",
+                                "date_added": date_added or "",
+                                "recording_source": "attachment_url" if recording_url else "ghl_api",
+                            }
+                        )
+
+                        logger.info(
+                            f"Uploaded recording to S3: {s3_key}",
+                            location_id=location_id,
+                            message_id=message_id,
+                            s3_url=recording_s3_url,
+                            recording_source="attachment_url" if recording_url else "ghl_api"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to upload recording to S3: {e}",
+                            exc_info=True,
+                            location_id=location_id,
+                            message_id=message_id
+                        )
+                else:
+                    logger.warning("S3 service not available, skipping upload")
+
+            # Validate company_id is present before creating contact
+            if not company_id:
+                logger.warning(
+                    f"Cannot process call webhook: company_id is required but was None. "
+                    f"locationId={location_id}, contact_phone={contact_phone}, payload={event}"
+                )
+                return {
+                    "ok": False,
+                    "isCall": True,
+                    "error": "Cannot process call: company_id is required but not found for this location_id",
+                    "payload": event,
+                }
 
             # Find or create contact card
             contact_repo = ContactRepository(db_session)

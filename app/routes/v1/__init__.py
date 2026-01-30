@@ -18,6 +18,7 @@ from app.routes.v1 import (
     appointments,
     recordings,
     contact_card,
+    settings,
 )
 
 router = APIRouter()
@@ -39,3 +40,4 @@ router.include_router(invites.router, prefix="/invites", tags=["invites"])
 router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 router.include_router(appointments.router, prefix="/appointments", tags=["appointments"])
 router.include_router(recordings.router, prefix="/recordings", tags=["recordings"])
+router.include_router(settings.router, prefix="/settings", tags=["settings"])

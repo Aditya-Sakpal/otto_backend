@@ -261,30 +261,28 @@ async def get_top_objections(
     user_id: Optional[UUID] = Query(None, description="User UUID to scope top objections to a single user (optional)"),
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
-    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD) - currently ignored, returns all objections"),
-    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD) - currently ignored, returns all objections"),
+    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
     limit: Optional[int] = Query(None, ge=1, le=20, description="Number of top objections to return (optional, returns all if not specified)"),
 ):
     """
     Get top objections aggregated by company or user.
     
-    Returns ALL objections sorted from most occurred to least occurred, with:
-    - objection_type: Type of objection
-    - count: Number of times this objection appeared
-    - affected_leads_count: Number of unique leads affected by this objection
+    **When called by company_id:** Returns objections with objection_type, count, affected_leads_count;
+    plus booking_rate, booked, unbooked, booking_rate_trend (start to end date);
+    most_coaching_needs (user_id, user details, unbooked count for that objection, call_logs per user);
+    and call_logs (all call details where that objection occurred for the company).
+    
+    **When called by user_id:** Returns objections with objection_type, count, affected_leads_count;
+    plus call_logs (call details where that objection occurred for that user only).
     
     - **company_id**: Company UUID (optional if user_id is provided)
-    - **user_id**: User UUID (optional). If provided, objections are scoped to that user. If both company_id and user_id are provided, user_id is used.
-    - **start_date**: Currently ignored - returns all objections
-    - **end_date**: Currently ignored - returns all objections
-    - **limit**: Optional limit - if not provided, returns all objections
+    - **user_id**: User UUID (optional). If provided, objections are scoped to that user. If both provided, user_id is used.
+    - **start_date**, **end_date**: Filter objections by call date range.
+    - **limit**: Optional limit on number of top objections returned.
     
     Required role: CSR, SALES_REP, or EXECUTIVE
     """
-    # Resolution rules:
-    # - If user_id is provided: prefer user_id (even if company_id is also provided)
-    # - Else if company_id is provided: use company_id
-    # - Else: error
     if not company_id and not user_id:
         from fastapi import HTTPException, status
         raise HTTPException(
@@ -293,14 +291,18 @@ async def get_top_objections(
         )
 
     if user_id:
-        company_id = None  # ensure user_id takes precedence (service will derive company_id from user)
+        company_id = None  # user_id takes precedence (service derives company_id from user)
 
     service = AnalyticsService(db)
-    result = await service.get_top_objections(company_id=company_id, user_id=user_id)
+    result = await service.get_top_objections(
+        company_id=company_id,
+        user_id=user_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
     
-    # Apply limit if provided
     if limit is not None:
-        result = result[:limit]
+        result["objections"] = result["objections"][:limit]
     
     return result
 
@@ -429,7 +431,11 @@ async def get_most_coaching_opportunities(
     - Success rate = qualified_leads / booked_leads
     - Qualified leads: qualification_status in ['hot', 'cold', 'warm', 'qualified']
     - Booked leads: booking_status == 'booked'
-    - For each employee, includes top 3 objections (most coaching need)
+    - For each employee, includes top 3 objections (most coaching need) with:
+      - **objection**: Highest need / objection name
+      - **pct_unbooked**: % Unbooked (unbooked/qualified * 100)
+      - **unbooked_qualified_ratio**: # Unbooked / Qualified (e.g. "3/10")
+      - **unbooked_count**, **qualified_count**: Raw counts
     
     Required role: EXECUTIVE
     """

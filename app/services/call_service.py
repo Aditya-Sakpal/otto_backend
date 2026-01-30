@@ -174,6 +174,7 @@ class CallService:
 
             return call
         except Exception as e:
+            traceback.print_exc()
             logger.error(f"Error ingesting call: {e}")
             traceback.print_exc()
             raise
@@ -203,6 +204,16 @@ class CallService:
                     # Construct webhook URL for Shunya to notify us when processing completes
                     webhook_url = f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
 
+                    # Handle call_type: it may be an enum instance or a string
+                    call_type_str = "csr_call"
+                    if call.call_type:
+                        if hasattr(call.call_type, 'value'):
+                            # It's an enum instance
+                            call_type_str = call.call_type.value
+                        else:
+                            # It's already a string
+                            call_type_str = call.call_type
+                    
                     result = await self.shoonya.process_call(
                         call_id=str(call.id),
                         company_id=str(call.company_id),
@@ -210,9 +221,9 @@ class CallService:
                         phone_number=call.phone_number,
                         duration=call.duration_seconds or 0,
                         call_date=call.created_at.isoformat() if call.created_at else datetime.utcnow().isoformat(),
-                        webhook_url=f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete",
+                        webhook_url=webhook_url,
                         metadata={
-                            "call_type": call.call_type.value if call.call_type else "csr_call",
+                            "call_type": call_type_str,
                             **(call.extra_metadata or {}),
                         },
                     )

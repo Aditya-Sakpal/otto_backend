@@ -1128,15 +1128,15 @@ class CallService:
                         )
                     )
 
-            # Booking filter
+            # Booking filter (case-insensitive: DB may store "Booked", "booked", etc.)
             if booking_filter and booking_filter.lower() != "all":
                 if booking_filter.lower() == "booked":
-                    query = query.where(CallAnalysisORM.booking_status == "booked")
+                    query = query.where(func.lower(CallAnalysisORM.booking_status) == "booked")
                 elif booking_filter.lower() == "unbooked":
                     query = query.where(
                         or_(
-                            CallAnalysisORM.booking_status != "booked",
-                            CallAnalysisORM.booking_status.is_(None)
+                            CallAnalysisORM.booking_status.is_(None),
+                            func.lower(CallAnalysisORM.booking_status) != "booked"
                         )
                     )
 
@@ -1152,8 +1152,8 @@ class CallService:
                                 [s.lower() for s in QUALIFIED_STATUSES]
                             ),
                             or_(
-                                CallAnalysisORM.booking_status != "booked",
-                                CallAnalysisORM.booking_status.is_(None)
+                                CallAnalysisORM.booking_status.is_(None),
+                                func.lower(CallAnalysisORM.booking_status) != "booked"
                             )
                         )
                     )
@@ -1163,7 +1163,7 @@ class CallService:
                             func.lower(CallAnalysisORM.qualification_status).in_(
                                 [s.lower() for s in QUALIFIED_STATUSES]
                             ),
-                            CallAnalysisORM.booking_status == "booked"
+                            func.lower(CallAnalysisORM.booking_status) == "booked"
                         )
                     )
                 elif quick_filter_lower == "abandoned":
@@ -1224,7 +1224,7 @@ class CallService:
                 ).label('qualified'),
                 func.sum(
                     case(
-                        (CallAnalysisORM.booking_status == "booked", 1),
+                        (func.lower(CallAnalysisORM.booking_status) == "booked", 1),
                         else_=0
                     )
                 ).label('booked'),
@@ -1292,7 +1292,7 @@ class CallService:
                 # Get qualification and booking status
                 # Qualified statuses: hot, cold, warm, qualified
                 is_qualified = analysis and is_qualified_status(analysis.qualification_status) if analysis else False
-                is_booked = analysis and analysis.booking_status == "booked" if analysis else False
+                is_booked = analysis and analysis.booking_status and str(analysis.booking_status).lower() == "booked" if analysis else False
 
                 # Get score (use SOP compliance score or sentiment score)
                 score = None

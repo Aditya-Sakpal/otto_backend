@@ -38,6 +38,7 @@ def _build_call_log_entry(
             contact_name = contact_card.primary_phone or "Unknown"
     return {
         "call_id": str(call.id),
+        "lead_id": str(call.lead_id) if call.lead_id else None,
         "contact_name": contact_name or "Unknown",
         "phone_number": call.phone_number,
         "audio_url": call.audio_url,

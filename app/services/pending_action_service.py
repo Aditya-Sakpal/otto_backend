@@ -76,6 +76,29 @@ class PendingActionService:
             logger.error(f"Error marking action as completed: {e}", action_id=str(action_id))
             raise e
     
+    async def reopen(
+        self,
+        action_id: UUID,
+    ) -> Optional[PendingAction]:
+        """
+        Reopen a pending action (set status back to pending).
+        Use when a CSR or sales rep mistakenly marked an action as complete.
+        
+        Args:
+            action_id: Action ID
+            
+        Returns:
+            Updated pending action or None if not found
+        """
+        try:
+            return await self.pending_action_repo.update_status(
+                action_id=action_id,
+                status=PendingActionStatus.PENDING,
+            )
+        except Exception as e:
+            logger.error(f"Error reopening pending action: {e}", action_id=str(action_id))
+            raise e
+    
     async def mark_converted(
         self,
         action_id: UUID,
@@ -216,3 +239,48 @@ class PendingActionService:
         except Exception as e:
             logger.error(f"Error getting pending actions by owner: {e}")
             raise e
+
+    async def create_from_call(
+        self,
+        call_id: UUID,
+        company_id: UUID,
+        lead_id: Optional[UUID],
+        owner_id: UUID,
+        assigned_by_id: UUID,
+        action_type: str,
+        raw_text: Optional[str] = None,
+        due_at: Optional[datetime] = None,
+        priority: Optional[int] = None,
+    ) -> PendingAction:
+        """
+        Create a pending action linked to a call, assigned to a user (e.g. executive assigning to CSR).
+        
+        Args:
+            call_id: Call this action is tied to
+            company_id: Company ID
+            lead_id: Lead ID from the call (optional)
+            owner_id: User to assign the action to (CSR)
+            assigned_by_id: User creating/assigning the action (e.g. executive)
+            action_type: Type of action
+            raw_text: Optional description
+            due_at: Optional due date
+            priority: Optional priority
+        Returns:
+            Created PendingAction
+        """
+        pending = PendingAction(
+            company_id=company_id,
+            lead_id=lead_id,
+            call_id=call_id,
+            appointment_id=None,
+            action_type=action_type,
+            raw_text=raw_text,
+            status=PendingActionStatus.PENDING,
+            due_at=due_at,
+            priority=priority,
+            owner_id=owner_id,
+            assigned_by_id=assigned_by_id,
+            source="manual",
+            extra_metadata=None,
+        )
+        return await self.pending_action_repo.create(pending)

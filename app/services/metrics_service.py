@@ -11,6 +11,24 @@ from sqlalchemy import select, func, and_, or_, text, bindparam, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
+
+
+def _metrics_exclude_existing_and_service_not_offered():
+    """Exclude call analyses that are existing-customer or service-not-offered from metrics."""
+    return and_(
+        or_(
+            CallAnalysisORM.is_existing_customer == False,
+            CallAnalysisORM.is_existing_customer.is_(None),
+        ),
+        or_(
+            CallAnalysisORM.booking_status.is_(None),
+            func.lower(CallAnalysisORM.booking_status) != "service_not_offered",
+        ),
+        or_(
+            CallAnalysisORM.service_not_offered_reason.is_(None),
+            CallAnalysisORM.service_not_offered_reason == "",
+        ),
+    )
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.appointment import AppointmentORM
@@ -407,6 +425,7 @@ class MetricsService:
                     CallORM.created_at <= end_dt,
                     CallAnalysisORM.booking_status.isnot(None),
                     func.lower(CallAnalysisORM.booking_status) == "booked",
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             if user_id:
@@ -458,6 +477,7 @@ class MetricsService:
                     CallORM.created_at < previous_end,
                     CallAnalysisORM.booking_status.isnot(None),
                     func.lower(CallAnalysisORM.booking_status) == "booked",
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             if user_id:
@@ -513,14 +533,15 @@ class MetricsService:
         try:
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Get all analyses with objections in date range
+            # Get all analyses with objections in date range (exclude existing customer & service not offered)
             analyses = await self.session.execute(
                 select(CallAnalysisORM).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.objections != None,
-                    func.array_length(CallAnalysisORM.objections, 1) > 0
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             analyses_list = analyses.scalars().all()
@@ -569,14 +590,15 @@ class MetricsService:
         try:
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Get analyses with low SOP compliance in date range
+            # Get analyses with low SOP compliance in date range (exclude existing customer & service not offered)
             analyses = await self.session.execute(
                 select(CallAnalysisORM).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.sop_compliance_score.isnot(None),
-                    CallAnalysisORM.sop_compliance_score < 0.7
+                    CallAnalysisORM.sop_compliance_score < 0.7,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).order_by(CallAnalysisORM.sop_compliance_score.asc()).limit(limit)
             )
             analyses_list = analyses.scalars().all()
@@ -588,7 +610,8 @@ class MetricsService:
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.sop_compliance_score.isnot(None),
-                    CallAnalysisORM.sop_compliance_score < 0.7
+                    CallAnalysisORM.sop_compliance_score < 0.7,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             total_count = total.scalar() or 0
@@ -660,7 +683,8 @@ class MetricsService:
                 CallAnalysisORM.company_id == company_id,
                 CallORM.created_at >= start_dt,
                 CallORM.created_at <= end_dt,
-                CallORM.handled_by_user_id.isnot(None)  # Only include calls with assigned users
+                CallORM.handled_by_user_id.isnot(None),  # Only include calls with assigned users
+                _metrics_exclude_existing_and_service_not_offered(),
             )
             
             analyses_result = await self.session.execute(analyses_query)
@@ -896,14 +920,15 @@ class MetricsService:
             )
             dropped_count = dropped.scalar() or 0
             
-            # Emergency calls (negative sentiment) in date range
+            # Emergency calls (negative sentiment) in date range (exclude existing customer & service not offered)
             emergency = await self.session.execute(
                 select(func.count(CallAnalysisORM.id)).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.sentiment_score.isnot(None),
-                    CallAnalysisORM.sentiment_score < -0.5
+                    CallAnalysisORM.sentiment_score < -0.5,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             emergency_count = emergency.scalar() or 0
@@ -1416,14 +1441,15 @@ class MetricsService:
         try:
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Get all analyses with objections in date range
+            # Get all analyses with objections in date range (exclude existing customer & service not offered)
             analyses = await self.session.execute(
                 select(CallAnalysisORM).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.objections != None,
-                    func.array_length(CallAnalysisORM.objections, 1) > 0
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             analyses_list = analyses.scalars().all()
@@ -1464,13 +1490,14 @@ class MetricsService:
         try:
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Get analyses with this objection in date range
+            # Get analyses with this objection in date range (exclude existing customer & service not offered)
             analyses = await self.session.execute(
                 select(CallAnalysisORM).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
-                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type))
+                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type)),
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).order_by(CallAnalysisORM.created_at.desc()).limit(limit)
             )
             analyses_list = analyses.scalars().all()
@@ -1481,7 +1508,8 @@ class MetricsService:
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
-                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type))
+                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type)),
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             total_count = total.scalar() or 0
@@ -1748,6 +1776,7 @@ class MetricsService:
                     CallORM.created_at <= end_dt,
                     CallAnalysisORM.booking_status.isnot(None),
                     func.lower(CallAnalysisORM.booking_status) == "booked",
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             booked_calls = booked_calls_result.scalar() or 0
@@ -1810,7 +1839,7 @@ class MetricsService:
             coaching_insights = []
             
             # 1. Objection Handling
-            # Get objection handling improvement
+            # Get objection handling improvement (exclude existing customer & service not offered)
             current_month_objections = await self.session.execute(
                 select(func.count(CallAnalysisORM.id)).where(
                     CallAnalysisORM.company_id == company_id,
@@ -1819,6 +1848,7 @@ class MetricsService:
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.objections.isnot(None),
                     func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
             )
             current_objections = current_month_objections.scalar() or 0
@@ -1833,6 +1863,7 @@ class MetricsService:
                     CallAnalysisORM.created_at < start_dt,
                     CallAnalysisORM.objections.isnot(None),
                     func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
             )
             prev_objections = prev_objections_result.scalar() or 0
@@ -1849,7 +1880,7 @@ class MetricsService:
                     })
             
             # 2. Script Adherence
-            # Check SOP compliance
+            # Check SOP compliance (exclude existing customer & service not offered)
             avg_sop_score_result = await self.session.execute(
                 select(func.avg(CallAnalysisORM.sop_compliance_score)).where(
                     CallAnalysisORM.company_id == company_id,
@@ -1857,6 +1888,7 @@ class MetricsService:
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.sop_compliance_score.isnot(None),
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
             )
             avg_sop_score = avg_sop_score_result.scalar() or 0.0
@@ -1881,7 +1913,7 @@ class MetricsService:
                 })
             
             # 4. Lead Qualification Accuracy
-            # Compare qualification_status from analysis with actual lead status
+            # Compare qualification_status from analysis with actual lead status (exclude existing customer & service not offered)
             # Qualified statuses: hot, cold, warm, qualified
             qualified_statuses = ['hot', 'cold', 'warm', 'qualified']
             qualification_accuracy_result = await self.session.execute(
@@ -1898,6 +1930,7 @@ class MetricsService:
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.qualification_status.isnot(None),
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
             )
             qual_result = qualification_accuracy_result.first()

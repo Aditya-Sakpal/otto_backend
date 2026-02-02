@@ -3,7 +3,7 @@ Lead repository.
 """
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, date
 
 from sqlalchemy import select, or_, and_, func, case, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from app.domain.models.lead import Lead
 from app.domain.models.lead_detail import LeadDetail, ContactInfo, AgentInfo, OverallEngagement, Conversation
 from app.domain.enums import DealStatus
 from app.infrastructure.database.models.lead import LeadORM
+from app.infrastructure.database.models.lead_status_change import LeadStatusChangeORM
 from app.infrastructure.database.models.contact import ContactCardORM
 from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
@@ -216,6 +217,50 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:
             logger.error(f"Error getting leads by company: {e}")
+            raise e
+
+    async def get_list_with_filters(
+        self,
+        company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        search: Optional[str] = None,
+        statuses: Optional[List[str]] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[Lead]:
+        """Get leads for a company with optional date range, search (name/phone), and status filters."""
+        try:
+            query = (
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
+                .where(LeadORM.company_id == company_id)
+            )
+            if start_date is not None:
+                query = query.where(LeadORM.created_at >= datetime.combine(start_date, datetime.min.time()))
+            if end_date is not None:
+                query = query.where(LeadORM.created_at <= datetime.combine(end_date, datetime.max.time()))
+            if statuses:
+                query = query.where(LeadORM.status.in_(statuses))
+            if search and search.strip():
+                search_term = f"%{search.strip().lower()}%"
+                query = query.outerjoin(ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id).where(
+                    or_(
+                        func.lower(ContactCardORM.first_name).like(search_term),
+                        func.lower(ContactCardORM.last_name).like(search_term),
+                        func.lower(ContactCardORM.primary_phone).like(search_term),
+                    )
+                ).distinct()
+            result = await self.session.execute(
+                query.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit)
+            )
+            orm_objs = result.scalars().all()
+            return [self._to_domain(obj) for obj in orm_objs]
+        except Exception as e:
+            logger.error(f"Error getting leads with filters: {e}")
             raise e
 
     async def get_by_statuses(
@@ -562,10 +607,11 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         self,
         lead_id: UUID,
         status: str,
+        changed_by_user_id: Optional[UUID] = None,
+        reason: Optional[str] = None,
     ) -> Optional[Lead]:
-        """Update lead status."""
+        """Update lead status and optionally log to lead_status_changes audit table."""
         try:
-            # Get the lead
             result = await self.session.execute(
                 select(LeadORM).where(LeadORM.id == lead_id)
             )
@@ -574,12 +620,28 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             if not lead_orm:
                 return None
 
-            # Update status
+            old_status = lead_orm.status
+            old_deal_status = lead_orm.deal_status
+            company_id = lead_orm.company_id
+
             lead_orm.status = status
+            new_deal_status = lead_orm.deal_status
+
+            if changed_by_user_id is not None:
+                audit = LeadStatusChangeORM(
+                    lead_id=lead_id,
+                    company_id=company_id,
+                    changed_by_user_id=changed_by_user_id,
+                    old_status=old_status,
+                    new_status=status,
+                    old_deal_status=old_deal_status,
+                    new_deal_status=new_deal_status,
+                    reason=reason,
+                )
+                self.session.add(audit)
 
             await self.session.commit()
 
-            # Reload lead with relationships for _to_domain
             result = await self.session.execute(
                 select(LeadORM)
                 .options(

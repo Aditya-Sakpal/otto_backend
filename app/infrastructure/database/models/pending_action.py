@@ -26,6 +26,7 @@ class PendingActionORM(Base):
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     priority: Mapped[int | None] = mapped_column(Integer, nullable=True)
     owner_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    assigned_by_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     source: Mapped[str] = mapped_column(String, nullable=False, default="shunya")
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -44,7 +45,8 @@ class PendingActionORM(Base):
     lead = relationship("LeadORM")
     call = relationship("CallORM")
     appointment = relationship("AppointmentORM")
-    owner = relationship("UserORM")
+    owner = relationship("UserORM", foreign_keys=[owner_id])
+    assigned_by = relationship("UserORM", foreign_keys=[assigned_by_id])
     
     # Indexes for common queries
     __table_args__ = (

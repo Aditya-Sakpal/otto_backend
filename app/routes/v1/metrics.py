@@ -9,14 +9,16 @@ from typing import Optional
 from uuid import UUID
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 
 from app.core.dependencies import DbSession, get_current_user
 from app.core.permissions import require_executive, require_any_role
 from app.domain.enums import UserRole
 from app.domain.users.models import User
+from app.domain.models.pending_action import PendingAction
 from app.services.metrics_service import MetricsService
 from app.services.analytics_service import AnalyticsService
+from app.services.pending_action_service import PendingActionService
 
 router = APIRouter(tags=["metrics"])
 
@@ -648,6 +650,53 @@ async def get_pending_actions(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+@router.patch(
+    "/actions/pending/{action_id}/complete",
+    response_model=PendingAction,
+    summary="Complete pending action",
+    description="Mark a pending action as completed (e.g. CSR marking their assigned action done). Returns the updated PendingAction with status: completed.",
+)
+async def complete_pending_action(
+    action_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+):
+    """
+    Mark a pending action as completed (e.g. CSR marking their assigned action done).
+    
+    Required role: CSR, SALES_REP, EXECUTIVE
+    """
+    service = PendingActionService(db)
+    updated = await service.mark_completed(action_id)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pending action not found")
+    return updated
+
+
+@router.patch(
+    "/actions/pending/{action_id}/reopen",
+    response_model=PendingAction,
+    summary="Reopen pending action",
+    description="Reopen a pending action (set status back to pending). Use when a CSR or sales rep mistakenly marked an action as complete and needs to undo it. Returns the updated PendingAction with status: pending.",
+)
+async def reopen_pending_action(
+    action_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+):
+    """
+    Reopen a pending action (set status back to pending).
+    Use when a CSR or sales rep mistakenly marked an action as complete and needs to undo it.
+    
+    Required role: CSR, SALES_REP, EXECUTIVE
+    """
+    service = PendingActionService(db)
+    updated = await service.reopen(action_id)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pending action not found")
+    return updated
 
 
 @router.get("/csr/me/profile", response_model=dict)

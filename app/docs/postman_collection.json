@@ -654,6 +654,12 @@
                   "disabled": true
                 },
                 {
+                  "key": "existing_customer",
+                  "value": "",
+                  "description": "Filter by existing customer (true=only existing, false=only non-existing, omit=all)",
+                  "disabled": true
+                },
+                {
                   "key": "skip",
                   "value": "0",
                   "description": "Number of records to skip (for pagination)"
@@ -665,7 +671,42 @@
                 }
               ]
             },
-            "description": "Get call logs with summary statistics (Total Calls, Qualified, Booked, Abandoned) and filtered call list with all details for the call logs dashboard. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
+            "description": "Get call logs with summary statistics (Total Calls, Qualified, Booked, Abandoned) and filtered call list with all details for the call logs dashboard. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used. Summary excludes existing customers and service-not-offered calls."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Call Action Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"owner_id\": \"ffffffff-ffff-ffff-ffff-ffffffffffff\",\n    \"action_type\": \"follow_up_call\",\n    \"raw_text\": \"Call back to confirm appointment\",\n    \"due_at\": null,\n    \"priority\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/calls/{{call_id}}/action-items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calls",
+                "{{call_id}}",
+                "action-items"
+              ]
+            },
+            "description": "Create an action item linked to a call and assign it to a user (e.g. executive assigning to CSR). Returns the created PendingAction with assigned_by_id set to current user. Access: EXECUTIVE, CSR, SALES_REP."
           },
           "response": []
         }
@@ -716,6 +757,24 @@
                   "disabled": true
                 },
                 {
+                  "key": "start_date",
+                  "value": "2025-12-01",
+                  "description": "Filter leads created on or after this date (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-01-27",
+                  "description": "Filter leads created on or before this date (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search by contact name or phone number",
+                  "disabled": true
+                },
+                {
                   "key": "skip",
                   "value": "0"
                 },
@@ -725,7 +784,7 @@
                 }
               ]
             },
-            "description": "List leads for a company with optional filters"
+            "description": "List leads for a company with optional filters (status, nurturing, sort, start_date, end_date, search)"
           },
           "response": []
         },
@@ -833,7 +892,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"status\": \"qualified_booked\"\n}"
+              "raw": "{\n    \"status\": \"qualified_booked\",\n    \"reason\": \"Manual qualification after review\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/leads/{{lead_id}}/status",
@@ -848,7 +907,7 @@
                 "status"
               ]
             },
-            "description": "Update lead status (EXECUTIVE or CSR)"
+            "description": "Update lead status. When called by EXECUTIVE, the change is logged in lead_status_changes (audit). Optional reason is stored in audit. Access: EXECUTIVE, CSR."
           },
           "response": []
         }
@@ -1552,7 +1611,65 @@
                 }
               ]
             },
-            "description": "Get pending actions metrics"
+            "description": "Get pending actions metrics within date range (start_date, end_date optional)"
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Pending Action",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/actions/pending/{{action_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "actions",
+                "pending",
+                "{{action_id}}",
+                "complete"
+              ]
+            },
+            "description": "Mark a pending action as completed (e.g. CSR marking their assigned action done). Returns the updated PendingAction. Access: CSR, SALES_REP, EXECUTIVE."
+          },
+          "response": []
+        },
+        {
+          "name": "Reopen Pending Action",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/actions/pending/{{action_id}}/reopen",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "actions",
+                "pending",
+                "{{action_id}}",
+                "reopen"
+              ]
+            },
+            "description": "Reopen a pending action (set status back to pending). Use when a CSR or sales rep mistakenly marked an action as complete. Returns the updated PendingAction with status: pending. Access: CSR, SALES_REP, EXECUTIVE."
           },
           "response": []
         },
@@ -2871,7 +2988,7 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "http://127.0.0.1:8000",
+      "value": "http://127.0.0.1:8001",
       "type": "string"
     },
     {
@@ -2942,6 +3059,11 @@
     {
       "key": "integration_id",
       "value": "a0000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "action_id",
+      "value": "",
       "type": "string"
     }
   ]

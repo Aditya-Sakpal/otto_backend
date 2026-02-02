@@ -1150,6 +1150,7 @@ class CallService:
         csr_id: Optional[UUID] = None,
         status_filter: Optional[str] = None,
         booking_filter: Optional[str] = None,
+        existing_customer: Optional[bool] = None,
         quick_filter: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
@@ -1228,6 +1229,18 @@ class CallService:
                         )
                     )
 
+            # Existing customer filter (from call analysis)
+            if existing_customer is not None:
+                if existing_customer:
+                    query = query.where(CallAnalysisORM.is_existing_customer == True)
+                else:
+                    query = query.where(
+                        or_(
+                            CallAnalysisORM.is_existing_customer == False,
+                            CallAnalysisORM.is_existing_customer.is_(None)
+                        )
+                    )
+
             # Quick filters
             if quick_filter:
                 quick_filter_lower = quick_filter.lower()
@@ -1298,8 +1311,23 @@ class CallService:
             results = await self.session.execute(query)
             rows = results.all()
 
-            # Calculate summary statistics (from all calls, not just filtered)
+            # Calculate summary statistics (from all calls, excluding existing customers and service_not_offered)
             # Qualified statuses: hot, cold, warm, qualified
+            summary_base = and_(
+                CallORM.company_id == company_id,
+                or_(
+                    CallAnalysisORM.is_existing_customer == False,
+                    CallAnalysisORM.is_existing_customer.is_(None)
+                ),
+                or_(
+                    CallAnalysisORM.booking_status.is_(None),
+                    func.lower(CallAnalysisORM.booking_status) != "service_not_offered"
+                ),
+                or_(
+                    CallAnalysisORM.service_not_offered_reason.is_(None),
+                    CallAnalysisORM.service_not_offered_reason == ""
+                ),
+            )
             summary_query = select(
                 func.count(CallORM.id).label('total_calls'),
                 func.sum(
@@ -1327,7 +1355,7 @@ class CallService:
             ).outerjoin(
                 LeadORM, CallORM.lead_id == LeadORM.id
             ).where(
-                CallORM.company_id == company_id
+                summary_base
             )
 
             summary_result = await self.session.execute(summary_query)
@@ -1440,15 +1468,24 @@ class CallService:
                 key_items = list(analysis.key_points) if (analysis and analysis.key_points) else None
                 action_items = list(analysis.action_items) if (analysis and analysis.action_items) else None
 
+                booking_status_raw = (analysis.booking_status or "").strip() if analysis else None
+                if not booking_status_raw:
+                    booking_status_raw = None
+
                 calls.append({
                     "call_id": str(call.id),
+                    "lead_id": str(call.lead_id) if call.lead_id else None,
                     "call_received": call_received,
                     "duration": duration_str,
                     "csr_name": csr_name,
+                    "answered_by_display": getattr(call, "answered_by_display", None) or None,
                     "customer_name": customer_name,
                     "phone_number": formatted_phone,
                     "is_qualified": is_qualified,
                     "is_booked": is_booked,
+                    "booking_status": booking_status_raw,
+                    "is_existing_customer": bool(analysis.is_existing_customer) if analysis and analysis.is_existing_customer is not None else None,
+                    "lead_source": getattr(call, "lead_source", None) or None,
                     "audio_url": audio_url,
                     "call_summary": call_summary,
                     "key_items": key_items,

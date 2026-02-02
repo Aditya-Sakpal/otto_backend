@@ -30,6 +30,9 @@ async def list_leads(
     status_filter: Optional[str] = Query(None, alias="status"),
     nurturing: Optional[str] = Query(None),
     sort: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None, description="Filter leads created on or after this date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="Filter leads created on or before this date (YYYY-MM-DD)"),
+    search: Optional[str] = Query(None, description="Search by contact name or phone number"),
     skip: int = 0,
     limit: int = 100,
 ) -> List[Lead]:
@@ -42,10 +45,44 @@ async def list_leads(
     - status: Filter by status (comma-separated for multiple, e.g., "qualified_unbooked" or "closed_lost,abandoned,dormant")
     - nurturing: Filter nurturing leads (comma-separated, e.g., "new,warm,hot")
     - sort: Sort option (e.g., "priority")
+    - start_date: Filter leads created on or after this date (YYYY-MM-DD)
+    - end_date: Filter leads created on or before this date (YYYY-MM-DD)
+    - search: Search by contact name or phone number
     """
     try:
+        from datetime import date as date_type
         service = LeadService(db)
-        
+        start_d = None
+        end_d = None
+        if start_date:
+            try:
+                start_d = date_type.fromisoformat(start_date)
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="start_date must be YYYY-MM-DD")
+        if end_date:
+            try:
+                end_d = date_type.fromisoformat(end_date)
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="end_date must be YYYY-MM-DD")
+        use_filters = start_d is not None or end_d is not None or (search and search.strip())
+        if use_filters:
+            statuses = None
+            if status_filter:
+                statuses = [s.strip() for s in status_filter.split(",")]
+                if nurturing:
+                    statuses.extend([s.strip() for s in nurturing.split(",")])
+                    statuses = list(set(statuses))
+            elif nurturing:
+                statuses = [s.strip() for s in nurturing.split(",")]
+            return await service.list_with_filters(
+                company_id=company_id,
+                start_date=start_d,
+                end_date=end_d,
+                search=search.strip() if search else None,
+                statuses=statuses,
+                skip=skip,
+                limit=limit,
+            )
         # Sort by priority
         if sort == "priority":
             return await service.get_by_priority(
@@ -53,24 +90,19 @@ async def list_leads(
                 skip=skip,
                 limit=limit,
             )
-        
         # Filter by status
         if status_filter:
             statuses = [s.strip() for s in status_filter.split(",")]
-            
-            # If nurturing is specified, add those statuses
             if nurturing:
                 nurturing_statuses = [s.strip() for s in nurturing.split(",")]
                 statuses.extend(nurturing_statuses)
-                statuses = list(set(statuses))  # Remove duplicates
-            
+                statuses = list(set(statuses))
             return await service.get_by_statuses(
                 company_id=company_id,
                 statuses=statuses,
                 skip=skip,
                 limit=limit,
             )
-        
         # Filter by nurturing only
         if nurturing:
             nurturing_statuses = [s.strip() for s in nurturing.split(",")]
@@ -80,7 +112,6 @@ async def list_leads(
                 skip=skip,
                 limit=limit,
             )
-        
         # Default: return all leads
         return await service.get_by_company(
             company_id=company_id,
@@ -189,6 +220,7 @@ class AssignLeadResponse(BaseModel):
 class UpdateLeadStatusRequest(BaseModel):
     """Request to update lead status."""
     status: str = Field(..., description="New lead status")
+    reason: Optional[str] = Field(None, description="Optional reason for the change (audit)")
 
 
 @router.post("/{lead_id}/assign", response_model=AssignLeadResponse, status_code=status.HTTP_200_OK)
@@ -267,27 +299,30 @@ async def update_lead_status(
     lead_id: UUID,
     request: UpdateLeadStatusRequest,
     db: DbSession,
-    # RBAC DISABLED - user: User = Depends(require_manager_or_csr),
-    user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
+    user: User = Depends(require_manager_or_csr),
 ) -> Lead:
     """
     Update lead status.
     
     Updates the status of a lead. Valid status values are defined in LeadStatus enum.
+    When called by an EXECUTIVE, the change is logged in lead_status_changes (audit).
     
-    Access: EXECUTIVE, CSR
+    Access: EXECUTIVE (audit logged), CSR (no audit)
     
     Args:
         lead_id: Lead ID to update
-        request: Status update request
+        request: Status update request (status, optional reason)
     """
     try:
+        from app.domain.enums import UserRole
         service = LeadService(db)
-        
-        # Update the lead status
+        # Log to audit table only when changed by executive (admin)
+        changed_by = user.id if getattr(user, "role", None) == UserRole.EXECUTIVE.value else None
         updated_lead = await service.update_status(
             lead_id=lead_id,
             status=request.status,
+            changed_by_user_id=changed_by,
+            reason=request.reason,
         )
         
         if not updated_lead:

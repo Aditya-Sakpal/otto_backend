@@ -6,20 +6,33 @@ Thin layer that delegates to services.
 import traceback
 from typing import List, Optional
 from uuid import UUID
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 
 from app.core.dependencies import DbSession, CurrentUser
 from app.core.permissions import require_manager_or_csr, require_any_role
 from app.core.logging import get_logger
 from app.domain.models.call import Call
+from app.domain.models.pending_action import PendingAction
 from app.domain.enums import UserRole
 from app.domain.users.models import User
 from app.services.call_service import CallService
 from app.services.analytics_service import AnalyticsService
+from app.services.pending_action_service import PendingActionService
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+class CreateActionItemRequest(BaseModel):
+    """Request to create an action item from a call (executive assigning to CSR)."""
+    owner_id: UUID = Field(..., description="User to assign the action to (CSR)")
+    action_type: str = Field(..., description="Type of action (e.g. follow_up_call, send_quote)")
+    raw_text: Optional[str] = Field(None, description="Optional description")
+    due_at: Optional[datetime] = Field(None, description="When the action is due")
+    priority: Optional[int] = Field(None, description="Priority (higher = more urgent)")
 
 
 @router.get("", response_model=List[Call])
@@ -69,6 +82,7 @@ async def get_call_logs(
     user_id: Optional[UUID] = Query(None, description="Filter by user UUID (alias for csr_id; also allows deriving company_id)"),
     status_filter: Optional[str] = Query(None, description="Filter by qualification status (qualified/unqualified/all)"),
     booking_filter: Optional[str] = Query(None, description="Filter by booking status (booked/unbooked/all)"),
+    existing_customer: Optional[bool] = Query(None, description="Filter by existing customer (true=only existing, false=only non-existing, omit=all)"),
     quick_filter: Optional[str] = Query(None, description="Quick filter (hot_lead, qualified_unbooked, qualified_booked, abandoned, residential, commercial, etc.)"),
     skip: int = Query(0, ge=0, description="Number of records to skip (for pagination)"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
@@ -146,6 +160,7 @@ async def get_call_logs(
             csr_id=csr_id,
             status_filter=status_filter,
             booking_filter=booking_filter,
+            existing_customer=existing_customer,
             quick_filter=quick_filter,
             skip=skip,
             limit=limit,
@@ -158,6 +173,44 @@ async def get_call_logs(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get call logs: {str(e)}",
         )
+
+
+@router.post("/{call_id}/action-items", response_model=PendingAction, status_code=status.HTTP_201_CREATED)
+async def create_call_action_items(
+    call_id: UUID,
+    request: CreateActionItemRequest,
+    db: DbSession,
+    user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+) -> PendingAction:
+    """
+    Create an action item linked to a call and assign it to a user (e.g. executive assigning to CSR).
+    
+    Access: EXECUTIVE, CSR, SALES_REP
+    """
+    try:
+        call_service = CallService(db)
+        call = await call_service.call_repo.get_by_id(call_id)
+        if not call:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Call not found")
+        pending_service = PendingActionService(db)
+        action = await pending_service.create_from_call(
+            call_id=call_id,
+            company_id=call.company_id,
+            lead_id=call.lead_id,
+            owner_id=request.owner_id,
+            assigned_by_id=user.id,
+            action_type=request.action_type,
+            raw_text=request.raw_text,
+            due_at=request.due_at,
+            priority=request.priority,
+        )
+        return action
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating action item for call: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.get("/{call_id}", response_model=Call)

@@ -13,6 +13,7 @@ from sqlalchemy import select, func, text, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
+from app.services.metrics_service import _metrics_exclude_existing_and_service_not_offered
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.contact import ContactCardORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
@@ -99,7 +100,7 @@ class AnalyticsService:
             if end_date:
                 end_dt = datetime.combine(end_date, datetime.max.time())
             
-            # Get analyses with objections, joined with calls and contact_card
+            # Get analyses with objections, joined with calls and contact_card (exclude existing customer & service not offered)
             query = (
                 select(CallAnalysisORM, CallORM, ContactCardORM)
                 .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
@@ -108,6 +109,7 @@ class AnalyticsService:
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.objections.isnot(None),
                     func.coalesce(func.array_length(CallAnalysisORM.objections, 1), 0) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             if user_id:
@@ -322,10 +324,10 @@ class AnalyticsService:
                 CallAnalysisORM.objections.isnot(None),
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
                 # Check if any variation matches any element in the array (case-insensitive)
-                # Using array overlap with LOWER() for case-insensitive matching
                 text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
                     bindparam('variations', variations_array)
-                )
+                ),
+                _metrics_exclude_existing_and_service_not_offered(),
             )
             
             # Add owner_id filter if provided
@@ -432,7 +434,8 @@ class AnalyticsService:
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
                 text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
                     bindparam('variations', variations_array)
-                )
+                ),
+                _metrics_exclude_existing_and_service_not_offered(),
             )
             
             if user_id:
@@ -486,7 +489,8 @@ class AnalyticsService:
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
                 text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
                     bindparam('variations', variations_array)
-                )
+                ),
+                _metrics_exclude_existing_and_service_not_offered(),
             ).distinct().subquery()
             
             unbooked_leads_query = select(
@@ -544,7 +548,8 @@ class AnalyticsService:
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
                 text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
                     bindparam('variations', variations_array)
-                )
+                ),
+                _metrics_exclude_existing_and_service_not_offered(),
             ).group_by(
                 UserORM.id,
                 UserORM.first_name,
@@ -664,7 +669,8 @@ class AnalyticsService:
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
                 text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
                     bindparam('variations', variations_array)
-                )
+                ),
+                _metrics_exclude_existing_and_service_not_offered(),
             )
             
             if user_id:
@@ -768,6 +774,7 @@ class AnalyticsService:
                 text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
                     bindparam('variations', variations_array)
                 ),
+                _metrics_exclude_existing_and_service_not_offered(),
                 CallORM.created_at >= start_dt,
                 CallORM.created_at <= end_dt
             ).group_by(
@@ -815,6 +822,7 @@ class AnalyticsService:
                 text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
                     bindparam('variations', variations_array)
                 ),
+                _metrics_exclude_existing_and_service_not_offered(),
                 CallORM.created_at >= start_dt,
                 CallORM.created_at <= end_dt
             )

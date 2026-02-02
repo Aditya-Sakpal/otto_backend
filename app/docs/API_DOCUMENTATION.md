@@ -1,6 +1,6 @@
 # Otto AI Backend API Documentation
 
-**Base URL:** `http://localhost:8000/api/v1` (or `http://localhost:8001/api/v1`)
+**Base URL:** `http://localhost:8001/api/v1` (server runs on port 8001; or `http://localhost:8000/api/v1` if configured otherwise)
 
 **Version:** 2.0.0
 
@@ -696,11 +696,13 @@ Get call logs with summary statistics and filtered call list.
 Returns comprehensive call log data including summary statistics (Total Calls, Qualified, Booked, Abandoned) and a detailed list of calls with all relevant information for the call logs dashboard.
 
 **Query Parameters:**
-- `company_id` (UUID, required) - Company UUID
+- `company_id` (UUID, optional) - Company UUID (required if `user_id` not provided)
+- `user_id` (UUID, optional) - User UUID; if provided, call logs are scoped to this user and company_id is derived from user
 - `search` (string, optional) - Search by customer name, CSR name, or phone number
 - `csr_id` (UUID, optional) - Filter by specific CSR/owner UUID
 - `status_filter` (string, optional) - Filter by qualification status (`qualified`/`unqualified`/`all`, default: `all`)
 - `booking_filter` (string, optional) - Filter by booking status (`booked`/`unbooked`/`all`, default: `all`)
+- `existing_customer` (boolean, optional) - Filter by existing customer: `true` = only existing, `false` = only non-existing, omit = all
 - `quick_filter` (string, optional) - Quick filter options:
   - `hot_lead` - Hot leads
   - `qualified_unbooked` - Qualified but not booked
@@ -733,13 +735,18 @@ GET /api/v1/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=jo
   "calls": [
     {
       "call_id": "30000000-0000-0000-0000-000000000001",
+      "lead_id": "20000000-0000-0000-0000-000000000001",
       "call_received": "12/31/25, 10:39 AM",
       "duration": "2m 13s",
       "csr_name": "Travis Jones",
+      "answered_by_display": null,
       "customer_name": "EVANSON DALE",
       "phone_number": "(555) 123-4567",
       "is_qualified": false,
       "is_booked": false,
+      "booking_status": null,
+      "is_existing_customer": null,
+      "lead_source": null,
       "score": null,
       "objections": null,
       "tags": "Follow-up"
@@ -785,13 +792,18 @@ GET /api/v1/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=jo
   - `abandoned`: Number of abandoned calls
 - `calls`: Array of call log entries
   - `call_id`: UUID of the call
+  - `lead_id`: UUID of the associated lead, null if none
   - `call_received`: Formatted date/time when call was received (MM/DD/YY, HH:MM AM/PM)
   - `duration`: Call duration formatted as "Xm Ys"
   - `csr_name`: Full name of the CSR who handled the call
+  - `answered_by_display`: Display name of who answered (from VoIP/CRM), null if not set
   - `customer_name`: Customer name in uppercase
   - `phone_number`: Formatted phone number (XXX) XXX-XXXX
   - `is_qualified`: Boolean indicating if call was qualified
   - `is_booked`: Boolean indicating if call resulted in booking
+  - `booking_status`: Raw booking status from analysis (e.g. `booked`, `service_not_offered`), null if not set
+  - `is_existing_customer`: Boolean from call analysis, null if not set
+  - `lead_source`: Lead source from CRM/VoIP (e.g. Google, LSA), null if not set
   - `score`: Call score (SOP compliance score or sentiment score converted to 0-100 scale), null if not available
   - `objections`: Comma-separated list of objections (first 3), null if none
   - `tags`: Comma-separated list of tags from lead status and metadata, null if none
@@ -810,7 +822,7 @@ GET /api/v1/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=jo
 - Quick filter abandoned: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111&quick_filter=abandoned`
 
 **Note:**
-- Summary statistics are calculated from all calls for the company (not filtered)
+- Summary statistics exclude existing customers and service-not-offered calls; they are calculated from all other calls for the company (not filtered by list filters)
 - Call list is filtered based on query parameters
 - Calls are ordered by creation date (most recent first)
 - Phone numbers are automatically formatted to (XXX) XXX-XXXX format
@@ -819,6 +831,43 @@ GET /api/v1/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=jo
 - Score uses SOP compliance score if available, otherwise falls back to sentiment score (converted to 0-100 scale)
 
 **Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### POST `/calls/{call_id}/action-items`
+
+Create an action item linked to a call and assign it to a user (e.g. executive assigning to CSR).
+
+**Path Parameters:**
+- `call_id` (UUID, required) - Call UUID
+
+**Request Body:**
+```json
+{
+  "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "action_type": "follow_up_call",
+  "raw_text": "Call back to confirm appointment",
+  "due_at": null,
+  "priority": 1
+}
+```
+- `owner_id` (UUID, required) - User to assign the action to (CSR)
+- `action_type` (string, required) - Type of action (e.g. `follow_up_call`, `send_quote`)
+- `raw_text` (string, optional) - Optional description
+- `due_at` (datetime, optional) - When the action is due (UTC)
+- `priority` (int, optional) - Priority (higher = more urgent)
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Response:** `201 Created` - Returns the created `PendingAction` with `assigned_by_id` set to the current user.
+
+**Error:** `404 Not Found` - Call not found
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
 
 ---
 
@@ -833,6 +882,9 @@ List leads for a company with optional filters.
 - `status` (string, optional) - Filter by status (comma-separated, e.g., `"qualified_unbooked"` or `"closed_lost,abandoned,dormant"`)
 - `nurturing` (string, optional) - Filter nurturing leads (comma-separated, e.g., `"new,warm,hot"`)
 - `sort` (string, optional) - Sort option (e.g., `"priority"`)
+- `start_date` (string, optional) - Filter leads created on or after this date (YYYY-MM-DD)
+- `end_date` (string, optional) - Filter leads created on or before this date (YYYY-MM-DD)
+- `search` (string, optional) - Search by contact name or phone number
 - `skip` (int, default: 0) - Number of records to skip
 - `limit` (int, default: 100) - Maximum number of records to return
 
@@ -1076,7 +1128,7 @@ Content-Type: application/json
 
 ### PUT `/leads/{lead_id}/status`
 
-Update lead status.
+Update lead status. When called by an EXECUTIVE, the change is logged in the `lead_status_changes` audit table (with optional reason).
 
 **Path Parameters:**
 - `lead_id` (UUID, required) - Lead UUID
@@ -1084,9 +1136,12 @@ Update lead status.
 **Request Body:**
 ```json
 {
-  "status": "qualified_booked"
+  "status": "qualified_booked",
+  "reason": "Manual qualification after review"
 }
 ```
+- `status` (string, required) - New lead status (valid values from LeadStatus enum)
+- `reason` (string, optional) - Optional reason for the change (stored in audit when EXECUTIVE)
 
 **Headers:**
 ```
@@ -1100,7 +1155,8 @@ PUT /api/v1/leads/20000000-0000-0000-0000-000000000001/status
 Content-Type: application/json
 
 {
-  "status": "qualified_booked"
+  "status": "qualified_booked",
+  "reason": "Manual qualification after review"
 }
 ```
 
@@ -1741,6 +1797,56 @@ Get pending actions metrics within date range.
 ```
 
 **Required Role:** Any authenticated user
+
+---
+
+### PATCH `/metrics/actions/pending/{action_id}/complete`
+
+Mark a pending action as completed (e.g. CSR marking their assigned action done).
+
+**Path Parameters:**
+- `action_id` (UUID, required) - Pending action UUID
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+PATCH /api/v1/metrics/actions/pending/<action_id>/complete
+```
+
+**Response:** `200 OK` - Returns the updated `PendingAction` with `status: "completed"`.
+
+**Error:** `404 Not Found` - Pending action not found
+
+**Required Role:** CSR, SALES_REP, or EXECUTIVE
+
+---
+
+### PATCH `/metrics/actions/pending/{action_id}/reopen`
+
+Reopen a pending action (set status back to `pending`). Use when a CSR or sales rep mistakenly marked an action as complete and needs to undo it.
+
+**Path Parameters:**
+- `action_id` (UUID, required) - Pending action UUID
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+PATCH /api/v1/metrics/actions/pending/<action_id>/reopen
+```
+
+**Response:** `200 OK` - Returns the updated `PendingAction` with `status: "pending"`.
+
+**Error:** `404 Not Found` - Pending action not found
+
+**Required Role:** CSR, SALES_REP, or EXECUTIVE
 
 ---
 

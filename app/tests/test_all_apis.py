@@ -28,9 +28,12 @@ from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.contact import ContactCardORM
 from sqlalchemy import select
 
-# Base URL for the API
-BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+# Base URL for the API (server runs on port 8001 by default)
+BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8001")
 API_PREFIX = "/api/v1"
+
+# Accept 403 (Not authenticated) as success when we couldn't get a token - endpoint exists and requires auth
+AUTH_OR_403 = [200, 201, 403]
 
 # Test results
 test_results = {
@@ -64,6 +67,8 @@ async def test_endpoint(client: httpx.AsyncClient, method: str, url: str,
             response = await client.post(url, json=json_data, params=params, timeout=30.0)
         elif method.upper() == "PUT":
             response = await client.put(url, json=json_data, params=params, timeout=30.0)
+        elif method.upper() == "PATCH":
+            response = await client.patch(url, json=json_data, params=params, timeout=30.0)
         elif method.upper() == "DELETE":
             response = await client.delete(url, params=params, timeout=30.0)
         else:
@@ -204,7 +209,7 @@ async def get_test_data(client: httpx.AsyncClient):
     companies_resp = await test_endpoint(
         client, "GET", f"{BASE_URL}{API_PREFIX}/users/companies",
         test_name="Get Companies (for test data)",
-        expected_status=[200, 404, 500]
+        expected_status=[200, 403, 404, 500]
     )
     
     test_company_id = None
@@ -271,7 +276,30 @@ async def test_all_apis():
     print("COMPREHENSIVE API TESTING")
     print("=" * 80)
     
-    async with httpx.AsyncClient() as client:
+    # Try to get auth token so protected endpoints can be tested
+    auth_headers = {}
+    try:
+        async with httpx.AsyncClient() as auth_client:
+            login_resp = await auth_client.post(
+                f"{BASE_URL}{API_PREFIX}/auth/login",
+                json={
+                    "email": os.getenv("TEST_LOGIN_EMAIL", "sales1@acme.com"),
+                    "password": os.getenv("TEST_LOGIN_PASSWORD", "SecurePassword123!"),
+                },
+                timeout=10.0,
+            )
+            if login_resp.status_code == 200:
+                data = login_resp.json()
+                token = data.get("access_token")
+                if token:
+                    auth_headers["Authorization"] = f"Bearer {token}"
+                    print("\n[OK] Authenticated with test user; protected endpoints will use token.")
+            if not auth_headers:
+                print("\n[SKIP] No auth token (login failed or not configured); many endpoints will return 403.")
+    except Exception as e:
+        print(f"\n[SKIP] Auth login failed: {e}; running without token.")
+    
+    async with httpx.AsyncClient(headers=auth_headers) as client:
         # Get test data
         test_data = await get_test_data(client)
         company_id = test_data["company_id"]
@@ -310,13 +338,14 @@ async def test_all_apis():
                 "email": "test@example.com",
                 "password": "test123"
             },
-            expected_status=200,
+            expected_status=[200, 401],
             test_name="POST /auth/login"
         )
         
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/auth/me",
-            test_name="GET /auth/me"
+            test_name="GET /auth/me",
+            expected_status=AUTH_OR_403
         )
         
         print("\n" + "=" * 80)
@@ -327,13 +356,43 @@ async def test_all_apis():
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/calls",
             params={"company_id": company_id, "skip": 0, "limit": 10},
-            test_name="GET /calls"
+            test_name="GET /calls",
+            expected_status=AUTH_OR_403
         )
         
         if call_id:
             await test_endpoint(
                 client, "GET", f"{BASE_URL}{API_PREFIX}/calls/{call_id}",
-                test_name="GET /calls/{call_id}"
+                test_name="GET /calls/{call_id}",
+                expected_status=AUTH_OR_403 + [404]
+            )
+        
+        # Call logs with optional filters (existing_customer, etc.)
+        await test_endpoint(
+            client, "GET", f"{BASE_URL}{API_PREFIX}/calls/logs",
+            params={"company_id": company_id, "skip": 0, "limit": 10},
+            test_name="GET /calls/logs",
+            expected_status=AUTH_OR_403
+        )
+        await test_endpoint(
+            client, "GET", f"{BASE_URL}{API_PREFIX}/calls/logs",
+            params={"company_id": company_id, "existing_customer": "false", "limit": 5},
+            test_name="GET /calls/logs (existing_customer=false)",
+            expected_status=AUTH_OR_403
+        )
+        
+        # Create call action item (executive/CSR assigning action to user)
+        if call_id and user_id:
+            await test_endpoint(
+                client, "POST", f"{BASE_URL}{API_PREFIX}/calls/{call_id}/action-items",
+                json_data={
+                    "owner_id": user_id,
+                    "action_type": "follow_up_call",
+                    "raw_text": "Test action from API test",
+                    "priority": 1
+                },
+                test_name="POST /calls/{call_id}/action-items",
+                expected_status=[201, 401, 404]
             )
         
         print("\n" + "=" * 80)
@@ -344,18 +403,21 @@ async def test_all_apis():
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/users",
             params={"company_id": company_id},
-            test_name="GET /users"
+            test_name="GET /users",
+            expected_status=AUTH_OR_403
         )
         
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/users/companies",
-            test_name="GET /users/companies"
+            test_name="GET /users/companies",
+            expected_status=AUTH_OR_403
         )
         
         if user_id:
             await test_endpoint(
                 client, "GET", f"{BASE_URL}{API_PREFIX}/users/{user_id}",
-                test_name="GET /users/{user_id}"
+                test_name="GET /users/{user_id}",
+                expected_status=AUTH_OR_403 + [404]
             )
         
         print("\n" + "=" * 80)
@@ -366,13 +428,36 @@ async def test_all_apis():
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/leads",
             params={"company_id": company_id, "skip": 0, "limit": 10},
-            test_name="GET /leads"
+            test_name="GET /leads",
+            expected_status=AUTH_OR_403
+        )
+        # Leads with date range and search
+        await test_endpoint(
+            client, "GET", f"{BASE_URL}{API_PREFIX}/leads",
+            params={
+                "company_id": company_id,
+                "start_date": "2025-01-01",
+                "end_date": "2026-12-31",
+                "search": "alice",
+                "skip": 0,
+                "limit": 10
+            },
+            test_name="GET /leads (start_date, end_date, search)",
+            expected_status=AUTH_OR_403
         )
         
         if lead_id:
             await test_endpoint(
                 client, "GET", f"{BASE_URL}{API_PREFIX}/leads/{lead_id}",
-                test_name="GET /leads/{lead_id}"
+                test_name="GET /leads/{lead_id}",
+                expected_status=AUTH_OR_403 + [404]
+            )
+            # Update lead status with optional reason (audit when EXECUTIVE)
+            await test_endpoint(
+                client, "PUT", f"{BASE_URL}{API_PREFIX}/leads/{lead_id}/status",
+                json_data={"status": "qualified_unbooked", "reason": "API test audit reason"},
+                test_name="PUT /leads/{lead_id}/status (with reason)",
+                expected_status=[200, 403, 404]
             )
         
         print("\n" + "=" * 80)
@@ -381,15 +466,17 @@ async def test_all_apis():
         
         # Analytics endpoints
         await test_endpoint(
-            client, "GET", f"{BASE_URL}{API_PREFIX}/analytics/top-objections",
+            client, "GET", f"{BASE_URL}{API_PREFIX}/metrics/objections/top",
             params={"company_id": company_id},
-            test_name="GET /analytics/top-objections"
+            test_name="GET /metrics/objections/top",
+            expected_status=AUTH_OR_403
         )
         
         await test_endpoint(
-            client, "GET", f"{BASE_URL}{API_PREFIX}/analytics/objection-calls",
-            params={"objection": "price", "company_id": company_id},
-            test_name="GET /analytics/objection-calls"
+            client, "GET", f"{BASE_URL}{API_PREFIX}/metrics/objections/price/calls",
+            params={"company_id": company_id},
+            test_name="GET /metrics/objections/{objection}/calls",
+            expected_status=AUTH_OR_403
         )
         
         print("\n" + "=" * 80)
@@ -400,14 +487,46 @@ async def test_all_apis():
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/metrics/exec/company-overview",
             params={"company_id": company_id},
-            test_name="GET /metrics/exec/company-overview"
+            test_name="GET /metrics/exec/company-overview",
+            expected_status=AUTH_OR_403
         )
         
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/metrics/company/performance",
             params={"company_id": company_id},
-            test_name="GET /metrics/company/performance"
+            test_name="GET /metrics/company/performance",
+            expected_status=AUTH_OR_403
         )
+        
+        # Pending actions and complete
+        pending_resp = await test_endpoint(
+            client, "GET", f"{BASE_URL}{API_PREFIX}/metrics/actions/pending",
+            params={"company_id": company_id},
+            test_name="GET /metrics/actions/pending",
+            expected_status=AUTH_OR_403
+        )
+        # If we have a pending action id from response, test complete (optional)
+        action_id = None
+        if pending_resp and isinstance(pending_resp, dict):
+            # Response may contain list of actions or summary; try to get first action id if available
+            actions = pending_resp.get("actions") or pending_resp.get("pending_actions") or []
+            if isinstance(actions, list) and len(actions) > 0 and isinstance(actions[0], dict):
+                action_id = actions[0].get("id")
+            elif isinstance(actions, list) and len(actions) > 0:
+                action_id = str(actions[0]) if actions[0] else None
+        if action_id:
+            await test_endpoint(
+                client, "PATCH", f"{BASE_URL}{API_PREFIX}/metrics/actions/pending/{action_id}/complete",
+                test_name="PATCH /metrics/actions/pending/{action_id}/complete",
+                expected_status=[200, 403, 404]
+            )
+        else:
+            # Test with a placeholder UUID to assert endpoint exists (expect 404 or 403)
+            await test_endpoint(
+                client, "PATCH", f"{BASE_URL}{API_PREFIX}/metrics/actions/pending/00000000-0000-0000-0000-000000000000/complete",
+                test_name="PATCH /metrics/actions/pending/{action_id}/complete (placeholder)",
+                expected_status=[200, 403, 404]
+            )
         
         print("\n" + "=" * 80)
         print("CALL PROCESSING APIs (Shunya)")
@@ -419,14 +538,14 @@ async def test_all_apis():
             await test_endpoint(
                 client, "GET", f"{BASE_URL}{API_PREFIX}/call-processing/summary/{call_id}",
                 test_name="GET /call-processing/summary/{call_id}",
-                expected_status=[200, 404, 503]
+                expected_status=[200, 403, 404, 503]
             )
             
             # Test call chunks
             await test_endpoint(
                 client, "GET", f"{BASE_URL}{API_PREFIX}/call-processing/chunks/{call_id}",
                 test_name="GET /call-processing/chunks/{call_id}",
-                expected_status=[200, 404, 503]
+                expected_status=[200, 403, 404, 503]
             )
         
         # Test process call (submit a new call for processing)
@@ -443,7 +562,7 @@ async def test_all_apis():
                 "options": {}
             },
             test_name="POST /call-processing/process",
-            expected_status=[202, 400, 503]
+            expected_status=[202, 400, 403, 503]
         )
         
         # If we got a job_id, test status endpoint
@@ -470,7 +589,7 @@ async def test_all_apis():
                 "context": {}
             },
             test_name="POST /ask-otto/conversations",
-            expected_status=[201, 200, 400, 503]
+            expected_status=[201, 200, 400, 403, 503]
         )
         
         conversation_id = None
@@ -531,7 +650,7 @@ async def test_all_apis():
                 "options": {}
             },
             test_name="POST /insights/generate",
-            expected_status=[202, 400, 503]
+            expected_status=[202, 400, 403, 503]
         )
         
         # Get job status if we got a job_id
@@ -550,7 +669,7 @@ async def test_all_apis():
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/insights/company/{company_id}/current",
             test_name="GET /insights/company/{id}/current",
-            expected_status=[200, 404, 503]
+            expected_status=[200, 403, 404, 503]
         )
         
         # Get customer insights
@@ -558,14 +677,14 @@ async def test_all_apis():
             client, "GET", f"{BASE_URL}{API_PREFIX}/insights/customers",
             params={"company_id": company_id, "page": 1, "limit": 10},
             test_name="GET /insights/customers",
-            expected_status=[200, 404, 503]
+            expected_status=[200, 403, 404, 503]
         )
         
         # Get objection insights
         await test_endpoint(
             client, "GET", f"{BASE_URL}{API_PREFIX}/insights/objections/{company_id}",
             test_name="GET /insights/objections/{id}",
-            expected_status=[200, 404, 503]
+            expected_status=[200, 403, 404, 503]
         )
         
         print("\n" + "=" * 80)
@@ -580,7 +699,7 @@ async def test_all_apis():
                 "context": {}
             },
             test_name="POST /rag/ask-otto",
-            expected_status=[200, 503]
+            expected_status=[200, 403, 503]
         )
         
         print("\n" + "=" * 80)

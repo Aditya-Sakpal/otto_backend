@@ -29,7 +29,14 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-@router.post("/validate-ghl", response_model=ValidateGHLResponse, status_code=status.HTTP_200_OK)
+RESPONSES = {
+    401: {"description": "Invalid credentials"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
+
+
+@router.post("/validate-ghl", response_model=ValidateGHLResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def validate_ghl(
     body: ValidateGHLRequest,
 ) -> ValidateGHLResponse:
@@ -68,7 +75,7 @@ async def validate_ghl(
         )
 
 
-@router.post("/validate-ctm", response_model=ValidateCTMResponse, status_code=status.HTTP_200_OK)
+@router.post("/validate-ctm", response_model=ValidateCTMResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def validate_ctm(
     body: ValidateCTMRequest,
 ) -> ValidateCTMResponse:
@@ -107,7 +114,7 @@ async def validate_ctm(
             detail=f"Error validating CTM credentials: {str(e)}"
         )
 
-@router.post("/complete", response_model=OnboardingCompleteResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/complete", response_model=OnboardingCompleteResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def complete_onboarding(
     background_tasks: BackgroundTasks,
     db: DbSession,

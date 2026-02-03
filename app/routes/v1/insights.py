@@ -25,6 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter(prefix="/insights", tags=["insights"])
 logger = get_logger(__name__)
 
+RESPONSES = {
+    403: {"description": "Forbidden"},
+    404: {"description": "Job or resource not found"},
+    500: {"description": "Internal server error"},
+    503: {"description": "Shunya service not available"},
+}
+
 
 # Request/Response Models
 class GenerateInsightsRequest(BaseModel):
@@ -40,7 +47,7 @@ class GenerateInsightsRequest(BaseModel):
     )
 
 
-@router.post("/generate", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/generate", status_code=status.HTTP_202_ACCEPTED, responses=RESPONSES)
 async def generate_insights(
     body: GenerateInsightsRequest,
     db: DbSession,
@@ -105,7 +112,7 @@ async def generate_insights(
         )
 
 
-@router.get("/status/{job_id}")
+@router.get("/status/{job_id}", responses=RESPONSES)
 async def get_insight_job_status(
     job_id: str,
     db: DbSession,
@@ -162,7 +169,7 @@ async def get_insight_job_status(
         )
 
 
-@router.get("/company/{company_id}/current")
+@router.get("/company/{company_id}/current", responses=RESPONSES)
 async def get_current_company_insight(
     company_id: UUID,
     db: DbSession,
@@ -194,7 +201,7 @@ async def get_current_company_insight(
         )
 
 
-@router.get("/customers")
+@router.get("/customers", responses=RESPONSES)
 async def get_customer_insights(
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
@@ -240,7 +247,7 @@ async def get_customer_insights(
         )
 
 
-@router.get("/objections/{company_id}")
+@router.get("/objections/{company_id}", responses=RESPONSES)
 async def get_objection_insights(
     company_id: UUID,
     db: DbSession,

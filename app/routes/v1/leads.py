@@ -20,8 +20,16 @@ from pydantic import BaseModel, Field
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    400: {"description": "Bad request (e.g. invalid date format)"},
+    403: {"description": "Forbidden"},
+    404: {"description": "Lead not found"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
-@router.get("", response_model=List[Lead])
+
+@router.get("", response_model=List[Lead], responses=RESPONSES)
 async def list_leads(
     company_id: UUID,
     db: DbSession,
@@ -127,7 +135,7 @@ async def list_leads(
         )
 
 
-@router.get("/{lead_id}", response_model=Lead)
+@router.get("/{lead_id}", response_model=Lead, responses=RESPONSES)
 async def get_lead(
     lead_id: UUID,
     db: DbSession,
@@ -161,7 +169,7 @@ async def get_lead(
         )
 
 
-@router.get("/{lead_id}/details", response_model=LeadDetail)
+@router.get("/{lead_id}/details", response_model=LeadDetail, responses=RESPONSES)
 async def get_lead_details(
     lead_id: UUID,
     db: DbSession,
@@ -223,7 +231,7 @@ class UpdateLeadStatusRequest(BaseModel):
     reason: Optional[str] = Field(None, description="Optional reason for the change (audit)")
 
 
-@router.post("/{lead_id}/assign", response_model=AssignLeadResponse, status_code=status.HTTP_200_OK)
+@router.post("/{lead_id}/assign", response_model=AssignLeadResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def assign_lead(
     lead_id: UUID,
     request: AssignLeadRequest,
@@ -294,7 +302,7 @@ async def assign_lead(
         )
 
 
-@router.put("/{lead_id}/status", response_model=Lead, status_code=status.HTTP_200_OK)
+@router.put("/{lead_id}/status", response_model=Lead, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def update_lead_status(
     lead_id: UUID,
     request: UpdateLeadStatusRequest,

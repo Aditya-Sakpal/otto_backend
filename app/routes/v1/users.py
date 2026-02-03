@@ -20,8 +20,16 @@ from app.domain.enums import UserRole
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    400: {"description": "Bad request"},
+    403: {"description": "Forbidden"},
+    404: {"description": "User not found"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
-@router.get("", response_model=List[UserResponse])
+
+@router.get("", response_model=List[UserResponse], responses=RESPONSES)
 async def list_users(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -63,7 +71,7 @@ async def list_users(
         )
 
 
-@router.get("/sales-reps", response_model=List[UserResponse])
+@router.get("/sales-reps", response_model=List[UserResponse], responses=RESPONSES)
 async def get_sales_reps_by_company(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -103,7 +111,7 @@ async def get_sales_reps_by_company(
         )
 
 
-@router.get("/companies", response_model=List[dict])
+@router.get("/companies", response_model=List[dict], responses=RESPONSES)
 async def list_companies(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -160,7 +168,7 @@ async def get_current_user_profile(
         )
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserResponse, responses=RESPONSES)
 async def get_user(
     user_id: UUID,
     db: DbSession,
@@ -196,7 +204,7 @@ async def get_user(
         )
 
 
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def create_user(
     user_data: UserCreate,
     db: DbSession,
@@ -280,7 +288,7 @@ async def create_user(
 #         )
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserResponse, responses=RESPONSES)
 async def update_user(
     user_id: UUID,
     user_data: UserUpdate,

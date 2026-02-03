@@ -22,8 +22,15 @@ from app.services.invitation_service import InvitationService
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    400: {"description": "Bad request (e.g. invalid token or validation error)"},
+    403: {"description": "Forbidden"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
-@router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def create_invitation(
     db: DbSession,
     invitation_data: InvitationCreate = Body(...),
@@ -64,7 +71,7 @@ async def create_invitation(
         )
 
 
-@router.get("/validate/{token}", response_model=InvitationValidateResponse, status_code=status.HTTP_200_OK)
+@router.get("/validate/{token}", response_model=InvitationValidateResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def validate_invitation_token(
     token: str,
     db: DbSession,
@@ -103,7 +110,7 @@ async def validate_invitation_token(
         )
 
 
-@router.post("/invite/complete", response_model=InvitationSignupResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/invite/complete", response_model=InvitationSignupResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def accept_invitation_and_signup(
     body: InvitationSignupRequest,
     db: DbSession,

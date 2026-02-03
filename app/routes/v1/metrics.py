@@ -16,14 +16,40 @@ from app.core.permissions import require_executive, require_any_role
 from app.domain.enums import UserRole
 from app.domain.users.models import User
 from app.domain.models.pending_action import PendingAction
+from app.domain.schemas.metrics import (
+    CompanyOverviewResponse,
+    CSRDashboardResponse,
+    MissedCallsResponse,
+    BookingRateImprovementResponse,
+    TopObjectionsResponse,
+    ObjectionsSummaryResponse,
+    CoachingOpportunitiesResponse,
+    MostCoachingOpportunitiesResponse,
+    ConversionMetricsResponse,
+    ConversionsPendingToBookedResponse,
+    EmergencyDroppedResponse,
+    CompanyPerformanceResponse,
+    CallsSummaryResponse,
+    BookingsSummaryResponse,
+    UnbookedLeadsResponse,
+    PendingActionsResponse,
+    CSRProfileResponse,
+)
 from app.services.metrics_service import MetricsService
 from app.services.analytics_service import AnalyticsService
 from app.services.pending_action_service import PendingActionService
 
 router = APIRouter(tags=["metrics"])
 
+RESPONSES = {
+    400: {"description": "Bad request (e.g. missing company_id or user_id)"},
+    403: {"description": "Forbidden"},
+    404: {"description": "Resource not found"},
+    500: {"description": "Internal server error"},
+}
 
-@router.get("/exec/company-overview")
+
+@router.get("/exec/company-overview", response_model=CompanyOverviewResponse, responses=RESPONSES)
 async def get_company_overview(
     db: DbSession,
     company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
@@ -72,7 +98,7 @@ async def get_company_overview(
     )
 
 
-@router.get("/exec/csr/dashboard")
+@router.get("/exec/csr/dashboard", response_model=CSRDashboardResponse, responses=RESPONSES)
 async def get_csr_dashboard(
     db: DbSession,
     company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
@@ -118,7 +144,7 @@ async def get_csr_dashboard(
     )
 
 
-@router.get("/exec/missed-calls")
+@router.get("/exec/missed-calls", response_model=MissedCallsResponse, responses=RESPONSES)
 async def get_missed_calls(
     company_id: UUID,
     db: DbSession,
@@ -146,7 +172,7 @@ async def get_missed_calls(
     )
 
 
-@router.get("/csr/auto-queued-leads")
+@router.get("/csr/auto-queued-leads", responses=RESPONSES)
 async def get_auto_queued_leads(
     company_id: UUID,
     db: DbSession,
@@ -177,7 +203,7 @@ async def get_auto_queued_leads(
     )
 
 
-@router.get("/booking-rate-improvement")
+@router.get("/booking-rate-improvement", response_model=BookingRateImprovementResponse, responses=RESPONSES)
 async def get_booking_rate_improvement(
     db: DbSession,
     company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
@@ -228,7 +254,7 @@ async def get_booking_rate_improvement(
     )
 
 
-@router.get("/bookings/summary")
+@router.get("/bookings/summary", response_model=BookingsSummaryResponse, responses=RESPONSES)
 async def get_bookings_summary(
     company_id: UUID,
     db: DbSession,
@@ -256,7 +282,7 @@ async def get_bookings_summary(
     )
 
 
-@router.get("/objections/top")
+@router.get("/objections/top", responses=RESPONSES)
 async def get_top_objections(
     db: DbSession,
     company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
@@ -309,7 +335,7 @@ async def get_top_objections(
     return result
 
 
-@router.get("/objections/summary")
+@router.get("/objections/summary", response_model=ObjectionsSummaryResponse, responses=RESPONSES)
 async def get_objections_summary(
     company_id: UUID,
     db: DbSession,
@@ -337,7 +363,7 @@ async def get_objections_summary(
     )
 
 
-@router.get("/objections/{objection_type}/calls")
+@router.get("/objections/{objection_type}/calls", responses=RESPONSES)
 async def get_objection_calls(
     objection_type: str,
     company_id: UUID,
@@ -382,7 +408,7 @@ async def get_objection_calls(
     return result
 
 
-@router.get("/coaching/opportunities")
+@router.get("/coaching/opportunities", response_model=CoachingOpportunitiesResponse, responses=RESPONSES)
 async def get_coaching_opportunities(
     company_id: UUID,
     db: DbSession,
@@ -413,7 +439,7 @@ async def get_coaching_opportunities(
     )
 
 
-@router.get("/coaching/most-opportunities")
+@router.get("/coaching/most-opportunities", response_model=MostCoachingOpportunitiesResponse, responses=RESPONSES)
 async def get_most_coaching_opportunities(
     company_id: UUID,
     db: DbSession,
@@ -449,7 +475,7 @@ async def get_most_coaching_opportunities(
     )
 
 
-@router.get("/conversion/lead-to-sale")
+@router.get("/conversion/lead-to-sale", response_model=ConversionMetricsResponse, responses=RESPONSES)
 async def get_lead_to_sale_conversion(
     company_id: UUID,
     db: DbSession,
@@ -478,7 +504,7 @@ async def get_lead_to_sale_conversion(
     )
 
 
-@router.get("/conversions/pending-to-booked")
+@router.get("/conversions/pending-to-booked", response_model=ConversionsPendingToBookedResponse, responses=RESPONSES)
 async def get_conversions_pending_to_booked(
     company_id: UUID,
     db: DbSession,
@@ -506,7 +532,7 @@ async def get_conversions_pending_to_booked(
     )
 
 
-@router.get("/emergencies/dropped")
+@router.get("/emergencies/dropped", response_model=EmergencyDroppedResponse, responses=RESPONSES)
 async def get_emergencies_dropped(
     company_id: UUID,
     db: DbSession,
@@ -534,7 +560,7 @@ async def get_emergencies_dropped(
     )
 
 
-@router.get("/company/performance")
+@router.get("/company/performance", response_model=CompanyPerformanceResponse, responses=RESPONSES)
 async def get_company_performance(
     company_id: UUID,
     db: DbSession,
@@ -563,7 +589,7 @@ async def get_company_performance(
     )
 
 
-@router.get("/calls/summary")
+@router.get("/calls/summary", response_model=CallsSummaryResponse, responses=RESPONSES)
 async def get_calls_summary(
     company_id: UUID,
     db: DbSession,
@@ -592,7 +618,7 @@ async def get_calls_summary(
     )
 
 
-@router.get("/leads/unbooked")
+@router.get("/leads/unbooked", response_model=UnbookedLeadsResponse, responses=RESPONSES)
 async def get_unbooked_leads(
     company_id: UUID,
     db: DbSession,
@@ -623,7 +649,7 @@ async def get_unbooked_leads(
     )
 
 
-@router.get("/actions/pending")
+@router.get("/actions/pending", response_model=PendingActionsResponse, responses=RESPONSES)
 async def get_pending_actions(
     company_id: UUID,
     db: DbSession,
@@ -657,6 +683,7 @@ async def get_pending_actions(
     response_model=PendingAction,
     summary="Complete pending action",
     description="Mark a pending action as completed (e.g. CSR marking their assigned action done). Returns the updated PendingAction with status: completed.",
+    responses={**RESPONSES, 404: {"description": "Pending action not found"}},
 )
 async def complete_pending_action(
     action_id: UUID,
@@ -680,6 +707,7 @@ async def complete_pending_action(
     response_model=PendingAction,
     summary="Reopen pending action",
     description="Reopen a pending action (set status back to pending). Use when a CSR or sales rep mistakenly marked an action as complete and needs to undo it. Returns the updated PendingAction with status: pending.",
+    responses={**RESPONSES, 404: {"description": "Pending action not found"}},
 )
 async def reopen_pending_action(
     action_id: UUID,
@@ -699,7 +727,7 @@ async def reopen_pending_action(
     return updated
 
 
-@router.get("/csr/me/profile", response_model=dict)
+@router.get("/csr/me/profile", response_model=CSRProfileResponse, responses={**RESPONSES, 403: {"description": "Only available for CSR users"}})
 async def get_my_csr_profile(
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(get_current_user),
@@ -736,7 +764,7 @@ async def get_my_csr_profile(
     )
 
 
-@router.get("/csr/{user_id}/profile", response_model=dict)
+@router.get("/csr/{user_id}/profile", response_model=CSRProfileResponse, responses=RESPONSES)
 async def get_csr_profile(
     user_id: UUID,
     db: DbSession,

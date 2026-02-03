@@ -17,12 +17,21 @@ from app.domain.models.call import Call
 from app.domain.models.pending_action import PendingAction
 from app.domain.enums import UserRole
 from app.domain.users.models import User
+from app.domain.schemas.calls import CallLogsResponse
 from app.services.call_service import CallService
 from app.services.analytics_service import AnalyticsService
 from app.services.pending_action_service import PendingActionService
 from pydantic import BaseModel, Field
 
 router = APIRouter()
+
+# Common response descriptions for Swagger
+RESPONSES = {
+    400: {"description": "Bad request (e.g. missing company_id or user_id)"},
+    403: {"description": "Forbidden"},
+    404: {"description": "Resource not found"},
+    500: {"description": "Internal server error"},
+}
 logger = get_logger(__name__)
 
 
@@ -35,7 +44,7 @@ class CreateActionItemRequest(BaseModel):
     priority: Optional[int] = Field(None, description="Priority (higher = more urgent)")
 
 
-@router.get("", response_model=List[Call])
+@router.get("", response_model=List[Call], responses=RESPONSES)
 async def list_calls(
     company_id: UUID,
     db: DbSession,
@@ -71,7 +80,7 @@ async def list_calls(
         )
 
 
-@router.get("/logs")
+@router.get("/logs", response_model=CallLogsResponse, responses=RESPONSES)
 async def get_call_logs(
     company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
     db: DbSession = None,
@@ -175,7 +184,12 @@ async def get_call_logs(
         )
 
 
-@router.post("/{call_id}/action-items", response_model=PendingAction, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{call_id}/action-items",
+    response_model=PendingAction,
+    status_code=status.HTTP_201_CREATED,
+    responses={**RESPONSES, 404: {"description": "Call not found"}},
+)
 async def create_call_action_items(
     call_id: UUID,
     request: CreateActionItemRequest,
@@ -213,7 +227,7 @@ async def create_call_action_items(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/{call_id}", response_model=Call)
+@router.get("/{call_id}", response_model=Call, responses=RESPONSES)
 async def get_call(
     call_id: UUID,
     db: DbSession,
@@ -250,7 +264,7 @@ async def get_call(
         )
 
 
-@router.get("/by-objection/self")
+@router.get("/by-objection/self", responses=RESPONSES)
 async def get_calls_by_objection_self(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),
@@ -302,7 +316,7 @@ async def get_calls_by_objection_self(
         )
 
 
-@router.get("/by-objection/{objection}/details")
+@router.get("/by-objection/{objection}/details", responses=RESPONSES)
 async def get_objection_details(
     objection: str,
     db: DbSession,

@@ -24,8 +24,15 @@ from app.services.appointment_service import AppointmentService
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    403: {"description": "Forbidden"},
+    404: {"description": "Appointment not found"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
-@router.get("", response_model=List[AppointmentResponse])
+
+@router.get("", response_model=List[AppointmentResponse], responses=RESPONSES)
 async def list_appointments(
     db: DbSession,
     company_id: UUID = Query(..., description="Company/tenant ID"),
@@ -86,7 +93,7 @@ async def list_appointments(
         )
 
 
-@router.get("/{appointment_id}", response_model=AppointmentResponse)
+@router.get("/{appointment_id}", response_model=AppointmentResponse, responses=RESPONSES)
 async def get_appointment(
     appointment_id: UUID,
     db: DbSession,
@@ -145,7 +152,7 @@ async def create_appointment(
         )
 
 
-@router.put("/{appointment_id}", response_model=AppointmentResponse)
+@router.put("/{appointment_id}", response_model=AppointmentResponse, responses=RESPONSES)
 async def update_appointment(
     appointment_id: UUID,
     appointment_data: AppointmentUpdate,

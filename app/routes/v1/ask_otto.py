@@ -39,7 +39,29 @@ class SendMessageRequest(BaseModel):
     message: str = Field(..., description="User message")
 
 
-@router.post("/conversations", status_code=status.HTTP_201_CREATED)
+class CreateConversationResponse(BaseModel):
+    """Response from creating an Ask Otto conversation."""
+    id: str = Field(..., description="Local conversation UUID")
+    conversation_id: str = Field(..., description="Shunya or local conversation ID")
+    company_id: str = Field(..., description="Company UUID")
+
+    class Config:
+        extra = "allow"
+
+
+RESPONSES = {
+    403: {"description": "Forbidden"},
+    404: {"description": "Conversation not found"},
+    500: {"description": "Internal server error"},
+}
+
+
+@router.post(
+    "/conversations",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CreateConversationResponse,
+    responses=RESPONSES,
+)
 async def create_conversation(
     body: CreateConversationRequest,
     db: DbSession,
@@ -100,7 +122,10 @@ async def create_conversation(
             detail=f"Failed to create conversation: {str(e)}",
         )
 
-@router.post("/conversations/{conversation_id}/messages")
+@router.post(
+    "/conversations/{conversation_id}/messages",
+    responses={**RESPONSES, 200: {"description": "Streaming response (text/event-stream)"}},
+)
 async def send_message(
     conversation_id: str,
     body: SendMessageRequest,
@@ -206,7 +231,7 @@ async def send_message(
         )
 
 
-@router.get("/conversations/{conversation_id}/messages")
+@router.get("/conversations/{conversation_id}/messages", responses=RESPONSES)
 async def get_messages(
     conversation_id: UUID,
     db: DbSession,

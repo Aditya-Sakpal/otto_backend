@@ -167,21 +167,47 @@ class MetricsService:
             )
             total_appointments_count = total_appointments.scalar() or 0
             
-            # Conversion rate (closed_won / total leads) in date range
-            won_leads_filters = lead_filters + [LeadORM.status == "closed_won"]
-            won_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(*won_leads_filters)
+            # Conversion rate: booked leads (in period) / total leads created in period.
+            # "Booked" = status qualified_booked (case-insensitive) OR deal_status booked (trim + lower).
+            # Include leads that became booked *during* the period: created_at in range OR updated_at in range.
+            is_booked = or_(
+                func.lower(LeadORM.status) == "qualified_booked",
+                and_(
+                    LeadORM.deal_status.isnot(None),
+                    func.lower(func.trim(LeadORM.deal_status)) == "booked",
+                ),
             )
-            won_count = won_leads.scalar() or 0
-            conversion_rate = (won_count / total_leads_count * 100) if total_leads_count > 0 else 0.0
-            
-            # Total revenue in date range
-            revenue_filters = lead_filters + [LeadORM.status == "closed_won"]
+            # Booked in period = currently booked AND (created in range OR updated in range)
+            booked_in_period_filters = [
+                LeadORM.company_id == company_id,
+                is_booked,
+                or_(
+                    and_(
+                        LeadORM.created_at >= start_dt,
+                        LeadORM.created_at <= end_dt,
+                    ),
+                    and_(
+                        LeadORM.updated_at.isnot(None),
+                        LeadORM.updated_at >= start_dt,
+                        LeadORM.updated_at <= end_dt,
+                    ),
+                ),
+            ]
+            if user_id:
+                booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
+            booked_leads = await self.session.execute(
+                select(func.count(LeadORM.id)).where(*booked_in_period_filters)
+            )
+            booked_count = booked_leads.scalar() or 0
+            conversion_rate = (booked_count / total_leads_count * 100) if total_leads_count > 0 else 0.0
+
+            # Total revenue: sum deal_size for leads that are booked (same is_booked def) and in period
+            revenue_filters = booked_in_period_filters
             total_revenue = await self.session.execute(
                 select(func.sum(LeadORM.deal_size)).where(*revenue_filters)
             )
             revenue = total_revenue.scalar() or 0.0
-            
+
             return {
                 "total_leads": total_leads_count,
                 "active_leads": active_leads_count,
@@ -190,6 +216,7 @@ class MetricsService:
                 "missed_calls": missed_calls_count,
                 "total_appointments": total_appointments_count,
                 "conversion_rate": round(conversion_rate, 2),
+                "booked_leads": booked_count,
                 "total_revenue": round(revenue, 2),
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),

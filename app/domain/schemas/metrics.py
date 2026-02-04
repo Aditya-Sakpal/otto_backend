@@ -16,6 +16,7 @@ class CompanyOverviewResponse(BaseModel):
     missed_calls: int
     total_appointments: int
     conversion_rate: float
+    booked_leads: Optional[int] = None
     total_revenue: float
     start_date: Optional[str] = None
     end_date: Optional[str] = None

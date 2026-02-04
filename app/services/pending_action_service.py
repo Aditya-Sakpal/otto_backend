@@ -54,13 +54,16 @@ def _build_source_call(call_orm) -> Optional[SourceCallInfo]:
         return None
     contact = getattr(call_orm, "contact_card", None)
     customer_name = None
+    customer_phone = None
     if contact:
         first = getattr(contact, "first_name", None) or ""
         last = getattr(contact, "last_name", None) or ""
         customer_name = f"{first} {last}".strip() or None
+        customer_phone = getattr(contact, "primary_phone", None)
     return SourceCallInfo(
         call_id=getattr(call_orm, "id", None),
         customer_name=customer_name,
+        customer_phone=customer_phone,
         call_date=getattr(call_orm, "answered_at", None) or getattr(call_orm, "created_at", None),
         call_created_at=getattr(call_orm, "created_at", None),
     )
@@ -346,11 +349,17 @@ class PendingActionService:
         skip: int = 0,
         limit: int = 100,
     ) -> Dict[str, Any]:
-        """List tasks with filters and summary counts for Task Management page."""
+        """List tasks with filters and summary counts for Task Management page (CSR 'My Tasks' uses assignee_id=current user)."""
         counts = await self.pending_action_repo.get_counts_by_status(
             company_id=company_id,
+            status=status,
+            priority=priority,
+            assignee_id=assignee_id,
+            search=search,
             start_date=start_date,
             end_date=end_date,
+            due_date_from=due_date_from,
+            due_date_to=due_date_to,
         )
         summary = TaskListSummary(
             total_tasks=sum(counts.values()),
@@ -386,6 +395,7 @@ class PendingActionService:
         tasks = []
         for row in orm_list:
             owner = getattr(row, "owner", None)
+            assigned_by = getattr(row, "assigned_by", None)
             call = getattr(row, "call", None)
             tasks.append(TaskListItem(
                 id=row.id,
@@ -399,6 +409,7 @@ class PendingActionService:
                 updated_at=row.updated_at,
                 owner_id=row.owner_id,
                 assigned_to=_owner_to_assignee(owner),
+                assigned_by=_owner_to_assignee(assigned_by),
                 source_call=_build_source_call(call),
                 call_id=row.call_id,
                 lead_id=row.lead_id,

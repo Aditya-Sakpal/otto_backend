@@ -11,6 +11,7 @@ class SourceCallInfo(BaseModel):
     """Source call info for a task (from call logs)."""
     call_id: Optional[UUID] = None
     customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
     call_date: Optional[datetime] = None
     call_created_at: Optional[datetime] = None
 
@@ -38,6 +39,7 @@ class TaskListItem(BaseModel):
     updated_at: Optional[datetime] = None
     owner_id: Optional[UUID] = None
     assigned_to: Optional[AssigneeInfo] = None
+    assigned_by: Optional[AssigneeInfo] = None
     source_call: Optional[SourceCallInfo] = None
     call_id: Optional[UUID] = None
     lead_id: Optional[UUID] = None

@@ -294,19 +294,50 @@ class PendingActionRepository(BaseRepository[PendingActionORM, PendingAction]):
         self,
         company_id: UUID,
         *,
+        status: Optional[str] = None,
+        priority: Optional[int] = None,
+        assignee_id: Optional[UUID] = None,
+        search: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
+        due_date_from: Optional[datetime] = None,
+        due_date_to: Optional[datetime] = None,
     ) -> Dict[str, int]:
-        """Get task counts by status for summary cards (optionally filtered by created_at range)."""
+        """Get task counts by status for summary cards (same filters as list for CSR 'My Tasks')."""
         try:
             query = select(
                 PendingActionORM.status,
                 sql_func.count(PendingActionORM.id).label("count"),
             ).where(PendingActionORM.company_id == company_id)
+            if status:
+                query = query.where(PendingActionORM.status == status)
+            if priority is not None:
+                query = query.where(PendingActionORM.priority == priority)
+            if assignee_id is not None:
+                query = query.where(PendingActionORM.owner_id == assignee_id)
+            if search and search.strip():
+                term = f"%{search.strip()}%"
+                query = (
+                    query.outerjoin(PendingActionORM.call)
+                    .outerjoin(CallORM.contact_card)
+                    .where(
+                        or_(
+                            PendingActionORM.raw_text.ilike(term),
+                            ContactCardORM.first_name.ilike(term),
+                            ContactCardORM.last_name.ilike(term),
+                            ContactCardORM.primary_phone.ilike(term),
+                            ContactCardORM.email.ilike(term),
+                        )
+                    )
+                )
             if start_date is not None:
                 query = query.where(PendingActionORM.created_at >= start_date)
             if end_date is not None:
                 query = query.where(PendingActionORM.created_at <= end_date)
+            if due_date_from is not None:
+                query = query.where(PendingActionORM.due_at >= due_date_from)
+            if due_date_to is not None:
+                query = query.where(PendingActionORM.due_at <= due_date_to)
             query = query.group_by(PendingActionORM.status)
             result = await self.session.execute(query)
             rows = result.fetchall()

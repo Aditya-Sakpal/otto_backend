@@ -1332,6 +1332,8 @@ GET /api/v1/tasks?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=1
 }
 ```
 
+**CSR "My Tasks" tab:** Use `assignee_id=<current_user_id>` with the same `company_id`. Summary and list are then scoped to tasks assigned to that user. List items include `assigned_by` (who assigned) and `source_call.customer_phone`.
+
 **Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
 
 ---

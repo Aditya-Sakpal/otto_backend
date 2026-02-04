@@ -111,6 +111,47 @@ async def get_sales_reps_by_company(
         )
 
 
+@router.get("/assignees", response_model=List[UserResponse], responses=RESPONSES)
+async def list_assignees(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company ID"),
+    roles: Optional[str] = Query(None, description="Comma-separated roles to include (default: csr,sales_rep)"),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+) -> List[UserResponse]:
+    """
+    List users who can be assigned tasks (CSRs and Sales Reps) for the Task Management assignee dropdown.
+    Access: EXECUTIVE, CSR, SALES_REP
+    """
+    try:
+        service = UserService(db)
+        role_map = {"csr": UserRole.CSR, "sales_rep": UserRole.SALES_REP, "executive": UserRole.EXECUTIVE}
+        if roles:
+            role_list = [r.strip().lower() for r in roles.split(",")]
+            user_roles = [role_map[r] for r in role_list if r in role_map]
+        else:
+            user_roles = [UserRole.CSR, UserRole.SALES_REP]
+        if not user_roles:
+            user_roles = [UserRole.CSR, UserRole.SALES_REP]
+        all_assignees = []
+        for role in user_roles:
+            users_in_role = await service.list_users(company_id=company_id, role=role, is_active=True, skip=0, limit=500)
+            all_assignees.extend(users_in_role)
+        seen = set()
+        unique = []
+        for u in all_assignees:
+            if u.id not in seen and getattr(u, "is_active", True):
+                seen.add(u.id)
+                unique.append(u)
+        return [UserResponse.model_validate(u) for u in unique]
+    except Exception as e:
+        logger.error(f"Error listing assignees: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
 @router.get("/companies", response_model=List[dict], responses=RESPONSES)
 async def list_companies(
     db: DbSession,

@@ -32,14 +32,15 @@ To use this data, run `backend/seed_dummy_data.sql` against your database.
 2. [Users](#users)
 3. [Calls](#calls)
 4. [Leads](#leads)
-5. [Metrics](#metrics)
-6. [Call Processing (Shunya)](#call-processing-shunya)
-7. [Ask Otto (Shunya)](#ask-otto-shunya)
-8. [Insights (Shunya)](#insights-shunya)
-9. [RAG / Ask Otto](#rag--ask-otto)
-10. [Webhooks](#webhooks)
-11. [Invites](#invites)
-12. [Onboarding](#onboarding)
+5. [Task Management](#task-management)
+6. [Metrics](#metrics)
+7. [Call Processing (Shunya)](#call-processing-shunya)
+8. [Ask Otto (Shunya)](#ask-otto-shunya)
+9. [Insights (Shunya)](#insights-shunya)
+10. [RAG / Ask Otto](#rag--ask-otto)
+11. [Webhooks](#webhooks)
+12. [Invites](#invites)
+13. [Onboarding](#onboarding)
 
 ---
 
@@ -376,6 +377,54 @@ Delete user by ID (EXECUTIVE only).
 **Response:** `204 No Content`
 
 **Required Role:** `EXECUTIVE`
+
+---
+
+### GET `/users/assignees`
+
+List users who can be assigned tasks (CSRs and Sales Reps) for the Task Management assignee dropdown.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `roles` (string, optional) - Comma-separated roles to include (default: `csr,sales_rep`). Allowed: `csr`, `sales_rep`, `executive`
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/users/assignees?company_id=11111111-1111-1111-1111-111111111111
+```
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "email": "csr1@acme.com",
+    "role": "csr",
+    "is_active": true,
+    "first_name": "Lisa",
+    "last_name": "Support",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "created_at": "2025-05-08T10:00:00Z"
+  },
+  {
+    "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "email": "sales1@acme.com",
+    "role": "sales_rep",
+    "is_active": true,
+    "first_name": "Mike",
+    "last_name": "Salesman",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "created_at": "2025-05-08T10:00:00Z"
+  }
+]
+```
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
 
 ---
 
@@ -1196,6 +1245,231 @@ Content-Type: application/json
 - `404 Not Found` - Lead not found
 
 **Required Role:** `EXECUTIVE` or `CSR`
+
+---
+
+## Task Management
+
+Task Management APIs allow listing, creating, updating, and viewing action items (tasks) for the company. Tasks are stored as pending actions and may be linked to calls, leads, or appointments. Related: create action items from a call via **POST `/calls/{call_id}/action-items`**; mark complete/reopen via **PATCH `/metrics/actions/pending/{action_id}/complete`** and **PATCH `/metrics/actions/pending/{action_id}/reopen`**.
+
+**Task statuses:** `pending`, `in_progress`, `completed`, `cancelled`
+
+**Access:** Endpoints below specify allowed roles (EXECUTIVE, CSR, SALES_REP).
+
+---
+
+### GET `/tasks`
+
+List tasks (action items) for the company with summary counts. Returns summary cards (total, pending, in_progress, completed, cancelled) and a paginated task list with assignee and source call info.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `status` (string, optional) - Filter by status: `pending`, `in_progress`, `completed`, `cancelled`
+- `priority` (int, optional) - Filter by priority (integer)
+- `assignee_id` (UUID, optional) - Filter by assignee (owner) user ID
+- `search` (string, optional) - Search in task title/description (raw_text)
+- `start_date` (datetime, optional) - Filter tasks created on or after (ISO datetime)
+- `end_date` (datetime, optional) - Filter tasks created on or before (ISO datetime)
+- `due_date_from` (datetime, optional) - Filter by due_at on or after
+- `due_date_to` (datetime, optional) - Filter by due_at on or before
+- `skip` (int, default: 0) - Pagination offset
+- `limit` (int, default: 100, max: 500) - Page size
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/tasks?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100
+```
+
+**Response:** `200 OK`
+```json
+{
+  "summary": {
+    "total_tasks": 12,
+    "pending": 5,
+    "in_progress": 3,
+    "completed": 3,
+    "cancelled": 1
+  },
+  "tasks": [
+    {
+      "id": "e0000000-0000-0000-0000-000000000001",
+      "company_id": "11111111-1111-1111-1111-111111111111",
+      "action_type": "follow_up_call",
+      "raw_text": "Call back to confirm appointment",
+      "status": "pending",
+      "priority": 1,
+      "due_at": "2026-02-01T17:00:00Z",
+      "created_at": "2026-01-15T10:00:00Z",
+      "updated_at": "2026-01-15T10:00:00Z",
+      "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      "assigned_to": {
+        "user_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+        "first_name": "Lisa",
+        "last_name": "Support",
+        "full_name": "Lisa Support",
+        "role": "csr",
+        "email": "csr1@acme.com"
+      },
+      "source_call": {
+        "call_id": "30000000-0000-0000-0000-000000000001",
+        "customer_name": "Alice Johnson",
+        "call_date": "2025-10-20T10:00:00Z",
+        "call_created_at": "2025-10-20T10:00:00Z"
+      },
+      "call_id": "30000000-0000-0000-0000-000000000001",
+      "lead_id": null,
+      "assigned_by_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    }
+  ],
+  "total": 12,
+  "skip": 0,
+  "limit": 100
+}
+```
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
+
+---
+
+### GET `/tasks/{task_id}`
+
+Get a single task by ID with full details (assignee, source call, assigned by).
+
+**Path Parameters:**
+- `task_id` (UUID, required) - Task (pending action) UUID
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/tasks/e0000000-0000-0000-0000-000000000001
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": "e0000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "lead_id": null,
+  "call_id": "30000000-0000-0000-0000-000000000001",
+  "appointment_id": null,
+  "action_type": "follow_up_call",
+  "raw_text": "Call back to confirm appointment",
+  "status": "pending",
+  "priority": 1,
+  "due_at": "2026-02-01T17:00:00Z",
+  "created_at": "2026-01-15T10:00:00Z",
+  "updated_at": "2026-01-15T10:00:00Z",
+  "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "assigned_to": {
+    "user_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "first_name": "Lisa",
+    "last_name": "Support",
+    "full_name": "Lisa Support",
+    "role": "csr",
+    "email": "csr1@acme.com"
+  },
+  "assigned_by_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "assigned_by": {
+    "user_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "first_name": "John",
+    "last_name": "Executive",
+    "full_name": "John Executive",
+    "role": "executive",
+    "email": "exec@acme.com"
+  },
+  "source_call": {
+    "call_id": "30000000-0000-0000-0000-000000000001",
+    "customer_name": "Alice Johnson",
+    "call_date": "2025-10-20T10:00:00Z",
+    "call_created_at": "2025-10-20T10:00:00Z"
+  },
+  "source": "call"
+}
+```
+
+**Errors:** `404 Not Found` - Task not found
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
+
+---
+
+### POST `/tasks`
+
+Create a task manually (not from a call). Executives can optionally assign to a CSR or Sales Rep.
+
+**Request Body:**
+```json
+{
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "action_type": "follow_up_call",
+  "raw_text": "Send quote to customer by EOD",
+  "status": "pending",
+  "priority": 2,
+  "due_at": "2026-02-01T17:00:00Z",
+  "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "lead_id": null,
+  "call_id": null,
+  "appointment_id": null
+}
+```
+
+- `company_id` (UUID, required) - Company ID
+- `action_type` (string, required) - Type of action (e.g. `follow_up_call`, `send_quote`)
+- `raw_text` (string, optional) - Task title/description
+- `status` (string, optional, default: `pending`) - One of: `pending`, `in_progress`, `completed`, `cancelled`
+- `priority` (int, optional) - Priority (higher = more urgent)
+- `due_at` (datetime, optional) - Due date/time
+- `owner_id` (UUID, optional) - Assign to user (CSR or Sales Rep)
+- `lead_id` (UUID, optional) - Optional lead ID
+- `call_id` (UUID, optional) - Optional call ID (link to source call)
+- `appointment_id` (UUID, optional) - Optional appointment ID
+
+**Response:** `201 Created`  
+Returns the created `PendingAction` object (id, company_id, action_type, raw_text, status, priority, due_at, owner_id, assigned_by_id, call_id, lead_id, appointment_id, created_at, updated_at, etc.).
+
+**Required Role:** `EXECUTIVE` only
+
+---
+
+### PATCH `/tasks/{task_id}`
+
+Update a task: reassign (owner_id), change status, priority, due date, or description. When reassigning, pass `owner_id`; the backend can set `assigned_by_id` to the current user.
+
+**Path Parameters:**
+- `task_id` (UUID, required) - Task (pending action) UUID
+
+**Request Body:** (all fields optional)
+```json
+{
+  "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "status": "in_progress",
+  "priority": 2,
+  "due_at": "2026-02-05T17:00:00Z",
+  "raw_text": "Updated task description"
+}
+```
+
+- `owner_id` (UUID, optional) - Reassign to user (CSR or Sales Rep)
+- `status` (string, optional) - One of: `pending`, `in_progress`, `completed`, `cancelled`
+- `priority` (int, optional) - Priority (higher = more urgent)
+- `due_at` (datetime, optional) - Due date/time
+- `raw_text` (string, optional) - Task title/description
+
+**Response:** `200 OK`  
+Returns the updated `PendingAction` object.
+
+**Errors:** `404 Not Found` - Task not found
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
 
 ---
 

@@ -139,6 +139,7 @@ class InvitationStatus(str, Enum):
 class PendingActionStatus(str, Enum):
     """Pending action status."""
     PENDING = "pending"
+    IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
     CONVERTED = "converted"

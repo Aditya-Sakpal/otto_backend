@@ -304,6 +304,44 @@
           "response": []
         },
         {
+          "name": "List Assignees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/assignees?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "assignees"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "roles",
+                  "value": "csr,sales_rep",
+                  "description": "Comma-separated roles (default: csr,sales_rep)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List users who can be assigned tasks (CSRs and Sales Reps) for Task Management assignee dropdown. Access: EXECUTIVE, CSR, SALES_REP."
+          },
+          "response": []
+        },
+        {
           "name": "Create User",
           "request": {
             "method": "POST",
@@ -913,6 +951,165 @@
         }
       ],
       "description": "Lead management endpoints"
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "List Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks?company_id={{company_id}}&skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}"
+                },
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "Filter: pending, in_progress, completed, cancelled",
+                  "disabled": true
+                },
+                {
+                  "key": "priority",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "assignee_id",
+                  "value": "{{user_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "List tasks (action items) with summary counts. Returns summary (total, pending, in_progress, completed, cancelled) and paginated task list. Access: EXECUTIVE, CSR, SALES_REP."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Task by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Get a single task by ID with full details (assignee, source call, assigned by). Access: EXECUTIVE, CSR, SALES_REP."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"action_type\": \"follow_up_call\",\n    \"raw_text\": \"Send quote to customer by EOD\",\n    \"status\": \"pending\",\n    \"priority\": 2,\n    \"due_at\": \"2026-02-01T17:00:00Z\",\n    \"owner_id\": \"ffffffff-ffff-ffff-ffff-ffffffffffff\",\n    \"lead_id\": null,\n    \"call_id\": null,\n    \"appointment_id\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ]
+            },
+            "description": "Create a task manually (not from a call). EXECUTIVE only. Optionally assign to CSR or Sales Rep via owner_id."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"owner_id\": \"ffffffff-ffff-ffff-ffff-ffffffffffff\",\n    \"status\": \"in_progress\",\n    \"priority\": 2,\n    \"due_at\": \"2026-02-05T17:00:00Z\",\n    \"raw_text\": \"Updated task description\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Update a task: reassign (owner_id), status, priority, due_at, raw_text. Access: EXECUTIVE, CSR, SALES_REP."
+          },
+          "response": []
+        }
+      ],
+      "description": "Task Management endpoints (list, detail, create, update action items)"
     },
     {
       "name": "Metrics",
@@ -3064,6 +3261,11 @@
     {
       "key": "action_id",
       "value": "",
+      "type": "string"
+    },
+    {
+      "key": "task_id",
+      "value": "e0000000-0000-0000-0000-000000000001",
       "type": "string"
     }
   ]

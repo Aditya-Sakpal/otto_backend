@@ -4,20 +4,22 @@ Metrics response schemas.
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
-from pydantic import Field
-
-from app.domain.models.base import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CompanyOverviewResponse(BaseModel):
     """Company overview metrics."""
     total_leads: int
     active_leads: int
+    qualified_leads: Optional[int] = None
     total_calls: int
     missed_calls: int
     total_appointments: int
     conversion_rate: float
+    booked_leads: Optional[int] = None
     total_revenue: float
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class CSRDashboardResponse(BaseModel):
@@ -28,6 +30,8 @@ class CSRDashboardResponse(BaseModel):
     avg_call_duration: float
     leads_assigned: int
     appointments_scheduled: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class BookingRateImprovementResponse(BaseModel):
@@ -37,6 +41,13 @@ class BookingRateImprovementResponse(BaseModel):
     improvement_percentage: float
     total_bookings: int
     total_qualified: int
+    booked_appointments: Optional[int] = None
+    booked_calls: Optional[int] = None
+    booked_leads: Optional[int] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    previous_period_start: Optional[str] = None
+    previous_period_end: Optional[str] = None
 
 
 class TopObjectionResponse(BaseModel):
@@ -50,6 +61,18 @@ class TopObjectionsResponse(BaseModel):
     """Top objections list."""
     objections: List[TopObjectionResponse]
     total_calls_with_objections: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class MissedCallsResponse(BaseModel):
+    """Missed calls metrics."""
+    missed_calls: int
+    total_calls: int
+    miss_rate: float
+    recent_missed: List[Dict[str, Any]] = Field(default_factory=list)
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class CoachingOpportunityResponse(BaseModel):
@@ -65,6 +88,8 @@ class CoachingOpportunitiesResponse(BaseModel):
     """Coaching opportunities list."""
     opportunities: List[CoachingOpportunityResponse]
     total_count: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class MostCoachingNeedItem(BaseModel):
@@ -103,6 +128,8 @@ class ConversionMetricsResponse(BaseModel):
     conversion_rate: float
     avg_days_to_conversion: float
     total_revenue: float
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class EmergencyDroppedResponse(BaseModel):
@@ -111,6 +138,8 @@ class EmergencyDroppedResponse(BaseModel):
     emergency_calls: int
     drop_rate: float
     avg_response_time: float
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class CompanyPerformanceResponse(BaseModel):
@@ -121,6 +150,8 @@ class CompanyPerformanceResponse(BaseModel):
     avg_deal_size: float
     active_reps: int
     calls_per_rep: float
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class CallsSummaryResponse(BaseModel):
@@ -131,6 +162,8 @@ class CallsSummaryResponse(BaseModel):
     avg_duration: float
     total_duration: int
     calls_today: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class BookingsSummaryResponse(BaseModel):
@@ -140,6 +173,8 @@ class BookingsSummaryResponse(BaseModel):
     pending_bookings: int
     cancelled_bookings: int
     bookings_today: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class UnbookedLeadsResponse(BaseModel):
@@ -148,6 +183,8 @@ class UnbookedLeadsResponse(BaseModel):
     qualified_unbooked: int
     avg_days_unbooked: float
     leads: List[Dict[str, Any]]
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class PendingActionsResponse(BaseModel):
@@ -156,6 +193,8 @@ class PendingActionsResponse(BaseModel):
     follow_ups_needed: int
     calls_to_make: int
     appointments_to_schedule: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class ConversionsPendingToBookedResponse(BaseModel):
@@ -163,8 +202,8 @@ class ConversionsPendingToBookedResponse(BaseModel):
     converted_count: int
     conversion_rate: float
     avg_days_to_book: float
-    period_start: datetime
-    period_end: datetime
+    period_start: Optional[datetime] = None
+    period_end: Optional[datetime] = None
 
 
 class ObjectionsSummaryResponse(BaseModel):
@@ -173,6 +212,8 @@ class ObjectionsSummaryResponse(BaseModel):
     unique_objection_types: int
     top_objection: str
     objections_by_type: Dict[str, int]
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class ObjectionCallsResponse(BaseModel):

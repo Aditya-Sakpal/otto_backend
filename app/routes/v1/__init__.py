@@ -19,6 +19,7 @@ from app.routes.v1 import (
     recordings,
     contact_card,
     settings,
+    tasks,
     sales_rep,
     posts,
     leaderboards,
@@ -45,6 +46,7 @@ router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding
 router.include_router(appointments.router, prefix="/appointments", tags=["appointments"])
 router.include_router(recordings.router, prefix="/recordings", tags=["recordings"])
 router.include_router(settings.router, prefix="/settings", tags=["settings"])
+router.include_router(tasks.router, tags=["tasks"])
 router.include_router(sales_rep.router, prefix="/sales_rep", tags=["sales_rep"])
 router.include_router(posts.router, prefix="/posts/sales_rep", tags=["posts"])
 router.include_router(leaderboards.router, prefix="/leaderboards", tags=["leaderboards"])

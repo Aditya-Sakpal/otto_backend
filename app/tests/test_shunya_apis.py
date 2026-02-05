@@ -15,8 +15,8 @@ import json
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding='utf-8')
 
-# Configuration
-BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000")
+# Configuration (server runs on port 8001 by default)
+BASE_URL = os.getenv("BASE_URL", os.getenv("API_BASE_URL", "http://127.0.0.1:8001"))
 API_PREFIX = "/api/v1"
 
 # Shunya test data (from environment or defaults)

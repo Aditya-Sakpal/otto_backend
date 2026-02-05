@@ -5,6 +5,7 @@ Orchestrates lead-related business logic.
 """
 from typing import Optional, List
 from uuid import UUID
+from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +37,27 @@ class LeadService:
         """Get all leads for a company."""
         return await self.lead_repo.get_by_company(
             company_id=company_id,
+            skip=skip,
+            limit=limit,
+        )
+
+    async def list_with_filters(
+        self,
+        company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        search: Optional[str] = None,
+        statuses: Optional[List[str]] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[Lead]:
+        """Get leads with optional date range, search (name/phone), and status filters."""
+        return await self.lead_repo.get_list_with_filters(
+            company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+            search=search,
+            statuses=statuses,
             skip=skip,
             limit=limit,
         )
@@ -171,20 +193,23 @@ class LeadService:
         self,
         lead_id: UUID,
         status: str,
+        changed_by_user_id: Optional[UUID] = None,
+        reason: Optional[str] = None,
     ) -> Optional[Lead]:
         """
-        Update lead status.
+        Update lead status and optionally log to lead_status_changes audit table.
         
         Args:
             lead_id: Lead ID
             status: New status value
+            changed_by_user_id: User making the change (for audit; if provided, audit row is created)
+            reason: Optional reason for the change
             
         Returns:
             Updated lead or None if not found
         """
         from app.domain.enums import LeadStatus
         
-        # Validate status
         try:
             LeadStatus(status)
         except ValueError:
@@ -193,5 +218,7 @@ class LeadService:
         return await self.lead_repo.update_status(
             lead_id=lead_id,
             status=status,
+            changed_by_user_id=changed_by_user_id,
+            reason=reason,
         )
 

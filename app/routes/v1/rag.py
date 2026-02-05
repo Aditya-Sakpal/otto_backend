@@ -17,6 +17,12 @@ from app.core.logging import get_logger
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    403: {"description": "Forbidden or user not associated with company"},
+    500: {"description": "Internal server error"},
+    503: {"description": "RAG/Shunya service not available"},
+}
+
 
 class RAGQueryRequest(BaseModel):
     """RAG query request."""
@@ -24,7 +30,7 @@ class RAGQueryRequest(BaseModel):
     context: dict = {}
 
 
-@router.post("/ask-otto")
+@router.post("/ask-otto", responses=RESPONSES)
 async def query_ask_otto(
     body: RAGQueryRequest,
     db: DbSession,

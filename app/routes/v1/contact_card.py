@@ -20,7 +20,14 @@ from app.infrastructure.repositories.contact import ContactRepository
 router = APIRouter()
 logger = get_logger(__name__)
 
-@router.get("/calls/{call_id}", response_model=Call)
+RESPONSES = {
+    403: {"description": "Forbidden"},
+    404: {"description": "Call or contact card not found"},
+    500: {"description": "Internal server error"},
+}
+
+
+@router.get("/calls/{call_id}", response_model=Call, responses=RESPONSES)
 async def get_contact_card_call_by_id(
     call_id: UUID,
     db: DbSession,
@@ -64,7 +71,7 @@ async def get_contact_card_call_by_id(
         )
 
 
-@router.get("/{contact_card_id}", response_model=ContactCard)
+@router.get("/{contact_card_id}", response_model=ContactCard, responses=RESPONSES)
 async def get_contact_card_by_id(
     contact_card_id: UUID,
     db: DbSession,

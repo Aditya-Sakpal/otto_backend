@@ -11,6 +11,24 @@ from sqlalchemy import select, func, and_, or_, text, bindparam, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
+
+
+def _metrics_exclude_existing_and_service_not_offered():
+    """Exclude call analyses that are existing-customer or service-not-offered from metrics."""
+    return and_(
+        or_(
+            CallAnalysisORM.is_existing_customer == False,
+            CallAnalysisORM.is_existing_customer.is_(None),
+        ),
+        or_(
+            CallAnalysisORM.booking_status.is_(None),
+            func.lower(CallAnalysisORM.booking_status) != "service_not_offered",
+        ),
+        or_(
+            CallAnalysisORM.service_not_offered_reason.is_(None),
+            CallAnalysisORM.service_not_offered_reason == "",
+        ),
+    )
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.appointment import AppointmentORM
@@ -149,21 +167,47 @@ class MetricsService:
             )
             total_appointments_count = total_appointments.scalar() or 0
             
-            # Conversion rate (closed_won / total leads) in date range
-            won_leads_filters = lead_filters + [LeadORM.status == "closed_won"]
-            won_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(*won_leads_filters)
+            # Conversion rate: booked leads (in period) / total leads created in period.
+            # "Booked" = status qualified_booked (case-insensitive) OR deal_status booked (trim + lower).
+            # Include leads that became booked *during* the period: created_at in range OR updated_at in range.
+            is_booked = or_(
+                func.lower(LeadORM.status) == "qualified_booked",
+                and_(
+                    LeadORM.deal_status.isnot(None),
+                    func.lower(func.trim(LeadORM.deal_status)) == "booked",
+                ),
             )
-            won_count = won_leads.scalar() or 0
-            conversion_rate = (won_count / total_leads_count * 100) if total_leads_count > 0 else 0.0
-            
-            # Total revenue in date range
-            revenue_filters = lead_filters + [LeadORM.status == "closed_won"]
+            # Booked in period = currently booked AND (created in range OR updated in range)
+            booked_in_period_filters = [
+                LeadORM.company_id == company_id,
+                is_booked,
+                or_(
+                    and_(
+                        LeadORM.created_at >= start_dt,
+                        LeadORM.created_at <= end_dt,
+                    ),
+                    and_(
+                        LeadORM.updated_at.isnot(None),
+                        LeadORM.updated_at >= start_dt,
+                        LeadORM.updated_at <= end_dt,
+                    ),
+                ),
+            ]
+            if user_id:
+                booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
+            booked_leads = await self.session.execute(
+                select(func.count(LeadORM.id)).where(*booked_in_period_filters)
+            )
+            booked_count = booked_leads.scalar() or 0
+            conversion_rate = (booked_count / total_leads_count * 100) if total_leads_count > 0 else 0.0
+
+            # Total revenue: sum deal_size for leads that are booked (same is_booked def) and in period
+            revenue_filters = booked_in_period_filters
             total_revenue = await self.session.execute(
                 select(func.sum(LeadORM.deal_size)).where(*revenue_filters)
             )
             revenue = total_revenue.scalar() or 0.0
-            
+
             return {
                 "total_leads": total_leads_count,
                 "active_leads": active_leads_count,
@@ -172,6 +216,7 @@ class MetricsService:
                 "missed_calls": missed_calls_count,
                 "total_appointments": total_appointments_count,
                 "conversion_rate": round(conversion_rate, 2),
+                "booked_leads": booked_count,
                 "total_revenue": round(revenue, 2),
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),
@@ -386,7 +431,7 @@ class MetricsService:
                 appointment_scope.append(AppointmentORM.assigned_rep_id == user_id)
                 lead_scope.append(LeadORM.assigned_rep_id == user_id)
 
-            # Current period bookings
+            # Current period: appointments (booked appointments)
             current_bookings = await self.session.execute(
                 select(func.count(AppointmentORM.id)).where(
                     *appointment_scope,
@@ -394,7 +439,40 @@ class MetricsService:
                     AppointmentORM.created_at <= end_dt,
                 )
             )
-            current_count = current_bookings.scalar() or 0
+            current_appointments = current_bookings.scalar() or 0
+            
+            # Current period: booked calls (from call_analyses, case-insensitive booking_status)
+            current_booked_calls_q = (
+                select(func.count(CallAnalysisORM.id))
+                .select_from(CallAnalysisORM)
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallAnalysisORM.booking_status.isnot(None),
+                    func.lower(CallAnalysisORM.booking_status) == "booked",
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+            )
+            if user_id:
+                current_booked_calls_q = current_booked_calls_q.where(CallORM.handled_by_user_id == user_id)
+            current_booked_calls = await self.session.execute(current_booked_calls_q)
+            current_booked_calls_count = current_booked_calls.scalar() or 0
+            
+            # Current period: booked leads (status=qualified_booked or deal_status=booked)
+            current_booked_leads = await self.session.execute(
+                select(func.count(LeadORM.id)).where(
+                    *lead_scope,
+                    LeadORM.created_at >= start_dt,
+                    LeadORM.created_at <= end_dt,
+                    or_(
+                        LeadORM.status == "qualified_booked",
+                        func.lower(LeadORM.deal_status) == "booked",
+                    ),
+                )
+            )
+            current_booked_leads_count = current_booked_leads.scalar() or 0
             
             # Current period qualified leads
             current_qualified = await self.session.execute(
@@ -407,7 +485,7 @@ class MetricsService:
             )
             current_qualified_count = current_qualified.scalar() or 0
             
-            # Previous period bookings
+            # Previous period: appointments + booked calls
             previous_bookings = await self.session.execute(
                 select(func.count(AppointmentORM.id)).where(
                     *appointment_scope,
@@ -415,7 +493,24 @@ class MetricsService:
                     AppointmentORM.created_at < previous_end,
                 )
             )
-            previous_count = previous_bookings.scalar() or 0
+            previous_appointments = previous_bookings.scalar() or 0
+            previous_booked_calls_q = (
+                select(func.count(CallAnalysisORM.id))
+                .select_from(CallAnalysisORM)
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.created_at >= previous_start,
+                    CallORM.created_at < previous_end,
+                    CallAnalysisORM.booking_status.isnot(None),
+                    func.lower(CallAnalysisORM.booking_status) == "booked",
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+            )
+            if user_id:
+                previous_booked_calls_q = previous_booked_calls_q.where(CallORM.handled_by_user_id == user_id)
+            previous_booked_calls = await self.session.execute(previous_booked_calls_q)
+            previous_booked_calls_count = previous_booked_calls.scalar() or 0
             
             # Previous period qualified
             previous_qualified = await self.session.execute(
@@ -428,6 +523,10 @@ class MetricsService:
             )
             previous_qualified_count = previous_qualified.scalar() or 0
             
+            # Combined booked: appointments + booked calls (so APIs return non-zero when DB has booked calls)
+            current_count = current_appointments + current_booked_calls_count
+            previous_count = previous_appointments + previous_booked_calls_count
+            
             current_rate = (current_count / current_qualified_count * 100) if current_qualified_count > 0 else 0.0
             previous_rate = (previous_count / previous_qualified_count * 100) if previous_qualified_count > 0 else 0.0
             improvement = current_rate - previous_rate
@@ -437,6 +536,9 @@ class MetricsService:
                 "previous_rate": round(previous_rate, 2),
                 "improvement_percentage": round(improvement, 2),
                 "total_bookings": current_count,
+                "booked_appointments": current_appointments,
+                "booked_calls": current_booked_calls_count,
+                "booked_leads": current_booked_leads_count,
                 "total_qualified": current_qualified_count,
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),
@@ -458,14 +560,15 @@ class MetricsService:
         try:
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Get all analyses with objections in date range
+            # Get all analyses with objections in date range (exclude existing customer & service not offered)
             analyses = await self.session.execute(
                 select(CallAnalysisORM).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.objections != None,
-                    func.array_length(CallAnalysisORM.objections, 1) > 0
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             analyses_list = analyses.scalars().all()
@@ -514,14 +617,15 @@ class MetricsService:
         try:
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Get analyses with low SOP compliance in date range
+            # Get analyses with low SOP compliance in date range (exclude existing customer & service not offered)
             analyses = await self.session.execute(
                 select(CallAnalysisORM).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.sop_compliance_score.isnot(None),
-                    CallAnalysisORM.sop_compliance_score < 0.7
+                    CallAnalysisORM.sop_compliance_score < 0.7,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).order_by(CallAnalysisORM.sop_compliance_score.asc()).limit(limit)
             )
             analyses_list = analyses.scalars().all()
@@ -533,7 +637,8 @@ class MetricsService:
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.sop_compliance_score.isnot(None),
-                    CallAnalysisORM.sop_compliance_score < 0.7
+                    CallAnalysisORM.sop_compliance_score < 0.7,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             total_count = total.scalar() or 0
@@ -587,14 +692,14 @@ class MetricsService:
             # Count qualified and booked leads per employee
             from sqlalchemy import join
             
-            # Build the join
+            # Build the join; filter by call date (when call happened) so booked calls are included
             call_analysis_call_join = join(
                 CallAnalysisORM,
                 CallORM,
                 CallAnalysisORM.call_id == CallORM.id
             )
             
-            # Get all analyses with calls for this company
+            # Get all analyses with calls for this company (use CallORM.created_at for date range)
             analyses_query = select(
                 CallORM.handled_by_user_id,
                 CallAnalysisORM.qualification_status,
@@ -603,9 +708,10 @@ class MetricsService:
                 CallORM.id.label('call_id')
             ).select_from(call_analysis_call_join).where(
                 CallAnalysisORM.company_id == company_id,
-                CallAnalysisORM.created_at >= start_dt,
-                CallAnalysisORM.created_at <= end_dt,
-                CallORM.handled_by_user_id.isnot(None)  # Only include calls with assigned users
+                CallORM.created_at >= start_dt,
+                CallORM.created_at <= end_dt,
+                CallORM.handled_by_user_id.isnot(None),  # Only include calls with assigned users
+                _metrics_exclude_existing_and_service_not_offered(),
             )
             
             analyses_result = await self.session.execute(analyses_query)
@@ -841,14 +947,15 @@ class MetricsService:
             )
             dropped_count = dropped.scalar() or 0
             
-            # Emergency calls (negative sentiment) in date range
+            # Emergency calls (negative sentiment) in date range (exclude existing customer & service not offered)
             emergency = await self.session.execute(
                 select(func.count(CallAnalysisORM.id)).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.sentiment_score.isnot(None),
-                    CallAnalysisORM.sentiment_score < -0.5
+                    CallAnalysisORM.sentiment_score < -0.5,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             emergency_count = emergency.scalar() or 0
@@ -1300,14 +1407,31 @@ class MetricsService:
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
             # Booked appointments in date range
-            booked = await self.session.execute(
+            booked_appts = await self.session.execute(
                 select(func.count(AppointmentORM.id)).where(
                     AppointmentORM.company_id == company_id,
                     AppointmentORM.created_at >= start_dt,
                     AppointmentORM.created_at <= end_dt,
                 )
             )
-            booked_count = booked.scalar() or 0
+            booked_appointments_count = booked_appts.scalar() or 0
+            
+            # Booked leads in date range (status=qualified_booked or deal_status=booked, case-insensitive)
+            booked_leads_result = await self.session.execute(
+                select(func.count(LeadORM.id)).where(
+                    LeadORM.company_id == company_id,
+                    LeadORM.created_at >= start_dt,
+                    LeadORM.created_at <= end_dt,
+                    or_(
+                        LeadORM.status == "qualified_booked",
+                        func.lower(LeadORM.deal_status) == "booked",
+                    ),
+                )
+            )
+            booked_leads_count = booked_leads_result.scalar() or 0
+            
+            # Combined converted = appointments + booked leads
+            converted_count = booked_appointments_count + booked_leads_count
             
             # Total leads in date range
             leads = await self.session.execute(
@@ -1319,10 +1443,12 @@ class MetricsService:
             )
             leads_count = leads.scalar() or 0
             
-            conversion_rate = (booked_count / leads_count * 100) if leads_count > 0 else 0.0
+            conversion_rate = (converted_count / leads_count * 100) if leads_count > 0 else 0.0
             
             return {
-                "converted_count": booked_count,
+                "converted_count": converted_count,
+                "booked_appointments": booked_appointments_count,
+                "booked_leads": booked_leads_count,
                 "conversion_rate": round(conversion_rate, 2),
                 "avg_days_to_book": 0.0,  # Would need additional tracking
                 "period_start": start_dt.isoformat(),
@@ -1342,14 +1468,15 @@ class MetricsService:
         try:
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Get all analyses with objections in date range
+            # Get all analyses with objections in date range (exclude existing customer & service not offered)
             analyses = await self.session.execute(
                 select(CallAnalysisORM).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.objections != None,
-                    func.array_length(CallAnalysisORM.objections, 1) > 0
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             analyses_list = analyses.scalars().all()
@@ -1390,13 +1517,14 @@ class MetricsService:
         try:
             start_dt, end_dt = self._get_date_range(start_date, end_date)
             
-            # Get analyses with this objection in date range
+            # Get analyses with this objection in date range (exclude existing customer & service not offered)
             analyses = await self.session.execute(
                 select(CallAnalysisORM).where(
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
-                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type))
+                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type)),
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).order_by(CallAnalysisORM.created_at.desc()).limit(limit)
             )
             analyses_list = analyses.scalars().all()
@@ -1407,7 +1535,8 @@ class MetricsService:
                     CallAnalysisORM.company_id == company_id,
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
-                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type))
+                    text(f":objection = ANY({CallAnalysisORM.__table__.name}.objections)").bindparams(bindparam('objection', objection_type)),
+                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
             total_count = total.scalar() or 0
@@ -1662,8 +1791,26 @@ class MetricsService:
             )
             booked_appointments = booked_appointments_result.scalar() or 0
             
-            # Booking rate
-            booking_rate = (booked_appointments / qualified_leads * 100) if qualified_leads > 0 else 0.0
+            # Booked calls (from call_analyses, case-insensitive booking_status) for this user
+            booked_calls_result = await self.session.execute(
+                select(func.count(CallAnalysisORM.id))
+                .select_from(CallAnalysisORM)
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallAnalysisORM.booking_status.isnot(None),
+                    func.lower(CallAnalysisORM.booking_status) == "booked",
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+            )
+            booked_calls = booked_calls_result.scalar() or 0
+            
+            # Booking rate: (appointments + booked calls) / qualified leads
+            total_booked = booked_appointments + booked_calls
+            booking_rate = (total_booked / qualified_leads * 100) if qualified_leads > 0 else 0.0
             
             # ===== CONVERSION RATE =====
             # Conversion rate: appointments with outcome='won' / qualified_leads
@@ -1719,7 +1866,7 @@ class MetricsService:
             coaching_insights = []
             
             # 1. Objection Handling
-            # Get objection handling improvement
+            # Get objection handling improvement (exclude existing customer & service not offered)
             current_month_objections = await self.session.execute(
                 select(func.count(CallAnalysisORM.id)).where(
                     CallAnalysisORM.company_id == company_id,
@@ -1728,6 +1875,7 @@ class MetricsService:
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.objections.isnot(None),
                     func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
             )
             current_objections = current_month_objections.scalar() or 0
@@ -1742,6 +1890,7 @@ class MetricsService:
                     CallAnalysisORM.created_at < start_dt,
                     CallAnalysisORM.objections.isnot(None),
                     func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
             )
             prev_objections = prev_objections_result.scalar() or 0
@@ -1758,7 +1907,7 @@ class MetricsService:
                     })
             
             # 2. Script Adherence
-            # Check SOP compliance
+            # Check SOP compliance (exclude existing customer & service not offered)
             avg_sop_score_result = await self.session.execute(
                 select(func.avg(CallAnalysisORM.sop_compliance_score)).where(
                     CallAnalysisORM.company_id == company_id,
@@ -1766,6 +1915,7 @@ class MetricsService:
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.sop_compliance_score.isnot(None),
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
             )
             avg_sop_score = avg_sop_score_result.scalar() or 0.0
@@ -1790,7 +1940,7 @@ class MetricsService:
                 })
             
             # 4. Lead Qualification Accuracy
-            # Compare qualification_status from analysis with actual lead status
+            # Compare qualification_status from analysis with actual lead status (exclude existing customer & service not offered)
             # Qualified statuses: hot, cold, warm, qualified
             qualified_statuses = ['hot', 'cold', 'warm', 'qualified']
             qualification_accuracy_result = await self.session.execute(
@@ -1807,6 +1957,7 @@ class MetricsService:
                     CallAnalysisORM.created_at >= start_dt,
                     CallAnalysisORM.created_at <= end_dt,
                     CallAnalysisORM.qualification_status.isnot(None),
+                    _metrics_exclude_existing_and_service_not_offered(),
                 ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
             )
             qual_result = qualification_accuracy_result.first()
@@ -1838,6 +1989,7 @@ class MetricsService:
                 "missed_calls": missed_calls,
                 "missed_calls_status": missed_calls_status,
                 "booked_appointments": booked_appointments,
+                "booked_calls": booked_calls,
                 "total_leads": total_leads,
                 "qualified_leads": qualified_leads,
                 "booking_rate": round(booking_rate, 1),

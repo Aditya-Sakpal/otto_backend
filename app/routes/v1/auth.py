@@ -30,8 +30,16 @@ from app.domain.users.models import User
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    400: {"description": "Bad request (e.g. email already exists)"},
+    401: {"description": "Unauthorized (invalid credentials or token)"},
+    403: {"description": "Forbidden"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
-@router.post("/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post("/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def signup(
     signup_data: SignupRequest,
     db: DbSession,
@@ -96,7 +104,7 @@ async def signup(
         )
 
 
-@router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
+@router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def login(
     login_data: LoginRequest,
     db: DbSession,
@@ -158,7 +166,7 @@ async def login(
         )
 
 
-@router.post("/refresh", response_model=RefreshTokenResponse, status_code=status.HTTP_200_OK)
+@router.post("/refresh", response_model=RefreshTokenResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def refresh_token(
     refresh_data: RefreshTokenRequest,
     db: DbSession,
@@ -222,7 +230,7 @@ async def refresh_token(
         )
 
 
-@router.get("/me", response_model=UserResponse, status_code=status.HTTP_200_OK)
+@router.get("/me", response_model=UserResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def get_current_user_info(
     # RBAC DISABLED - user: User = Depends(get_current_user),
     user: User = Depends(get_current_user),  # RBAC DISABLED - Returns dummy user

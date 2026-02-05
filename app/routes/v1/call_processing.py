@@ -25,6 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter(prefix="/call-processing", tags=["call-processing"])
 logger = get_logger(__name__)
 
+RESPONSES = {
+    403: {"description": "Forbidden"},
+    404: {"description": "Resource or job not found"},
+    500: {"description": "Internal server error"},
+    503: {"description": "Shunya service not available"},
+}
+
 
 # Request/Response Models
 class ProcessCallRequest(BaseModel):
@@ -54,7 +61,12 @@ class ProcessCallResponse(BaseModel):
     created_at: datetime
 
 
-@router.post("/process", status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/process",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ProcessCallResponse,
+    responses=RESPONSES,
+)
 async def process_call(
     body: ProcessCallRequest,
     db: DbSession,
@@ -137,7 +149,7 @@ async def process_call(
         )
 
 
-@router.get("/status/{job_id}")
+@router.get("/status/{job_id}", responses=RESPONSES)
 async def get_call_processing_status(
     job_id: str,
     db: DbSession,
@@ -213,7 +225,7 @@ async def get_call_processing_status(
         )
 
 
-@router.get("/summary/{call_id}")
+@router.get("/summary/{call_id}", responses=RESPONSES)
 async def get_call_summary(
     call_id: UUID,
     db: DbSession,
@@ -257,7 +269,7 @@ async def get_call_summary(
         )
 
 
-@router.get("/chunks/{call_id}")
+@router.get("/chunks/{call_id}", responses=RESPONSES)
 async def get_call_chunks(
     call_id: UUID,
     db: DbSession,
@@ -297,7 +309,7 @@ async def get_call_chunks(
         )
 
 
-@router.post("/retry/{job_id}", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/retry/{job_id}", status_code=status.HTTP_202_ACCEPTED, responses=RESPONSES)
 async def retry_failed_job(
     job_id: str,
     db: DbSession,

@@ -106,6 +106,18 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
             logger.error(f"Error getting appointment by lead ID: {e}")
             raise e
 
+    async def get_by_interaction_id(self, interaction_id: UUID) -> Optional[Appointment]:
+        """Get appointment by call/interaction ID (for appointments created from calls)."""
+        try:
+            result = await self.session.execute(
+                select(AppointmentORM).where(AppointmentORM.interaction_id == interaction_id)
+            )
+            orm_obj = result.scalar_one_or_none()
+            return self._to_domain(orm_obj) if orm_obj else None
+        except Exception as e:
+            logger.error(f"Error getting appointment by interaction ID: {e}")
+            raise e
+
     async def create_appointment(self, appointment: Appointment) -> Appointment:
         """Create appointment."""
         try:

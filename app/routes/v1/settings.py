@@ -30,6 +30,14 @@ from app.services.company_service import CompanyService
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    400: {"description": "Bad request"},
+    403: {"description": "Forbidden"},
+    404: {"description": "Resource not found"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
+
 # Document type mapping
 DOCUMENT_TYPE_MAPPING = {
     "reference": "reference_doc_url",
@@ -41,7 +49,7 @@ DOCUMENT_TYPE_MAPPING = {
 REVERSE_DOCUMENT_TYPE_MAPPING = {v: k for k, v in DOCUMENT_TYPE_MAPPING.items()}
 
 
-@router.get("", response_model=SettingsResponse)
+@router.get("", response_model=SettingsResponse, responses=RESPONSES)
 async def get_settings(
     company_id: UUID,
     db: DbSession,
@@ -182,7 +190,7 @@ async def get_settings(
         )
 
 
-@router.get("/integrations", response_model=IntegrationsListResponse)
+@router.get("/integrations", response_model=IntegrationsListResponse, responses=RESPONSES)
 async def get_integrations(
     company_id: UUID,
     db: DbSession,
@@ -247,7 +255,7 @@ async def get_integrations(
         )
 
 
-@router.get("/integrations/{integration_id}", response_model=IntegrationResponse)
+@router.get("/integrations/{integration_id}", response_model=IntegrationResponse, responses=RESPONSES)
 async def get_integration(
     integration_id: UUID,
     company_id: UUID,
@@ -326,7 +334,7 @@ async def get_integration(
         )
 
 
-@router.post("/integrations", response_model=List[IntegrationResponse], status_code=status.HTTP_201_CREATED)
+@router.post("/integrations", response_model=List[IntegrationResponse], status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def create_integration(
     company_id: UUID,
     request: CreateIntegrationRequest,
@@ -397,7 +405,7 @@ async def create_integration(
         )
 
 
-@router.put("/integrations/{integration_id}", response_model=List[IntegrationResponse])
+@router.put("/integrations/{integration_id}", response_model=List[IntegrationResponse], responses=RESPONSES)
 async def update_integration(
     integration_id: UUID,
     company_id: UUID,
@@ -488,7 +496,7 @@ async def update_integration(
         )
 
 
-@router.get("/integrations/{integration_id}/logs")
+@router.get("/integrations/{integration_id}/logs", responses=RESPONSES)
 async def get_integration_logs(
     integration_id: UUID,
     company_id: UUID,
@@ -540,7 +548,7 @@ async def get_integration_logs(
         )
 
 
-@router.get("/documents", response_model=DocumentsListResponse)
+@router.get("/documents", response_model=DocumentsListResponse, responses=RESPONSES)
 async def get_documents(
     company_id: UUID,
     db: DbSession,
@@ -636,7 +644,7 @@ async def get_documents(
         )
 
 
-@router.post("/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def upload_document(
     company_id: UUID,
     db: DbSession,
@@ -773,7 +781,7 @@ async def upload_document(
         )
 
 
-@router.put("/documents/{document_type}", response_model=DocumentResponse)
+@router.put("/documents/{document_type}", response_model=DocumentResponse, responses=RESPONSES)
 async def update_document(
     document_type: str,
     company_id: UUID,

@@ -20,8 +20,16 @@ from app.domain.enums import UserRole
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    400: {"description": "Bad request"},
+    403: {"description": "Forbidden"},
+    404: {"description": "User not found"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
-@router.get("", response_model=List[UserResponse])
+
+@router.get("", response_model=List[UserResponse], responses=RESPONSES)
 async def list_users(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -63,7 +71,7 @@ async def list_users(
         )
 
 
-@router.get("/sales-reps", response_model=List[UserResponse])
+@router.get("/sales-reps", response_model=List[UserResponse], responses=RESPONSES)
 async def get_sales_reps_by_company(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -103,7 +111,48 @@ async def get_sales_reps_by_company(
         )
 
 
-@router.get("/companies", response_model=List[dict])
+@router.get("/assignees", response_model=List[UserResponse], responses=RESPONSES)
+async def list_assignees(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company ID"),
+    roles: Optional[str] = Query(None, description="Comma-separated roles to include (default: csr,sales_rep)"),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+) -> List[UserResponse]:
+    """
+    List users who can be assigned tasks (CSRs and Sales Reps) for the Task Management assignee dropdown.
+    Access: EXECUTIVE, CSR, SALES_REP
+    """
+    try:
+        service = UserService(db)
+        role_map = {"csr": UserRole.CSR, "sales_rep": UserRole.SALES_REP, "executive": UserRole.EXECUTIVE}
+        if roles:
+            role_list = [r.strip().lower() for r in roles.split(",")]
+            user_roles = [role_map[r] for r in role_list if r in role_map]
+        else:
+            user_roles = [UserRole.CSR, UserRole.SALES_REP]
+        if not user_roles:
+            user_roles = [UserRole.CSR, UserRole.SALES_REP]
+        all_assignees = []
+        for role in user_roles:
+            users_in_role = await service.list_users(company_id=company_id, role=role, is_active=True, skip=0, limit=500)
+            all_assignees.extend(users_in_role)
+        seen = set()
+        unique = []
+        for u in all_assignees:
+            if u.id not in seen and getattr(u, "is_active", True):
+                seen.add(u.id)
+                unique.append(u)
+        return [UserResponse.model_validate(u) for u in unique]
+    except Exception as e:
+        logger.error(f"Error listing assignees: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/companies", response_model=List[dict], responses=RESPONSES)
 async def list_companies(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -160,7 +209,7 @@ async def get_current_user_profile(
         )
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserResponse, responses=RESPONSES)
 async def get_user(
     user_id: UUID,
     db: DbSession,
@@ -196,7 +245,7 @@ async def get_user(
         )
 
 
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def create_user(
     user_data: UserCreate,
     db: DbSession,
@@ -280,7 +329,7 @@ async def create_user(
 #         )
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserResponse, responses=RESPONSES)
 async def update_user(
     user_id: UUID,
     user_data: UserUpdate,

@@ -1,6 +1,6 @@
 # Otto AI Backend API Documentation
 
-**Base URL:** `http://localhost:8000/api/v1` (or `http://localhost:8001/api/v1`)
+**Base URL:** `http://localhost:8001/api/v1` (server runs on port 8001; or `http://localhost:8000/api/v1` if configured otherwise)
 
 **Version:** 2.0.0
 
@@ -32,14 +32,15 @@ To use this data, run `backend/seed_dummy_data.sql` against your database.
 2. [Users](#users)
 3. [Calls](#calls)
 4. [Leads](#leads)
-5. [Metrics](#metrics)
-6. [Call Processing (Shunya)](#call-processing-shunya)
-7. [Ask Otto (Shunya)](#ask-otto-shunya)
-8. [Insights (Shunya)](#insights-shunya)
-9. [RAG / Ask Otto](#rag--ask-otto)
-10. [Webhooks](#webhooks)
-11. [Invites](#invites)
-12. [Onboarding](#onboarding)
+5. [Task Management](#task-management)
+6. [Metrics](#metrics)
+7. [Call Processing (Shunya)](#call-processing-shunya)
+8. [Ask Otto (Shunya)](#ask-otto-shunya)
+9. [Insights (Shunya)](#insights-shunya)
+10. [RAG / Ask Otto](#rag--ask-otto)
+11. [Webhooks](#webhooks)
+12. [Invites](#invites)
+13. [Onboarding](#onboarding)
 
 ---
 
@@ -379,6 +380,54 @@ Delete user by ID (EXECUTIVE only).
 
 ---
 
+### GET `/users/assignees`
+
+List users who can be assigned tasks (CSRs and Sales Reps) for the Task Management assignee dropdown.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `roles` (string, optional) - Comma-separated roles to include (default: `csr,sales_rep`). Allowed: `csr`, `sales_rep`, `executive`
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/users/assignees?company_id=11111111-1111-1111-1111-111111111111
+```
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "email": "csr1@acme.com",
+    "role": "csr",
+    "is_active": true,
+    "first_name": "Lisa",
+    "last_name": "Support",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "created_at": "2025-05-08T10:00:00Z"
+  },
+  {
+    "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "email": "sales1@acme.com",
+    "role": "sales_rep",
+    "is_active": true,
+    "first_name": "Mike",
+    "last_name": "Salesman",
+    "company_id": "11111111-1111-1111-1111-111111111111",
+    "created_at": "2025-05-08T10:00:00Z"
+  }
+]
+```
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
+
+---
+
 ## Calls
 
 **Note:** Route order is important. The `/calls/logs` endpoint must be defined before `/calls/{call_id}` to avoid routing conflicts.
@@ -696,11 +745,13 @@ Get call logs with summary statistics and filtered call list.
 Returns comprehensive call log data including summary statistics (Total Calls, Qualified, Booked, Abandoned) and a detailed list of calls with all relevant information for the call logs dashboard.
 
 **Query Parameters:**
-- `company_id` (UUID, required) - Company UUID
+- `company_id` (UUID, optional) - Company UUID (required if `user_id` not provided)
+- `user_id` (UUID, optional) - User UUID; if provided, call logs are scoped to this user and company_id is derived from user
 - `search` (string, optional) - Search by customer name, CSR name, or phone number
 - `csr_id` (UUID, optional) - Filter by specific CSR/owner UUID
 - `status_filter` (string, optional) - Filter by qualification status (`qualified`/`unqualified`/`all`, default: `all`)
 - `booking_filter` (string, optional) - Filter by booking status (`booked`/`unbooked`/`all`, default: `all`)
+- `existing_customer` (boolean, optional) - Filter by existing customer: `true` = only existing, `false` = only non-existing, omit = all
 - `quick_filter` (string, optional) - Quick filter options:
   - `hot_lead` - Hot leads
   - `qualified_unbooked` - Qualified but not booked
@@ -733,13 +784,18 @@ GET /api/v1/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=jo
   "calls": [
     {
       "call_id": "30000000-0000-0000-0000-000000000001",
+      "lead_id": "20000000-0000-0000-0000-000000000001",
       "call_received": "12/31/25, 10:39 AM",
       "duration": "2m 13s",
       "csr_name": "Travis Jones",
+      "answered_by_display": null,
       "customer_name": "EVANSON DALE",
       "phone_number": "(555) 123-4567",
       "is_qualified": false,
       "is_booked": false,
+      "booking_status": null,
+      "is_existing_customer": null,
+      "lead_source": null,
       "score": null,
       "objections": null,
       "tags": "Follow-up"
@@ -785,13 +841,18 @@ GET /api/v1/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=jo
   - `abandoned`: Number of abandoned calls
 - `calls`: Array of call log entries
   - `call_id`: UUID of the call
+  - `lead_id`: UUID of the associated lead, null if none
   - `call_received`: Formatted date/time when call was received (MM/DD/YY, HH:MM AM/PM)
   - `duration`: Call duration formatted as "Xm Ys"
   - `csr_name`: Full name of the CSR who handled the call
+  - `answered_by_display`: Display name of who answered (from VoIP/CRM), null if not set
   - `customer_name`: Customer name in uppercase
   - `phone_number`: Formatted phone number (XXX) XXX-XXXX
   - `is_qualified`: Boolean indicating if call was qualified
   - `is_booked`: Boolean indicating if call resulted in booking
+  - `booking_status`: Raw booking status from analysis (e.g. `booked`, `service_not_offered`), null if not set
+  - `is_existing_customer`: Boolean from call analysis, null if not set
+  - `lead_source`: Lead source from CRM/VoIP (e.g. Google, LSA), null if not set
   - `score`: Call score (SOP compliance score or sentiment score converted to 0-100 scale), null if not available
   - `objections`: Comma-separated list of objections (first 3), null if none
   - `tags`: Comma-separated list of tags from lead status and metadata, null if none
@@ -810,7 +871,7 @@ GET /api/v1/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=jo
 - Quick filter abandoned: `/calls/logs?company_id=11111111-1111-1111-1111-111111111111&quick_filter=abandoned`
 
 **Note:**
-- Summary statistics are calculated from all calls for the company (not filtered)
+- Summary statistics exclude existing customers and service-not-offered calls; they are calculated from all other calls for the company (not filtered by list filters)
 - Call list is filtered based on query parameters
 - Calls are ordered by creation date (most recent first)
 - Phone numbers are automatically formatted to (XXX) XXX-XXXX format
@@ -819,6 +880,43 @@ GET /api/v1/calls/logs?company_id=11111111-1111-1111-1111-111111111111&search=jo
 - Score uses SOP compliance score if available, otherwise falls back to sentiment score (converted to 0-100 scale)
 
 **Required Role:** `CSR`, `SALES_REP`, or `EXECUTIVE`
+
+---
+
+### POST `/calls/{call_id}/action-items`
+
+Create an action item linked to a call and assign it to a user (e.g. executive assigning to CSR).
+
+**Path Parameters:**
+- `call_id` (UUID, required) - Call UUID
+
+**Request Body:**
+```json
+{
+  "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "action_type": "follow_up_call",
+  "raw_text": "Call back to confirm appointment",
+  "due_at": null,
+  "priority": 1
+}
+```
+- `owner_id` (UUID, required) - User to assign the action to (CSR)
+- `action_type` (string, required) - Type of action (e.g. `follow_up_call`, `send_quote`)
+- `raw_text` (string, optional) - Optional description
+- `due_at` (datetime, optional) - When the action is due (UTC)
+- `priority` (int, optional) - Priority (higher = more urgent)
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Response:** `201 Created` - Returns the created `PendingAction` with `assigned_by_id` set to the current user.
+
+**Error:** `404 Not Found` - Call not found
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
 
 ---
 
@@ -833,6 +931,9 @@ List leads for a company with optional filters.
 - `status` (string, optional) - Filter by status (comma-separated, e.g., `"qualified_unbooked"` or `"closed_lost,abandoned,dormant"`)
 - `nurturing` (string, optional) - Filter nurturing leads (comma-separated, e.g., `"new,warm,hot"`)
 - `sort` (string, optional) - Sort option (e.g., `"priority"`)
+- `start_date` (string, optional) - Filter leads created on or after this date (YYYY-MM-DD)
+- `end_date` (string, optional) - Filter leads created on or before this date (YYYY-MM-DD)
+- `search` (string, optional) - Search by contact name or phone number
 - `skip` (int, default: 0) - Number of records to skip
 - `limit` (int, default: 100) - Maximum number of records to return
 
@@ -1076,7 +1177,7 @@ Content-Type: application/json
 
 ### PUT `/leads/{lead_id}/status`
 
-Update lead status.
+Update lead status. When called by an EXECUTIVE, the change is logged in the `lead_status_changes` audit table (with optional reason).
 
 **Path Parameters:**
 - `lead_id` (UUID, required) - Lead UUID
@@ -1084,9 +1185,12 @@ Update lead status.
 **Request Body:**
 ```json
 {
-  "status": "qualified_booked"
+  "status": "qualified_booked",
+  "reason": "Manual qualification after review"
 }
 ```
+- `status` (string, required) - New lead status (valid values from LeadStatus enum)
+- `reason` (string, optional) - Optional reason for the change (stored in audit when EXECUTIVE)
 
 **Headers:**
 ```
@@ -1100,7 +1204,8 @@ PUT /api/v1/leads/20000000-0000-0000-0000-000000000001/status
 Content-Type: application/json
 
 {
-  "status": "qualified_booked"
+  "status": "qualified_booked",
+  "reason": "Manual qualification after review"
 }
 ```
 
@@ -1140,6 +1245,233 @@ Content-Type: application/json
 - `404 Not Found` - Lead not found
 
 **Required Role:** `EXECUTIVE` or `CSR`
+
+---
+
+## Task Management
+
+Task Management APIs allow listing, creating, updating, and viewing action items (tasks) for the company. Tasks are stored as pending actions and may be linked to calls, leads, or appointments. Related: create action items from a call via **POST `/calls/{call_id}/action-items`**; mark complete/reopen via **PATCH `/metrics/actions/pending/{action_id}/complete`** and **PATCH `/metrics/actions/pending/{action_id}/reopen`**.
+
+**Task statuses:** `pending`, `in_progress`, `completed`, `cancelled`
+
+**Access:** Endpoints below specify allowed roles (EXECUTIVE, CSR, SALES_REP).
+
+---
+
+### GET `/tasks`
+
+List tasks (action items) for the company with summary counts. Returns summary cards (total, pending, in_progress, completed, cancelled) and a paginated task list with assignee and source call info.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID
+- `status` (string, optional) - Filter by status: `pending`, `in_progress`, `completed`, `cancelled`
+- `priority` (int, optional) - Filter by priority (integer)
+- `assignee_id` (UUID, optional) - Filter by assignee (owner) user ID
+- `search` (string, optional) - Search in task title/description (raw_text)
+- `start_date` (datetime, optional) - Filter tasks created on or after (ISO datetime)
+- `end_date` (datetime, optional) - Filter tasks created on or before (ISO datetime)
+- `due_date_from` (datetime, optional) - Filter by due_at on or after
+- `due_date_to` (datetime, optional) - Filter by due_at on or before
+- `skip` (int, default: 0) - Pagination offset
+- `limit` (int, default: 100, max: 500) - Page size
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/tasks?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100
+```
+
+**Response:** `200 OK`
+```json
+{
+  "summary": {
+    "total_tasks": 12,
+    "pending": 5,
+    "in_progress": 3,
+    "completed": 3,
+    "cancelled": 1
+  },
+  "tasks": [
+    {
+      "id": "e0000000-0000-0000-0000-000000000001",
+      "company_id": "11111111-1111-1111-1111-111111111111",
+      "action_type": "follow_up_call",
+      "raw_text": "Call back to confirm appointment",
+      "status": "pending",
+      "priority": 1,
+      "due_at": "2026-02-01T17:00:00Z",
+      "created_at": "2026-01-15T10:00:00Z",
+      "updated_at": "2026-01-15T10:00:00Z",
+      "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      "assigned_to": {
+        "user_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+        "first_name": "Lisa",
+        "last_name": "Support",
+        "full_name": "Lisa Support",
+        "role": "csr",
+        "email": "csr1@acme.com"
+      },
+      "source_call": {
+        "call_id": "30000000-0000-0000-0000-000000000001",
+        "customer_name": "Alice Johnson",
+        "call_date": "2025-10-20T10:00:00Z",
+        "call_created_at": "2025-10-20T10:00:00Z"
+      },
+      "call_id": "30000000-0000-0000-0000-000000000001",
+      "lead_id": null,
+      "assigned_by_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    }
+  ],
+  "total": 12,
+  "skip": 0,
+  "limit": 100
+}
+```
+
+**CSR "My Tasks" tab:** Use `assignee_id=<current_user_id>` with the same `company_id`. Summary and list are then scoped to tasks assigned to that user. List items include `assigned_by` (who assigned) and `source_call.customer_phone`.
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
+
+---
+
+### GET `/tasks/{task_id}`
+
+Get a single task by ID with full details (assignee, source call, assigned by).
+
+**Path Parameters:**
+- `task_id` (UUID, required) - Task (pending action) UUID
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/tasks/e0000000-0000-0000-0000-000000000001
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": "e0000000-0000-0000-0000-000000000001",
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "lead_id": null,
+  "call_id": "30000000-0000-0000-0000-000000000001",
+  "appointment_id": null,
+  "action_type": "follow_up_call",
+  "raw_text": "Call back to confirm appointment",
+  "status": "pending",
+  "priority": 1,
+  "due_at": "2026-02-01T17:00:00Z",
+  "created_at": "2026-01-15T10:00:00Z",
+  "updated_at": "2026-01-15T10:00:00Z",
+  "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "assigned_to": {
+    "user_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "first_name": "Lisa",
+    "last_name": "Support",
+    "full_name": "Lisa Support",
+    "role": "csr",
+    "email": "csr1@acme.com"
+  },
+  "assigned_by_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "assigned_by": {
+    "user_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "first_name": "John",
+    "last_name": "Executive",
+    "full_name": "John Executive",
+    "role": "executive",
+    "email": "exec@acme.com"
+  },
+  "source_call": {
+    "call_id": "30000000-0000-0000-0000-000000000001",
+    "customer_name": "Alice Johnson",
+    "call_date": "2025-10-20T10:00:00Z",
+    "call_created_at": "2025-10-20T10:00:00Z"
+  },
+  "source": "call"
+}
+```
+
+**Errors:** `404 Not Found` - Task not found
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
+
+---
+
+### POST `/tasks`
+
+Create a task manually (not from a call). Executives can optionally assign to a CSR or Sales Rep.
+
+**Request Body:**
+```json
+{
+  "company_id": "11111111-1111-1111-1111-111111111111",
+  "action_type": "follow_up_call",
+  "raw_text": "Send quote to customer by EOD",
+  "status": "pending",
+  "priority": 2,
+  "due_at": "2026-02-01T17:00:00Z",
+  "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "lead_id": null,
+  "call_id": null,
+  "appointment_id": null
+}
+```
+
+- `company_id` (UUID, required) - Company ID
+- `action_type` (string, required) - Type of action (e.g. `follow_up_call`, `send_quote`)
+- `raw_text` (string, optional) - Task title/description
+- `status` (string, optional, default: `pending`) - One of: `pending`, `in_progress`, `completed`, `cancelled`
+- `priority` (int, optional) - Priority (higher = more urgent)
+- `due_at` (datetime, optional) - Due date/time
+- `owner_id` (UUID, optional) - Assign to user (CSR or Sales Rep)
+- `lead_id` (UUID, optional) - Optional lead ID
+- `call_id` (UUID, optional) - Optional call ID (link to source call)
+- `appointment_id` (UUID, optional) - Optional appointment ID
+
+**Response:** `201 Created`  
+Returns the created `PendingAction` object (id, company_id, action_type, raw_text, status, priority, due_at, owner_id, assigned_by_id, call_id, lead_id, appointment_id, created_at, updated_at, etc.).
+
+**Required Role:** `EXECUTIVE` only
+
+---
+
+### PATCH `/tasks/{task_id}`
+
+Update a task: reassign (owner_id), change status, priority, due date, or description. When reassigning, pass `owner_id`; the backend can set `assigned_by_id` to the current user.
+
+**Path Parameters:**
+- `task_id` (UUID, required) - Task (pending action) UUID
+
+**Request Body:** (all fields optional)
+```json
+{
+  "owner_id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "status": "in_progress",
+  "priority": 2,
+  "due_at": "2026-02-05T17:00:00Z",
+  "raw_text": "Updated task description"
+}
+```
+
+- `owner_id` (UUID, optional) - Reassign to user (CSR or Sales Rep)
+- `status` (string, optional) - One of: `pending`, `in_progress`, `completed`, `cancelled`
+- `priority` (int, optional) - Priority (higher = more urgent)
+- `due_at` (datetime, optional) - Due date/time
+- `raw_text` (string, optional) - Task title/description
+
+**Response:** `200 OK`  
+Returns the updated `PendingAction` object.
+
+**Errors:** `404 Not Found` - Task not found
+
+**Required Role:** `EXECUTIVE`, `CSR`, or `SALES_REP`
 
 ---
 
@@ -1741,6 +2073,56 @@ Get pending actions metrics within date range.
 ```
 
 **Required Role:** Any authenticated user
+
+---
+
+### PATCH `/metrics/actions/pending/{action_id}/complete`
+
+Mark a pending action as completed (e.g. CSR marking their assigned action done).
+
+**Path Parameters:**
+- `action_id` (UUID, required) - Pending action UUID
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+PATCH /api/v1/metrics/actions/pending/<action_id>/complete
+```
+
+**Response:** `200 OK` - Returns the updated `PendingAction` with `status: "completed"`.
+
+**Error:** `404 Not Found` - Pending action not found
+
+**Required Role:** CSR, SALES_REP, or EXECUTIVE
+
+---
+
+### PATCH `/metrics/actions/pending/{action_id}/reopen`
+
+Reopen a pending action (set status back to `pending`). Use when a CSR or sales rep mistakenly marked an action as complete and needs to undo it.
+
+**Path Parameters:**
+- `action_id` (UUID, required) - Pending action UUID
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+PATCH /api/v1/metrics/actions/pending/<action_id>/reopen
+```
+
+**Response:** `200 OK` - Returns the updated `PendingAction` with `status: "pending"`.
+
+**Error:** `404 Not Found` - Pending action not found
+
+**Required Role:** CSR, SALES_REP, or EXECUTIVE
 
 ---
 

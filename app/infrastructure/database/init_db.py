@@ -20,6 +20,7 @@ from app.infrastructure.database.models import (
     CallAnalysisORM,
     InvitationORM,
     PendingActionORM,
+    LeadStatusChangeORM,
     CallProcessingJobORM,
     AskOttoConversationORM,
     AskOttoMessageORM,

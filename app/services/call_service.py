@@ -25,13 +25,15 @@ from app.infrastructure.repositories.analysis import CallAnalysisRepository
 from app.infrastructure.repositories.pending_action import PendingActionRepository
 from app.infrastructure.repositories.contact import ContactRepository
 from app.infrastructure.repositories.lead import LeadRepository
+from app.infrastructure.repositories.appointment import AppointmentRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.tasks.analysis import analyze_call_task
 from app.core.s3 import get_s3_service
 from app.domain.users.repository import UserRepository
 from app.domain.users.models import User
 from app.domain.models.lead import Lead
-from app.domain.enums import LeadStatus, DealStatus
+from app.domain.models.appointment import Appointment
+from app.domain.enums import LeadStatus, DealStatus, AppointmentOutcome
 from app.services.ghost_mode_service import GhostModeService
 
 logger = get_logger(__name__)
@@ -106,6 +108,7 @@ class CallService:
         self.pending_action_repo = PendingActionRepository(session)
         self.contact_repo = ContactRepository(session)
         self.lead_repo = LeadRepository(session)
+        self.appointment_repo = AppointmentRepository(session)
         self.user_repo = UserRepository(session)
         self.shoonya = get_shoonya_client()
 
@@ -737,6 +740,97 @@ class CallService:
             logger.error(f"Error finding existing lead: {e}")
             return None
 
+    async def _upsert_appointment_from_call(
+        self,
+        call: Call,
+        analysis: CallAnalysis,
+    ) -> None:
+        """
+        Create or update an appointment from a call with booking_status=booked.
+        Populates the appointments table for companies without GoHighLevel integration.
+        """
+        try:
+            if not call.lead_id or not call.contact_card_id:
+                logger.debug(
+                    "Skipping appointment create/update - call has no lead_id or contact_card_id",
+                    call_id=str(call.id),
+                )
+                return
+
+            # Resolve scheduled_start from analysis or call
+            scheduled_start = (
+                getattr(analysis, "appointment_date", None)
+                or getattr(analysis, "original_appointment_datetime", None)
+                or getattr(analysis, "new_requested_time", None)
+            )
+            if not scheduled_start:
+                scheduled_start = getattr(call, "created_at", None) or datetime.now(timezone.utc)
+            if hasattr(scheduled_start, "tzinfo") and scheduled_start.tzinfo is None:
+                scheduled_start = scheduled_start.replace(tzinfo=timezone.utc)
+
+            # Optional: scheduled_end (leave None or set default duration)
+            scheduled_end = None
+
+            # Location from analysis
+            location_address = getattr(analysis, "service_address_raw", None)
+            if not location_address and getattr(analysis, "service_address_structured", None):
+                addr = analysis.service_address_structured
+                if isinstance(addr, dict):
+                    parts = [
+                        addr.get("line1") or addr.get("address"),
+                        addr.get("city"),
+                        addr.get("state"),
+                        addr.get("postal_code"),
+                        addr.get("country"),
+                    ]
+                    location_address = ", ".join(p for p in parts if p) or None
+
+            # Outcome: pending for call-created appointments
+            outcome = AppointmentOutcome.PENDING
+
+            appointment_data = {
+                "company_id": call.company_id,
+                "lead_id": call.lead_id,
+                "contact_card_id": call.contact_card_id,
+                "scheduled_start": scheduled_start,
+                "scheduled_end": scheduled_end,
+                "location_address": location_address,
+                "outcome": outcome,
+                "assigned_rep_id": call.handled_by_user_id,
+                "interaction_id": call.id,
+                "extra_metadata": {
+                    "created_from_call": str(call.id),
+                    "source": "call_analysis",
+                },
+            }
+
+            existing = await self.appointment_repo.get_by_interaction_id(call.id)
+            if existing:
+                for key, value in appointment_data.items():
+                    if hasattr(existing, key):
+                        setattr(existing, key, value)
+                await self.appointment_repo.update(existing.id, existing)
+                logger.info(
+                    "Updated appointment from call",
+                    call_id=str(call.id),
+                    appointment_id=str(existing.id),
+                )
+            else:
+                appointment = Appointment(**appointment_data)
+                created = await self.appointment_repo.create(appointment)
+                logger.info(
+                    "Created appointment from call (no GHL)",
+                    call_id=str(call.id),
+                    appointment_id=str(created.id),
+                )
+        except Exception as e:
+            logger.error(
+                f"Error upserting appointment from call: {e}",
+                call_id=str(call.id),
+            )
+            traceback.print_exc()
+            # Non-critical: do not re-raise
+
     async def _update_dependent_entities(
         self,
         call: Call,
@@ -867,15 +961,9 @@ class CallService:
                     lead_id=str(created_lead.id),
                 )
 
-            # Update appointment if exists and booking_status indicates one
-            if analysis.booking_status and analysis.booking_status.lower() in ["booked", "confirmed"]:
-                # TODO: Implement AppointmentRepository and create/update appointment
-                # based on booking_status and analysis data
-                logger.info(
-                    "Appointment update needed",
-                    call_id=str(call.id),
-                    booking_status=analysis.booking_status,
-                )
+            # Create or update appointment when booking_status is booked (for companies without GHL)
+            if analysis.booking_status and str(analysis.booking_status).lower() in ["booked", "confirmed"]:
+                await self._upsert_appointment_from_call(call, analysis)
 
             # Update contact card metadata with analysis insights
             if call.contact_card_id:
@@ -1064,6 +1152,7 @@ class CallService:
         csr_id: Optional[UUID] = None,
         status_filter: Optional[str] = None,
         booking_filter: Optional[str] = None,
+        existing_customer: Optional[bool] = None,
         quick_filter: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
@@ -1131,15 +1220,27 @@ class CallService:
                         )
                     )
 
-            # Booking filter
+            # Booking filter (case-insensitive: DB may store "Booked", "booked", etc.)
             if booking_filter and booking_filter.lower() != "all":
                 if booking_filter.lower() == "booked":
-                    query = query.where(CallAnalysisORM.booking_status == "booked")
+                    query = query.where(func.lower(CallAnalysisORM.booking_status) == "booked")
                 elif booking_filter.lower() == "unbooked":
                     query = query.where(
                         or_(
-                            CallAnalysisORM.booking_status != "booked",
-                            CallAnalysisORM.booking_status.is_(None)
+                            CallAnalysisORM.booking_status.is_(None),
+                            func.lower(CallAnalysisORM.booking_status) != "booked"
+                        )
+                    )
+
+            # Existing customer filter (from call analysis)
+            if existing_customer is not None:
+                if existing_customer:
+                    query = query.where(CallAnalysisORM.is_existing_customer == True)
+                else:
+                    query = query.where(
+                        or_(
+                            CallAnalysisORM.is_existing_customer == False,
+                            CallAnalysisORM.is_existing_customer.is_(None)
                         )
                     )
 
@@ -1155,8 +1256,8 @@ class CallService:
                                 [s.lower() for s in QUALIFIED_STATUSES]
                             ),
                             or_(
-                                CallAnalysisORM.booking_status != "booked",
-                                CallAnalysisORM.booking_status.is_(None)
+                                CallAnalysisORM.booking_status.is_(None),
+                                func.lower(CallAnalysisORM.booking_status) != "booked"
                             )
                         )
                     )
@@ -1166,7 +1267,7 @@ class CallService:
                             func.lower(CallAnalysisORM.qualification_status).in_(
                                 [s.lower() for s in QUALIFIED_STATUSES]
                             ),
-                            CallAnalysisORM.booking_status == "booked"
+                            func.lower(CallAnalysisORM.booking_status) == "booked"
                         )
                     )
                 elif quick_filter_lower == "abandoned":
@@ -1213,8 +1314,23 @@ class CallService:
             results = await self.session.execute(query)
             rows = results.all()
 
-            # Calculate summary statistics (from all calls, not just filtered)
+            # Calculate summary statistics (from all calls, excluding existing customers and service_not_offered)
             # Qualified statuses: hot, cold, warm, qualified
+            summary_base = and_(
+                CallORM.company_id == company_id,
+                or_(
+                    CallAnalysisORM.is_existing_customer == False,
+                    CallAnalysisORM.is_existing_customer.is_(None)
+                ),
+                or_(
+                    CallAnalysisORM.booking_status.is_(None),
+                    func.lower(CallAnalysisORM.booking_status) != "service_not_offered"
+                ),
+                or_(
+                    CallAnalysisORM.service_not_offered_reason.is_(None),
+                    CallAnalysisORM.service_not_offered_reason == ""
+                ),
+            )
             summary_query = select(
                 func.count(CallORM.id).label('total_calls'),
                 func.sum(
@@ -1227,7 +1343,7 @@ class CallService:
                 ).label('qualified'),
                 func.sum(
                     case(
-                        (CallAnalysisORM.booking_status == "booked", 1),
+                        (func.lower(CallAnalysisORM.booking_status) == "booked", 1),
                         else_=0
                     )
                 ).label('booked'),
@@ -1242,7 +1358,7 @@ class CallService:
             ).outerjoin(
                 LeadORM, CallORM.lead_id == LeadORM.id
             ).where(
-                CallORM.company_id == company_id
+                summary_base
             )
 
             summary_result = await self.session.execute(summary_query)
@@ -1295,7 +1411,7 @@ class CallService:
                 # Get qualification and booking status
                 # Qualified statuses: hot, cold, warm, qualified
                 is_qualified = analysis and is_qualified_status(analysis.qualification_status) if analysis else False
-                is_booked = analysis and analysis.booking_status == "booked" if analysis else False
+                is_booked = analysis and analysis.booking_status and str(analysis.booking_status).lower() == "booked" if analysis else False
 
                 # Get score (use SOP compliance score or sentiment score)
                 score = None
@@ -1356,6 +1472,10 @@ class CallService:
                 key_items = list(analysis.key_points) if (analysis and analysis.key_points) else None
                 action_items = list(analysis.action_items) if (analysis and analysis.action_items) else None
 
+                booking_status_raw = (analysis.booking_status or "").strip() if analysis else None
+                if not booking_status_raw:
+                    booking_status_raw = None
+
                 # Ghost mode filtering - only for meetings
                 if current_user and call.interaction_type == "meeting":
                     ghost_mode_service = GhostModeService(self.session)
@@ -1371,13 +1491,18 @@ class CallService:
 
                 calls.append({
                     "call_id": str(call.id),
+                    "lead_id": str(call.lead_id) if call.lead_id else None,
                     "call_received": call_received,
                     "duration": duration_str,
                     "csr_name": csr_name,
+                    "answered_by_display": getattr(call, "answered_by_display", None) or None,
                     "customer_name": customer_name,
                     "phone_number": formatted_phone,
                     "is_qualified": is_qualified,
                     "is_booked": is_booked,
+                    "booking_status": booking_status_raw,
+                    "is_existing_customer": bool(analysis.is_existing_customer) if analysis and analysis.is_existing_customer is not None else None,
+                    "lead_source": getattr(call, "lead_source", None) or None,
                     "audio_url": audio_url,
                     "transcript": transcript,
                     "call_summary": call_summary,

@@ -26,6 +26,13 @@ from app.services.call_service import CallService
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    403: {"description": "Forbidden"},
+    404: {"description": "Appointment not found"},
+    500: {"description": "Internal server error"},
+    503: {"description": "S3 service not available"},
+}
+
 
 class RecordingInitiateRequest(BaseModel):
     """Request to initiate a recording upload."""
@@ -39,7 +46,7 @@ class RecordingInitiateResponse(BaseModel):
     s3_key: str = Field(..., description="S3 key where the file should be uploaded")
 
 
-@router.post("/initiate", response_model=RecordingInitiateResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/initiate", response_model=RecordingInitiateResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def initiate_recording(
     request: RecordingInitiateRequest,
     db: DbSession,
@@ -178,7 +185,7 @@ class RecordingCompleteResponse(BaseModel):
     processing_job_id: Optional[str] = Field(None, description="Shunya job ID if processing was triggered")
 
 
-@router.post("/complete", response_model=RecordingCompleteResponse)
+@router.post("/complete", response_model=RecordingCompleteResponse, responses=RESPONSES)
 async def complete_recording(
     request: RecordingCompleteRequest,
     db: DbSession,

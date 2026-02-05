@@ -142,3 +142,12 @@ class PendingActionStatus(str, Enum):
     COMPLETED = "completed"
     CANCELLED = "cancelled"
     CONVERTED = "converted"
+
+
+class LeaderboardPeriod(str, Enum):
+    """Leaderboard period."""
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    YEARLY = "yearly"

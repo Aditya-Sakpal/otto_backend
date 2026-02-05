@@ -17,6 +17,7 @@ from app.core.permissions import require_any_role
 from app.domain.enums import UserRole
 from app.domain.users.models import User
 from app.infrastructure.integrations.shoonya import get_shoonya_client
+from app.services.appointment_service import AppointmentService
 from app.core.logging import get_logger
 from app.infrastructure.database.models.insight_job import InsightJobORM
 from sqlalchemy import select
@@ -237,6 +238,59 @@ async def get_customer_insights(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get customer insights: {str(e)}",
+        )
+
+
+@router.get("/appointments/{appointment_id}")
+async def get_appointment_insights(
+    appointment_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+):
+    """
+    Get insights for an appointment.
+
+    Returns call analysis insights for the appointment's associated call/interaction.
+    If no interaction_id exists or no analysis is available, returns appropriate status.
+
+    Access: Any authenticated user
+
+    Returns:
+        {
+            "appointment_id": "...",
+            "status": "completed" | "pending" | "processing" | "not_found",
+            "insights": {
+                "summary": "...",
+                "sentiment": 0.85,
+                "sop_score": 0.9,
+                "objections_found": ["Price", "Competitor"]
+            } | null
+        }
+    """
+    try:
+        service = AppointmentService(db)
+        result = await service.get_appointment_insights(appointment_id)
+
+        # Check if appointment was not found
+        if result.get("status") == "not_found" and not result.get("insights"):
+            # Verify appointment exists
+            appointment = await service.get_by_id(appointment_id)
+            if not appointment:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Appointment not found",
+                )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting appointment insights: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
         )
 
 

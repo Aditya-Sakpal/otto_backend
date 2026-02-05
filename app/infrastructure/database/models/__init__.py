@@ -12,6 +12,8 @@ from app.infrastructure.database.models.pending_action import PendingActionORM
 from app.infrastructure.database.models.call_processing_job import CallProcessingJobORM
 from app.infrastructure.database.models.ask_otto_conversation import AskOttoConversationORM, AskOttoMessageORM
 from app.infrastructure.database.models.insight_job import InsightJobORM
+from app.infrastructure.database.models.post import PostORM
+from app.infrastructure.database.models.leaderboard_stats import LeaderboardStatsORM
 
 __all__ = [
     "CompanyORM",
@@ -27,4 +29,6 @@ __all__ = [
     "AskOttoConversationORM",
     "AskOttoMessageORM",
     "InsightJobORM",
+    "PostORM",
+    "LeaderboardStatsORM",
 ]

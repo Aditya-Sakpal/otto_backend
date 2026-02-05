@@ -149,6 +149,7 @@ async def get_call_logs(
             quick_filter=quick_filter,
             skip=skip,
             limit=limit,
+            current_user=user,
         )
         return result
     except Exception as e:

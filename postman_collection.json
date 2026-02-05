@@ -15,163 +15,323 @@
 			"key": "clerk_jwt_token",
 			"value": "",
 			"type": "string",
-			"description": "Clerk JWT token - Required only in PROD mode (APP_ENV=PROD). Leave empty for DEV mode (APP_ENV=DEV). See README.md for token extraction methods."
+			"description": "JWT token - Required only in PROD mode (APP_ENV=PROD). Leave empty for DEV mode."
 		},
 		{
 			"key": "company_id",
 			"value": "",
 			"type": "string",
-			"description": "Company UUID - will be populated after first auth call"
+			"description": "Company UUID"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "string",
+			"description": "User UUID"
 		},
 		{
 			"key": "call_id",
 			"value": "",
 			"type": "string",
-			"description": "Call UUID - will be populated after creating a call"
+			"description": "Call UUID"
+		},
+		{
+			"key": "lead_id",
+			"value": "",
+			"type": "string",
+			"description": "Lead UUID"
+		},
+		{
+			"key": "appointment_id",
+			"value": "",
+			"type": "string",
+			"description": "Appointment UUID"
+		},
+		{
+			"key": "contact_card_id",
+			"value": "",
+			"type": "string",
+			"description": "Contact Card UUID"
+		},
+		{
+			"key": "conversation_id",
+			"value": "",
+			"type": "string",
+			"description": "Ask Otto Conversation UUID"
 		}
 	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{clerk_jwt_token}}",
+				"type": "string"
+			}
+		]
+	},
 	"item": [
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Health check endpoint for load balancers. Does not require authentication."
+					},
+					"response": []
+				}
+			],
+			"description": "Health check endpoint (no authentication required)."
+		},
 		{
 			"name": "Auth",
 			"item": [
 				{
 					"name": "Get Current User Info",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{clerk_jwt_token}}",
-									"type": "string"
-								}
-							]
-						},
 						"method": "GET",
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/me",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"me"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "me"]
 						},
-						"description": "Get current authenticated user information including user details and company association.\n\n**DEV Mode (APP_ENV=DEV)**: No JWT token required - returns mock user\n**PROD Mode (APP_ENV=PROD)**: JWT token required in Authorization header"
+						"description": "Get current authenticated user information including user details and company association."
 					},
-					"response": [
-						{
-							"name": "Success Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{clerk_jwt_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/api/v1/auth/me",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"auth",
-										"me"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"user\": {\n        \"id\": \"123e4567-e89b-12d3-a456-426614174000\",\n        \"email\": \"user@example.com\",\n        \"first_name\": \"John\",\n        \"last_name\": \"Doe\",\n        \"roles\": [\"csr\", \"sales_rep\"],\n        \"clerk_user_id\": \"user_2abc123def456\"\n    },\n    \"company\": {\n        \"id\": \"123e4567-e89b-12d3-a456-426614174001\",\n        \"name\": \"Acme Corp\",\n        \"clerk_org_id\": \"org_2xyz789\"\n    }\n}"
-						}
-					]
+					"response": []
 				},
 				{
-					"name": "Verify Token",
+					"name": "Login",
 					"request": {
 						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{clerk_jwt_token}}",
-									"type": "string"
-								}
-							]
+							"type": "noauth"
 						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"your-password\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "login"]
+						},
+						"description": "Login with email and password to get JWT tokens."
+					},
+					"response": []
+				},
+				{
+					"name": "Signup",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"newuser@example.com\",\n    \"password\": \"secure-password\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/signup",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "signup"]
+						},
+						"description": "Create a new user account."
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"your-refresh-token\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/refresh",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "refresh"]
+						},
+						"description": "Refresh JWT access token using refresh token."
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints for user login, signup, and token management."
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "List Users",
+					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/api/v1/auth/verify",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"verify"
+							"raw": "{{base_url}}/api/v1/users?company_id={{company_id}}&skip=0&limit=100",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "skip", "value": "0"},
+								{"key": "limit", "value": "100"}
 							]
 						},
-						"description": "Verify that the current JWT token is valid.\n\n**DEV Mode (APP_ENV=DEV)**: No JWT token required - always returns valid\n**PROD Mode (APP_ENV=PROD)**: JWT token required in Authorization header"
+						"description": "List all users for a company."
 					},
-					"response": [
-						{
-							"name": "Success Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{clerk_jwt_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/api/v1/auth/verify",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"auth",
-										"verify"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"valid\": true,\n    \"user_id\": \"123e4567-e89b-12d3-a456-426614174000\",\n    \"message\": \"Token is valid\"\n}"
-						}
-					]
+					"response": []
+				},
+				{
+					"name": "Get Current User Profile",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/me",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "me"]
+						},
+						"description": "Get current authenticated user's profile."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "{{user_id}}"]
+						},
+						"description": "Get user by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"newuser@example.com\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"{{company_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users"]
+						},
+						"description": "Create a new user."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Updated\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "{{user_id}}"]
+						},
+						"description": "Update user information."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "{{user_id}}"]
+						},
+						"description": "Delete a user."
+					},
+					"response": []
+				},
+				{
+					"name": "List Companies",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/companies",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "companies"]
+						},
+						"description": "List all companies."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Sales Reps by Company",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/sales-reps?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "sales-reps"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get all sales reps for a company."
+					},
+					"response": []
 				}
 			],
-			"description": "Authentication endpoints for user info and token verification."
+			"description": "User management endpoints."
 		},
 		{
 			"name": "Calls",
@@ -179,171 +339,1580 @@
 				{
 					"name": "List Calls",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{clerk_jwt_token}}",
-									"type": "string"
-								}
-							]
-						},
 						"method": "GET",
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/v1/calls?company_id={{company_id}}&skip=0&limit=100",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"calls"
-							],
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "calls"],
 							"query": [
-								{
-									"key": "company_id",
-									"value": "{{company_id}}",
-									"description": "UUID of the company to retrieve calls for (required)",
-									"disabled": false
-								},
-								{
-									"key": "skip",
-									"value": "0",
-									"description": "Number of records to skip (pagination)"
-								},
-								{
-									"key": "limit",
-									"value": "100",
-									"description": "Maximum number of records to return"
-								}
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "skip", "value": "0"},
+								{"key": "limit", "value": "100"}
 							]
 						},
-						"description": "List all calls for a specific company with pagination support.\n\n**Query Parameters:**\n- `company_id` (required): UUID of the company to retrieve calls for\n- `skip` (optional, default=0): Number of records to skip for pagination\n- `limit` (optional, default=100): Maximum number of records to return\n\n**DEV Mode (APP_ENV=DEV)**: No JWT token required\n**PROD Mode (APP_ENV=PROD)**: JWT token required"
+						"description": "List all calls for a company."
 					},
-					"response": [
-						{
-							"name": "Success Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{clerk_jwt_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/api/v1/calls?company_id=11111111-1111-1111-1111-111111111111&skip=0&limit=100",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"calls"
-									],
-									"query": [
-										{
-											"key": "company_id",
-											"value": "11111111-1111-1111-1111-111111111111"
-										},
-										{
-											"key": "skip",
-											"value": "0"
-										},
-										{
-											"key": "limit",
-											"value": "100"
-										}
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "[\n    {\n        \"id\": \"123e4567-e89b-12d3-a456-426614174002\",\n        \"company_id\": \"123e4567-e89b-12d3-a456-426614174001\",\n        \"phone_number\": \"+1234567890\",\n        \"audio_url\": \"https://example.com/audio/call-123.mp3\",\n        \"call_type\": \"csr_call\",\n        \"missed_call\": false,\n        \"duration_seconds\": 120,\n        \"status\": \"completed\",\n        \"created_at\": \"2024-01-15T10:30:00Z\",\n        \"updated_at\": \"2024-01-15T10:32:00Z\"\n    }\n]"
-						}
-					]
+					"response": []
 				},
 				{
 					"name": "Get Call by ID",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{clerk_jwt_token}}",
-									"type": "string"
-								}
-							]
-						},
 						"method": "GET",
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/v1/calls/{{call_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"calls",
-								"{{call_id}}"
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "calls", "{{call_id}}"]
+						},
+						"description": "Get a specific call by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Call Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/calls/logs?company_id={{company_id}}&skip=0&limit=100",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "calls", "logs"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "user_id", "value": "", "disabled": true},
+								{"key": "search", "value": "", "disabled": true},
+								{"key": "csr_id", "value": "", "disabled": true},
+								{"key": "status_filter", "value": "", "disabled": true, "description": "qualified/unqualified/all"},
+								{"key": "booking_filter", "value": "", "disabled": true, "description": "booked/unbooked/all"},
+								{"key": "quick_filter", "value": "", "disabled": true, "description": "hot_lead/qualified_unbooked/qualified_booked/abandoned"},
+								{"key": "skip", "value": "0"},
+								{"key": "limit", "value": "100"}
 							]
 						},
-						"description": "Get a specific call by its UUID.\n\n**Path Parameters:**\n- `call_id` (required): UUID of the call to retrieve\n\n**DEV Mode (APP_ENV=DEV)**: No JWT token required\n**PROD Mode (APP_ENV=PROD)**: JWT token required"
+						"description": "Get call logs with summary statistics and filtered call list."
 					},
-					"response": [
-						{
-							"name": "Success Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{clerk_jwt_token}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{base_url}}/api/v1/calls/123e4567-e89b-12d3-a456-426614174002",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"calls",
-										"123e4567-e89b-12d3-a456-426614174002"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"id\": \"123e4567-e89b-12d3-a456-426614174002\",\n    \"company_id\": \"123e4567-e89b-12d3-a456-426614174001\",\n    \"phone_number\": \"+1234567890\",\n    \"audio_url\": \"https://example.com/audio/call-123.mp3\",\n    \"call_type\": \"csr_call\",\n    \"missed_call\": false,\n    \"duration_seconds\": 120,\n    \"status\": \"completed\",\n    \"created_at\": \"2024-01-15T10:30:00Z\",\n    \"updated_at\": \"2024-01-15T10:32:00Z\"\n}"
-						}
-					]
+					"response": []
+				},
+				{
+					"name": "Get Calls by Objection (Self)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/calls/by-objection/self?objection=price&company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "calls", "by-objection", "self"],
+							"query": [
+								{"key": "objection", "value": "price", "description": "price/timing/authority/need/competitor"},
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get calls by objection type for the current user."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Objection Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/calls/by-objection/price/details?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "calls", "by-objection", "price", "details"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "user_id", "value": "", "disabled": true},
+								{"key": "start_date", "value": "", "disabled": true},
+								{"key": "end_date", "value": "", "disabled": true}
+							]
+						},
+						"description": "Get comprehensive objection details for a single objection type."
+					},
+					"response": []
 				}
 			],
-			"description": "Call management endpoints for listing and retrieving calls."
+			"description": "Call management endpoints."
+		},
+		{
+			"name": "Leads",
+			"item": [
+				{
+					"name": "List Leads",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/leads?company_id={{company_id}}&skip=0&limit=100",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "leads"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "skip", "value": "0"},
+								{"key": "limit", "value": "100"}
+							]
+						},
+						"description": "List all leads for a company."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Lead by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "leads", "{{lead_id}}"]
+						},
+						"description": "Get a specific lead by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Lead Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}/details",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "leads", "{{lead_id}}", "details"]
+						},
+						"description": "Get detailed lead information including call history and contact details."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Lead Status",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"qualified_booked\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "leads", "{{lead_id}}", "status"]
+						},
+						"description": "Update lead status."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Lead",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"assigned_to_user_id\": \"{{user_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/leads/{{lead_id}}/assign",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "leads", "{{lead_id}}", "assign"]
+						},
+						"description": "Assign lead to a user."
+					},
+					"response": []
+				}
+			],
+			"description": "Lead management endpoints."
+		},
+		{
+			"name": "Appointments",
+			"item": [
+				{
+					"name": "List Appointments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/appointments?company_id={{company_id}}&skip=0&limit=100",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "appointments"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "assigned_rep_id", "value": "", "disabled": true},
+								{"key": "lead_id", "value": "", "disabled": true},
+								{"key": "skip", "value": "0"},
+								{"key": "limit", "value": "100"}
+							]
+						},
+						"description": "List appointments for a company."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Appointment by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/appointments/{{appointment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "appointments", "{{appointment_id}}"]
+						},
+						"description": "Get a specific appointment by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Appointment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"lead_id\": \"{{lead_id}}\",\n    \"contact_card_id\": \"{{contact_card_id}}\",\n    \"scheduled_start\": \"2024-01-20T10:00:00Z\",\n    \"scheduled_end\": \"2024-01-20T11:00:00Z\",\n    \"location_address\": \"123 Main St\",\n    \"assigned_rep_id\": \"{{user_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/appointments",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "appointments"]
+						},
+						"description": "Create a new appointment."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Appointment",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scheduled_start\": \"2024-01-21T10:00:00Z\",\n    \"outcome\": \"won\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/appointments/{{appointment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "appointments", "{{appointment_id}}"]
+						},
+						"description": "Update an existing appointment."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Appointment",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/appointments/{{appointment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "appointments", "{{appointment_id}}"]
+						},
+						"description": "Delete an appointment."
+					},
+					"response": []
+				}
+			],
+			"description": "Appointment management endpoints."
+		},
+		{
+			"name": "Contact Cards",
+			"item": [
+				{
+					"name": "Get Contact Card by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/contact-card/{{contact_card_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "contact-card", "{{contact_card_id}}"]
+						},
+						"description": "Get a contact card by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contact Card by Call ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/contact-card/calls/{{call_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "contact-card", "calls", "{{call_id}}"]
+						},
+						"description": "Get contact card associated with a call."
+					},
+					"response": []
+				}
+			],
+			"description": "Contact card endpoints."
+		},
+		{
+			"name": "Metrics",
+			"item": [
+				{
+					"name": "Get Company Performance",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/company/performance?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "company", "performance"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "start_date", "value": "", "disabled": true},
+								{"key": "end_date", "value": "", "disabled": true}
+							]
+						},
+						"description": "Get overall company performance metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Calls Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/calls/summary?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "calls", "summary"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get calls summary metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Bookings Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/bookings/summary?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "bookings", "summary"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get bookings summary metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Objections Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/objections/summary?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "objections", "summary"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get objections summary."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Top Objections",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/objections/top?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "objections", "top"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "user_id", "value": "", "disabled": true},
+								{"key": "limit", "value": "5", "disabled": true}
+							]
+						},
+						"description": "Get top objections."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Objection Calls",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/objections/price/calls?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "objections", "price", "calls"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "owner_id", "value": "", "disabled": true},
+								{"key": "limit", "value": "", "disabled": true}
+							]
+						},
+						"description": "Get calls filtered by objection type."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Actions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/actions/pending?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "actions", "pending"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get pending actions."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Coaching Opportunities",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/coaching/opportunities?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "coaching", "opportunities"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get coaching opportunities based on low SOP compliance."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Most Coaching Opportunities",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/coaching/most-opportunities?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "coaching", "most-opportunities"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get CSRs with most coaching opportunities."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Unbooked Leads",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/leads/unbooked?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "leads", "unbooked"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get unbooked leads."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking Rate Improvement",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/booking-rate-improvement?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "booking-rate-improvement"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get booking rate improvement metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Lead to Sale Conversion",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/conversion/lead-to-sale?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "conversion", "lead-to-sale"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get lead to sale conversion metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Conversions Pending to Booked",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/conversions/pending-to-booked?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "conversions", "pending-to-booked"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get pending to booked conversion metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Emergencies Dropped",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/emergencies/dropped?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "emergencies", "dropped"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get dropped emergencies metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get CSR Profile",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/csr/{{user_id}}/profile?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "csr", "{{user_id}}", "profile"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get CSR profile metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My CSR Profile",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/csr/me/profile?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "csr", "me", "profile"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get current user's CSR profile metrics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Auto Queued Leads",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/csr/auto-queued-leads?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "csr", "auto-queued-leads"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get auto-queued leads for CSR."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Company Overview (Exec)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/exec/company-overview?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "exec", "company-overview"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get executive company overview."
+					},
+					"response": []
+				},
+				{
+					"name": "Get CSR Dashboard (Exec)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/exec/csr/dashboard?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "exec", "csr", "dashboard"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get executive CSR dashboard."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Missed Calls (Exec)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/exec/missed-calls?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "exec", "missed-calls"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get executive missed calls view."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Sales Rep KPI",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics/sales_rep/kpi?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "metrics", "sales_rep", "kpi"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "user_id", "value": "", "disabled": true}
+							]
+						},
+						"description": "Get sales rep KPIs."
+					},
+					"response": []
+				}
+			],
+			"description": "Metrics and analytics endpoints."
+		},
+		{
+			"name": "Insights",
+			"item": [
+				{
+					"name": "Generate Insights",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"call_ids\": [\"{{call_id}}\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/insights/generate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "insights", "generate"]
+						},
+						"description": "Generate AI insights for calls."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Insight Job Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/insights/status/{{job_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "insights", "status", "{{job_id}}"]
+						},
+						"description": "Get insight generation job status."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Appointment Insights",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/insights/appointments/{{appointment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "insights", "appointments", "{{appointment_id}}"]
+						},
+						"description": "Get insights for a specific appointment."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer Insights",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/insights/customers?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "insights", "customers"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get customer insights."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Objection Insights",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/insights/objections/{{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "insights", "objections", "{{company_id}}"]
+						},
+						"description": "Get objection insights for a company."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current Company Insight",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/insights/company/{{company_id}}/current",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "insights", "company", "{{company_id}}", "current"]
+						},
+						"description": "Get current company insights."
+					},
+					"response": []
+				}
+			],
+			"description": "AI insights endpoints."
+		},
+		{
+			"name": "Ghost Mode",
+			"item": [
+				{
+					"name": "Get Ghost Mode Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/ghost-mode/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ghost-mode", "status"]
+						},
+						"description": "Get current ghost mode status for the user.\n\nReturns:\n- company_ghost_mode_enabled: Whether the company has enabled ghost mode\n- user_ghost_mode_active: Whether the user has enabled ghost mode\n- effective_ghost_mode: True if both company and user settings are enabled"
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle User Ghost Mode",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ghost-mode/toggle",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ghost-mode", "toggle"]
+						},
+						"description": "Toggle ghost mode for the current user.\n\nWhen enabled, meeting recordings owned by this user will have their audio_url and transcript hidden from other users (including executives).\n\nNote: Ghost mode can only be enabled if the company has allowed it."
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Company Ghost Mode",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"enabled\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ghost-mode/company",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ghost-mode", "company"]
+						},
+						"description": "Toggle ghost mode availability for the company (EXECUTIVE only).\n\nWhen enabled, sales reps in this company can activate ghost mode to hide their meeting recordings from executives."
+					},
+					"response": []
+				}
+			],
+			"description": "Ghost Mode privacy feature endpoints. Allows sales reps to hide meeting recordings from executives while still enabling AI analysis."
+		},
+		{
+			"name": "Leaderboards",
+			"item": [
+				{
+					"name": "Get Leaderboard",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/leaderboards?company_id={{company_id}}&period=weekly",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "leaderboards"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "period", "value": "weekly", "description": "all_time/YYYY-MM"}
+							]
+						},
+						"description": "Get leaderboard for a company."
+					},
+					"response": []
+				}
+			],
+			"description": "Leaderboard endpoints."
+		},
+		{
+			"name": "Sales Rep",
+			"item": [
+				{
+					"name": "Get Follow Up",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales_rep/follow_up?appointment_id={{appointment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "sales_rep", "follow_up"],
+							"query": [
+								{"key": "appointment_id", "value": "{{appointment_id}}"},
+								{"key": "user_id", "value": "", "disabled": true}
+							]
+						},
+						"description": "Get follow-up items for sales rep."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Tasks",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales_rep/tasks?appointment_id={{appointment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "sales_rep", "tasks"],
+							"query": [
+								{"key": "appointment_id", "value": "{{appointment_id}}"},
+								{"key": "user_id", "value": "", "disabled": true}
+							]
+						},
+						"description": "Get tasks for sales rep."
+					},
+					"response": []
+				}
+			],
+			"description": "Sales rep specific endpoints."
+		},
+		{
+			"name": "Posts",
+			"item": [
+				{
+					"name": "List Posts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/posts/sales_rep/post?company_id={{company_id}}&skip=0&limit=20",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "posts", "sales_rep", "post"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"},
+								{"key": "skip", "value": "0"},
+								{"key": "limit", "value": "20"}
+							]
+						},
+						"description": "List posts for sales rep feed."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Post by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/posts/sales_rep/post/{{post_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "posts", "sales_rep", "post", "{{post_id}}"]
+						},
+						"description": "Get a specific post."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Post",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"content\": \"Great sales meeting today!\",\n    \"post_type\": \"achievement\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/posts/sales_rep/post",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "posts", "sales_rep", "post"]
+						},
+						"description": "Create a new post."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Post",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"content\": \"Updated post content\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/posts/sales_rep/post/{{post_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "posts", "sales_rep", "post", "{{post_id}}"]
+						},
+						"description": "Update a post."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Post",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/posts/sales_rep/post/{{post_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "posts", "sales_rep", "post", "{{post_id}}"]
+						},
+						"description": "Delete a post."
+					},
+					"response": []
+				},
+				{
+					"name": "Like Post",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/posts/sales_rep/post/{{post_id}}/like",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "posts", "sales_rep", "post", "{{post_id}}", "like"]
+						},
+						"description": "Like a post."
+					},
+					"response": []
+				}
+			],
+			"description": "Social posts/feed endpoints."
+		},
+		{
+			"name": "Ask Otto",
+			"item": [
+				{
+					"name": "Query Ask Otto (RAG)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"What objections did we face in calls this week?\",\n    \"context\": {\n        \"date_range\": \"last_7_days\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rag/ask-otto",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rag", "ask-otto"]
+						},
+						"description": "Query Ask Otto (RAG-based AI copilot) for intelligent insights from call data."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Conversation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Sales Analysis\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ask-otto/conversations",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ask-otto", "conversations"]
+						},
+						"description": "Create a new Ask Otto conversation."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Conversation",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ask-otto", "conversations", "{{conversation_id}}"]
+						},
+						"description": "Get a specific conversation."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Conversation",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ask-otto", "conversations", "{{conversation_id}}"]
+						},
+						"description": "Delete a conversation."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Messages",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}/messages",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ask-otto", "conversations", "{{conversation_id}}", "messages"]
+						},
+						"description": "Get messages in a conversation."
+					},
+					"response": []
+				},
+				{
+					"name": "Send Message",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"content\": \"What were the top objections this week?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ask-otto/conversations/{{conversation_id}}/messages",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ask-otto", "conversations", "{{conversation_id}}", "messages"]
+						},
+						"description": "Send a message in a conversation."
+					},
+					"response": []
+				}
+			],
+			"description": "Ask Otto AI copilot endpoints."
+		},
+		{
+			"name": "Call Processing",
+			"item": [
+				{
+					"name": "Process Call",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"call_id\": \"{{call_id}}\",\n    \"audio_url\": \"https://example.com/audio/call.mp3\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/call-processing/process",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "call-processing", "process"]
+						},
+						"description": "Start processing a call (transcription and analysis)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Processing Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/call-processing/status/{{job_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "call-processing", "status", "{{job_id}}"]
+						},
+						"description": "Get call processing job status."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Call Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/call-processing/summary/{{call_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "call-processing", "summary", "{{call_id}}"]
+						},
+						"description": "Get call summary after processing."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Call Chunks",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/call-processing/chunks/{{call_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "call-processing", "chunks", "{{call_id}}"]
+						},
+						"description": "Get call transcript chunks."
+					},
+					"response": []
+				},
+				{
+					"name": "Retry Failed Job",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/call-processing/retry/{{job_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "call-processing", "retry", "{{job_id}}"]
+						},
+						"description": "Retry a failed processing job."
+					},
+					"response": []
+				}
+			],
+			"description": "Call processing endpoints for transcription and analysis."
+		},
+		{
+			"name": "Recordings",
+			"item": [
+				{
+					"name": "Initiate Recording",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"phone_number\": \"+1234567890\",\n    \"call_type\": \"meeting\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/recordings/initiate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "recordings", "initiate"]
+						},
+						"description": "Initiate a new recording session."
+					},
+					"response": []
+				},
+				{
+					"name": "Complete Recording",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"call_id\": \"{{call_id}}\",\n    \"s3_key\": \"recordings/call-123.mp3\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/recordings/complete",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "recordings", "complete"]
+						},
+						"description": "Complete a recording and trigger processing."
+					},
+					"response": []
+				}
+			],
+			"description": "Recording management endpoints."
+		},
+		{
+			"name": "Settings",
+			"item": [
+				{
+					"name": "Get Settings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/settings?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "settings"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get complete settings (integrations and documents)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Integrations",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/settings/integrations?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "settings", "integrations"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get all integrations for a company."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Integration",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"crm_provider\": \"gohighlevel\",\n    \"crm_api_key\": \"your-api-key\",\n    \"location_id\": \"location-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/settings/integrations?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "settings", "integrations"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Create a new integration."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Documents",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/settings/documents?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "settings", "documents"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Get all documents for a company."
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Document",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{"key": "document_type", "value": "reference", "type": "text"},
+								{"key": "file", "type": "file", "src": ""},
+								{"key": "name", "value": "Reference Document", "type": "text"}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/settings/documents?company_id={{company_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "settings", "documents"],
+							"query": [
+								{"key": "company_id", "value": "{{company_id}}"}
+							]
+						},
+						"description": "Upload a new document."
+					},
+					"response": []
+				}
+			],
+			"description": "Settings management endpoints for integrations and documents."
+		},
+		{
+			"name": "Onboarding",
+			"item": [
+				{
+					"name": "Validate GHL Credentials",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"api_key\": \"your-ghl-api-key\",\n    \"location_id\": \"your-location-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/onboarding/validate-ghl",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "onboarding", "validate-ghl"]
+						},
+						"description": "Validate GoHighLevel credentials before onboarding."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate CTM Credentials",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"access_key\": \"your-ctm-access-key\",\n    \"secret_key\": \"your-ctm-secret-key\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/onboarding/validate-ctm",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "onboarding", "validate-ctm"]
+						},
+						"description": "Validate Call Tracking Metrics credentials before onboarding."
+					},
+					"response": []
+				},
+				{
+					"name": "Complete Onboarding",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{"key": "firstName", "value": "John", "type": "text"},
+								{"key": "lastName", "value": "Doe", "type": "text"},
+								{"key": "email", "value": "john@example.com", "type": "text"},
+								{"key": "password", "value": "securepassword", "type": "text"},
+								{"key": "companyName", "value": "Acme Corp", "type": "text"},
+								{"key": "reference_doc", "type": "file", "src": ""},
+								{"key": "csr_sop_doc", "type": "file", "src": "", "disabled": true},
+								{"key": "sales_sop_doc", "type": "file", "src": "", "disabled": true},
+								{"key": "phone_number", "value": "+1234567890", "type": "text", "disabled": true},
+								{"key": "address", "value": "123 Main St", "type": "text", "disabled": true},
+								{"key": "crm_provider", "value": "gohighlevel", "type": "text", "disabled": true},
+								{"key": "crm_api_key", "value": "", "type": "text", "disabled": true},
+								{"key": "location_id", "value": "", "type": "text", "disabled": true},
+								{"key": "ghost_mode_enabled", "value": "false", "type": "text", "disabled": true, "description": "Enable ghost mode for company"}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/onboarding/complete",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "onboarding", "complete"]
+						},
+						"description": "Complete user and company onboarding."
+					},
+					"response": []
+				}
+			],
+			"description": "Onboarding endpoints for new users and companies."
+		},
+		{
+			"name": "Invitations",
+			"item": [
+				{
+					"name": "Create Invitation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"newuser@example.com\",\n    \"role\": \"sales_rep\",\n    \"company_id\": \"{{company_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/invites",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "invites"]
+						},
+						"description": "Create an invitation for a new user."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Invitation Token",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/invites/validate/{{token}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "invites", "validate", "{{token}}"]
+						},
+						"description": "Validate an invitation token."
+					},
+					"response": []
+				},
+				{
+					"name": "Accept Invitation",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"invitation-token\",\n    \"password\": \"newpassword\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/invites/invite/complete",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "invites", "invite", "complete"]
+						},
+						"description": "Accept an invitation and create account."
+					},
+					"response": []
+				}
+			],
+			"description": "User invitation endpoints."
 		},
 		{
 			"name": "Webhooks",
@@ -351,6 +1920,9 @@
 				{
 					"name": "Telephony - Call Complete",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "POST",
 						"header": [
 							{
@@ -360,89 +1932,28 @@
 							{
 								"key": "X-Company-Id",
 								"value": "{{company_id}}",
-								"type": "text",
-								"description": "Company UUID (can also be in payload)"
+								"description": "Company UUID"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"company_id\": \"123e4567-e89b-12d3-a456-426614174001\",\n    \"phone_number\": \"+1234567890\",\n    \"audio_url\": \"https://example.com/audio/call-123.mp3\",\n    \"call_type\": \"csr_call\",\n    \"missed_call\": false,\n    \"duration_seconds\": 120,\n    \"metadata\": {\n        \"source\": \"callrail\",\n        \"tracking_number\": \"+1987654321\",\n        \"caller_id\": \"+1234567890\"\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
+							"raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"phone_number\": \"+1234567890\",\n    \"audio_url\": \"https://example.com/audio/call-123.mp3\",\n    \"call_type\": \"csr_call\",\n    \"missed_call\": false,\n    \"duration_seconds\": 120\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/webhooks/telephony/call-complete",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"webhooks",
-								"telephony",
-								"call-complete"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "webhooks", "telephony", "call-complete"]
 						},
-						"description": "Webhook endpoint for telephony providers (CallRail, Twilio) to notify when a call is completed. This endpoint does NOT require authentication as it's called by external services."
+						"description": "Webhook for telephony providers when a call is completed. No authentication required."
 					},
-					"response": [
-						{
-							"name": "Success Response",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									},
-									{
-										"key": "X-Company-Id",
-										"value": "123e4567-e89b-12d3-a456-426614174001"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"company_id\": \"123e4567-e89b-12d3-a456-426614174001\",\n    \"phone_number\": \"+1234567890\",\n    \"audio_url\": \"https://example.com/audio/call-123.mp3\",\n    \"call_type\": \"csr_call\",\n    \"missed_call\": false,\n    \"duration_seconds\": 120\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/webhooks/telephony/call-complete",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"webhooks",
-										"telephony",
-										"call-complete"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"status\": \"success\",\n    \"call_id\": \"123e4567-e89b-12d3-a456-426614174002\"\n}"
-						}
-					]
+					"response": []
 				},
 				{
 					"name": "Shoonya - Job Complete",
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "POST",
 						"header": [
 							{
@@ -452,94 +1963,22 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"shunya_job_id\": \"job_abc123\",\n    \"status\": \"completed\",\n    \"result\": {\n        \"transcript\": \"Hello, this is a test call...\",\n        \"analysis\": {\n            \"sentiment\": \"positive\",\n            \"objections\": [],\n            \"topics\": [\"pricing\", \"features\"]\n        }\n    },\n    \"company_id\": \"123e4567-e89b-12d3-a456-426614174001\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
+							"raw": "{\n    \"shunya_job_id\": \"job_abc123\",\n    \"status\": \"completed\",\n    \"result\": {\n        \"transcript\": \"Hello, this is a test call...\"\n    }\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/webhooks/shoonya/job-complete",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"webhooks",
-								"shoonya",
-								"job-complete"
-							]
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "webhooks", "shoonya", "job-complete"]
 						},
-						"description": "Webhook endpoint for Shoonya to notify when an AI job (transcription, analysis) is completed. This endpoint does NOT require authentication as it's called by external services."
+						"description": "Webhook for Shoonya AI job completion. No authentication required."
 					},
-					"response": [
-						{
-							"name": "Success Response",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"shunya_job_id\": \"job_abc123\",\n    \"status\": \"completed\",\n    \"result\": {...}\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/webhooks/webhooks/shoonya/job-complete",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"webhooks",
-										"shoonya",
-										"job-complete"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"status\": \"received\"\n}"
-						}
-					]
-				}
-			],
-			"description": "Webhook endpoints for external services (telephony providers, Shoonya). These endpoints do NOT require authentication."
-		},
-		{
-			"name": "RAG / Ask Otto",
-			"item": [
+					"response": []
+				},
 				{
-					"name": "Query Ask Otto",
+					"name": "GHL - Lead Updates",
 					"request": {
 						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{clerk_jwt_token}}",
-									"type": "string"
-								}
-							]
+							"type": "noauth"
 						},
 						"method": "POST",
 						"header": [
@@ -550,134 +1989,71 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"query\": \"What objections did we face in calls this week?\",\n    \"context\": {\n        \"date_range\": \"last_7_days\",\n        \"filters\": {\n            \"call_type\": \"sales_call\"\n        }\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
+							"raw": "{\n    \"type\": \"ContactCreate\",\n    \"locationId\": \"location-id\",\n    \"contact\": {\n        \"id\": \"contact-id\",\n        \"firstName\": \"John\",\n        \"lastName\": \"Doe\",\n        \"email\": \"john@example.com\"\n    }\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/api/v1/rag/ask-otto",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"rag",
-								"ask-otto"
-							]
+							"raw": "{{base_url}}/api/v1/webhooks/ghl/lead-updates",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "webhooks", "ghl", "lead-updates"]
 						},
-						"description": "Query Ask Otto (RAG-based AI copilot) for intelligent insights from call data. The response is tailored based on the user's role.\n\n**DEV Mode (APP_ENV=DEV)**: No JWT token required - uses mock user/company\n**PROD Mode (APP_ENV=PROD)**: JWT token required + user must have company association"
+						"description": "Webhook for GoHighLevel lead updates. No authentication required."
 					},
-					"response": [
-						{
-							"name": "Success Response",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Authorization",
-										"value": "Bearer {{clerk_jwt_token}}",
-										"type": "text"
-									},
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"query\": \"What objections did we face in calls this week?\",\n    \"context\": {}\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/rag/ask-otto",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"rag",
-										"ask-otto"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"answer\": \"Based on the calls analyzed this week, the main objections were: pricing concerns (45%), feature limitations (30%), and timing issues (25%).\",\n    \"sources\": [\n        {\n            \"call_id\": \"123e4567-e89b-12d3-a456-426614174002\",\n            \"timestamp\": \"2024-01-15T10:30:00Z\",\n            \"relevance_score\": 0.95\n        }\n    ],\n    \"metadata\": {\n        \"query_time_ms\": 245,\n        \"sources_count\": 5\n    }\n}"
-						}
-					]
-				}
-			],
-			"description": "RAG-based AI copilot endpoints for querying call data and insights."
-		},
-		{
-			"name": "Health Check",
-			"item": [
+					"response": []
+				},
 				{
-					"name": "Health Check",
+					"name": "GHL - Messages",
 					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/health",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"health"
-							]
+						"auth": {
+							"type": "noauth"
 						},
-						"description": "Health check endpoint for load balancers. Does not require authentication."
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"InboundMessage\",\n    \"locationId\": \"location-id\",\n    \"message\": {\n        \"type\": \"SMS\",\n        \"body\": \"Hello\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/webhooks/ghl/messages",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "webhooks", "ghl", "messages"]
+						},
+						"description": "Webhook for GoHighLevel messages. No authentication required."
 					},
-					"response": [
-						{
-							"name": "Success Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{base_url}}/health",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"health"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"status\": \"healthy\",\n    \"version\": \"2.0.0\"\n}"
-						}
-					]
+					"response": []
+				},
+				{
+					"name": "CTM - Calls",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"call_id\": \"ctm-call-id\",\n    \"account_id\": \"account-id\",\n    \"phone_number\": \"+1234567890\",\n    \"duration\": 120\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/webhooks/ctm/calls",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "webhooks", "ctm", "calls"]
+						},
+						"description": "Webhook for Call Tracking Metrics calls. No authentication required."
+					},
+					"response": []
 				}
 			],
-			"description": "Health check endpoint (no authentication required)."
+			"description": "Webhook endpoints for external services (telephony, CRM, etc.). No authentication required."
 		}
 	]
 }
-

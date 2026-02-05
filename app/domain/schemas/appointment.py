@@ -2,7 +2,7 @@
 Appointment Pydantic schemas for API requests and responses.
 """
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -75,6 +75,43 @@ class AppointmentUpdate(BaseModel):
     )
 
 
+class AppointmentInsightSummary(BaseModel):
+    """Structured insights extracted from the related call analysis."""
+
+    summary: Optional[str] = Field(
+        None,
+        description="Summary of the associated call",
+    )
+    key_points: List[str] = Field(
+        default_factory=list,
+        description="Key points discussed during the call",
+    )
+    sop_stages_completed: List[str] = Field(
+        default_factory=list,
+        description="SOP stages that were completed",
+    )
+    sop_stages_missed: List[str] = Field(
+        default_factory=list,
+        description="SOP stages that were missed",
+    )
+    objections: List[str] = Field(
+        default_factory=list,
+        description="Objections raised during the call",
+    )
+    action_items: List[str] = Field(
+        default_factory=list,
+        description="Action items identified during the call",
+    )
+    follow_up_required: Optional[bool] = Field(
+        None,
+        description="Whether a follow-up is required",
+    )
+    follow_up_reason: Optional[str] = Field(
+        None,
+        description="Reason for the required follow-up, if any",
+    )
+
+
 class AppointmentResponse(AppointmentBase):
     """Schema for appointment API responses."""
 
@@ -99,6 +136,10 @@ class AppointmentResponse(AppointmentBase):
     assigned_rep_details: Optional[dict] = Field(
         None,
         description="Full assigned sales rep user details",
+    )
+    insights: Optional[AppointmentInsightSummary] = Field(
+        None,
+        description="Insights derived from the associated call analysis, when available",
     )
 
     class Config:

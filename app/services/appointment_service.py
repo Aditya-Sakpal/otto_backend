@@ -335,13 +335,23 @@ class AppointmentService:
                 }
 
         # Build insights response
+        objections = [
+            obj.value if hasattr(obj, "value") else str(obj) for obj in analysis.objections
+        ] if analysis.objections else []
+
         insights = {
             "summary": analysis.summary or "",
+            "key_points": analysis.key_points or [],
+            "sop_stages_completed": analysis.sop_stages_completed or [],
+            "sop_stages_missed": analysis.sop_stages_missed or [],
+            "objections": objections,
+            "objections_found": objections,  # Backwards compatibility
+            "action_items": analysis.action_items or [],
+            "tasks": analysis.action_items or [],  # Alias for action_items
+            "follow_up_required": analysis.follow_up_required,
+            "follow_up_reason": analysis.follow_up_reason,
             "sentiment": analysis.sentiment_score if analysis.sentiment_score is not None else None,
             "sop_score": analysis.sop_compliance_score if analysis.sop_compliance_score is not None else None,
-            "objections_found": [
-                obj.value if hasattr(obj, 'value') else str(obj) for obj in analysis.objections
-            ] if analysis.objections else [],
         }
 
         return {

@@ -1861,3 +1861,188 @@ class MetricsService:
             import traceback
             traceback.print_exc()
             raise e
+
+    async def get_sales_rep_kpi(
+        self,
+        company_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get sales rep KPIs: win_rate, first_touch_win_rate, follow_up_win_rate,
+        attendance, average_deal_size, average_follow_up_per_deal.
+        """
+        try:
+            if user_id:
+                user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
+                user = user_result.scalar_one_or_none()
+                if not user or not user.company_id:
+                    raise ValueError("user_id must belong to a user with company_id")
+                company_id = user.company_id
+            elif not company_id:
+                raise ValueError("Either company_id or user_id is required")
+
+            start_dt, end_dt = self._get_date_range(start_date, end_date)
+
+            appointment_filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= start_dt,
+                AppointmentORM.scheduled_start <= end_dt,
+            ]
+            lead_filters = [
+                LeadORM.company_id == company_id,
+                LeadORM.created_at >= start_dt,
+                LeadORM.created_at <= end_dt,
+            ]
+            if user_id:
+                appointment_filters.append(AppointmentORM.assigned_rep_id == user_id)
+                lead_filters.append(LeadORM.assigned_rep_id == user_id)
+
+            # Win rate: appointments with outcome=won / total appointments with resolved outcome
+            total_appointments = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*appointment_filters)
+            )
+            total_appts = total_appointments.scalar() or 0
+            won_appointments = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(
+                    *appointment_filters, AppointmentORM.outcome == "won"
+                )
+            )
+            won_appts = won_appointments.scalar() or 0
+            resolved = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(
+                    *appointment_filters,
+                    AppointmentORM.outcome.isnot(None),
+                    AppointmentORM.outcome.in_(["won", "lost", "no_show"]),
+                )
+            )
+            resolved_count = resolved.scalar() or 0
+            win_rate = (won_appts / resolved_count * 100) if resolved_count > 0 else 0.0
+
+            # First-touch vs follow-up win rates: join appointments -> calls -> call_analyses
+            from sqlalchemy import join
+
+            appt_call_join = join(
+                AppointmentORM,
+                CallORM,
+                AppointmentORM.interaction_id == CallORM.id,
+            )
+            appt_call_analysis_join = join(
+                appt_call_join,
+                CallAnalysisORM,
+                CallORM.id == CallAnalysisORM.call_id,
+            )
+            first_touch_base = (
+                select(func.count(AppointmentORM.id))
+                .select_from(appt_call_analysis_join)
+                .where(
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.scheduled_start >= start_dt,
+                    AppointmentORM.scheduled_start <= end_dt,
+                    CallAnalysisORM.detected_call_type == "fresh_sales",
+                )
+            )
+            if user_id:
+                first_touch_base = first_touch_base.where(
+                    AppointmentORM.assigned_rep_id == user_id
+                )
+            first_touch_won = await self.session.execute(
+                first_touch_base.where(AppointmentORM.outcome == "won")
+            )
+            first_touch_won_count = first_touch_won.scalar() or 0
+            first_touch_total = await self.session.execute(first_touch_base)
+            first_touch_total_count = first_touch_total.scalar() or 0
+            first_touch_win_rate = (
+                (first_touch_won_count / first_touch_total_count * 100)
+                if first_touch_total_count > 0
+                else 0.0
+            )
+
+            follow_up_base = (
+                select(func.count(AppointmentORM.id))
+                .select_from(appt_call_analysis_join)
+                .where(
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.scheduled_start >= start_dt,
+                    AppointmentORM.scheduled_start <= end_dt,
+                    CallAnalysisORM.detected_call_type == "follow_up_inquiry",
+                )
+            )
+            if user_id:
+                follow_up_base = follow_up_base.where(
+                    AppointmentORM.assigned_rep_id == user_id
+                )
+            follow_up_won = await self.session.execute(
+                follow_up_base.where(AppointmentORM.outcome == "won")
+            )
+            follow_up_won_count = follow_up_won.scalar() or 0
+            follow_up_total = await self.session.execute(follow_up_base)
+            follow_up_total_count = follow_up_total.scalar() or 0
+            follow_up_win_rate = (
+                (follow_up_won_count / follow_up_total_count * 100)
+                if follow_up_total_count > 0
+                else 0.0
+            )
+
+            # Attendance: 1 - no_show rate (appointments that were not no_show)
+            no_show_count_result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(
+                    *appointment_filters, AppointmentORM.outcome == "no_show"
+                )
+            )
+            no_show_count = no_show_count_result.scalar() or 0
+            attendance = (
+                ((total_appts - no_show_count) / total_appts * 100) if total_appts > 0 else 0.0
+            )
+
+            # Average deal size: closed_won leads
+            avg_deal_result = await self.session.execute(
+                select(func.avg(LeadORM.deal_size)).where(
+                    *lead_filters, LeadORM.status == "closed_won", LeadORM.deal_size.isnot(None)
+                )
+            )
+            average_deal_size = float(avg_deal_result.scalar() or 0.0)
+
+            # Average follow-up per deal: avg number of follow-up touches per closed_won lead
+            # (e.g. count calls with follow_up_required or follow_up_inquiry per lead, then avg)
+            won_lead_ids_result = await self.session.execute(
+                select(LeadORM.id).where(
+                    *lead_filters, LeadORM.status == "closed_won"
+                )
+            )
+            won_lead_ids = [r[0] for r in won_lead_ids_result.all()]
+            average_follow_up_per_deal = 0.0
+            if won_lead_ids:
+                follow_up_calls = await self.session.execute(
+                    select(func.count(CallAnalysisORM.id))
+                    .select_from(CallORM)
+                    .join(CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
+                    .where(
+                        CallORM.company_id == company_id,
+                        CallORM.lead_id.in_(won_lead_ids),
+                        CallORM.created_at >= start_dt,
+                        CallORM.created_at <= end_dt,
+                        CallAnalysisORM.follow_up_required == True,
+                    )
+                )
+                follow_up_total_touches = follow_up_calls.scalar() or 0
+                average_follow_up_per_deal = (
+                    follow_up_total_touches / len(won_lead_ids)
+                    if won_lead_ids
+                    else 0.0
+                )
+
+            return {
+                "win_rate": round(win_rate, 2),
+                "first_touch_win_rate": round(first_touch_win_rate, 2),
+                "follow_up_win_rate": round(follow_up_win_rate, 2),
+                "attendance": round(attendance, 2),
+                "average_deal_size": round(average_deal_size, 2),
+                "average_follow_up_per_deal": round(average_follow_up_per_deal, 2),
+                "start_date": start_dt.isoformat(),
+                "end_date": end_dt.isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error getting sales rep KPI: {e}")
+            raise e

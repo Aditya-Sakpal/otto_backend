@@ -21,6 +21,7 @@ from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.pending_action import PendingActionORM
+from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.repositories.base import BaseRepository
 
 logger = get_logger(__name__)
@@ -344,6 +345,123 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:
             logger.error(f"Error getting leads by priority: {e}")
+            raise e
+
+    async def get_pending_leads_for_rep(
+        self,
+        company_id: UUID,
+        rep_id: UUID,
+        status_filter: Optional[str] = None,
+        urgency_only: bool = False,
+        sort_by: str = "last_touched",
+        limit: int = 10,
+        offset: int = 0,
+    ) -> tuple[List[LeadORM], int]:
+        """
+        Get leads assigned to a rep with optional status/urgency filters and pagination.
+
+        status_filter: "pending" (open), "closed", or "lost".
+        sort_by: "last_touched" (lead.updated_at) or "appointment_date" (soonest appointment).
+        Returns (list of LeadORM with contact_card and calls+analysis loaded, total_count).
+        """
+        try:
+            PENDING_STATUSES = {"closed_won", "closed_lost", "abandoned", "dormant"}
+            query = (
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                )
+                .where(
+                    LeadORM.company_id == company_id,
+                    LeadORM.assigned_rep_id == rep_id,
+                )
+            )
+            if status_filter == "pending":
+                query = query.where(~LeadORM.status.in_(PENDING_STATUSES))
+            elif status_filter == "closed":
+                query = query.where(
+                    or_(
+                        LeadORM.status == "closed_won",
+                        LeadORM.deal_status.in_(["won", "WON"]),
+                    )
+                )
+            elif status_filter == "lost":
+                query = query.where(
+                    LeadORM.status.in_(["closed_lost", "abandoned", "dormant"])
+                )
+
+            if urgency_only:
+                try:
+                    dialect = self.session.get_bind().dialect.name
+                    if dialect == "postgresql":
+                        query = query.where(
+                            text("(leads.extra_metadata->>'urgency_level') = 'high'")
+                        )
+                    else:
+                        query = query.where(
+                            text(
+                                "json_extract(leads.extra_metadata, '$.urgency_level') = 'high'"
+                            )
+                        )
+                except Exception:
+                    pass
+
+            count_query = select(func.count(LeadORM.id)).where(
+                LeadORM.company_id == company_id,
+                LeadORM.assigned_rep_id == rep_id,
+            )
+            if status_filter == "pending":
+                count_query = count_query.where(~LeadORM.status.in_(PENDING_STATUSES))
+            elif status_filter == "closed":
+                count_query = count_query.where(
+                    or_(
+                        LeadORM.status == "closed_won",
+                        LeadORM.deal_status.in_(["won", "WON"]),
+                    )
+                )
+            elif status_filter == "lost":
+                count_query = count_query.where(
+                    LeadORM.status.in_(["closed_lost", "abandoned", "dormant"])
+                )
+            if urgency_only:
+                try:
+                    dialect = self.session.get_bind().dialect.name
+                    if dialect == "postgresql":
+                        count_query = count_query.where(
+                            text("(leads.extra_metadata->>'urgency_level') = 'high'")
+                        )
+                    else:
+                        count_query = count_query.where(
+                            text(
+                                "json_extract(leads.extra_metadata, '$.urgency_level') = 'high'"
+                            )
+                        )
+                except Exception:
+                    pass
+            count_result = await self.session.execute(count_query)
+            total = count_result.scalar() or 0
+
+            if sort_by == "appointment_date":
+                appt_subq = (
+                    select(func.min(AppointmentORM.scheduled_start))
+                    .where(AppointmentORM.lead_id == LeadORM.id)
+                    .scalar_subquery()
+                )
+                query = query.order_by(appt_subq.desc().nulls_last())
+            else:
+                query = query.order_by(
+                    LeadORM.updated_at.desc().nulls_last(),
+                    LeadORM.created_at.desc(),
+                )
+
+            result = await self.session.execute(
+                query.offset(offset).limit(limit)
+            )
+            orm_objs = result.scalars().all()
+            return (list(orm_objs), total)
+        except Exception as e:
+            logger.error(f"Error getting pending leads for rep: {e}")
             raise e
 
     async def count_by_status(

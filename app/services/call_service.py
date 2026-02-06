@@ -30,9 +30,11 @@ from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.tasks.analysis import analyze_call_task
 from app.core.s3 import get_s3_service
 from app.domain.users.repository import UserRepository
+from app.domain.users.models import User
 from app.domain.models.lead import Lead
 from app.domain.models.appointment import Appointment
 from app.domain.enums import LeadStatus, DealStatus, AppointmentOutcome
+from app.services.ghost_mode_service import GhostModeService
 
 logger = get_logger(__name__)
 
@@ -1154,6 +1156,7 @@ class CallService:
         quick_filter: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
+        current_user: Optional["User"] = None,
     ) -> Dict[str, Any]:
         """
         Get call logs with summary statistics and filtered call list.
@@ -1464,6 +1467,7 @@ class CallService:
 
                 # Get dropdown fields
                 audio_url = call.audio_url
+                transcript = call.transcript
                 call_summary = analysis.summary if analysis else None
                 key_items = list(analysis.key_points) if (analysis and analysis.key_points) else None
                 action_items = list(analysis.action_items) if (analysis and analysis.action_items) else None
@@ -1471,6 +1475,19 @@ class CallService:
                 booking_status_raw = (analysis.booking_status or "").strip() if analysis else None
                 if not booking_status_raw:
                     booking_status_raw = None
+
+                # Ghost mode filtering - only for meetings
+                if current_user and call.interaction_type == "meeting":
+                    ghost_mode_service = GhostModeService(self.session)
+                    should_hide = await ghost_mode_service.should_hide_meeting_data(
+                        interaction_type=call.interaction_type,
+                        owner_user_id=call.handled_by_user_id,
+                        company_id=company_id,
+                        current_user=current_user,
+                    )
+                    if should_hide:
+                        audio_url = None
+                        transcript = None
 
                 calls.append({
                     "call_id": str(call.id),
@@ -1487,6 +1504,7 @@ class CallService:
                     "is_existing_customer": bool(analysis.is_existing_customer) if analysis and analysis.is_existing_customer is not None else None,
                     "lead_source": getattr(call, "lead_source", None) or None,
                     "audio_url": audio_url,
+                    "transcript": transcript,
                     "call_summary": call_summary,
                     "key_items": key_items,
                     "action_items": action_items,

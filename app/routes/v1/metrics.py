@@ -794,3 +794,40 @@ async def get_csr_profile(
         start_date=start_date,
         end_date=end_date,
     )
+
+@router.get("/sales_rep/kpi", response_model=dict)
+async def get_sales_rep_kpi(
+    db: DbSession,
+    company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
+    user_id: Optional[UUID] = Query(None, description="User UUID to scope KPI to a single sales rep (optional)"),
+    current_user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])),
+    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
+):
+    """
+    Get sales rep KPIs for any sales rep (or company).
+
+    - **company_id**: Company UUID (optional if user_id is provided)
+    - **user_id**: User UUID (optional). If provided, KPIs are for that sales rep. If both provided, user_id is used.
+    - **start_date**, **end_date**: Filter by appointment/lead date range.
+
+    Returns: win_rate, first_touch_win_rate, follow_up_win_rate, attendance,
+    average_deal_size, average_follow_up_per_deal.
+
+    Required role: SALES_REP, CSR, or EXECUTIVE
+    """
+    if not company_id and not user_id:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either company_id or user_id is required",
+        )
+    if user_id:
+        company_id = None
+    service = MetricsService(db)
+    return await service.get_sales_rep_kpi(
+        company_id=company_id,
+        user_id=user_id,
+        start_date=start_date,
+        end_date=end_date,
+    )

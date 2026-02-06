@@ -17,6 +17,7 @@ from app.domain.schemas.appointment import (
     AppointmentCreate,
     AppointmentUpdate,
     AppointmentResponse,
+    AppointmentInsightSummary,
 )
 from app.domain.users.models import User
 from app.services.appointment_service import AppointmentService
@@ -115,7 +116,25 @@ async def get_appointment(
                 detail="Appointment not found",
             )
 
-        return appointment
+        insights_result = await service.get_appointment_insights(appointment_id)
+        insights_payload = insights_result.get("insights") if insights_result else None
+
+        insights_model = None
+        if insights_payload:
+            insights_model = AppointmentInsightSummary(
+                summary=insights_payload.get("summary"),
+                key_points=insights_payload.get("key_points") or [],
+                sop_stages_completed=insights_payload.get("sop_stages_completed") or [],
+                sop_stages_missed=insights_payload.get("sop_stages_missed") or [],
+                objections=insights_payload.get("objections")
+                or insights_payload.get("objections_found")
+                or [],
+                action_items=insights_payload.get("action_items") or [],
+                follow_up_required=insights_payload.get("follow_up_required"),
+                follow_up_reason=insights_payload.get("follow_up_reason"),
+            )
+
+        return appointment.model_copy(update={"insights": insights_model})
     except HTTPException:
         raise
     except Exception as e:
@@ -219,58 +238,3 @@ async def delete_appointment(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
-
-
-@router.get("/{appointment_id}/insights")
-async def get_appointment_insights(
-    appointment_id: UUID,
-    db: DbSession,
-    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
-    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
-):
-    """
-    Get insights for an appointment.
-
-    Returns call analysis insights for the appointment's associated call/interaction.
-    If no interaction_id exists or no analysis is available, returns appropriate status.
-
-    Access: Any authenticated user
-
-    Returns:
-        {
-            "appointment_id": "...",
-            "status": "completed" | "pending" | "processing" | "not_found",
-            "insights": {
-                "summary": "...",
-                "sentiment": 0.85,
-                "sop_score": 0.9,
-                "objections_found": ["Price", "Competitor"]
-            } | null
-        }
-    """
-    try:
-        service = AppointmentService(db)
-        result = await service.get_appointment_insights(appointment_id)
-
-        # Check if appointment was not found
-        if result.get("status") == "not_found" and not result.get("insights"):
-            # Verify appointment exists
-            appointment = await service.get_by_id(appointment_id)
-            if not appointment:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Appointment not found",
-                )
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting appointment insights: {e}")
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
-        )
-

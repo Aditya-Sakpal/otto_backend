@@ -9,6 +9,7 @@ from app.domain.models.call import Call
 from app.domain.models.appointment import Appointment
 from app.domain.models.analysis import CallAnalysis
 from app.domain.models.pending_action import PendingAction
+from app.domain.models.leaderboard import LeaderboardEntry
 
 __all__ = [
     "BaseModel",
@@ -20,5 +21,6 @@ __all__ = [
     "Appointment",
     "CallAnalysis",
     "PendingAction",
+    "LeaderboardEntry",
 ]
 

@@ -138,6 +138,8 @@ async def complete_onboarding(
     voip_provider: str | None = Form(None),
     voip_api_key: str | None = Form(None),
     voip_company_id: str | None = Form(None),
+    # Ghost mode setting
+    ghost_mode_enabled: bool = Form(False),
 ) -> OnboardingCompleteResponse:
     """
     Complete onboarding: create user, company, integration, and upload documents.
@@ -171,6 +173,7 @@ async def complete_onboarding(
         voip_provider: VoIP provider name
         voip_api_key: VoIP API key (will be encrypted)
         voip_company_id: VoIP company ID
+        ghost_mode_enabled: Enable ghost mode availability for sales reps (default: False)
         db: Database session
 
     Returns:
@@ -319,6 +322,8 @@ async def complete_onboarding(
             extra_metadata = {}
             if crm_company_id:
                 extra_metadata["crm_company_id"] = crm_company_id
+            if ghost_mode_enabled:
+                extra_metadata["ghost_mode_enabled"] = True
 
             # Create Company with all fields
             company_orm = await company_service.create_company(

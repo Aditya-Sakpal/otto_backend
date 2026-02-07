@@ -1,14 +1,18 @@
 """
 Post ORM model for sales rep posts (linked to appointments).
 """
-from sqlalchemy import String, Text, Integer, ForeignKey, DateTime, Enum as SQLEnum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+import enum
+from sqlalchemy import Text, Integer, ForeignKey, DateTime, Enum as SQLEnum
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
 from uuid import uuid4, UUID
 
 from app.infrastructure.database.base import Base
 
+class PostTag(str, enum.Enum):
+    agenda_setting = "agenda_setting"
+    objection_handling = "objection_handling"
 
 class PostORM(Base):
     """Post ORM model (posts table)."""
@@ -23,7 +27,10 @@ class PostORM(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tags: Mapped[str | None] = mapped_column(String(50), nullable=True)  # agenda_setting, objection_handling
+    tags: Mapped[PostTag | None] = mapped_column(
+        SQLEnum(PostTag, name="post_tags", create_type=False),
+        nullable=True
+    )
     likes: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -32,7 +39,7 @@ class PostORM(Base):
     )
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        nullable=True,
+        server_default=func.current_timestamp(),
         onupdate=func.current_timestamp(),
     )
 

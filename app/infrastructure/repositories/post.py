@@ -8,7 +8,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.infrastructure.database.models.post import PostORM
+from app.infrastructure.database.models.post import PostORM, PostTag
 from app.infrastructure.database.models.appointment import AppointmentORM
 
 logger = get_logger(__name__)
@@ -55,7 +55,7 @@ class PostRepository:
         appointment_id: UUID,
         poster_id: UUID,
         note: Optional[str] = None,
-        tags: Optional[str] = None,
+        tags: Optional[PostTag] = None,
     ) -> PostORM:
         """Create a new post."""
         post = PostORM(
@@ -69,7 +69,7 @@ class PostRepository:
         await self.session.refresh(post)
         return post
 
-    async def update(self, post_id: UUID, note: Optional[str] = None, tags: Optional[str] = None) -> Optional[PostORM]:
+    async def update(self, post_id: UUID, note: Optional[str] = None, tags: Optional[PostTag] = None) -> Optional[PostORM]:
         """Update a post."""
         post = await self.get_by_id(post_id)
         if not post:

@@ -11,7 +11,7 @@ POST /post/:post_id/like - like a post
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status, Body
 
 from app.core.dependencies import DbSession, get_current_user
 from app.core.permissions import require_any_role
@@ -64,7 +64,7 @@ async def get_post(
 @router.post("/post")
 async def create_post(
     db: DbSession,
-    body: PostCreate,
+    body: PostCreate = Body(..., description="Post payload"),
     current_user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])),
 ):
     """Create a post linked to an appointment (sales rep posts with appointment)."""
@@ -87,7 +87,7 @@ async def create_post(
 async def update_post(
     post_id: UUID,
     db: DbSession,
-    body: PostUpdate,
+    body: PostUpdate = Body(..., description="Fields to update"),
     current_user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])),
 ):
     """Update a post (edit note/tags)."""

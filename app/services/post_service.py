@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.infrastructure.repositories.post import PostRepository
 from app.infrastructure.database.models.appointment import AppointmentORM
+from app.infrastructure.database.models.post import PostTag
 from sqlalchemy import select
 
 logger = get_logger(__name__)
@@ -21,7 +22,7 @@ def _post_to_dict(post) -> dict[str, Any]:
         "appointment_id": str(post.appointment_id),
         "poster_id": str(post.poster_id),
         "note": post.note,
-        "tags": post.tags,
+        "tags": post.tags.value if post.tags else None,
         "likes": post.likes or 0,
         "created_at": post.created_at.isoformat() if post.created_at else None,
         "updated_at": post.updated_at.isoformat() if post.updated_at else None,
@@ -65,7 +66,7 @@ class PostService:
         appointment_id: UUID,
         poster_id: UUID,
         note: Optional[str] = None,
-        tags: Optional[str] = None,
+        tags: Optional[PostTag] = None,
     ) -> Optional[dict[str, Any]]:
         """Create a post linked to an appointment. Verifies appointment belongs to poster's company."""
         # Verify appointment exists and poster has access (e.g. same company)
@@ -94,7 +95,7 @@ class PostService:
         self,
         post_id: UUID,
         note: Optional[str] = None,
-        tags: Optional[str] = None,
+        tags: Optional[PostTag] = None,
     ) -> Optional[dict[str, Any]]:
         """Update a post."""
         post = await self.repo.update(post_id, note=note, tags=tags)

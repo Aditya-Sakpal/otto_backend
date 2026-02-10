@@ -27,21 +27,21 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
     async def get_by_company(
         self,
         company_id: UUID,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: Optional[datetime | date] = None,
+        end_date: Optional[datetime | date] = None,
         past_only: bool = False,
         skip: int = 0,
         limit: int = 100,
     ) -> List[Appointment]:
-        """Get all appointments for a company, optionally filtered by scheduled date range or past only."""
+        """Get all appointments for a company, optionally filtered by scheduled datetime range or past only."""
         try:
             if start_date is not None or end_date is not None or past_only:
                 query = select(AppointmentORM).where(AppointmentORM.company_id == company_id)
                 if start_date is not None:
-                    start_dt = datetime.combine(start_date, time.min, tzinfo=timezone.utc)
+                    start_dt = start_date if isinstance(start_date, datetime) else datetime.combine(start_date, time.min, tzinfo=timezone.utc)
                     query = query.where(AppointmentORM.scheduled_start >= start_dt)
                 if end_date is not None:
-                    end_dt = datetime.combine(end_date, time.max, tzinfo=timezone.utc)
+                    end_dt = end_date if isinstance(end_date, datetime) else datetime.combine(end_date, time.max, tzinfo=timezone.utc)
                     query = query.where(AppointmentORM.scheduled_start <= end_dt)
                 if past_only:
                     query = query.where(AppointmentORM.scheduled_start < datetime.now(timezone.utc))
@@ -96,13 +96,13 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
         self,
         company_id: UUID,
         assigned_rep_id: UUID,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: Optional[datetime | date] = None,
+        end_date: Optional[datetime | date] = None,
         past_only: bool = False,
         skip: int = 0,
         limit: int = 100,
     ) -> List[Appointment]:
-        """Get all appointments for a company assigned to a specific sales rep, optionally filtered by scheduled date range or past only."""
+        """Get all appointments for a company assigned to a specific sales rep, optionally filtered by scheduled datetime range or past only."""
         try:
             if start_date is not None or end_date is not None or past_only:
                 query = (
@@ -111,10 +111,10 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
                     .where(AppointmentORM.assigned_rep_id == assigned_rep_id)
                 )
                 if start_date is not None:
-                    start_dt = datetime.combine(start_date, time.min, tzinfo=timezone.utc)
+                    start_dt = start_date if isinstance(start_date, datetime) else datetime.combine(start_date, time.min, tzinfo=timezone.utc)
                     query = query.where(AppointmentORM.scheduled_start >= start_dt)
                 if end_date is not None:
-                    end_dt = datetime.combine(end_date, time.max, tzinfo=timezone.utc)
+                    end_dt = end_date if isinstance(end_date, datetime) else datetime.combine(end_date, time.max, tzinfo=timezone.utc)
                     query = query.where(AppointmentORM.scheduled_start <= end_dt)
                 if past_only:
                     query = query.where(AppointmentORM.scheduled_start < datetime.now(timezone.utc))

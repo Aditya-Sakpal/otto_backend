@@ -6,7 +6,7 @@ Provides business logic for managing appointments:
 - Listing by company, lead, or assigned sales rep
 - Enriched responses with contact and user details
 """
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
@@ -231,8 +231,8 @@ class AppointmentService:
     async def list_enriched_by_company(
         self,
         company_id: UUID,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
         past_only: bool = False,
         skip: int = 0,
         limit: int = 100,
@@ -269,8 +269,8 @@ class AppointmentService:
         self,
         company_id: UUID,
         assigned_rep_id: UUID,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
         past_only: bool = False,
         skip: int = 0,
         limit: int = 100,

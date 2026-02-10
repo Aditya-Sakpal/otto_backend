@@ -20,12 +20,14 @@ from app.domain.schemas.appointment import (
     AppointmentInsightSummary,
 )
 from app.domain.users.models import User
+from app.domain.users.repository import UserRepository
 from app.services.appointment_service import AppointmentService
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 RESPONSES = {
+    400: {"description": "Bad request (e.g. invalid date format)"},
     403: {"description": "Forbidden"},
     404: {"description": "Appointment not found"},
     422: {"description": "Validation error"},
@@ -47,6 +49,14 @@ async def list_appointments(
         None,
         description="Filter by associated lead ID (overrides company filter if provided)",
     ),
+    start_date: Optional[str] = Query(
+        None,
+        description="Filter appointments scheduled on or after this date (YYYY-MM-DD)",
+    ),
+    end_date: Optional[str] = Query(
+        None,
+        description="Filter appointments scheduled on or before this date (YYYY-MM-DD)",
+    ),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
 ) -> List[AppointmentResponse]:
@@ -59,10 +69,33 @@ async def list_appointments(
     - company_id: Filter by company/tenant
     - assigned_rep_id: Filter by assigned sales rep (user_id)
     - lead_id: Filter by associated lead (if provided, company filter is ignored)
+    - start_date: Filter appointments scheduled on or after this date (YYYY-MM-DD)
+    - end_date: Filter appointments scheduled on or before this date (YYYY-MM-DD)
     - skip: Pagination offset
     - limit: Maximum number of results (1-1000)
     """
     try:
+        from datetime import date as date_type
+
+        start_d = None
+        end_d = None
+        if start_date:
+            try:
+                start_d = date_type.fromisoformat(start_date)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="start_date must be YYYY-MM-DD",
+                )
+        if end_date:
+            try:
+                end_d = date_type.fromisoformat(end_date)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="end_date must be YYYY-MM-DD",
+                )
+
         service = AppointmentService(db)
 
         # If lead_id is provided, return appointment for that lead
@@ -70,11 +103,25 @@ async def list_appointments(
             appointment = await service.get_enriched_by_lead(lead_id)
             return [appointment] if appointment else []
 
-        # Filter by assigned rep if provided
+        # Filter by assigned rep if provided — ensure user is a sales rep
         if assigned_rep_id:
+            user_repo = UserRepository(db)
+            rep_user = await user_repo.get_by_id(assigned_rep_id)
+            if rep_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="assigned_rep_id: user not found",
+                )
+            if rep_user.role != UserRole.SALES_REP:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="assigned_rep_id must be a user with role sales_rep",
+                )
             return await service.list_enriched_by_assigned_rep(
                 company_id=company_id,
                 assigned_rep_id=assigned_rep_id,
+                start_date=start_d,
+                end_date=end_d,
                 skip=skip,
                 limit=limit,
             )
@@ -82,11 +129,113 @@ async def list_appointments(
         # Default: return all appointments for company
         return await service.list_enriched_by_company(
             company_id=company_id,
+            start_date=start_d,
+            end_date=end_d,
             skip=skip,
             limit=limit,
         )
     except Exception as e:
         logger.error(f"Error listing appointments: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/past", response_model=List[AppointmentResponse], responses=RESPONSES)
+async def list_past_appointments(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company/tenant ID"),
+    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
+    assigned_rep_id: Optional[UUID] = Query(
+        None,
+        description="Filter appointments by assigned sales rep (user_id)",
+    ),
+    start_date: Optional[str] = Query(
+        None,
+        description="Filter appointments scheduled on or after this date (YYYY-MM-DD)",
+    ),
+    end_date: Optional[str] = Query(
+        None,
+        description="Filter appointments scheduled on or before this date (YYYY-MM-DD)",
+    ),
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
+) -> List[AppointmentResponse]:
+    """
+    List past appointments (scheduled_start in the past) with optional filters.
+
+    Access: Any authenticated user
+
+    Query Parameters:
+    - company_id: Filter by company/tenant
+    - assigned_rep_id: Filter by assigned sales rep (user_id)
+    - start_date: Filter appointments scheduled on or after this date (YYYY-MM-DD)
+    - end_date: Filter appointments scheduled on or before this date (YYYY-MM-DD)
+    - skip: Pagination offset
+    - limit: Maximum number of results (1-1000)
+    """
+    try:
+        from datetime import date as date_type
+
+        start_d = None
+        end_d = None
+        if start_date:
+            try:
+                start_d = date_type.fromisoformat(start_date)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="start_date must be YYYY-MM-DD",
+                )
+        if end_date:
+            try:
+                end_d = date_type.fromisoformat(end_date)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="end_date must be YYYY-MM-DD",
+                )
+
+        service = AppointmentService(db)
+
+        if assigned_rep_id:
+            user_repo = UserRepository(db)
+            rep_user = await user_repo.get_by_id(assigned_rep_id)
+            if rep_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="assigned_rep_id: user not found",
+                )
+            if rep_user.role != UserRole.SALES_REP:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="assigned_rep_id must be a user with role sales_rep",
+                )
+            return await service.list_enriched_by_assigned_rep(
+                company_id=company_id,
+                assigned_rep_id=assigned_rep_id,
+                start_date=start_d,
+                end_date=end_d,
+                past_only=True,
+                skip=skip,
+                limit=limit,
+            )
+
+        return await service.list_enriched_by_company(
+            company_id=company_id,
+            start_date=start_d,
+            end_date=end_d,
+            past_only=True,
+            skip=skip,
+            limit=limit,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing past appointments: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

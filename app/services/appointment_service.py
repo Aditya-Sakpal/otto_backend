@@ -6,6 +6,7 @@ Provides business logic for managing appointments:
 - Listing by company, lead, or assigned sales rep
 - Enriched responses with contact and user details
 """
+from datetime import date
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
@@ -18,13 +19,28 @@ from app.domain.schemas.appointment import (
     AppointmentUpdate,
     AppointmentResponse,
 )
+from app.domain.enums import AppointmentOutcome
+from app.domain.schemas.appointment_details import (
+    AppointmentDetailsResponse,
+    AppointmentOverview,
+)
 from app.infrastructure.repositories.appointment import AppointmentRepository
 from app.infrastructure.repositories.contact import ContactRepository
 from app.domain.users.repository import UserRepository
 from app.infrastructure.repositories.analysis import CallAnalysisRepository
 from app.infrastructure.repositories.call import CallRepository
+from app.infrastructure.repositories.lead import LeadRepository
 
 logger = get_logger(__name__)
+
+OUTCOME_TO_STATUS = {
+    "pending": "In Progress",
+    None: "In Progress",
+    "won": "Won",
+    "lost": "Lost",
+    "no_show": "No Show",
+    "rescheduled": "Rescheduled",
+}
 
 
 class AppointmentService:
@@ -37,6 +53,7 @@ class AppointmentService:
         self.user_repo = UserRepository(session)
         self.analysis_repo = CallAnalysisRepository(session)
         self.call_repo = CallRepository(session)
+        self.lead_repo = LeadRepository(session)
 
     async def get_by_id(self, appointment_id: UUID) -> Optional[Appointment]:
         """Get appointment by ID."""
@@ -214,6 +231,9 @@ class AppointmentService:
     async def list_enriched_by_company(
         self,
         company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        past_only: bool = False,
         skip: int = 0,
         limit: int = 100,
     ) -> List[AppointmentResponse]:
@@ -222,6 +242,9 @@ class AppointmentService:
 
         Args:
             company_id: Company UUID
+            start_date: Filter appointments scheduled on or after this date
+            end_date: Filter appointments scheduled on or before this date
+            past_only: If True, only return appointments with scheduled_start in the past
             skip: Number of records to skip
             limit: Maximum number of records to return
 
@@ -230,6 +253,9 @@ class AppointmentService:
         """
         appointments = await self.appointment_repo.get_by_company(
             company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+            past_only=past_only,
             skip=skip,
             limit=limit,
         )
@@ -243,6 +269,9 @@ class AppointmentService:
         self,
         company_id: UUID,
         assigned_rep_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        past_only: bool = False,
         skip: int = 0,
         limit: int = 100,
     ) -> List[AppointmentResponse]:
@@ -252,6 +281,9 @@ class AppointmentService:
         Args:
             company_id: Company UUID
             assigned_rep_id: Assigned sales rep user ID
+            start_date: Filter appointments scheduled on or after this date
+            end_date: Filter appointments scheduled on or before this date
+            past_only: If True, only return appointments with scheduled_start in the past
             skip: Number of records to skip
             limit: Maximum number of records to return
 
@@ -261,6 +293,9 @@ class AppointmentService:
         appointments = await self.appointment_repo.get_by_assigned_rep(
             company_id=company_id,
             assigned_rep_id=assigned_rep_id,
+            start_date=start_date,
+            end_date=end_date,
+            past_only=past_only,
             skip=skip,
             limit=limit,
         )
@@ -359,4 +394,109 @@ class AppointmentService:
             "status": analysis.status.value if hasattr(analysis.status, 'value') else str(analysis.status),
             "insights": insights,
         }
+
+    async def get_appointment_details(
+        self, appointment_id: UUID
+    ) -> Optional[AppointmentDetailsResponse]:
+        """
+        Get appointment details for exec view: customer, rep, status, and overview
+        (deal_size, deal_type, appointment_summary, sop_stages, appointment_booking).
+        """
+        appointment = await self.appointment_repo.get_by_id(appointment_id)
+        if not appointment:
+            return None
+
+        # Customer name
+        customer_name = "Unknown"
+        if appointment.contact_card_id:
+            contact = await self.contact_repo.get_by_id(appointment.contact_card_id)
+            if contact:
+                first = contact.first_name or ""
+                last = contact.last_name or ""
+                customer_name = f"{first} {last}".strip() or "Unknown"
+
+        # Sales rep name
+        sales_rep_name = "Unknown"
+        if appointment.assigned_rep_id:
+            rep_user = await self.user_repo.get_by_id(appointment.assigned_rep_id)
+            if rep_user:
+                first = rep_user.first_name or ""
+                last = rep_user.last_name or ""
+                sales_rep_name = f"{first} {last}".strip() or "Unknown"
+
+        # Status (display string)
+        outcome = getattr(appointment, "outcome", None)
+        if isinstance(outcome, AppointmentOutcome):
+            outcome = outcome.value if outcome else None
+        status = OUTCOME_TO_STATUS.get(outcome, "In Progress")
+
+        # Overview: deal_size, deal_type from lead or appointment.extra_metadata
+        deal_size: Optional[float] = None
+        deal_type: Optional[str] = None
+        extra = getattr(appointment, "extra_metadata", None) or {}
+        if isinstance(extra, dict):
+            deal_size = extra.get("deal_size")
+            if deal_size is not None and not isinstance(deal_size, (int, float)):
+                deal_size = None
+            deal_type = extra.get("deal_type") or extra.get("service_type") or extra.get("service_type_description")
+        if deal_size is None or deal_type is None:
+            lead = await self.lead_repo.get_by_id(appointment.lead_id)
+            if lead:
+                if deal_size is None and getattr(lead, "deal_size", None) is not None:
+                    deal_size = float(lead.deal_size)
+                if not deal_type:
+                    lead_extra = getattr(lead, "extra_metadata", None) or {}
+                    if isinstance(lead_extra, dict):
+                        deal_type = lead_extra.get("deal_type") or lead_extra.get("service_type")
+        if not deal_type:
+            deal_type = extra.get("service_type") or "Appointment"
+
+        # Summary and SOP from call analysis (interaction_id = sales call for this appointment)
+        appointment_summary: List[str] = []
+        sop_stages_completed: List[str] = []
+        sop_stages_missed: List[str] = []
+        if appointment.interaction_id:
+            analysis = await self.analysis_repo.get_by_call_id(appointment.interaction_id)
+            if analysis:
+                sop_stages_completed = list(analysis.sop_stages_completed or [])
+                sop_stages_missed = list(analysis.sop_stages_missed or [])
+                if analysis.summary:
+                    # Prefer key_points as bullets; otherwise split summary by newlines/sentences
+                    if analysis.key_points:
+                        appointment_summary = list(analysis.key_points)
+                    else:
+                        parts = [s.strip() for s in analysis.summary.replace("\n", " ").split(". ") if s.strip()]
+                        appointment_summary = [p + "." if not p.endswith(".") else p for p in parts] if parts else [analysis.summary]
+
+        # Appointment booking: data from CSR call that booked this appointment (if we have interaction_id and it's a booking call)
+        appointment_booking: Optional[Dict[str, Any]] = None
+        if appointment.interaction_id:
+            call = await self.call_repo.get_by_id(appointment.interaction_id)
+            if call:
+                analysis_booking = await self.analysis_repo.get_by_call_id(call.id)
+                booking_data: Dict[str, Any] = {
+                    "call_id": str(call.id),
+                    "handled_by_user_id": str(call.handled_by_user_id) if call.handled_by_user_id else None,
+                }
+                if getattr(call, "created_at", None):
+                    booking_data["date"] = call.created_at.isoformat() if hasattr(call.created_at, "isoformat") else str(call.created_at)
+                if analysis_booking and analysis_booking.summary:
+                    booking_data["summary"] = analysis_booking.summary
+                appointment_booking = booking_data
+
+        overview = AppointmentOverview(
+            deal_size=deal_size,
+            deal_type=deal_type,
+            appointment_summary=appointment_summary,
+            sop_stages_completed=sop_stages_completed,
+            sop_stages_missed=sop_stages_missed,
+            appointment_booking=appointment_booking,
+        )
+        return AppointmentDetailsResponse(
+            appointment_id=appointment.id,
+            customer_name=customer_name,
+            sales_rep_name=sales_rep_name,
+            status=status,
+            appointment_overview=overview,
+        )
 

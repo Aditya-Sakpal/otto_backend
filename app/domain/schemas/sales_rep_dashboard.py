@@ -1,0 +1,156 @@
+"""
+Sales rep dashboard schemas.
+
+Response models for /sales_rep/dashboard and sub-endpoints.
+"""
+from typing import List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class RidealongEntry(BaseModel):
+    """Single ridealong (appointment) entry for dashboard."""
+
+    appointment_id: UUID = Field(..., description="Appointment UUID")
+    customer_name: str = Field(..., description="Contact/customer name")
+    sales_rep: str = Field(..., description="Assigned sales rep name")
+    service_type: str = Field(..., description="Service type (e.g. Roof replacement estimate)")
+    scheduled_time: str = Field(..., description="Scheduled time formatted (e.g. 9:00AM)")
+    arrival_time: Optional[str] = Field(None, description="Arrival time if available (e.g. 8:55 AM)")
+    status: str = Field(..., description="Status (In Progress, Won, Lost, No Show, Rescheduled)")
+    ghost_mode: str = Field(..., description="Ghost mode active for rep: True or False")
+
+
+class SalesTeamStatsEntry(BaseModel):
+    """Single sales team stats entry."""
+
+    sales_rep_id: UUID = Field(..., description="Sales rep user UUID")
+    rep_name: str = Field(..., description="Sales rep display name")
+    total_recordings_hours: float = Field(..., description="Total recording hours")
+    win_rate: float = Field(..., description="Win rate percentage (0-100)")
+    process_score: float = Field(..., description="Process/SOP compliance score")
+    skills_score: float = Field(..., description="Skills score")
+    otto_usage_hours: float = Field(..., description="Ask Otto usage hours")
+
+
+class ObjectionBreakdownEntry(BaseModel):
+    """Single objection in objections_breakdown."""
+
+    objection_text: str = Field(..., description="Objection label (e.g. I need a lower price)")
+    percentage: float = Field(..., description="Percentage (0-100)")
+
+
+class CoreKpis(BaseModel):
+    """Core KPIs for sales overview."""
+
+    revenue: float = Field(..., description="Total revenue")
+    avg_deal_size: float = Field(..., description="Average deal size")
+    total_conversations: int = Field(..., description="Total conversations/calls")
+    avg_recording_duration: str = Field(..., description="Average recording duration (e.g. 1h45m)")
+    team_win_rate: float = Field(..., description="Team win rate percentage (0-100)")
+    first_touch_win_rate: float = Field(..., description="First-touch win rate percentage")
+    follow_up_win_rate: float = Field(..., description="Follow-up win rate percentage")
+    follow_up_rate: float = Field(..., description="Follow-up rate percentage")
+    follow_up_growth_percent: float = Field(..., description="Follow-up growth percentage")
+
+
+class CloseRatePoint(BaseModel):
+    """Single point in close_rate_series."""
+
+    date: str = Field(..., description="Date label (e.g. Sep 1)")
+    value: float = Field(..., description="Close rate value")
+
+
+class SalesIncrease(BaseModel):
+    """Sales increase trend."""
+
+    percentage: float = Field(..., description="Percentage increase")
+    value_increase: float = Field(..., description="Value increase")
+    weekly_data: List[Optional[float]] = Field(
+        default_factory=list,
+        description="Weekly data points",
+    )
+
+
+class Trends(BaseModel):
+    """Trends for sales overview."""
+
+    close_rate_series: List[CloseRatePoint] = Field(
+        default_factory=list,
+        description="Close rate over time",
+    )
+    sales_increase: Optional[SalesIncrease] = Field(
+        None,
+        description="Sales increase metrics",
+    )
+
+
+class SalesOverview(BaseModel):
+    """Sales overview section."""
+
+    core_kpis: CoreKpis = Field(..., description="Core KPIs")
+    trends: Trends = Field(..., description="Trends (close rate series, sales increase)")
+
+
+class OttoAssistedSales(BaseModel):
+    """Otto-assisted sales metrics."""
+
+    deals_count: int = Field(..., description="Number of Otto-assisted deals")
+    revenue_saved: float = Field(..., description="Revenue saved via Otto")
+
+
+class AttendanceMetrics(BaseModel):
+    """Attendance metrics."""
+
+    rate: float = Field(..., description="Attendance rate percentage (0-100)")
+    avg_tardiness_min: int = Field(..., description="Average tardiness in minutes")
+
+
+class TeamCoachingMetrics(BaseModel):
+    """Team coaching metrics section."""
+
+    common_objection_peak: float = Field(..., description="Peak percentage for common objection")
+    script_adherence: float = Field(..., description="Script adherence percentage (0-100)")
+    ask_otto_usage_hours: float = Field(..., description="Ask Otto usage hours")
+    win_rate_lift: float = Field(..., description="Win rate lift percentage")
+    otto_assisted_sales: OttoAssistedSales = Field(..., description="Otto-assisted sales")
+    attendance: AttendanceMetrics = Field(..., description="Attendance metrics")
+
+
+class SalesRepDashboardResponse(BaseModel):
+    """Main dashboard response with ridealongs, sales team stats, and overview sections."""
+
+    ridealongs_list: List[RidealongEntry] = Field(
+        default_factory=list,
+        description="Latest appointments of the day (up to 9)",
+    )
+    sales_team_stats: List[SalesTeamStatsEntry] = Field(
+        default_factory=list,
+        description="Sales team stats (up to 3)",
+    )
+    objections_breakdown: List[ObjectionBreakdownEntry] = Field(
+        default_factory=list,
+        description="Top objections with percentages",
+    )
+    sales_overview: Optional[SalesOverview] = Field(
+        None,
+        description="Sales overview (core KPIs and trends)",
+    )
+    team_coaching_metrics: Optional[TeamCoachingMetrics] = Field(
+        None,
+        description="Team coaching metrics",
+    )
+
+
+class SalesTeamStatsPaginatedResponse(BaseModel):
+    """Paginated sales team stats response."""
+
+    items: List[SalesTeamStatsEntry] = Field(
+        default_factory=list,
+        description="List of sales team stats",
+    )
+    total: Optional[int] = Field(
+        None,
+        description="Total count (when pagination used)",
+    )

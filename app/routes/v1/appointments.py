@@ -51,11 +51,11 @@ async def list_appointments(
     ),
     start_date: Optional[str] = Query(
         None,
-        description="Filter appointments scheduled on or after this date (YYYY-MM-DD)",
+        description="Filter appointments on or after this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
     ),
     end_date: Optional[str] = Query(
         None,
-        description="Filter appointments scheduled on or before this date (YYYY-MM-DD)",
+        description="Filter appointments on or before this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
     ),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
@@ -69,31 +69,31 @@ async def list_appointments(
     - company_id: Filter by company/tenant
     - assigned_rep_id: Filter by assigned sales rep (user_id)
     - lead_id: Filter by associated lead (if provided, company filter is ignored)
-    - start_date: Filter appointments scheduled on or after this date (YYYY-MM-DD)
-    - end_date: Filter appointments scheduled on or before this date (YYYY-MM-DD)
+    - start_date: Filter appointments on or after this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+    - end_date: Filter appointments on or before this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
     - skip: Pagination offset
     - limit: Maximum number of results (1-1000)
     """
     try:
-        from datetime import date as date_type
+        from datetime import date as date_type, datetime as datetime_type
 
-        start_d = None
-        end_d = None
+        start_dt = None
+        end_dt = None
         if start_date:
             try:
-                start_d = date_type.fromisoformat(start_date)
+                start_dt = datetime_type.fromisoformat(start_date)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="start_date must be YYYY-MM-DD",
+                    detail="start_date must be ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
                 )
         if end_date:
             try:
-                end_d = date_type.fromisoformat(end_date)
+                end_dt = datetime_type.fromisoformat(end_date)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="end_date must be YYYY-MM-DD",
+                    detail="end_date must be ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
                 )
 
         service = AppointmentService(db)
@@ -120,8 +120,8 @@ async def list_appointments(
             return await service.list_enriched_by_assigned_rep(
                 company_id=company_id,
                 assigned_rep_id=assigned_rep_id,
-                start_date=start_d,
-                end_date=end_d,
+                start_date=start_dt,
+                end_date=end_dt,
                 skip=skip,
                 limit=limit,
             )
@@ -129,11 +129,13 @@ async def list_appointments(
         # Default: return all appointments for company
         return await service.list_enriched_by_company(
             company_id=company_id,
-            start_date=start_d,
-            end_date=end_d,
+            start_date=start_dt,
+            end_date=end_dt,
             skip=skip,
             limit=limit,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error listing appointments: {e}")
         traceback.print_exc()
@@ -155,11 +157,11 @@ async def list_past_appointments(
     ),
     start_date: Optional[str] = Query(
         None,
-        description="Filter appointments scheduled on or after this date (YYYY-MM-DD)",
+        description="Filter appointments on or after this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
     ),
     end_date: Optional[str] = Query(
         None,
-        description="Filter appointments scheduled on or before this date (YYYY-MM-DD)",
+        description="Filter appointments on or before this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
     ),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
@@ -172,31 +174,31 @@ async def list_past_appointments(
     Query Parameters:
     - company_id: Filter by company/tenant
     - assigned_rep_id: Filter by assigned sales rep (user_id)
-    - start_date: Filter appointments scheduled on or after this date (YYYY-MM-DD)
-    - end_date: Filter appointments scheduled on or before this date (YYYY-MM-DD)
+    - start_date: Filter appointments on or after this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+    - end_date: Filter appointments on or before this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
     - skip: Pagination offset
     - limit: Maximum number of results (1-1000)
     """
     try:
-        from datetime import date as date_type
+        from datetime import datetime as datetime_type
 
-        start_d = None
-        end_d = None
+        start_dt = None
+        end_dt = None
         if start_date:
             try:
-                start_d = date_type.fromisoformat(start_date)
+                start_dt = datetime_type.fromisoformat(start_date)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="start_date must be YYYY-MM-DD",
+                    detail="start_date must be ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
                 )
         if end_date:
             try:
-                end_d = date_type.fromisoformat(end_date)
+                end_dt = datetime_type.fromisoformat(end_date)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="end_date must be YYYY-MM-DD",
+                    detail="end_date must be ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
                 )
 
         service = AppointmentService(db)
@@ -217,8 +219,8 @@ async def list_past_appointments(
             return await service.list_enriched_by_assigned_rep(
                 company_id=company_id,
                 assigned_rep_id=assigned_rep_id,
-                start_date=start_d,
-                end_date=end_d,
+                start_date=start_dt,
+                end_date=end_dt,
                 past_only=True,
                 skip=skip,
                 limit=limit,
@@ -226,8 +228,8 @@ async def list_past_appointments(
 
         return await service.list_enriched_by_company(
             company_id=company_id,
-            start_date=start_d,
-            end_date=end_d,
+            start_date=start_dt,
+            end_date=end_dt,
             past_only=True,
             skip=skip,
             limit=limit,

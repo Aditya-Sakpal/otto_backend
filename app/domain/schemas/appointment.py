@@ -141,6 +141,14 @@ class AppointmentResponse(AppointmentBase):
         None,
         description="Insights derived from the associated call analysis, when available",
     )
+    latitude: Optional[float] = Field(
+        None,
+        description="Geocoded latitude from contact card",
+    )
+    longitude: Optional[float] = Field(
+        None,
+        description="Geocoded longitude from contact card",
+    )
 
     class Config:
         from_attributes = True

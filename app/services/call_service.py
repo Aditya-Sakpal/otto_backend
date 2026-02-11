@@ -815,6 +815,7 @@ class CallService:
                     call_id=str(call.id),
                     appointment_id=str(existing.id),
                 )
+                appt_id = existing.id
             else:
                 appointment = Appointment(**appointment_data)
                 created = await self.appointment_repo.create(appointment)
@@ -823,6 +824,16 @@ class CallService:
                     call_id=str(call.id),
                     appointment_id=str(created.id),
                 )
+                appt_id = created.id
+
+            # Trigger background geocoding if location_address is set
+            if location_address:
+                import asyncio
+                from app.infrastructure.integrations.google_geocoding import geocode_appointment_background
+                asyncio.create_task(geocode_appointment_background(
+                    appointment_id=appt_id,
+                    location_address=location_address,
+                ))
         except Exception as e:
             logger.error(
                 f"Error upserting appointment from call: {e}",

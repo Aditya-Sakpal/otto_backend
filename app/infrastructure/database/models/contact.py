@@ -1,7 +1,7 @@
 """
 Contact ORM model.
 """
-from sqlalchemy import String, Text, JSON, ForeignKey
+from sqlalchemy import String, Text, JSON, Float, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid import uuid4, UUID
 
@@ -24,6 +24,8 @@ class ContactCardORM(Base):
     city: Mapped[str | None] = mapped_column(String, nullable=True)
     state: Mapped[str | None] = mapped_column(String, nullable=True)
     postal_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     property_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     

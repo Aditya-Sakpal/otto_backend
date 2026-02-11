@@ -27,6 +27,8 @@ class ContactCard(BaseModel):
     city: Optional[str] = Field(None, description="City")
     state: Optional[str] = Field(None, description="State")
     postal_code: Optional[str] = Field(None, description="Postal code")
+    latitude: Optional[float] = Field(None, description="Geocoded latitude")
+    longitude: Optional[float] = Field(None, description="Geocoded longitude")
     property_snapshot: Optional[dict] = Field(None, description="Property intelligence data")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
 

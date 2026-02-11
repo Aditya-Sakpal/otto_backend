@@ -210,8 +210,14 @@ async def get_booking_rate_improvement(
     user_id: Optional[UUID] = Query(None, description="User UUID to scope booking rate improvement to a single user (optional)"),
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
-    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
-    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
+    # Backwards-compatible single-period params:
+    start_date: Optional[date] = Query(None, description="(legacy) Start date for filtering (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="(legacy) End date for filtering (YYYY-MM-DD)"),
+    # New dual-period params for frontend: period A and period B
+    start_a: Optional[date] = Query(None, description="Period A start date (YYYY-MM-DD)"),
+    end_a: Optional[date] = Query(None, description="Period A end date (YYYY-MM-DD)"),
+    start_b: Optional[date] = Query(None, description="Period B start date (YYYY-MM-DD)"),
+    end_b: Optional[date] = Query(None, description="Period B end date (YYYY-MM-DD)"),
 ):
     """
     Get booking rate improvement metrics within date range.
@@ -246,12 +252,23 @@ async def get_booking_rate_improvement(
         company_id = None  # ensure user_id takes precedence (service will derive company_id from user)
 
     service = MetricsService(db)
-    return await service.get_booking_rate_improvement(
-        company_id=company_id,
-        user_id=user_id,
-        start_date=start_date,
-        end_date=end_date,
-    )
+    # If new dual-period params provided, pass them through; else use legacy start_date/end_date
+    if start_a and start_b and end_a and end_b:
+        return await service.get_booking_rate_improvement(
+            company_id=company_id,
+            user_id=user_id,
+            start_a=start_a,
+            end_a=end_a,
+            start_b=start_b,
+            end_b=end_b,
+        )
+    else:
+        return await service.get_booking_rate_improvement(
+            company_id=company_id,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
 
 @router.get("/bookings/summary", response_model=BookingsSummaryResponse, responses=RESPONSES)

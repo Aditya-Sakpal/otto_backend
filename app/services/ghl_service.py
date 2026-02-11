@@ -605,7 +605,6 @@ class GHLService:
                 "contact_card_id": contact_card.id,
                 "status": status.value,
                 "deal_status": deal_status.value if deal_status else None,
-                "assigned_rep_id": assigned_rep_id,
                 "deal_size": opp_data.get("monetaryValue"),
                 "extra_metadata": {
                     "ghl_opportunity_id": opportunity_id,

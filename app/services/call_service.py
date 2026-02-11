@@ -934,10 +934,10 @@ class CallService:
                 
                 new_lead = Lead(
                     company_id=call.company_id,
+                    
                     contact_card_id=call.contact_card_id,
                     status=new_lead_status,
                     deal_status=new_deal_status,
-                    assigned_rep_id=call.handled_by_user_id,  # Assign to call handler
                     extra_metadata={
                         'created_from_call': str(call.id),
                         'last_call_analysis': {

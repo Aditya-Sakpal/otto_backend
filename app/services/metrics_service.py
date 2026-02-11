@@ -400,31 +400,87 @@ class MetricsService:
         user_id: Optional[UUID] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        start_a: Optional[date] = None,
+        end_a: Optional[date] = None,
+        start_b: Optional[date] = None,
+        end_b: Optional[date] = None,
     ) -> Dict[str, Any]:
-        """Get booking rate improvement metrics comparing current period to previous period."""
+        """
+        Get booking rate improvement metrics.
+        - Legacy single-period mode: provide start_date & end_date (keeps backward compatibility).
+        - New dual-period mode: provide start_a,end_a and start_b,end_b to return per-day booked counts for both periods,
+          plus a unified x_axis for plotting.
+        """
         try:
-            # Resolution rules:
-            # - If user_id is provided: prefer user_id and derive company_id from user
-            # - Else: company_id must be provided
-            if user_id:
+            # Resolve company_id from user if provided
+            if user_id and not company_id:
                 user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
                 user = user_result.scalar_one_or_none()
                 if not user or not user.company_id:
                     raise ValueError("Either provide company_id, or provide user_id that belongs to a user with a company_id")
                 company_id = user.company_id
             elif not company_id:
-                raise ValueError("Either company_id or user_id is required")
+                # company_id will be required in later logic (either directly or via user_id)
+                pass
 
+            # If dual-period params provided, run per-day counts for both periods and return series
+            if start_a and end_a and start_b and end_b:
+                if not company_id:
+                    raise ValueError("company_id or user_id (with company) is required for dual-period mode")
+
+                # Define booked condition for leads
+                is_booked = or_(
+                    func.lower(LeadORM.status) == "qualified_booked",
+                    and_(
+                        LeadORM.deal_status.isnot(None),
+                        func.lower(func.trim(LeadORM.deal_status)) == "booked",
+                    ),
+                )
+
+                from datetime import timedelta as _td, time as _time
+
+                async def counts_by_day(s: date, e: date) -> Dict[str, int]:
+                    counts: Dict[str, int] = {}
+                    current = s
+                    while current <= e:
+                        day_start = datetime.combine(current, _time.min).replace(tzinfo=timezone.utc)
+                        day_end = datetime.combine(current, _time.max).replace(tzinfo=timezone.utc)
+                        q = select(func.count(LeadORM.id)).where(
+                            LeadORM.company_id == company_id,
+                            is_booked,
+                            or_(
+                                and_(LeadORM.created_at >= day_start, LeadORM.created_at <= day_end),
+                                and_(LeadORM.updated_at >= day_start, LeadORM.updated_at <= day_end),
+                            )
+                        )
+                        if user_id:
+                            q = q.where(LeadORM.assigned_rep_id == user_id)
+                        res = await self.session.execute(q)
+                        cnt = res.scalar() or 0
+                        counts[current.isoformat()] = int(cnt)
+                        current = current + _td(days=1)
+                    return counts
+
+                a_counts = await counts_by_day(start_a, end_a)
+                b_counts = await counts_by_day(start_b, end_b)
+
+                x_axis = sorted(list(set(list(a_counts.keys()) + list(b_counts.keys()))))
+                series_a = [{"x": d, "y": a_counts.get(d, 0)} for d in x_axis]
+                series_b = [{"x": d, "y": b_counts.get(d, 0)} for d in x_axis]
+
+                return {
+                    "period_a": {"start": start_a.isoformat(), "end": end_a.isoformat(), "total_booked": sum(a_counts.values()), "series": series_a},
+                    "period_b": {"start": start_b.isoformat(), "end": end_b.isoformat(), "total_booked": sum(b_counts.values()), "series": series_b},
+                    "x_axis": x_axis,
+                }
+
+            # Legacy behavior (single period): keep existing calculation (current vs previous period)
             start_dt, end_dt = self._get_date_range(start_date, end_date)
-            
             # Calculate period length
             period_length = (end_dt - start_dt).days
             previous_start = start_dt - timedelta(days=period_length)
             previous_end = start_dt
-            
-            # Optional user scoping:
-            # - Appointments: by assigned_rep_id
-            # - Leads: by assigned_rep_id
+
             appointment_scope = [AppointmentORM.company_id == company_id]
             lead_scope = [LeadORM.company_id == company_id]
             if user_id:
@@ -440,7 +496,7 @@ class MetricsService:
                 )
             )
             current_appointments = current_bookings.scalar() or 0
-            
+
             # Current period: booked calls (from call_analyses, case-insensitive booking_status)
             current_booked_calls_q = (
                 select(func.count(CallAnalysisORM.id))
@@ -459,7 +515,7 @@ class MetricsService:
                 current_booked_calls_q = current_booked_calls_q.where(CallORM.handled_by_user_id == user_id)
             current_booked_calls = await self.session.execute(current_booked_calls_q)
             current_booked_calls_count = current_booked_calls.scalar() or 0
-            
+
             # Current period: booked leads (status=qualified_booked or deal_status=booked)
             current_booked_leads = await self.session.execute(
                 select(func.count(LeadORM.id)).where(
@@ -473,7 +529,7 @@ class MetricsService:
                 )
             )
             current_booked_leads_count = current_booked_leads.scalar() or 0
-            
+
             # Current period qualified leads
             current_qualified = await self.session.execute(
                 select(func.count(LeadORM.id)).where(
@@ -484,7 +540,7 @@ class MetricsService:
                 )
             )
             current_qualified_count = current_qualified.scalar() or 0
-            
+
             # Previous period: appointments + booked calls
             previous_bookings = await self.session.execute(
                 select(func.count(AppointmentORM.id)).where(
@@ -511,7 +567,7 @@ class MetricsService:
                 previous_booked_calls_q = previous_booked_calls_q.where(CallORM.handled_by_user_id == user_id)
             previous_booked_calls = await self.session.execute(previous_booked_calls_q)
             previous_booked_calls_count = previous_booked_calls.scalar() or 0
-            
+
             # Previous period qualified
             previous_qualified = await self.session.execute(
                 select(func.count(LeadORM.id)).where(
@@ -522,15 +578,15 @@ class MetricsService:
                 )
             )
             previous_qualified_count = previous_qualified.scalar() or 0
-            
+
             # Combined booked: appointments + booked calls (so APIs return non-zero when DB has booked calls)
             current_count = current_appointments + current_booked_calls_count
             previous_count = previous_appointments + previous_booked_calls_count
-            
+
             current_rate = (current_count / current_qualified_count * 100) if current_qualified_count > 0 else 0.0
             previous_rate = (previous_count / previous_qualified_count * 100) if previous_qualified_count > 0 else 0.0
             improvement = current_rate - previous_rate
-            
+
             return {
                 "current_rate": round(current_rate, 2),
                 "previous_rate": round(previous_rate, 2),

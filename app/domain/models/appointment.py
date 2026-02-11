@@ -24,6 +24,8 @@ class Appointment(BaseModel):
     scheduled_start: datetime = Field(..., description="Scheduled start time")
     scheduled_end: Optional[datetime] = Field(None, description="Scheduled end time")
     location_address: Optional[str] = Field(None, description="Location address")
+    latitude: Optional[float] = Field(None, description="Geocoded latitude")
+    longitude: Optional[float] = Field(None, description="Geocoded longitude")
     outcome: Optional[AppointmentOutcome] = Field(None, description="Appointment outcome")
     assigned_rep_id: Optional[UUID] = Field(None, description="Assigned sales rep")
     interaction_id: Optional[UUID] = Field(None, description="Associated call/interaction ID")

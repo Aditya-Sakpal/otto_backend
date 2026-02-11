@@ -909,6 +909,15 @@ class GHLService:
                 appointment = Appointment(**appointment_data)
                 await appt_repo.create(appointment)
 
+            # Trigger background geocoding if location_address is set
+            if appointment_data.get("location_address"):
+                import asyncio
+                from app.infrastructure.integrations.google_geocoding import geocode_appointment_background
+                asyncio.create_task(geocode_appointment_background(
+                    appointment_id=appointment.id,
+                    location_address=appointment_data["location_address"],
+                ))
+
             logger.info(f"Updated appointment from GHL appointment {appointment_id}")
 
         except Exception as e:

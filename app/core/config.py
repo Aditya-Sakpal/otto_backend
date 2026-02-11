@@ -123,6 +123,9 @@ class Settings(BaseSettings):
         description="Default sender email address"
     )
 
+    # Google Maps
+    GOOGLE_MAPS_API_KEY: str = Field(default=os.getenv("GOOGLE_MAPS_API_KEY", ""), description="Google Maps API key for geocoding")
+
     # GoHighLevel Configuration
     GHL_PUBLIC_KEY: str = Field(default=os.getenv("GHL_PUBLIC_KEY", ""), description="GoHighLevel public key")
     # Feature Flags

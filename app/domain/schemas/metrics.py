@@ -48,6 +48,10 @@ class BookingRateImprovementResponse(BaseModel):
     end_date: Optional[str] = None
     previous_period_start: Optional[str] = None
     previous_period_end: Optional[str] = None
+    # Optional dual-period series for frontend comparison (new mode)
+    period_a: Optional[Dict[str, Any]] = None
+    period_b: Optional[Dict[str, Any]] = None
+    x_axis: Optional[List[str]] = None
 
 
 class TopObjectionResponse(BaseModel):

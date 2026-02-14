@@ -1486,6 +1486,12 @@ class CallService:
                 booking_status_raw = (analysis.booking_status or "").strip() if analysis else None
                 if not booking_status_raw:
                     booking_status_raw = None
+                # Determine if service was offered: false when booking_status explicitly indicates service not offered
+                is_service_offered = True
+                if booking_status_raw:
+                    bs_norm = booking_status_raw.lower().replace("_", " ").replace("-", " ").strip()
+                    if bs_norm == "service not offered":
+                        is_service_offered = False
 
                 # Ghost mode filtering - only for meetings
                 if current_user and call.interaction_type == "meeting":
@@ -1512,6 +1518,7 @@ class CallService:
                     "is_qualified": is_qualified,
                     "is_booked": is_booked,
                     "booking_status": booking_status_raw,
+                    "is_service_offered": is_service_offered,
                     "is_existing_customer": bool(analysis.is_existing_customer) if analysis and analysis.is_existing_customer is not None else None,
                     "lead_source": getattr(call, "lead_source", None) or None,
                     "audio_url": audio_url,

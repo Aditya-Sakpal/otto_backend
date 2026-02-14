@@ -53,6 +53,32 @@ class BookingRateImprovementResponse(BaseModel):
     period_a: Optional[Dict[str, Any]] = None
     period_b: Optional[Dict[str, Any]] = None
     x_axis: Optional[List[str]] = None
+    y_axis: Optional[List[int]] = None
+
+
+class CloseRateTrendsResponse(BaseModel):
+    """Close rate trends metrics (similar to booking rate but for closed/won deals)."""
+    # Legacy single-period fields (made optional to support dual-period response)
+    current_rate: Optional[float] = None
+    previous_rate: Optional[float] = None
+    improvement_percentage: Optional[float] = None
+    total_closed: Optional[int] = None
+    total_qualified: Optional[int] = None
+    closed_appointments: Optional[int] = None
+    closed_leads: Optional[int] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    previous_period_start: Optional[str] = None
+    previous_period_end: Optional[str] = None
+    # Optional dual-period series for frontend comparison (new mode)
+    period_a: Optional[Dict[str, Any]] = None
+    period_b: Optional[Dict[str, Any]] = None
+    x_axis: Optional[List[str]] = None
+    # Top-level y_axis ticks (nice round numbers) aligned with x_axis positions
+    y_axis: Optional[List[int]] = None
+    period_a: Optional[Dict[str, Any]] = None
+    period_b: Optional[Dict[str, Any]] = None
+    x_axis: Optional[List[str]] = None
     # Top-level y_axis ticks (nice round numbers) aligned with x_axis positions
     y_axis: Optional[List[int]] = None
 

@@ -191,19 +191,28 @@ async def shoonya_job_complete_webhook(
         # Get company_id - try multiple sources
         company_id = payload.get("company_id") or request.headers.get("X-Company-Id")
 
-        # Initialize service to get call and company_id
+        # Initialize service
         service = CallService(db)
+
+        # Try to get existing call record (OLD FLOW)
+        # In NEW FLOW, call may not exist yet
         call = await service.call_repo.get_by_id(call_id)
 
-        if not call:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Call {call_id} not found",
-            )
-
-        # Use company_id from call if not in payload
-        if not company_id:
-            company_id = str(call.company_id)
+        # Get company_id from call if exists, otherwise from payload
+        if call:
+            # OLD FLOW: Call record exists
+            if not company_id:
+                company_id = str(call.company_id)
+            logger.info(f"Found existing call record for {call_id}")
+        else:
+            # NEW FLOW: Call record doesn't exist yet (direct Shunya submission)
+            if not company_id:
+                logger.warning(f"Call {call_id} not found and no company_id in payload")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Call {call_id} not found and company_id not provided",
+                )
+            logger.info(f"No existing call record for {call_id}, will create from Shunya results (NEW FLOW)")
 
         # CRITICAL: Always fetch complete call summary from Shunya Summary API
         # The webhook payload only contains URLs (summary_url at top level or in results), not the actual data

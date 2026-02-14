@@ -52,11 +52,15 @@ class AppointmentOutcome(str, Enum):
 
 class ObjectionType(str, Enum):
     """Type of objection raised."""
-    PRICE = "price"
-    TIMING = "timing"
-    AUTHORITY = "authority"
-    NEED = "need"
-    COMPETITOR = "competitor"
+    IMMEDIATE_SERVICE_UNAVAILABILITY = "immediate_service_unavailability"
+    PHONE_CONNECTION_ISSUES = "phone_connection_issues"
+    CUSTOMER_NEEDS_TIME_TO_DECIDE = "customer_needs_time_to_decide"
+    SCHEDULING_CONFLICTS = "scheduling_conflicts"
+    SERVICE_FEE_CONCERNS = "service_fee_concerns"
+    IN_PERSON_ESTIMATES_ONLY = "in_person_estimates_only"
+    INEFFICIENT_AGENT_COMMUNICATION = "inefficient_agent_communication"
+    CUSTOMER_DATA_PRIVACY_CONCERNS = "customer_data_privacy_concerns"
+    SERVICE_NOT_CATERED = "service_not_catered"
     OTHER = "other"
 
 

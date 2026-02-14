@@ -26,6 +26,7 @@ class CallLogEntry(BaseModel):
     is_qualified: Optional[bool] = None
     is_booked: Optional[bool] = None
     booking_status: Optional[str] = None
+    is_service_offered: Optional[bool] = None
     is_existing_customer: Optional[bool] = None
     lead_source: Optional[str] = None
     audio_url: Optional[str] = None

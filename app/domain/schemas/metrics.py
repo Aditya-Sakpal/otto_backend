@@ -36,11 +36,12 @@ class CSRDashboardResponse(BaseModel):
 
 class BookingRateImprovementResponse(BaseModel):
     """Booking rate improvement metrics."""
-    current_rate: float
-    previous_rate: float
-    improvement_percentage: float
-    total_bookings: int
-    total_qualified: int
+    # Legacy single-period fields (made optional to support dual-period response)
+    current_rate: Optional[float] = None
+    previous_rate: Optional[float] = None
+    improvement_percentage: Optional[float] = None
+    total_bookings: Optional[int] = None
+    total_qualified: Optional[int] = None
     booked_appointments: Optional[int] = None
     booked_calls: Optional[int] = None
     booked_leads: Optional[int] = None
@@ -52,6 +53,8 @@ class BookingRateImprovementResponse(BaseModel):
     period_a: Optional[Dict[str, Any]] = None
     period_b: Optional[Dict[str, Any]] = None
     x_axis: Optional[List[str]] = None
+    # Top-level y_axis ticks (nice round numbers) aligned with x_axis positions
+    y_axis: Optional[List[int]] = None
 
 
 class TopObjectionResponse(BaseModel):

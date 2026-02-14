@@ -464,14 +464,148 @@ class MetricsService:
                 a_counts = await counts_by_day(start_a, end_a)
                 b_counts = await counts_by_day(start_b, end_b)
 
-                x_axis = sorted(list(set(list(a_counts.keys()) + list(b_counts.keys()))))
-                series_a = [{"x": d, "y": a_counts.get(d, 0)} for d in x_axis]
-                series_b = [{"x": d, "y": b_counts.get(d, 0)} for d in x_axis]
+                # Convert counts dicts to ordered daily lists for each period
+                def dict_to_ordered_list(counts_dict: Dict[str, int], start: date, end: date) -> List[int]:
+                    lst: List[int] = []
+                    cur = start
+                    from datetime import timedelta as __td
+                    while cur <= end:
+                        lst.append(counts_dict.get(cur.isoformat(), 0))
+                        cur = cur + __td(days=1)
+                    return lst
+
+                a_daily = dict_to_ordered_list(a_counts, start_a, end_a)
+                b_daily = dict_to_ordered_list(b_counts, start_b, end_b)
+
+                len_a = len(a_daily)
+                len_b = len(b_daily)
+                max_len = max(len_a, len_b, 1)
+                # Limit to at most 10 points
+                K = min(max_len, 10)
+
+                # Prepare date lists for each day in the periods
+                def dates_list(start: date, end: date) -> List[str]:
+                    lst: List[str] = []
+                    cur = start
+                    from datetime import timedelta as __td
+                    while cur <= end:
+                        lst.append(cur.isoformat())
+                        cur = cur + __td(days=1)
+                    return lst
+
+                a_dates = dates_list(start_a, end_a)
+                b_dates = dates_list(start_b, end_b)
+
+                # Bucket daily lists into K buckets (evenly spaced). Return (values, rep_dates)
+                def bucket_list_with_dates(daily: List[int], dates: List[str], buckets: int) -> tuple[List[int], List[str]]:
+                    n = len(daily)
+                    if n == 0:
+                        return [0] * buckets, [""] * buckets
+                    if n <= buckets:
+                        # pad values and dates to buckets by repeating last date for padded entries
+                        values = daily + [0] * (buckets - n)
+                        last_date = dates[-1] if dates else ""
+                        dts = dates + [last_date] * (buckets - n)
+                        return values, dts
+                    # n > buckets: split into nearly-equal slices
+                    vals: List[int] = []
+                    rep_dates: List[str] = []
+                    for i in range(buckets):
+                        start_idx = (i * n) // buckets
+                        end_idx = ((i + 1) * n) // buckets  # end exclusive
+                        slice_sum = sum(daily[start_idx:end_idx])
+                        vals.append(slice_sum)
+                        # choose representative date as the date at start_idx
+                        rep_dates.append(dates[start_idx] if start_idx < n else dates[-1])
+                    return vals, rep_dates
+
+                a_buckets, a_rep_dates = bucket_list_with_dates(a_daily, a_dates, K)
+                b_buckets, b_rep_dates = bucket_list_with_dates(b_daily, b_dates, K)
+
+                # Build x-axis labels as Day 1..K (relative positions)
+                x_axis = [f"Day {i+1}" for i in range(K)]
+
+                # Build series for frontend: x = actual ISO date (representative), y = value
+                series_a = [{"x": a_rep_dates[i], "y": a_buckets[i]} for i in range(K)]
+                series_b = [{"x": b_rep_dates[i], "y": b_buckets[i]} for i in range(K)]
+
+                # Compute smart y-axis ticks (nice round numbers), max points = 10
+                def compute_ticks(values: List[int], max_ticks: int = 10) -> List[int]:
+                    import math
+
+                    if not values:
+                        return [0]
+                    max_v = max(values)
+                    min_v = min([v for v in values if v is not None] or [0])
+                    if max_v <= 0:
+                        return [0]
+
+                    # search for "nice" step sizes (1,2,5 * 10^exp) that give tick count between 2 and max_ticks
+                    exp_min = int(math.floor(math.log10(max_v))) - 3
+                    exp_max = int(math.floor(math.log10(max_v))) + 1
+                    candidates = []
+                    for exp in range(exp_min, exp_max + 1):
+                        for m in [1, 2, 5, 10]:
+                            # compute float step then coerce to integer tick step >= 1
+                            step_f = m * (10 ** exp)
+                            step = max(1, int(round(step_f)))
+                            if step <= 0:
+                                step = 1
+                            low_tick = (min_v // step) * step
+                            high_tick = int(math.ceil(max_v / step)) * step
+                            if step == 0:
+                                continue
+                            n_ticks = ((high_tick - low_tick) // step) + 1 if step > 0 else float("inf")
+                            candidates.append((int(n_ticks), int(low_tick), int(high_tick), int(step)))
+
+                    # filter candidates with acceptable number of ticks
+                    valid = [c for c in candidates if 2 <= c[0] <= max_ticks]
+                    preferred_target = min(6, max_ticks)
+                    chosen = None
+                    if valid:
+                        # choose candidate with n_ticks closest to preferred_target, tie-breaker smaller step
+                        valid.sort(key=lambda x: (abs(x[0] - preferred_target), x[3]))
+                        chosen = valid[0]
+                    else:
+                        # fallback: choose candidate with n_ticks closest to max_ticks
+                        if not candidates:
+                            return [0]
+                        candidates.sort(key=lambda x: (abs(x[0] - max_ticks), x[3]))
+                        chosen = candidates[0]
+
+                    n_ticks, low_tick, high_tick, step = chosen
+                    # Ensure ticks start from a non-negative sensible base (if low_tick < 0, set to 0)
+                    if low_tick < 0:
+                        low_tick = 0
+                    # guard: step must be at least 1
+                    step = max(1, int(step))
+                    # build ticks inclusive of high_tick
+                    ticks = list(range(int(low_tick), int(high_tick) + 1, int(step)))
+                    # If ticks length exceeds max_ticks due to rounding, downsample evenly
+                    if len(ticks) > max_ticks:
+                        import math as _math
+                        indices = [_math.floor(i * (len(ticks) - 1) / (max_ticks - 1)) for i in range(max_ticks)]
+                        ticks = [ticks[i] for i in indices]
+                    return ticks
+
+                combined_vals = a_buckets + b_buckets
+                ticks = compute_ticks([int(v) for v in combined_vals])
 
                 return {
-                    "period_a": {"start": start_a.isoformat(), "end": end_a.isoformat(), "total_booked": sum(a_counts.values()), "series": series_a},
-                    "period_b": {"start": start_b.isoformat(), "end": end_b.isoformat(), "total_booked": sum(b_counts.values()), "series": series_b},
+                    "period_a": {
+                        "start": start_a.isoformat(),
+                        "end": end_a.isoformat(),
+                        "total_booked": sum(a_daily),
+                        "series": series_a,
+                    },
+                    "period_b": {
+                        "start": start_b.isoformat(),
+                        "end": end_b.isoformat(),
+                        "total_booked": sum(b_daily),
+                        "series": series_b,
+                    },
                     "x_axis": x_axis,
+                    "y_axis": ticks,
                 }
 
             # Legacy behavior (single period): keep existing calculation (current vs previous period)

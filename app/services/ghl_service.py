@@ -1419,67 +1419,52 @@ class GHLService:
                 "recording_num_bytes": recording_num_bytes,
             }
 
-            # Create call record
-            call_repo = CallRepository(db_session)
-            call = Call(
-                company_id=company_id,
-                contact_card_id=contact_card.id,
-                lead_id=lead.id if lead else None,
-                phone_number=contact_phone,
-                call_type=call_type,
-                audio_url=recording_s3_url,
-                duration_seconds=call_duration,  # From callDuration field in webhook
-                missed_call=False,  # GHL calls are typically not missed
-                handled_by_user_id=handled_by_user_id,
-                interaction_type="call",
-                extra_metadata=extra_metadata,
-            )
+            # NEW FLOW: Send directly to Shunya without creating call record first
+            # This allows Shunya to analyze first, then we create call_analyses and appointment from results
 
-            call = await call_repo.create(call)
-            call_id = call.id
-
-            logger.info(
-                f"Created call record in database",
-                call_id=str(call_id),
-                company_id=str(company_id),
-                location_id=location_id,
-                message_id=message_id,
-                lead_id=str(lead.id) if lead else None,
-            )
-
-            # Update lead with last call metadata
-            if lead:
+            # Update lead status if it's new (mark as warm after first call)
+            if lead and lead.status == LeadStatus.NEW:
                 try:
-                    # Update lead's extra_metadata with last call info
-                    if not lead.extra_metadata:
-                        lead.extra_metadata = {}
-
-                    lead.extra_metadata["last_call_id"] = str(call_id)
-                    lead.extra_metadata["last_call_date"] = date_added or datetime.utcnow().isoformat()
-                    lead.extra_metadata["last_call_direction"] = direction
-                    lead.extra_metadata["last_call_recording_url"] = recording_s3_url
-                    if handled_by_user_id:
-                        lead.extra_metadata["last_call_handled_by"] = str(handled_by_user_id)
-
-                    # Update lead status if it's new (mark as warm after first call)
-                    if lead.status == LeadStatus.NEW:
-                        lead.status = LeadStatus.WARM
-
+                    lead.status = LeadStatus.WARM
                     await lead_repo.update(lead.id, lead)
-                    logger.info(f"Updated lead {lead.id} with last call metadata")
+                    logger.info(f"Updated lead {lead.id} status to WARM after call")
                 except Exception as e:
-                    logger.exception(f"Failed to update lead metadata: {e}")
+                    logger.exception(f"Failed to update lead status: {e}")
 
-            # Trigger Shunya analysis if audio URL is available
-            if recording_s3_url and not call.missed_call:
+            # Send directly to Shunya for analysis (NEW FLOW)
+            shunya_job_id = None
+            temp_call_id = None
+            if recording_s3_url:
                 try:
                     from app.services.call_service import CallService
                     call_service = CallService(db_session)
-                    await call_service.trigger_analysis(call.id)
-                    logger.info(f"Triggered Shunya analysis for GHL call {call.id}")
+
+                    # Determine call_type_str
+                    call_type_str = call_type.value if hasattr(call_type, 'value') else str(call_type) if call_type else "csr_call"
+
+                    result = await call_service.trigger_analysis_direct(
+                        company_id=company_id,
+                        audio_url=recording_s3_url,
+                        phone_number=contact_phone,
+                        contact_card_id=contact_card.id,
+                        lead_id=lead.id if lead else None,
+                        handled_by_user_id=handled_by_user_id,
+                        call_type=call_type_str,
+                        duration_seconds=call_duration,
+                        call_date=date_added,
+                        extra_metadata=extra_metadata,
+                    )
+                    shunya_job_id = result.get("job_id")
+                    temp_call_id = result.get("temp_call_id")
+                    logger.info(
+                        f"Sent call directly to Shunya for analysis",
+                        job_id=shunya_job_id,
+                        temp_call_id=temp_call_id,
+                        company_id=str(company_id),
+                    )
                 except Exception as e:
-                    logger.error(f"Failed to trigger Shunya analysis for call {call.id}: {e}", exc_info=True)
-                    # Don't raise - analysis is non-critical
+                    logger.error(f"Failed to send call to Shunya: {e}", exc_info=True)
+                    # Don't raise - continue processing
 
             return {
                 "ok": True,
@@ -1487,7 +1472,8 @@ class GHLService:
                 "locationId": location_id,
                 "contactId": contact_id,
                 "companyId": str(company_id) if company_id else None,
-                "callId": str(call_id) if call_id else None,
+                "tempCallId": temp_call_id,  # Temporary ID for tracking
+                "shunyaJobId": shunya_job_id,  # Shunya job ID for tracking
                 "leadId": str(lead.id) if lead else None,
                 "dateAdded": date_added,
                 "direction": direction,

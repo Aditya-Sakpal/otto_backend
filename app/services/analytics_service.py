@@ -55,10 +55,27 @@ def _build_call_log_entry(
 
 class AnalyticsService:
     """Service for analytics calculations."""
-    
+
     def __init__(self, session: AsyncSession):
         self.session = session
-    
+
+    def _classify_objections_in_analysis(self, analysis: CallAnalysisORM) -> List[str]:
+        """
+        Classify raw objections from analysis into standardized categories.
+
+        Args:
+            analysis: CallAnalysisORM instance with raw objections
+
+        Returns:
+            List of classified objection categories (deduplicated)
+        """
+        from app.domain.objection_classifier import ObjectionClassifier
+
+        if not analysis or not analysis.objections:
+            return []
+
+        return ObjectionClassifier.classify_and_deduplicate(analysis.objections)
+
     async def get_top_objections(
         self,
         company_id: Optional[UUID] = None,
@@ -129,7 +146,9 @@ class AnalyticsService:
             for analysis, call, contact_card in rows:
                 if not analysis.objections:
                     continue
-                for obj_type in analysis.objections:
+                # Classify objections before aggregating
+                classified_objections = self._classify_objections_in_analysis(analysis)
+                for obj_type in classified_objections:
                     if not obj_type or not str(obj_type).strip():
                         continue
                     obj_type_normalized = str(obj_type).strip()
@@ -286,31 +305,18 @@ class AnalyticsService:
         - booking_status: Booking status from analysis
         """
         try:
-            # Build query with join for better performance
-            # Normalize objection to lowercase for case-insensitive matching
-            objection_normalized = objection.lower().strip()
+            # Expand objection filter to include new categories
+            from app.domain.objection_classifier import ObjectionClassifier
+
+            # Get the target categories (handles both old and new objection types)
+            target_categories = ObjectionClassifier.expand_objection_filter(objection)
+
+            # For backward compatibility, we'll fetch all calls with objections
+            # and filter in Python after classification
+            # This ensures accurate results with the new classification system
             
-            # Map common variations to standard values
-            # This handles data inconsistencies like 'price' vs 'pricing'
-            objection_mappings = {
-                'price': ['price', 'pricing', 'cost', 'costs'],
-                'timing': ['timing', 'time', 'schedule', 'scheduling'],
-                'authority': ['authority', 'decision', 'decision-maker'],
-                'need': ['need', 'needs', 'requirement', 'requirements'],
-                'competitor': ['competitor', 'competitors', 'competition'],
-                'other': ['other', 'others', 'misc', 'miscellaneous'],
-            }
-            
-            # Get all possible variations for this objection
-            objection_variations = objection_mappings.get(objection_normalized, [objection_normalized])
-            # Also include the original value in case it's not in the mapping
-            if objection_normalized not in objection_variations:
-                objection_variations.insert(0, objection_normalized)
-            
-            # Use PostgreSQL array overlap operator (&&) to check if any variation matches
-            # Convert variations to lowercase array for case-insensitive comparison
-            variations_array = [v.lower() for v in objection_variations]
-            
+            # Fetch all calls with objections for this company
+            # We'll filter by classification in Python for accuracy
             query = select(
                 CallAnalysisORM,
                 CallORM,
@@ -323,10 +329,6 @@ class AnalyticsService:
                 CallAnalysisORM.company_id == company_id,
                 CallAnalysisORM.objections.isnot(None),
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
-                # Check if any variation matches any element in the array (case-insensitive)
-                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
-                    bindparam('variations', variations_array)
-                ),
                 _metrics_exclude_existing_and_service_not_offered(),
             )
             
@@ -338,9 +340,14 @@ class AnalyticsService:
             results = await self.session.execute(query)
             rows = results.all()
             
-            # Build response
+            # Build response - filter by classified objections
             result = []
             for analysis, call, contact_card in rows:
+                # Classify objections and check if any match the target categories
+                classified_objections = self._classify_objections_in_analysis(analysis)
+                if not any(obj in target_categories for obj in classified_objections):
+                    continue
+
                 # Get contact card data
                 contact_card_data = None
                 if contact_card:
@@ -359,7 +366,7 @@ class AnalyticsService:
                         "property_snapshot": contact_card.property_snapshot,
                         "extra_metadata": contact_card.extra_metadata,
                     }
-                
+
                 result.append({
                     "call_id": str(call.id),
                     "contact_card": contact_card_data,
@@ -403,23 +410,12 @@ class AnalyticsService:
         try:
             from app.infrastructure.database.models.lead import LeadORM
             from app.infrastructure.database.models.user import UserORM
-            
-            # Normalize objection
-            objection_normalized = objection.lower().strip()
-            objection_mappings = {
-                'price': ['price', 'pricing', 'cost', 'costs'],
-                'timing': ['timing', 'time', 'schedule', 'scheduling'],
-                'authority': ['authority', 'decision', 'decision-maker'],
-                'need': ['need', 'needs', 'requirement', 'requirements'],
-                'competitor': ['competitor', 'competitors', 'competition'],
-                'other': ['other', 'others', 'misc', 'miscellaneous'],
-            }
-            objection_variations = objection_mappings.get(objection_normalized, [objection_normalized])
-            if objection_normalized not in objection_variations:
-                objection_variations.insert(0, objection_normalized)
-            variations_array = [v.lower() for v in objection_variations]
-            
-            # 1. Get calls with that objection
+            from app.domain.objection_classifier import ObjectionClassifier
+
+            # Expand objection filter to include new categories
+            target_categories = ObjectionClassifier.expand_objection_filter(objection)
+
+            # 1. Get calls with objections (will filter by classification in Python)
             calls_query = select(
                 CallORM,
                 CallAnalysisORM,
@@ -432,9 +428,6 @@ class AnalyticsService:
                 CallAnalysisORM.company_id == company_id,
                 CallAnalysisORM.objections.isnot(None),
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
-                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
-                    bindparam('variations', variations_array)
-                ),
                 _metrics_exclude_existing_and_service_not_offered(),
             )
             
@@ -448,6 +441,11 @@ class AnalyticsService:
             
             calls_data = []
             for call, analysis, contact_card in calls_rows:
+                # Classify objections and filter by target categories
+                classified_objections = self._classify_objections_in_analysis(analysis)
+                if not any(obj in target_categories for obj in classified_objections):
+                    continue
+
                 # Get contact name
                 contact_name = None
                 if contact_card:
@@ -459,7 +457,7 @@ class AnalyticsService:
                         contact_name = contact_card.last_name
                     else:
                         contact_name = contact_card.primary_phone
-                
+
                 calls_data.append({
                     "id": str(call.id),
                     "contact_name": contact_name or "Unknown",
@@ -475,38 +473,43 @@ class AnalyticsService:
             # 2. Get unbooked leads with that objection
             # Unbooked = leads with status not 'qualified_booked' and not 'closed_won'
             unbooked_statuses = ['new', 'warm', 'hot', 'qualified_unbooked', 'qualified_service_not_offered', 'nurturing']
-            
-            # Use DISTINCT ON to avoid JSON comparison issues
-            # Use subquery to get distinct lead IDs first, then join to avoid JSON comparison issues
-            distinct_lead_ids = select(LeadORM.id).join(
+
+            # Get leads with their calls and analyses for classification
+            unbooked_query = select(
+                LeadORM,
+                ContactCardORM,
+                CallAnalysisORM
+            ).join(
                 CallORM, CallORM.lead_id == LeadORM.id
             ).join(
                 CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
+            ).join(
+                ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
             ).where(
                 LeadORM.company_id == company_id,
                 LeadORM.status.in_(unbooked_statuses),
                 CallAnalysisORM.objections.isnot(None),
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
-                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
-                    bindparam('variations', variations_array)
-                ),
                 _metrics_exclude_existing_and_service_not_offered(),
-            ).distinct().subquery()
-            
-            unbooked_leads_query = select(
-                LeadORM,
-                ContactCardORM
-            ).join(
-                ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
-            ).where(
-                LeadORM.id.in_(select(distinct_lead_ids.c.id))
             )
-            
-            unbooked_results = await self.session.execute(unbooked_leads_query)
+
+            unbooked_results = await self.session.execute(unbooked_query)
             unbooked_rows = unbooked_results.all()
-            
+
+            # Filter leads by classified objections and deduplicate
+            seen_leads = set()
             unbooked_leads_data = []
-            for lead, contact_card in unbooked_rows:
+            for lead, contact_card, analysis in unbooked_rows:
+                # Skip if we've already processed this lead
+                if lead.id in seen_leads:
+                    continue
+
+                # Classify objections and check if any match target categories
+                classified_objections = self._classify_objections_in_analysis(analysis)
+                if not any(obj in target_categories for obj in classified_objections):
+                    continue
+
+                seen_leads.add(lead.id)
                 contact_name = None
                 if contact_card:
                     if contact_card.first_name and contact_card.last_name:
@@ -527,12 +530,13 @@ class AnalyticsService:
                 })
             
             # 3. Get CSRs with unbooked calls for that objection (most coaching need)
-            # Count unbooked calls per CSR
+            # Get all CSR-call-analysis combinations for filtering
             csr_unbooked_query = select(
                 UserORM.id,
                 UserORM.first_name,
                 UserORM.last_name,
-                func.count(CallORM.id).label('unbooked_calls_count')
+                CallORM.id.label('call_id'),
+                CallAnalysisORM
             ).join(
                 CallORM, CallORM.handled_by_user_id == UserORM.id
             ).join(
@@ -546,23 +550,35 @@ class AnalyticsService:
                 LeadORM.status.in_(unbooked_statuses),
                 CallAnalysisORM.objections.isnot(None),
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
-                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
-                    bindparam('variations', variations_array)
-                ),
                 _metrics_exclude_existing_and_service_not_offered(),
-            ).group_by(
-                UserORM.id,
-                UserORM.first_name,
-                UserORM.last_name
-            ).order_by(
-                func.count(CallORM.id).desc()
             )
-            
+
             csr_results = await self.session.execute(csr_unbooked_query)
             csr_rows = csr_results.all()
-            
+
+            # Count unbooked calls per CSR after classification
+            csr_counts = {}
+            for user_id_val, first_name, last_name, call_id, analysis in csr_rows:
+                # Classify objections and check if any match target categories
+                classified_objections = self._classify_objections_in_analysis(analysis)
+                if not any(obj in target_categories for obj in classified_objections):
+                    continue
+
+                # Count this call for the CSR
+                if user_id_val not in csr_counts:
+                    csr_counts[user_id_val] = {
+                        'first_name': first_name,
+                        'last_name': last_name,
+                        'count': 0
+                    }
+                csr_counts[user_id_val]['count'] += 1
+
+            # Sort by count descending and build response
             most_coaching_need_data = []
-            for user_id_val, first_name, last_name, unbooked_count in csr_rows:
+            for user_id_val, data in sorted(csr_counts.items(), key=lambda x: x[1]['count'], reverse=True):
+                first_name = data['first_name']
+                last_name = data['last_name']
+                unbooked_count = data['count']
                 name = None
                 if first_name and last_name:
                     name = f"{first_name} {last_name}"
@@ -624,42 +640,36 @@ class AnalyticsService:
         try:
             from app.infrastructure.database.models.lead import LeadORM
             from app.infrastructure.database.models.user import UserORM
-            
+            from app.domain.objection_classifier import ObjectionClassifier
+
             # Parse dates
             if start_date:
                 start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=None)
             else:
                 start_dt = datetime.now().replace(tzinfo=None) - timedelta(days=30)
-            
+
             if end_date:
                 end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=None)
             else:
                 end_dt = datetime.now().replace(tzinfo=None)
-            
-            # Normalize objection
-            objection_normalized = objection.lower().strip()
-            objection_mappings = {
-                'price': ['price', 'pricing', 'cost', 'costs'],
-                'timing': ['timing', 'time', 'schedule', 'scheduling'],
-                'authority': ['authority', 'decision', 'decision-maker'],
-                'need': ['need', 'needs', 'requirement', 'requirements'],
-                'competitor': ['competitor', 'competitors', 'competition'],
-                'other': ['other', 'others', 'misc', 'miscellaneous'],
-            }
-            objection_variations = objection_mappings.get(objection_normalized, [objection_normalized])
-            if objection_normalized not in objection_variations:
-                objection_variations.insert(0, objection_normalized)
-            variations_array = [v.lower() for v in objection_variations]
+
+            # Expand objection filter to include new categories
+            target_categories = ObjectionClassifier.expand_objection_filter(objection)
             
             unbooked_statuses = ['new', 'warm', 'hot', 'qualified_unbooked', 'qualified_service_not_offered', 'nurturing']
-            
+
             # 1. UNBOOKED LEADS TAB - Get booking rate improvement and graph data
-            # Get qualified leads with this objection in date range
-            # Use subquery to get distinct lead IDs first, then join to avoid JSON comparison issues
-            qualified_lead_ids_query = select(LeadORM.id).join(
+            # Fetch all qualified leads with objections, then filter by classification in Python
+            qualified_leads_query = select(
+                LeadORM,
+                ContactCardORM,
+                CallAnalysisORM
+            ).join(
                 CallORM, CallORM.lead_id == LeadORM.id
             ).join(
                 CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
+            ).outerjoin(
+                ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
             ).where(
                 LeadORM.company_id == company_id,
                 LeadORM.created_at >= start_dt,
@@ -667,28 +677,28 @@ class AnalyticsService:
                 LeadORM.status.in_(['qualified_booked', 'qualified_unbooked']),
                 CallAnalysisORM.objections.isnot(None),
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
-                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
-                    bindparam('variations', variations_array)
-                ),
                 _metrics_exclude_existing_and_service_not_offered(),
             )
-            
+
             if user_id:
-                qualified_lead_ids_query = qualified_lead_ids_query.where(CallORM.handled_by_user_id == user_id)
-            
-            distinct_lead_ids = qualified_lead_ids_query.distinct().subquery()
-            
-            qualified_leads_query = select(
-                LeadORM,
-                ContactCardORM
-            ).join(
-                ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
-            ).where(
-                LeadORM.id.in_(select(distinct_lead_ids.c.id))
-            )
-            
+                qualified_leads_query = qualified_leads_query.where(CallORM.handled_by_user_id == user_id)
+
             qualified_results = await self.session.execute(qualified_leads_query)
-            qualified_rows = qualified_results.all()
+            qualified_rows_raw = qualified_results.all()
+
+            # Filter by classification in Python
+            qualified_rows = []
+            seen_lead_ids = set()
+            for lead, contact, analysis in qualified_rows_raw:
+                # Skip duplicates (same lead may have multiple calls)
+                if lead.id in seen_lead_ids:
+                    continue
+
+                # Classify objections and check if any match target categories
+                classified_objections = self._classify_objections_in_analysis(analysis)
+                if any(obj in target_categories for obj in classified_objections):
+                    qualified_rows.append((lead, contact))
+                    seen_lead_ids.add(lead.id)
             
             # Calculate booking rate improvement
             total_qualified = len(qualified_rows)
@@ -753,11 +763,13 @@ class AnalyticsService:
                     })
             
             # 2. MOST COACHING NEED TAB - CSRs with unbooked calls
+            # Fetch all CSRs with unbooked calls, then filter by classification in Python
             csr_unbooked_query = select(
                 UserORM.id,
                 UserORM.first_name,
                 UserORM.last_name,
-                func.count(CallORM.id).label('unbooked_calls_count')
+                CallORM.id.label('call_id'),
+                CallAnalysisORM
             ).join(
                 CallORM, CallORM.handled_by_user_id == UserORM.id
             ).join(
@@ -771,42 +783,51 @@ class AnalyticsService:
                 LeadORM.status.in_(unbooked_statuses),
                 CallAnalysisORM.objections.isnot(None),
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
-                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
-                    bindparam('variations', variations_array)
-                ),
                 _metrics_exclude_existing_and_service_not_offered(),
                 CallORM.created_at >= start_dt,
                 CallORM.created_at <= end_dt
-            ).group_by(
-                UserORM.id,
-                UserORM.first_name,
-                UserORM.last_name
-            ).order_by(
-                func.count(CallORM.id).desc()
             )
-            
+
             csr_results = await self.session.execute(csr_unbooked_query)
-            csr_rows = csr_results.all()
-            
+            csr_rows_raw = csr_results.all()
+
+            # Filter by classification in Python and count per CSR
+            csr_call_counts = {}
+            for user_id_val, first_name, last_name, call_id, analysis in csr_rows_raw:
+                # Classify objections and check if any match target categories
+                classified_objections = self._classify_objections_in_analysis(analysis)
+                if any(obj in target_categories for obj in classified_objections):
+                    if user_id_val not in csr_call_counts:
+                        csr_call_counts[user_id_val] = {
+                            'first_name': first_name,
+                            'last_name': last_name,
+                            'count': 0
+                        }
+                    csr_call_counts[user_id_val]['count'] += 1
+
+            # Sort by count descending
+            sorted_csrs = sorted(csr_call_counts.items(), key=lambda x: x[1]['count'], reverse=True)
+
             most_coaching_need_data = []
-            for user_id_val, first_name, last_name, unbooked_count in csr_rows:
+            for user_id_val, data in sorted_csrs:
                 name = None
-                if first_name and last_name:
-                    name = f"{first_name} {last_name}"
-                elif first_name:
-                    name = first_name
-                elif last_name:
-                    name = last_name
+                if data['first_name'] and data['last_name']:
+                    name = f"{data['first_name']} {data['last_name']}"
+                elif data['first_name']:
+                    name = data['first_name']
+                elif data['last_name']:
+                    name = data['last_name']
                 else:
                     name = "Unknown"
-                
+
                 most_coaching_need_data.append({
                     "csr_id": str(user_id_val),
                     "csr_name": name,
-                    "unbooked_calls": unbooked_count,
+                    "unbooked_calls": data['count'],
                 })
             
             # 3. CALLS TAB - Call recordings with contact names
+            # Fetch all calls with objections, then filter by classification in Python
             calls_query = select(
                 CallORM,
                 CallAnalysisORM,
@@ -819,24 +840,27 @@ class AnalyticsService:
                 CallAnalysisORM.company_id == company_id,
                 CallAnalysisORM.objections.isnot(None),
                 func.array_length(CallAnalysisORM.objections, 1) > 0,
-                text("ARRAY(SELECT LOWER(unnest(call_analyses.objections))) && :variations").bindparams(
-                    bindparam('variations', variations_array)
-                ),
                 _metrics_exclude_existing_and_service_not_offered(),
                 CallORM.created_at >= start_dt,
                 CallORM.created_at <= end_dt
             )
-            
+
             if user_id:
                 calls_query = calls_query.where(CallORM.handled_by_user_id == user_id)
-            
+
             calls_query = calls_query.order_by(CallORM.created_at.desc())
-            
+
             calls_results = await self.session.execute(calls_query)
             calls_rows = calls_results.all()
-            
+
+            # Filter by classification in Python
             calls_data = []
             for call, analysis, contact_card in calls_rows:
+                # Classify objections and check if any match target categories
+                classified_objections = self._classify_objections_in_analysis(analysis)
+                if not any(obj in target_categories for obj in classified_objections):
+                    continue
+
                 # Get contact name
                 contact_name = None
                 if contact_card:
@@ -845,7 +869,7 @@ class AnalyticsService:
                     contact_name = f"{first_name} {last_name}".strip() or None
                     if not contact_name:
                         contact_name = contact_card.primary_phone
-                
+
                 calls_data.append({
                     "id": str(call.id),
                     "contact_name": contact_name or "Unknown",

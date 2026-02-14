@@ -218,7 +218,7 @@ class CallService:
                         else:
                             # It's already a string
                             call_type_str = call.call_type
-                    
+
                     result = await self.shoonya.process_call(
                         call_id=str(call.id),
                         company_id=str(call.company_id),
@@ -243,6 +243,96 @@ class CallService:
                     raise
         except Exception as e:
             logger.error(f"Error triggering analysis: {e}")
+            raise e
+
+    async def trigger_analysis_direct(
+        self,
+        company_id: UUID,
+        audio_url: str,
+        phone_number: str,
+        contact_card_id: Optional[UUID] = None,
+        lead_id: Optional[UUID] = None,
+        handled_by_user_id: Optional[UUID] = None,
+        call_type: Optional[str] = None,
+        duration_seconds: Optional[int] = None,
+        call_date: Optional[str] = None,
+        extra_metadata: Optional[dict] = None,
+    ) -> dict:
+        """
+        Trigger AI analysis directly without creating a call record first.
+
+        This is the new flow: CRM → Shunya → call_analyses → appointment
+
+        Args:
+            company_id: Company UUID
+            audio_url: URL to call recording
+            phone_number: Phone number of the call
+            contact_card_id: Optional contact card ID
+            lead_id: Optional lead ID
+            handled_by_user_id: Optional user who handled the call
+            call_type: Type of call (csr_call, sales_call, etc.)
+            duration_seconds: Call duration in seconds
+            call_date: ISO format date string
+            extra_metadata: Additional metadata to pass to Shunya
+
+        Returns:
+            dict with job_id and status from Shunya
+        """
+        try:
+            if not audio_url:
+                raise ValueError("audio_url is required")
+
+            if not self.shoonya.is_available():
+                raise ValueError("Shunya service is not available")
+
+            from datetime import datetime
+            from app.core.config import settings
+            import uuid
+
+            # Generate a temporary call_id for tracking (will be used as reference)
+            temp_call_id = str(uuid.uuid4())
+
+            # Construct webhook URL
+            webhook_url = f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
+
+            # Prepare metadata with all call context
+            metadata = {
+                "call_type": call_type or "csr_call",
+                "contact_card_id": str(contact_card_id) if contact_card_id else None,
+                "lead_id": str(lead_id) if lead_id else None,
+                "handled_by_user_id": str(handled_by_user_id) if handled_by_user_id else None,
+                "direct_analysis": True,  # Flag to indicate this was sent directly
+                **(extra_metadata or {}),
+            }
+
+            # Submit to Shunya
+            result = await self.shoonya.process_call(
+                call_id=temp_call_id,
+                company_id=str(company_id),
+                audio_url=audio_url,
+                phone_number=phone_number,
+                duration=duration_seconds or 0,
+                call_date=call_date or datetime.utcnow().isoformat(),
+                webhook_url=webhook_url,
+                metadata=metadata,
+            )
+
+            logger.info(
+                "Call processing job submitted directly to Shunya",
+                temp_call_id=temp_call_id,
+                job_id=result.get("job_id"),
+                company_id=str(company_id),
+            )
+
+            return {
+                "job_id": result.get("job_id"),
+                "temp_call_id": temp_call_id,
+                "status": "submitted",
+            }
+
+        except Exception as e:
+            logger.error(f"Error triggering direct analysis: {e}")
+            traceback.print_exc()
             raise e
 
     async def process_analysis(
@@ -310,16 +400,64 @@ class CallService:
         }
         """
         try:
-            # Get the call
+            # Get the call (or create if NEW FLOW)
             call = await self.call_repo.get_by_id(call_id)
-            if not call:
-                raise ValueError(f"Call {call_id} not found")
 
-            # Update transcript if provided
-            if transcript:
-                call.transcript = transcript
-                await self.call_repo.update(call_id, call)
-                logger.info("Call transcript updated", call_id=str(call_id))
+            if not call:
+                # NEW FLOW: Call doesn't exist yet, create it from Shunya metadata
+                logger.info(f"Call {call_id} not found, creating from Shunya results (NEW FLOW)")
+
+                # Extract metadata from analysis_data
+                metadata = analysis_data.get("metadata", {})
+                qualification = analysis_data.get("qualification", {})
+
+                # Get call details from metadata or qualification
+                phone_number = metadata.get("phone_number", "unknown")
+                company_id_str = metadata.get("company_id")
+                if not company_id_str:
+                    raise ValueError("company_id required in metadata to create call record")
+
+                # Extract other fields from metadata
+                contact_card_id_str = metadata.get("contact_card_id")
+                lead_id_str = metadata.get("lead_id")
+                handled_by_user_id_str = metadata.get("handled_by_user_id")
+                call_type_str = metadata.get("call_type", "csr_call")
+                audio_url = metadata.get("audio_url")
+                duration_seconds = metadata.get("duration", 0)
+
+                # Create call record
+                from app.domain.models.call import Call
+                from app.domain.enums import CallType
+
+                new_call = Call(
+                    id=call_id,  # Use the temp_call_id from Shunya
+                    company_id=UUID(company_id_str),
+                    contact_card_id=UUID(contact_card_id_str) if contact_card_id_str else None,
+                    lead_id=UUID(lead_id_str) if lead_id_str else None,
+                    handled_by_user_id=UUID(handled_by_user_id_str) if handled_by_user_id_str else None,
+                    phone_number=phone_number,
+                    call_type=call_type_str,
+                    audio_url=audio_url,
+                    duration_seconds=duration_seconds,
+                    transcript=transcript,
+                    missed_call=False,
+                    interaction_type="call",
+                    extra_metadata=metadata,
+                )
+
+                call = await self.call_repo.create(new_call)
+                logger.info(
+                    "Created call record from Shunya results",
+                    call_id=str(call_id),
+                    company_id=company_id_str,
+                    lead_id=lead_id_str,
+                )
+            else:
+                # OLD FLOW: Call exists, update transcript if provided
+                if transcript:
+                    call.transcript = transcript
+                    await self.call_repo.update(call_id, call)
+                    logger.info("Call transcript updated", call_id=str(call_id))
 
             # Parse complete summary structure from Shunya Summary API
             # Handle both old webhook format and new Summary API format
@@ -1435,9 +1573,13 @@ class CallService:
                 # Get objections
                 objections = None
                 if analysis and analysis.objections:
+                    # Classify objections before displaying
+                    from app.domain.objection_classifier import ObjectionClassifier
+                    classified = ObjectionClassifier.classify_and_deduplicate(analysis.objections)
+
                     # Join objections with comma
-                    objections = ", ".join(analysis.objections[:3])  # Limit to first 3
-                    if len(analysis.objections) > 3:
+                    objections = ", ".join(classified[:3])  # Limit to first 3
+                    if len(classified) > 3:
                         objections += "..."
 
                 # Get tags (from lead status or extra_metadata)

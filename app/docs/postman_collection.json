@@ -1289,10 +1289,14 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/metrics/booking-rate-improvement?user_id={{user_id}}",
+              "raw": "{{base_url}}/api/v1/metrics/booking-rate-improvement?company_id={{company_id}}&start_a=2025-12-01&end_a=2025-12-07&start_b=2026-01-01&end_b=2026-01-07",
               "host": [
                 "{{base_url}}"
               ],
@@ -1306,17 +1310,48 @@
                 {
                   "key": "company_id",
                   "value": "{{company_id}}",
-                  "description": "Company UUID (optional if user_id is provided)",
-                  "disabled": true
+                  "description": "Company UUID (required unless user_id is provided)"
                 },
                 {
                   "key": "user_id",
                   "value": "{{user_id}}",
-                  "description": "User UUID (optional). If provided, booking rate improvement is calculated only for that user. If both company_id and user_id are provided, user_id is used."
+                  "description": "User UUID (optional). If provided, metrics are scoped to this user and company_id may be omitted."
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "(legacy) Start date for single-period mode (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "(legacy) End date for single-period mode (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "start_a",
+                  "value": "2025-12-01",
+                  "description": "Period A start date (YYYY-MM-DD) - new dual-period mode"
+                },
+                {
+                  "key": "end_a",
+                  "value": "2025-12-07",
+                  "description": "Period A end date (YYYY-MM-DD) - new dual-period mode"
+                },
+                {
+                  "key": "start_b",
+                  "value": "2026-01-01",
+                  "description": "Period B start date (YYYY-MM-DD) - new dual-period mode"
+                },
+                {
+                  "key": "end_b",
+                  "value": "2026-01-07",
+                  "description": "Period B end date (YYYY-MM-DD) - new dual-period mode"
                 }
               ]
             },
-            "description": "Get booking rate improvement metrics. Supports scoping by either company_id or user_id. If both company_id and user_id are provided, user_id is used."
+            "description": "Get booking rate improvement metrics. Legacy single-period mode uses start_date/end_date; new dual-period mode uses start_a/end_a and start_b/end_b and returns per-day booking series for both periods plus a unified x_axis for plotting."
           },
           "response": []
         },

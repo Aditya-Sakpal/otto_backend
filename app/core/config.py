@@ -100,7 +100,7 @@ class Settings(BaseSettings):
         description="JWT signing algorithm"
     )
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
+        default=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")),
         description="Access token expiration time in minutes"
     )
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(

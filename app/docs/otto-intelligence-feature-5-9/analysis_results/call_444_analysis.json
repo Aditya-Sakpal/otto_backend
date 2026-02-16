@@ -1,0 +1,12 @@
+{
+  "call_id": 444,
+  "timestamp": "2026-01-19T08:50:48.185790",
+  "call_data": null,
+  "transcript": null,
+  "summary": null,
+  "errors": [
+    "Call data not found in MongoDB",
+    "Transcript not found",
+    "Summary not found"
+  ]
+}

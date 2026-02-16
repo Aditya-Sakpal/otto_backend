@@ -1,0 +1,264 @@
+{
+  "call_id": 447,
+  "timestamp": "2026-01-19T08:50:50.929182",
+  "call_data": {
+    "call_id": "447",
+    "audio_url": "https://otto-call-recording.s3.us-east-1.amazonaws.com/v1/1323686197-redacted.mp3",
+    "call_date": "2026-01-17 19:59:04.440000",
+    "company_id": "string",
+    "created_at": "2026-01-17 20:05:11.127000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 15
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-17 20:05:11.127000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Thank you for calling Arizona Richards. My name is Deva. How can I help you?",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, I just need a quick quote for a 4,000 square foot roof.",
+        "start_time": 5.0,
+        "end_time": 8.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay, no problem. Just to put roof coating. Roof coating? Is this a flat roof?",
+        "start_time": 8.0,
+        "end_time": 12.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "It's a flat roof.",
+        "start_time": 12.0,
+        "end_time": 13.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Flat roof, yes. And then how old is your flat roof? Do you own it by chance?",
+        "start_time": 13.0,
+        "end_time": 17.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 17.0,
+        "end_time": 17.5,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. How old is your flat",
+        "start_time": 17.5,
+        "end_time": 19.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "The last coating we had was 5 years ago.",
+        "start_time": 19.0,
+        "end_time": 22.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "5 years ago, and you need to recode.",
+        "start_time": 22.0,
+        "end_time": 25.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yeah, no problem. I can help you out with that.",
+        "start_time": 25.0,
+        "end_time": 28.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Well, I just want to see what the quote is, how much you guys charge for a $4,000.",
+        "start_time": 28.0,
+        "end_time": 32.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "So I can't give you any quotes over the phone. The only way that we would be able to give you a quote would be to send a technician out there, get an inspection schedule.",
+        "start_time": 32.0,
+        "end_time": 38.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "They'll go up there, inspect your flat roof and then give you a quote.",
+        "start_time": 38.0,
+        "end_time": 41.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "That's okay. I'm sorry. I wasted your time. Sorry. Have a nice day.",
+        "start_time": 41.0,
+        "end_time": 45.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "No, you're okay. Yes, you too. Thank you.",
+        "start_time": 45.0,
+        "end_time": 48.0,
+        "original_speaker": "SPEAKER_00"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Thank you for calling Arizona Richards. My name is Deva. How can I help you?\n\nhome_owner: Yes, I just need a quick quote for a 4,000 square foot roof.\n\ncustomer_rep: Okay, no problem. Just to put roof coating. Roof coating? Is this a flat roof?\n\nhome_owner: It's a flat roof.\n\ncustomer_rep: Flat roof, yes. And then how old is your flat roof? Do you own it by chance?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. How old is your flat\n\nhome_owner: The last coating we had was 5 years ago.\n\ncustomer_rep: 5 years ago, and you need to recode.\n\nhome_owner: Yeah, no problem. I can help you out with that.\n\ncustomer_rep: Well, I just want to see what the quote is, how much you guys charge for a $4,000.\n\nhome_owner: So I can't give you any quotes over the phone. The only way that we would be able to give you a quote would be to send a technician out there, get an inspection schedule.\n\ncustomer_rep: They'll go up there, inspect your flat roof and then give you a quote.\n\nhome_owner: That's okay. I'm sorry. I wasted your time. Sorry. Have a nice day.\n\ncustomer_rep: No, you're okay. Yes, you too. Thank you."
+  },
+  "transcript": "customer_rep: Thank you for calling Arizona Richards. My name is Deva. How can I help you?\n\nhome_owner: Yes, I just need a quick quote for a 4,000 square foot roof.\n\ncustomer_rep: Okay, no problem. Just to put roof coating. Roof coating? Is this a flat roof?\n\nhome_owner: It's a flat roof.\n\ncustomer_rep: Flat roof, yes. And then how old is your flat roof? Do you own it by chance?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. How old is your flat\n\nhome_owner: The last coating we had was 5 years ago.\n\ncustomer_rep: 5 years ago, and you need to recode.\n\nhome_owner: Yeah, no problem. I can help you out with that.\n\ncustomer_rep: Well, I just want to see what the quote is, how much you guys charge for a $4,000.\n\nhome_owner: So I can't give you any quotes over the phone. The only way that we would be able to give you a quote would be to send a technician out there, get an inspection schedule.\n\ncustomer_rep: They'll go up there, inspect your flat roof and then give you a quote.\n\nhome_owner: That's okay. I'm sorry. I wasted your time. Sorry. Have a nice day.\n\ncustomer_rep: No, you're okay. Yes, you too. Thank you.",
+  "summary": {
+    "call_id": "447",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.8,
+        "compliance_rate": 0.8,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "Greeting & Identification",
+            "Needs Discovery",
+            "Qualifying"
+          ],
+          "missed": [
+            "Scheduling",
+            "Setting Expectations",
+            "Close & Confirmation"
+          ]
+        },
+        "issues": [
+          "Failed to schedule an inspection",
+          "Did not set expectations for the appointment",
+          "Did not close the call with a confirmation"
+        ],
+        "positive_behaviors": [
+          "Professional greeting and introduction",
+          "Asked clarifying questions about the customer's needs",
+          "Showed empathy for the customer's situation"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-17T20:05:06.237542"
+      },
+      "call_id": "447"
+    },
+    "created_at": "2026-01-17 20:05:11.317000",
+    "milvus_id": "vec_447_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "not_booked",
+      "call_outcome_category": "qualified_but_unbooked",
+      "appointment_confirmed": false,
+      "appointment_date": null,
+      "appointment_type": null,
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.0,
+      "preferred_time_window": null,
+      "appointment_intent": null,
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof coating",
+      "service_not_offered_reason": null,
+      "service_address_raw": null,
+      "service_address_structured": {
+        "line1": null,
+        "city": null,
+        "state": null,
+        "postal_code": null,
+        "country": "US"
+      },
+      "address_confidence": 0.0,
+      "customer_name": "Home Owner",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "Home Owner (homeowner/customer)"
+      ],
+      "urgency_signals": [
+        "I just need a quick quote"
+      ],
+      "budget_indicators": [
+        "a 4,000 square foot roof",
+        "how much you guys charge"
+      ],
+      "confidence_score": 0.8,
+      "follow_up_required": false,
+      "follow_up_reason": null,
+      "property_details": {
+        "roof_type": "flat",
+        "roof_age_years": 5,
+        "stories": "single",
+        "hoa_status": "no",
+        "gated_community": false,
+        "has_solar": false,
+        "pets": null,
+        "property_access_notes": null,
+        "roof_condition": null,
+        "special_features": null
+      }
+    },
+    "summary": {
+      "summary": "A homeowner called Arizona Richards to inquire about a quote for a 4,000 square foot roof coating. The homeowner mentioned that their flat roof is 5 years old and needs to be recoated. The customer representative explained that a technician would need to inspect the roof to provide a quote, but the homeowner was not interested in proceeding.",
+      "key_points": [
+        "Homeowner needs a quote for a 4,000 square foot roof coating",
+        "Homeowner has a flat roof that is 5 years old and needs to be recoated",
+        "Customer representative explained that a technician would need to inspect the roof to provide a quote"
+      ],
+      "action_items": [
+        "Schedule a roof inspection to provide a quote"
+      ],
+      "next_steps": [
+        "Follow up with the homeowner to schedule a roof inspection"
+      ],
+      "pending_actions": [
+        {
+          "type": "follow_up_call",
+          "owner": "customer_rep",
+          "due_at": null,
+          "raw_text": "Follow up with the homeowner to schedule a roof inspection",
+          "confidence": 0.9,
+          "contact_method": "phone"
+        }
+      ],
+      "sentiment_score": 0.5,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

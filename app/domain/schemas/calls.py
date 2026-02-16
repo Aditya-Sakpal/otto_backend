@@ -36,8 +36,7 @@ class CallLogEntry(BaseModel):
     score: Optional[float] = None
     objections: Optional[str] = None
     tags: Optional[str] = None
-
-    model_config = {"extra": "allow"}
+    transcript: Optional[str] = None
 
 
 class CallLogsResponse(BaseModel):

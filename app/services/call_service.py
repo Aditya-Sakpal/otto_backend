@@ -1563,12 +1563,15 @@ class CallService:
                 is_booked = analysis and analysis.booking_status and str(analysis.booking_status).lower() == "booked" if analysis else False
 
                 # Get score (use SOP compliance score or sentiment score)
+                # Both sop_compliance_score and sentiment_score are stored as 0-1 decimals from Shunya
                 score = None
                 if analysis:
                     if analysis.sop_compliance_score is not None:
-                        score = int(analysis.sop_compliance_score)
+                        raw = analysis.sop_compliance_score
+                        score = round(raw * 100, 1) if raw <= 1.0 else round(raw, 1)
                     elif analysis.sentiment_score is not None:
-                        score = int(analysis.sentiment_score * 100)  # Convert to 0-100 scale
+                        raw = analysis.sentiment_score
+                        score = round(raw * 100, 1) if raw <= 1.0 else round(raw, 1)
 
                 # Get objections
                 objections = None
@@ -1613,10 +1616,13 @@ class CallService:
                     seconds = call.duration_seconds % 60
                     duration_str = f"{minutes}m {seconds}s"
 
-                # Format call received date
+                # Format call received date as UTC ISO 8601 timestamp
                 call_received = None
                 if call.created_at:
-                    call_received = call.created_at.strftime("%m/%d/%y, %I:%M %p")
+                    dt = call.created_at
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    call_received = dt.isoformat()
 
                 # Get dropdown fields
                 audio_url = call.audio_url
@@ -1661,7 +1667,7 @@ class CallService:
                     "is_booked": is_booked,
                     "booking_status": booking_status_raw,
                     "is_service_offered": is_service_offered,
-                    "is_existing_customer": bool(analysis.is_existing_customer) if analysis and analysis.is_existing_customer is not None else None,
+                    "is_existing_customer": bool(analysis.is_existing_customer) if analysis else None,
                     "lead_source": getattr(call, "lead_source", None) or None,
                     "audio_url": audio_url,
                     "transcript": transcript,

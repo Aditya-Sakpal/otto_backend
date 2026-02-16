@@ -1,0 +1,124 @@
+{
+    "call_id": "443",
+    "company_id": "gpt52_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:42:22.524000",
+    "summary": {
+        "summary": "Raven called Jim back to confirm scheduling constraints for starting his roof installation, asking if there were any days in the next few weeks that would not work. Jim clarified he was thinking in a 4-to-6-week window and said there should be no conflicts, noting they had considered taking a vacation but may postpone it until the roofing work is completed. Raven acknowledged the update and said she would update the notes, and the call ended politely with thanks.",
+        "key_points": [
+            "Customer rep (Raven) asked Jim if there were any days in the next couple of weeks that would not work for starting the roof installation.",
+            "Jim clarified the timeframe as the next 4 to 6 weeks and said there should be no scheduling conflicts.",
+            "Jim mentioned they were thinking about taking a vacation but might postpone it until after the roof installation is completed; Raven said she would update that information."
+        ],
+        "action_items": [
+            "Update the project notes/schedule to reflect that Jim has no blackout dates in the next 4\u20136 weeks and may postpone vacation until after completion."
+        ],
+        "next_steps": [
+            "Proceed with planning the roof installation start within the next 4\u20136 weeks since no conflicts were reported.",
+            "Confirm the final installation start date with Jim when the schedule is set."
+        ],
+        "pending_actions": [
+            {
+                "type": "verify_details",
+                "owner": "customer_rep",
+                "due_at": null,
+                "raw_text": "Already, I'll go ahead and update that for you.",
+                "confidence": 0.74,
+                "contact_method": "any"
+            }
+        ],
+        "sentiment_score": 0.78,
+        "confidence_score": 0.86
+    },
+    "compliance": {
+        "call_id": "443",
+        "target_role": "customer_rep",
+        "evaluation_mode": "sop_only",
+        "sop_compliance": {
+            "score": 0.62,
+            "compliance_rate": 0.62,
+            "stages": {
+                "total": 5,
+                "followed": [
+                    "Qualify"
+                ],
+                "missed": [
+                    "Intake",
+                    "Present",
+                    "Handle Objections",
+                    "Close"
+                ]
+            },
+            "issues": [
+                "Did not provide a professional greeting with company name or confirm the caller's identity beyond using the name.",
+                "Did not verify or confirm contact information (phone/email) or address.",
+                "Did not confirm the installation start date; only asked for blackout dates, leaving the timeline ambiguous.",
+                "Did not set expectations for next steps (what will happen, timing, or how updates/confirmation will be sent).",
+                "Did not close with a clear confirmation of the plan (e.g., summarized timeline, confirmed any scheduled dates, or provided a callback/contact path).",
+                "Opening phrasing was unclear/unprofessional ('sorry for you to go back'), which may not meet standard greeting standards."
+            ],
+            "positive_behaviors": [
+                "Asked a qualifying timeline-related question about availability/constraints for starting installation.",
+                "Used a clarifying follow-up to confirm the customer's timeframe (4 to 6 weeks).",
+                "Acknowledged the customer's response and stated intent to update the account ('I'll go ahead and update that for you').",
+                "Maintained a polite, courteous tone throughout."
+            ],
+            "confidence": 0.74
+        },
+        "timestamps": {
+            "sop_evaluated_at": "2026-01-19T13:42:18.000247"
+        }
+    },
+    "objections": {
+        "objections": [],
+        "total_count": 0
+    },
+    "qualification": {
+        "bant_scores": {
+            "need": 0.5,
+            "budget": 0.0,
+            "timeline": 0.5,
+            "authority": 1.0
+        },
+        "overall_score": 0.5,
+        "qualification_status": "warm",
+        "booking_status": "not_booked",
+        "call_outcome_category": "qualified_but_unbooked",
+        "appointment_confirmed": false,
+        "appointment_date": null,
+        "appointment_type": null,
+        "appointment_timezone": "UTC",
+        "appointment_time_confidence": 0.0,
+        "preferred_time_window": null,
+        "appointment_intent": null,
+        "original_appointment_datetime": null,
+        "new_requested_time": null,
+        "service_requested": "Roof installation",
+        "service_not_offered_reason": null,
+        "service_address_raw": null,
+        "service_address_structured": {
+            "line1": null,
+            "city": null,
+            "state": null,
+            "postal_code": null,
+            "country": "US"
+        },
+        "address_confidence": 0.0,
+        "customer_name": "Jim",
+        "customer_name_confidence": 0.5,
+        "decision_makers": [
+            "Jim (homeowner)"
+        ],
+        "urgency_signals": [
+            "within the next couple of weeks",
+            "the next four or six-ish weeks",
+            "4 to 6",
+            "No, we should be fine",
+            "We were thinking of taking a vacation, but we might just postpone it until after all this is completed"
+        ],
+        "budget_indicators": [],
+        "confidence_score": 0.62,
+        "follow_up_required": false,
+        "follow_up_reason": null
+    }
+}

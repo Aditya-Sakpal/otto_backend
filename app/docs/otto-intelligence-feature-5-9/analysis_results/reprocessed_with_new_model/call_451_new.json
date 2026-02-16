@@ -1,0 +1,6 @@
+{
+  "call_id": 451,
+  "status": "failed",
+  "error": "Failed to submit: 202 - {\"job_id\":\"job_6e259657b94745638a855d8b8ab9c83b\",\"call_id\":\"451\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_6e259657b94745638a855d8b8ab9c83b\",\"created_at\":\"2026-01-19T13:04:51.573586\"}",
+  "timestamp": "2026-01-19T13:04:51.576744"
+}

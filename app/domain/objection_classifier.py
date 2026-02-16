@@ -131,8 +131,8 @@ class ObjectionClassifier:
                 if keyword.lower() in normalized:
                     return category.value
 
-        # No match found - classify as "other"
-        return ObjectionType.OTHER.value
+        # No match found - return the raw objection as-is
+        return raw_objection.strip()
 
     @classmethod
     def classify_list(cls, raw_objections: List[str]) -> List[str]:

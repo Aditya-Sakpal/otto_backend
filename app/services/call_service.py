@@ -1575,21 +1575,10 @@ class CallService:
 
                 # Get objections
                 objections = None
-                sub_objection = None
                 if analysis and analysis.objections:
                     # Classify objections before displaying
                     from app.domain.objection_classifier import ObjectionClassifier
-                    from app.domain.enums import ObjectionType
                     classified = ObjectionClassifier.classify_and_deduplicate(analysis.objections)
-
-                    # Collect raw texts for objections not matching any defined enum
-                    defined_values = {e.value for e in ObjectionType if e != ObjectionType.OTHER}
-                    non_enum_raw = [
-                        obj for obj in classified
-                        if obj not in defined_values
-                    ]
-                    if non_enum_raw:
-                        sub_objection = ", ".join(non_enum_raw)
 
                     # Join objections with comma
                     objections = ", ".join(classified[:3])  # Limit to first 3
@@ -1687,7 +1676,6 @@ class CallService:
                     "action_items": action_items,
                     "score": score,
                     "objections": objections,
-                    "sub_objection": sub_objection,
                     "tags": ", ".join(tags) if tags else None,
                 })
 

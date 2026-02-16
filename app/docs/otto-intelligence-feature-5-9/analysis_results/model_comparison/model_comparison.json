@@ -1,0 +1,443 @@
+{
+  "comparison_date": "2026-01-19T13:29:49.159411",
+  "comparisons": [
+    {
+      "call_id": "440",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 2,
+        "new": 2,
+        "changed": false
+      }
+    },
+    {
+      "call_id": "441",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 1,
+        "new": 2,
+        "changed": true
+      }
+    },
+    {
+      "call_id": "442",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 1,
+        "new": 2,
+        "changed": true
+      }
+    },
+    {
+      "call_id": "443",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 1,
+        "new": 2,
+        "changed": true
+      }
+    },
+    {
+      "call_id": "445",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 1,
+        "new": 2,
+        "changed": true
+      }
+    },
+    {
+      "call_id": "446",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 1,
+        "new": 2,
+        "changed": true
+      }
+    },
+    {
+      "call_id": "447",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 1,
+        "new": 1,
+        "changed": false
+      }
+    },
+    {
+      "call_id": "449",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 1,
+        "new": 1,
+        "changed": false
+      }
+    },
+    {
+      "call_id": "450",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 1,
+        "new": 2,
+        "changed": true
+      }
+    },
+    {
+      "call_id": "451",
+      "customer_name": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "address": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "email": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "phone": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "appointment_date": {
+        "old": null,
+        "new": null,
+        "improved": false
+      },
+      "booking_status": {
+        "old": null,
+        "new": null,
+        "changed": false
+      },
+      "objections_count": {
+        "old": 0,
+        "new": 0,
+        "changed": false
+      },
+      "action_items_count": {
+        "old": 1,
+        "new": 2,
+        "changed": true
+      }
+    }
+  ],
+  "improvements_summary": {
+    "customer_name": 0,
+    "address": 0,
+    "email": 0,
+    "phone": 0,
+    "appointment_date": 0
+  },
+  "total_compared": 10
+}

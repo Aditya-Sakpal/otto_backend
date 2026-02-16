@@ -1,0 +1,618 @@
+{
+  "call_id": 450,
+  "timestamp": "2026-01-19T08:50:53.656296",
+  "call_data": {
+    "call_id": "450",
+    "audio_url": "https://app.calltrackingmetrics.com/api/v1/accounts/541914/calls/CA5aeb106507bf189ac2548b1796c9648b/recording",
+    "call_date": "2026-01-17 19:59:04.440000",
+    "company_id": "string",
+    "created_at": "2026-01-17 21:36:49.220000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 66
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-17 21:36:49.220000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Thank you for calling Arizona roofers. My name is Eva. How about, uh, how can I help you?",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. Hi. Um, I'd like to get a quote, um, to get my, um, roof re-roofed. And I just wanted to know, do you guys do free estimates?",
+        "start_time": 5.0,
+        "end_time": 15.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "We do for homeowners. Are you looking for homeowners?",
+        "start_time": 15.0,
+        "end_time": 18.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 18.0,
+        "end_time": 19.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Yeah. And then is there anything going on with the roof that you needed?",
+        "start_time": 19.0,
+        "end_time": 23.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No, I'm just interested in, it's just old, and I just want to see, I just want to get a quote right now, so I'm just shopping around.",
+        "start_time": 23.0,
+        "end_time": 32.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Gotcha. Yeah, no problem. One moment while I put up.",
+        "start_time": 32.0,
+        "end_time": 36.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Can I start with the property address?",
+        "start_time": 36.0,
+        "end_time": 38.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "3342 North Brighton.",
+        "start_time": 38.0,
+        "end_time": 40.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Right, Mesa, Arizona, 85207?",
+        "start_time": 40.0,
+        "end_time": 43.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, ma'am.",
+        "start_time": 43.0,
+        "end_time": 44.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. So it looks like earliest I can get you in for an inspection would be this upcoming Tuesday, January 20, from 10 a.m. to 12.",
+        "start_time": 44.0,
+        "end_time": 52.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I'd have to do either at night or on the weekends because I work.",
+        "start_time": 52.0,
+        "end_time": 57.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. No worries. That was the earliest available.",
+        "start_time": 57.0,
+        "end_time": 60.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Can I get your first one?",
+        "start_time": 60.0,
+        "end_time": 61.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Julie Colkins?",
+        "start_time": 61.0,
+        "end_time": 62.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Julie, do you have a good e-mail I put on file? We usually send the proposal to us.",
+        "start_time": 62.0,
+        "end_time": 67.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "It's julie.n.colkins about C-U-L-K-I-N-S at comcast.net.",
+        "start_time": 67.0,
+        "end_time": 72.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Perfect. And the best phone number to reach you?",
+        "start_time": 72.0,
+        "end_time": 74.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "971-222-8840.",
+        "start_time": 74.0,
+        "end_time": 75.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Perfect. And am I able to send you email and text message updates about the roof?",
+        "start_time": 75.0,
+        "end_time": 80.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 80.0,
+        "end_time": 81.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then how old is the roof?",
+        "start_time": 81.0,
+        "end_time": 83.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I believe it's the same age of the house. I don't think it's ever been done.",
+        "start_time": 83.0,
+        "end_time": 89.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And then what do you know the age of the house?",
+        "start_time": 89.0,
+        "end_time": 92.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "It was built in 2002. So I think it's going on about 24 years.",
+        "start_time": 92.0,
+        "end_time": 98.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And what type of roofing material do you have on the roof?",
+        "start_time": 98.0,
+        "end_time": 101.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "It's tile.",
+        "start_time": 101.0,
+        "end_time": 102.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And is this a one-story home or a 2-story home?",
+        "start_time": 102.0,
+        "end_time": 105.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "It's 2 stories.",
+        "start_time": 105.0,
+        "end_time": 106.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Do you have any solar panels on the roof?",
+        "start_time": 106.0,
+        "end_time": 109.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No.",
+        "start_time": 109.0,
+        "end_time": 110.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And do you know how big the home is square feet wide?",
+        "start_time": 110.0,
+        "end_time": 114.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "It's about 2,300 square feet, maybe 24 somewhere around there.",
+        "start_time": 114.0,
+        "end_time": 120.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. No worries. Thank you. A couple other questions.",
+        "start_time": 120.0,
+        "end_time": 124.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Is this a gated community?",
+        "start_time": 124.0,
+        "end_time": 126.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 126.0,
+        "end_time": 127.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Is there a gate code we should be aware of?",
+        "start_time": 127.0,
+        "end_time": 130.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. Okay. It's pound zero.",
+        "start_time": 130.0,
+        "end_time": 132.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay, perfect. And then is there an HOA for the neighborhood?",
+        "start_time": 132.0,
+        "end_time": 136.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 136.0,
+        "end_time": 137.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And then Julie, are you the only property owner?",
+        "start_time": 137.0,
+        "end_time": 140.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 140.0,
+        "end_time": 141.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Perfect. All right. I'm gonna take a look at my schedule and see what other options that we have.",
+        "start_time": 141.0,
+        "end_time": 146.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "One moment.",
+        "start_time": 146.0,
+        "end_time": 147.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "We could do Thursday, January 22nd from 4 to 6 p.m.",
+        "start_time": 147.0,
+        "end_time": 152.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. Yes, I can see if I can make that because I usually don't get home until like between 4.30 and 5.00.",
+        "start_time": 152.0,
+        "end_time": 160.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Well, that would be the latest appointment window we have. If anything, the technician can start before you get there and then chat with you when you're there.",
+        "start_time": 160.0,
+        "end_time": 168.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. That'll work.",
+        "start_time": 168.0,
+        "end_time": 169.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. I can also do Wednesday, January 21st from 4 to 6 if that is better.",
+        "start_time": 169.0,
+        "end_time": 174.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "So either one.",
+        "start_time": 174.0,
+        "end_time": 175.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Let me think. Either one of those will work.",
+        "start_time": 175.0,
+        "end_time": 180.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Okay. I'll go ahead and get you booked for Wednesday, January 21.",
+        "start_time": 180.0,
+        "end_time": 185.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. upcoming wednesday from four to six appointment window you'll be receiving an email and text message confirmation of your appointment and the technician will give you a call when he's on his way usually about thirty minutes before um kind of how it works is when they come out there they'll chat with you a little bit go up there do a full roof inspection usually take about fifty to a hundred photos of any damages that they might find write up a report. Go over that report with you and discuss all of your options with us. And then if you guys should go with us same day, they do take some money off the top as well.",
+        "start_time": 185.0,
+        "end_time": 210.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. Yes, you're all set. Julie, I have you booked here for Wednesday, January 21.",
+        "start_time": 210.0,
+        "end_time": 216.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. And so, yes, I'll probably be home around like 4.30, but I'll try and get there as quick as I can.",
+        "start_time": 216.0,
+        "end_time": 223.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay, yes. So if you may not find me So he'll just, just to let him know that I'm not gonna be probably there, you know.",
+        "start_time": 223.0,
+        "end_time": 229.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yeah, no. I won't be. Gotcha. That works.",
+        "start_time": 229.0,
+        "end_time": 233.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "No worries. Okay. All right. I guess I'll see him then.",
+        "start_time": 233.0,
+        "end_time": 236.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. And this is Arizona Roofing Company, right?",
+        "start_time": 236.0,
+        "end_time": 240.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Arizona Roofers. Arizona Roofers, okay. Yeah. We were formerly known as Arizona Roof Pros, so.",
+        "start_time": 240.0,
+        "end_time": 247.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. I believe there's still two different websites on the, if you look it up, so just letting you know the same company, Arizona Roofers and Arizona Roof Pro, yep.",
+        "start_time": 247.0,
+        "end_time": 256.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. All right. Thank you.",
+        "start_time": 256.0,
+        "end_time": 258.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yeah, no problem. Have a great day.",
+        "start_time": 258.0,
+        "end_time": 261.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Uh-huh, you too. Bye-bye.",
+        "start_time": 261.0,
+        "end_time": 263.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Bye.",
+        "start_time": 263.0,
+        "end_time": 264.0,
+        "original_speaker": "SPEAKER_01"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Thank you for calling Arizona roofers. My name is Eva. How about, uh, how can I help you?\n\nhome_owner: Yes. Hi. Um, I'd like to get a quote, um, to get my, um, roof re-roofed. And I just wanted to know, do you guys do free estimates?\n\ncustomer_rep: We do for homeowners. Are you looking for homeowners?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. Yeah. And then is there anything going on with the roof that you needed?\n\nhome_owner: No, I'm just interested in, it's just old, and I just want to see, I just want to get a quote right now, so I'm just shopping around.\n\ncustomer_rep: Gotcha. Yeah, no problem. One moment while I put up.\n\ncustomer_rep: Okay. Can I start with the property address?\n\nhome_owner: 3342 North Brighton.\n\ncustomer_rep: Right, Mesa, Arizona, 85207?\n\nhome_owner: Yes, ma'am.\n\ncustomer_rep: Okay. So it looks like earliest I can get you in for an inspection would be this upcoming Tuesday, January 20, from 10 a.m. to 12.\n\nhome_owner: I'd have to do either at night or on the weekends because I work.\n\ncustomer_rep: Okay. No worries. That was the earliest available.\n\ncustomer_rep: Can I get your first one?\n\nhome_owner: Julie Colkins?\n\ncustomer_rep: Okay. Julie, do you have a good e-mail I put on file? We usually send the proposal to us.\n\nhome_owner: It's julie.n.colkins about C-U-L-K-I-N-S at comcast.net.\n\ncustomer_rep: Okay. Perfect. And the best phone number to reach you?\n\nhome_owner: 971-222-8840.\n\ncustomer_rep: Perfect. And am I able to send you email and text message updates about the roof?\n\nhome_owner: Yes.\n\ncustomer_rep: And then how old is the roof?\n\nhome_owner: I believe it's the same age of the house. I don't think it's ever been done.\n\ncustomer_rep: Okay. And then what do you know the age of the house?\n\nhome_owner: It was built in 2002. So I think it's going on about 24 years.\n\ncustomer_rep: And what type of roofing material do you have on the roof?\n\nhome_owner: It's tile.\n\ncustomer_rep: Okay. And is this a one-story home or a 2-story home?\n\nhome_owner: It's 2 stories.\n\ncustomer_rep: Do you have any solar panels on the roof?\n\nhome_owner: No.\n\ncustomer_rep: Okay. And do you know how big the home is square feet wide?\n\nhome_owner: It's about 2,300 square feet, maybe 24 somewhere around there.\n\ncustomer_rep: Okay. No worries. Thank you. A couple other questions.\n\ncustomer_rep: Is this a gated community?\n\nhome_owner: Yes.\n\ncustomer_rep: Is there a gate code we should be aware of?\n\nhome_owner: Yes. Okay. It's pound zero.\n\ncustomer_rep: Okay, perfect. And then is there an HOA for the neighborhood?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. And then Julie, are you the only property owner?\n\nhome_owner: Yes.\n\ncustomer_rep: Perfect. All right. I'm gonna take a look at my schedule and see what other options that we have.\n\ncustomer_rep: One moment.\n\ncustomer_rep: We could do Thursday, January 22nd from 4 to 6 p.m.\n\nhome_owner: Okay. Yes, I can see if I can make that because I usually don't get home until like between 4.30 and 5.00.\n\ncustomer_rep: Okay. Well, that would be the latest appointment window we have. If anything, the technician can start before you get there and then chat with you when you're there.\n\nhome_owner: Okay. That'll work.\n\ncustomer_rep: Okay. I can also do Wednesday, January 21st from 4 to 6 if that is better.\n\nhome_owner: So either one.\n\nhome_owner: Let me think. Either one of those will work.\n\ncustomer_rep: Okay. Okay. I'll go ahead and get you booked for Wednesday, January 21.\n\ncustomer_rep: Okay. upcoming wednesday from four to six appointment window you'll be receiving an email and text message confirmation of your appointment and the technician will give you a call when he's on his way usually about thirty minutes before um kind of how it works is when they come out there they'll chat with you a little bit go up there do a full roof inspection usually take about fifty to a hundred photos of any damages that they might find write up a report. Go over that report with you and discuss all of your options with us. And then if you guys should go with us same day, they do take some money off the top as well.\n\nhome_owner: Okay. Yes, you're all set. Julie, I have you booked here for Wednesday, January 21.\n\nhome_owner: Okay. And so, yes, I'll probably be home around like 4.30, but I'll try and get there as quick as I can.\n\ncustomer_rep: Okay, yes. So if you may not find me So he'll just, just to let him know that I'm not gonna be probably there, you know.\n\nhome_owner: Yeah, no. I won't be. Gotcha. That works.\n\ncustomer_rep: No worries. Okay. All right. I guess I'll see him then.\n\nhome_owner: Okay. And this is Arizona Roofing Company, right?\n\ncustomer_rep: Arizona Roofers. Arizona Roofers, okay. Yeah. We were formerly known as Arizona Roof Pros, so.\n\nhome_owner: Okay. I believe there's still two different websites on the, if you look it up, so just letting you know the same company, Arizona Roofers and Arizona Roof Pro, yep.\n\ncustomer_rep: Okay. All right. Thank you.\n\nhome_owner: Yeah, no problem. Have a great day.\n\ncustomer_rep: Uh-huh, you too. Bye-bye.\n\nhome_owner: Bye."
+  },
+  "transcript": "customer_rep: Thank you for calling Arizona roofers. My name is Eva. How about, uh, how can I help you?\n\nhome_owner: Yes. Hi. Um, I'd like to get a quote, um, to get my, um, roof re-roofed. And I just wanted to know, do you guys do free estimates?\n\ncustomer_rep: We do for homeowners. Are you looking for homeowners?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. Yeah. And then is there anything going on with the roof that you needed?\n\nhome_owner: No, I'm just interested in, it's just old, and I just want to see, I just want to get a quote right now, so I'm just shopping around.\n\ncustomer_rep: Gotcha. Yeah, no problem. One moment while I put up.\n\ncustomer_rep: Okay. Can I start with the property address?\n\nhome_owner: 3342 North Brighton.\n\ncustomer_rep: Right, Mesa, Arizona, 85207?\n\nhome_owner: Yes, ma'am.\n\ncustomer_rep: Okay. So it looks like earliest I can get you in for an inspection would be this upcoming Tuesday, January 20, from 10 a.m. to 12.\n\nhome_owner: I'd have to do either at night or on the weekends because I work.\n\ncustomer_rep: Okay. No worries. That was the earliest available.\n\ncustomer_rep: Can I get your first one?\n\nhome_owner: Julie Colkins?\n\ncustomer_rep: Okay. Julie, do you have a good e-mail I put on file? We usually send the proposal to us.\n\nhome_owner: It's julie.n.colkins about C-U-L-K-I-N-S at comcast.net.\n\ncustomer_rep: Okay. Perfect. And the best phone number to reach you?\n\nhome_owner: 971-222-8840.\n\ncustomer_rep: Perfect. And am I able to send you email and text message updates about the roof?\n\nhome_owner: Yes.\n\ncustomer_rep: And then how old is the roof?\n\nhome_owner: I believe it's the same age of the house. I don't think it's ever been done.\n\ncustomer_rep: Okay. And then what do you know the age of the house?\n\nhome_owner: It was built in 2002. So I think it's going on about 24 years.\n\ncustomer_rep: And what type of roofing material do you have on the roof?\n\nhome_owner: It's tile.\n\ncustomer_rep: Okay. And is this a one-story home or a 2-story home?\n\nhome_owner: It's 2 stories.\n\ncustomer_rep: Do you have any solar panels on the roof?\n\nhome_owner: No.\n\ncustomer_rep: Okay. And do you know how big the home is square feet wide?\n\nhome_owner: It's about 2,300 square feet, maybe 24 somewhere around there.\n\ncustomer_rep: Okay. No worries. Thank you. A couple other questions.\n\ncustomer_rep: Is this a gated community?\n\nhome_owner: Yes.\n\ncustomer_rep: Is there a gate code we should be aware of?\n\nhome_owner: Yes. Okay. It's pound zero.\n\ncustomer_rep: Okay, perfect. And then is there an HOA for the neighborhood?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. And then Julie, are you the only property owner?\n\nhome_owner: Yes.\n\ncustomer_rep: Perfect. All right. I'm gonna take a look at my schedule and see what other options that we have.\n\ncustomer_rep: One moment.\n\ncustomer_rep: We could do Thursday, January 22nd from 4 to 6 p.m.\n\nhome_owner: Okay. Yes, I can see if I can make that because I usually don't get home until like between 4.30 and 5.00.\n\ncustomer_rep: Okay. Well, that would be the latest appointment window we have. If anything, the technician can start before you get there and then chat with you when you're there.\n\nhome_owner: Okay. That'll work.\n\ncustomer_rep: Okay. I can also do Wednesday, January 21st from 4 to 6 if that is better.\n\nhome_owner: So either one.\n\nhome_owner: Let me think. Either one of those will work.\n\ncustomer_rep: Okay. Okay. I'll go ahead and get you booked for Wednesday, January 21.\n\ncustomer_rep: Okay. upcoming wednesday from four to six appointment window you'll be receiving an email and text message confirmation of your appointment and the technician will give you a call when he's on his way usually about thirty minutes before um kind of how it works is when they come out there they'll chat with you a little bit go up there do a full roof inspection usually take about fifty to a hundred photos of any damages that they might find write up a report. Go over that report with you and discuss all of your options with us. And then if you guys should go with us same day, they do take some money off the top as well.\n\nhome_owner: Okay. Yes, you're all set. Julie, I have you booked here for Wednesday, January 21.\n\nhome_owner: Okay. And so, yes, I'll probably be home around like 4.30, but I'll try and get there as quick as I can.\n\ncustomer_rep: Okay, yes. So if you may not find me So he'll just, just to let him know that I'm not gonna be probably there, you know.\n\nhome_owner: Yeah, no. I won't be. Gotcha. That works.\n\ncustomer_rep: No worries. Okay. All right. I guess I'll see him then.\n\nhome_owner: Okay. And this is Arizona Roofing Company, right?\n\ncustomer_rep: Arizona Roofers. Arizona Roofers, okay. Yeah. We were formerly known as Arizona Roof Pros, so.\n\nhome_owner: Okay. I believe there's still two different websites on the, if you look it up, so just letting you know the same company, Arizona Roofers and Arizona Roof Pro, yep.\n\ncustomer_rep: Okay. All right. Thank you.\n\nhome_owner: Yeah, no problem. Have a great day.\n\ncustomer_rep: Uh-huh, you too. Bye-bye.\n\nhome_owner: Bye.",
+  "summary": {
+    "call_id": "450",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.9,
+        "compliance_rate": 0.9,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "GREETING & IDENTIFICATION",
+            "NEEDS DISCOVERY",
+            "QUALIFYING",
+            "SCHEDULING",
+            "SETTING EXPECTATIONS",
+            "CLOSE & CONFIRMATION"
+          ],
+          "missed": []
+        },
+        "issues": [],
+        "positive_behaviors": [
+          "Asked clarifying questions",
+          "Gathered necessary information",
+          "Professional and courteous tone",
+          "Offered alternative solutions"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-17T21:36:44.336300"
+      },
+      "call_id": "450"
+    },
+    "created_at": "2026-01-17 21:36:49.597000",
+    "milvus_id": "vec_450_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "booked",
+      "call_outcome_category": "qualified_and_booked",
+      "appointment_confirmed": true,
+      "appointment_date": "2026-01-21T16:00:00",
+      "appointment_type": "in-person",
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.7,
+      "preferred_time_window": "afternoon",
+      "appointment_intent": "new",
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof re-roofing",
+      "service_not_offered_reason": null,
+      "service_address_raw": "3342 North Brighton, Mesa, Arizona, 85207",
+      "service_address_structured": {
+        "line1": "3342 North Brighton",
+        "city": "Mesa",
+        "state": "Arizona",
+        "postal_code": "85207",
+        "country": "US"
+      },
+      "address_confidence": 1.0,
+      "customer_name": "Julie Colkins",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "Julie Colkins"
+      ],
+      "urgency_signals": [
+        "I'd have to do either at night or on the weekends because I work."
+      ],
+      "budget_indicators": [],
+      "confidence_score": 0.8,
+      "follow_up_required": false,
+      "follow_up_reason": null,
+      "property_details": {
+        "roof_type": "tile",
+        "roof_age_years": 24,
+        "stories": "two",
+        "hoa_status": "yes",
+        "gated_community": true,
+        "has_solar": false,
+        "pets": null,
+        "property_access_notes": "Gate code 0",
+        "roof_condition": null,
+        "special_features": null
+      }
+    },
+    "summary": {
+      "summary": "A homeowner, Julie Colkins, contacted Arizona Roofers to inquire about getting a quote for a roof replacement. The representative, Eva, scheduled an inspection for Wednesday, January 21, from 4 to 6 p.m. The homeowner confirmed the appointment and provided necessary details about the property, including its age, roof type, and location.",
+      "key_points": [
+        "Homeowner Julie Colkins wants to get a quote for a roof replacement.",
+        "The homeowner's roof is 24 years old and made of tile.",
+        "The property is a 2-story home with 2,300 square feet.",
+        "The homeowner has a gated community with a gate code of 'pound zero'.",
+        "The homeowner has an HOA and is the only property owner.",
+        "The representative scheduled an inspection for Wednesday, January 21, from 4 to 6 p.m."
+      ],
+      "action_items": [
+        "Schedule the inspection for Wednesday, January 21, from 4 to 6 p.m."
+      ],
+      "next_steps": [
+        "Send the homeowner a confirmation email and text message about the appointment.",
+        "Have the technician contact the homeowner 30 minutes before the inspection to confirm the appointment."
+      ],
+      "pending_actions": [
+        {
+          "type": "schedule_appointment",
+          "owner": "customer_rep",
+          "due_at": "2026-01-21T16:00:00",
+          "raw_text": "I'll get you booked for Wednesday, January 21.",
+          "confidence": 0.9,
+          "contact_method": "email"
+        }
+      ],
+      "sentiment_score": 0.7,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

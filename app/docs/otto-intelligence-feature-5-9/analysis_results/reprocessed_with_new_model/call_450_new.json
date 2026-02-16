@@ -1,0 +1,165 @@
+{
+  "call_id": 450,
+  "status": "completed",
+  "job_id": "job_0d16d2785ab241e881ddff27cf665333",
+  "summary": {
+    "call_id": "450",
+    "company_id": "reprocess_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:27:22.383000",
+    "summary": {
+      "summary": "Julie Colkins called Arizona Roofers to request a free estimate/quote for a full re-roof because her roof is old and she is shopping around, with no active issues reported. The representative confirmed free estimates for homeowners, collected property and contact details (3342 North Brighton, Mesa, AZ 85207; email julie.n.colkins@comcast.net; phone 971-222-8840) and roof details (tile roof, two-story home, built in 2002 with original roof ~24 years old, no solar, ~2,300\u20132,400 sq ft). Julie noted she works and needs evening/weekend availability; the rep offered late afternoon windows and scheduled a roof inspection for Wednesday, January 21 from 4\u20136 PM, with the technician able to start before Julie arrives and call about 30 minutes prior. The rep explained the inspection process (photos, report, options) and that same-day selection may include a discount, and clarified the company name change (formerly Arizona Roof Pros).",
+      "key_points": [
+        "Customer requested a quote/free estimate for a full re-roof due to an old roof and stated there are no current problems; she is shopping around.",
+        "Property details captured: 3342 North Brighton, Mesa, AZ 85207; tile roof; two-story; built in 2002 with original roof (~24 years old); no solar; approx. 2,300\u20132,400 sq ft.",
+        "Access/community details: gated community with gate code \"pound zero\" and the neighborhood has an HOA.",
+        "Scheduling preference: customer works and requested nights/weekends; appointment set for Wednesday, 2026-01-21, 4\u20136 PM, and customer expects to arrive around 4:30\u20135:00 while technician may start earlier.",
+        "Rep will send email and SMS updates/confirmation and technician will call about 30 minutes before arrival; proposal/report to be sent after inspection."
+      ],
+      "action_items": [
+        "Send appointment confirmation and updates to Julie via email and SMS.",
+        "Conduct on-site roof inspection during the scheduled 4\u20136 PM window and prepare the inspection report/proposal."
+      ],
+      "next_steps": [
+        "Technician to call Julie approximately 30 minutes before arriving on 2026-01-21 and perform the roof inspection (photos and report).",
+        "After inspection, review findings and reroof options with Julie and provide the proposal/estimate."
+      ],
+      "pending_actions": [
+        {
+          "type": "confirm_appointment",
+          "owner": "customer_rep",
+          "due_at": null,
+          "raw_text": "you'll be receiving an email and text message confirmation of your appointment",
+          "confidence": 0.86,
+          "contact_method": "any"
+        },
+        {
+          "type": "inspection",
+          "owner": "company",
+          "due_at": "2026-01-21T16:00:00",
+          "raw_text": "I'll go ahead and get you booked for Wednesday, January 21. upcoming wednesday from four to six appointment window",
+          "confidence": 0.9,
+          "contact_method": "in_person"
+        },
+        {
+          "type": "call_back",
+          "owner": "company",
+          "due_at": "2026-01-21T15:30:00",
+          "raw_text": "the technician will give you a call when he's on his way usually about thirty minutes before",
+          "confidence": 0.78,
+          "contact_method": "phone"
+        }
+      ],
+      "sentiment_score": 0.78,
+      "confidence_score": 0.87
+    },
+    "compliance": {
+      "call_id": "450",
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.86,
+        "compliance_rate": 0.86,
+        "stages": {
+          "total": 5,
+          "followed": [
+            "Intake",
+            "Qualify",
+            "Present",
+            "Handle Objections",
+            "Close"
+          ],
+          "missed": []
+        },
+        "issues": [
+          "Greeting included company name and rep name, but did not ask for the caller's name until later in the call (name capture delayed).",
+          "Did not explicitly verify/confirm the full address as stated by the caller (only confirmed city/ZIP; street number/name confirmation was partial).",
+          "Qualifying was limited: did not ask about timeline/urgency beyond availability constraints, whether they are getting other quotes (caller volunteered shopping around), or any budget/financing considerations.",
+          "Minor clarity issue: rep asked 'Are you looking for homeowners?' instead of clearly confirming 'Are you the homeowner?' (though later confirmed property ownership).",
+          "Close could be stronger: did not restate the full appointment details (date/time window + address) in a single final confirmation and did not provide a callback number for questions."
+        ],
+        "positive_behaviors": [
+          "Professional greeting with company identification and representative name.",
+          "Confirmed eligibility for free estimates (homeowner) and later confirmed ownership/decision-maker status.",
+          "Collected key intake details systematically: address (city/ZIP), email, phone number, and consent to send email/text updates.",
+          "Performed solid needs/property discovery for reroof quoting: roof age, home build year, material type (tile), stories, solar panels, approximate square footage.",
+          "Asked access/logistics questions (gated community, gate code, HOA).",
+          "Handled scheduling objection (work hours) by offering alternative late appointment windows and explaining that the technician can start before the homeowner arrives.",
+          "Set clear appointment expectations: inspection process, photo documentation, report review, options discussion, and pre-arrival call.",
+          "Confirmed that email/text confirmation would be sent and reiterated the booked appointment window."
+        ],
+        "confidence": 0.82
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-19T13:27:16.598949"
+      }
+    },
+    "objections": {
+      "objections": [
+        {
+          "id": null,
+          "category_id": 4,
+          "category_text": "Scheduling Conflict",
+          "objection_text": "I'd have to do either at night or on the weekends because I work.",
+          "overcome": false,
+          "speaker_id": "home_owner",
+          "timestamp": null,
+          "confidence_score": 0.9,
+          "severity": "medium",
+          "response_suggestions": [],
+          "created_at": "2026-01-19T13:27:27.770217"
+        }
+      ],
+      "total_count": 1
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.5,
+        "budget": 0.5,
+        "timeline": 0.8,
+        "authority": 1.0
+      },
+      "overall_score": 0.7,
+      "qualification_status": "warm",
+      "booking_status": "booked",
+      "call_outcome_category": "qualified_and_booked",
+      "appointment_confirmed": true,
+      "appointment_date": "2026-01-21T16:00:00",
+      "appointment_type": "in-person",
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.7,
+      "preferred_time_window": "evening",
+      "appointment_intent": "new",
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof inspection and estimate for re-roofing (tile roof replacement quote)",
+      "service_not_offered_reason": null,
+      "service_address_raw": "3342 North Brighton, Mesa, Arizona 85207",
+      "service_address_structured": {
+        "line1": "3342 North Brighton",
+        "city": "Mesa",
+        "state": "Arizona",
+        "postal_code": "85207",
+        "country": "US"
+      },
+      "address_confidence": 0.95,
+      "customer_name": "Julie Colkins",
+      "customer_name_confidence": 0.95,
+      "decision_makers": [
+        "Julie Colkins (only property owner)"
+      ],
+      "urgency_signals": [
+        "I'm just interested in, it's just old, and I just want to see, I just want to get a quote right now, so I'm just shopping around."
+      ],
+      "budget_indicators": [
+        "I'd like to get a quote",
+        "do you guys do free estimates?",
+        "I'm just shopping around."
+      ],
+      "confidence_score": 0.86,
+      "follow_up_required": false,
+      "follow_up_reason": null
+    }
+  },
+  "timestamp": "2026-01-19T13:27:27.774250"
+}

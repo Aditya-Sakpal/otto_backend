@@ -1,0 +1,123 @@
+{
+    "call_id": "449",
+    "company_id": "gpt52_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:47:02.623000",
+    "summary": {
+        "summary": "Don Etherton called Arizona Roofers asking if they could replace some \u201cpiled roof pieces\u201d on his roof in Wickhamberg. The representative explained that if it is just placing/replacing tiles, the scope is smaller than what their company typically takes on and suggested using a roofing repair specialist/handyman instead. The rep could not recommend a specific provider but advised Don to search Google using his city plus \u201croofing handyman specialist\u201d to find direct contacts, noting Arizona Roofers is currently booking 4\u20138 weeks out and a repair specialist would likely be faster and more cost-effective for a minor repair. Don thanked the rep and ended the call without scheduling service.",
+        "key_points": [
+            "Customer (Don Etherton) requested replacement of some roof pieces/tiles on his roof in Wickhamberg.",
+            "Rep stated small tile-placement/minor repair work is generally smaller than Arizona Roofers\u2019 typical job scope and suggested using a roofing repair specialist/handyman.",
+            "Rep noted their current lead time is about 4\u20138 weeks and advised the customer to Google his city plus \u201croofing handyman specialist\u201d; no appointment was booked."
+        ],
+        "action_items": [
+            "Customer to search for and contact a local roofing repair specialist/handyman via Google using the suggested search terms."
+        ],
+        "next_steps": [
+            "Customer to reach out to a repair specialist for the minor tile/piece replacement.",
+            "If the issue is larger than expected, customer can call Arizona Roofers back to discuss a broader scope project."
+        ],
+        "pending_actions": [
+            {
+                "type": "custom",
+                "owner": "Don Etherton",
+                "due_at": null,
+                "raw_text": "I recommend going on Google specifically and typing in your city and then roofing handyman specialist, all three words",
+                "confidence": 0.78,
+                "contact_method": "any"
+            }
+        ],
+        "sentiment_score": 0.78,
+        "confidence_score": 0.86
+    },
+    "compliance": {
+        "call_id": "449",
+        "target_role": "customer_rep",
+        "evaluation_mode": "sop_only",
+        "sop_compliance": {
+            "score": 0.72,
+            "compliance_rate": 0.72,
+            "stages": {
+                "total": 5,
+                "followed": [
+                    "Intake",
+                    "Qualify",
+                    "Present",
+                    "Close"
+                ],
+                "missed": [
+                    "Handle Objections"
+                ]
+            },
+            "issues": [
+                "Did not capture or verify contact information (phone/email) or service address.",
+                "Did not ask clarifying needs-discovery questions (extent of damage, how long issue has existed, roof type/height, safety/access constraints) before determining it was out of scope.",
+                "Did not offer an inspection/estimate option or explain any minimum job size policy; the customer was effectively turned away without a clear internal process for small repairs.",
+                "Could not provide a specific referral despite being asked; only suggested a generic Google search (missed opportunity to follow a referral/partner SOP if one exists).",
+                "No explicit objection-handling occurred; however, the rep did not probe to confirm whether the customer would still want to proceed given the 4\u20138 week timeline."
+            ],
+            "positive_behaviors": [
+                "Professional greeting with company name and representative name.",
+                "Identified potential fit issue and set expectations about current scheduling timeline (4\u20138 weeks).",
+                "Provided an alternative path for the customer (suggested searching for a repair specialist/handyman) to help resolve the issue faster and more cost-effectively.",
+                "Maintained a courteous, respectful tone and closed the call politely."
+            ],
+            "confidence": 0.78
+        },
+        "timestamps": {
+            "sop_evaluated_at": "2026-01-19T13:46:57.325348"
+        }
+    },
+    "objections": {
+        "objections": [],
+        "total_count": 0
+    },
+    "qualification": {
+        "bant_scores": {
+            "need": 0.8,
+            "budget": 0.5,
+            "timeline": 0.0,
+            "authority": 1.0
+        },
+        "overall_score": 0.575,
+        "qualification_status": "warm",
+        "booking_status": "service_not_offered",
+        "call_outcome_category": "qualified_service_not_offered",
+        "appointment_confirmed": false,
+        "appointment_date": null,
+        "appointment_type": null,
+        "appointment_timezone": "UTC",
+        "appointment_time_confidence": 0.0,
+        "preferred_time_window": null,
+        "appointment_intent": null,
+        "original_appointment_datetime": null,
+        "new_requested_time": null,
+        "service_requested": "Minor roof tile repair/replacement (replace piled/broken roof pieces/tiles)",
+        "service_not_offered_reason": "Job is a minor tile repair/replacement that is smaller than their typical scope; company has a 4\u20138 week lead time and recommends a roofing repair specialist/handyman instead.",
+        "service_address_raw": "Wickhamberg",
+        "service_address_structured": {
+            "line1": null,
+            "city": "Wickhamberg",
+            "state": "Arizona",
+            "postal_code": null,
+            "country": "US"
+        },
+        "address_confidence": 0.4,
+        "customer_name": "Don Etherton",
+        "customer_name_confidence": 1.0,
+        "decision_makers": [
+            "Don Etherton (homeowner)"
+        ],
+        "urgency_signals": [
+            "right now I'm just looking at four to eight weeks to get work done",
+            "I would hate to have someone wait that long"
+        ],
+        "budget_indicators": [
+            "it's usually a more time and cost effective service provider",
+            "usually a, a roofing repair specialist will be more cost effective for something minor like this"
+        ],
+        "confidence_score": 0.74,
+        "follow_up_required": false,
+        "follow_up_reason": null
+    }
+}

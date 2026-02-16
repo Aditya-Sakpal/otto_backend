@@ -1,0 +1,103 @@
+╔═══════════════════════════════════════════════════════════════════════╗
+║                    LLM CALLS ANALYSIS REPORT                          ║
+╚═══════════════════════════════════════════════════════════════════════╝
+
+CALL PROCESSING API (/api/v1/call-processing/process)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Per Call Processing Request, we make the following LLM calls:
+
+1. DIARIZATION SERVICE (3 LLM calls)
+   - diarization_service.py
+     ├─ identify_speakers() - 1 call
+     ├─ label_speakers() - 1 call
+     └─ verify_diarization() - 1 call
+
+2. CALL TYPE DETECTOR (1 LLM call)
+   - call_type_detector.py
+     └─ detect_call_type() - 1 call
+
+3. SUMMARY EXTRACTOR (1 LLM call per chunk)
+   - summary_extractor.py
+     └─ extract() - 1 call per chunk
+     Note: Typically 3-5 chunks per call
+
+4. COMPLIANCE EXTRACTOR (1 LLM call per chunk)
+   - compliance_extractor.py
+     └─ extract() - 1 call per chunk
+     Note: Typically 3-5 chunks per call
+
+5. OBJECTION EXTRACTOR (4 LLM calls)
+   - objection_extractor.py
+     ├─ _stage1_initial_detection() - 1 call
+     ├─ _stage3_llm_classification() - 1 call
+     ├─ _stage6_validate_speakers() - 1 call
+     └─ _stage7_cross_validate_objections() - 1 call
+
+6. QUALIFICATION EXTRACTOR (4 LLM calls per chunk)
+   - qualification_extractor.py
+     ├─ _extract_core_qualification() - 1 call per chunk
+     ├─ _extract_appointment_details() - 1 call per chunk
+     ├─ _extract_customer_intelligence() - 1 call per chunk
+     └─ _extract_property_details() - 1 call per chunk
+     Note: Typically 3-5 chunks per call
+
+7. SUMMARY MERGE (1 LLM call)
+   - summary_service.py
+     └─ _merge_chunk_summaries_with_llm() - 1 call
+
+
+ESTIMATED TOTAL PER CALL PROCESSING (assuming 4 chunks):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Diarization:           3 calls
+Call Type Detection:   1 call
+Summary Extraction:    4 calls (1 per chunk)
+Compliance:            4 calls (1 per chunk)
+Objections:            4 calls (fixed)
+Qualification:        16 calls (4 per chunk)
+Summary Merge:         1 call
+─────────────────────────────────
+TOTAL:                33 LLM calls per call processing request
+
+
+SOP DOCUMENT INGESTION API (/api/v1/sop/documents/upload)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Per SOP Upload Request:
+
+1. VALIDATION SERVICE (1 LLM call)
+   - validation_service.py
+     └─ validate_sop() - 1 call
+
+2. METRIC EXTRACTION SERVICE (1 LLM call)
+   - metric_extraction_service.py
+     └─ extract_metrics() - 1 call
+
+TOTAL:                 2 LLM calls per SOP upload
+
+
+OTHER SERVICES (Not in primary flow)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ROLE DETECTOR (1 LLM call) - REMOVED FROM PIPELINE
+   - role_detector.py
+     └─ detect_role() - 1 call
+   Note: Not currently used in production pipeline
+
+2. ASK OTTO SERVICE (Variable LLM calls)
+   - langgraph_service.py
+     └─ Multiple calls based on conversation flow
+
+
+SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Call Processing API:   ~33 LLM calls (varies with chunk count)
+SOP Upload API:         2 LLM calls
+Ask Otto API:          Variable (conversation-dependent)
+
+NOTE: Chunk count varies based on audio length:
+- 5 min call  = ~3 chunks  = ~26 LLM calls
+- 10 min call = ~4 chunks  = ~33 LLM calls
+- 15 min call = ~5 chunks  = ~40 LLM calls

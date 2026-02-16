@@ -25,6 +25,7 @@ def _build_call_log_entry(
     call: CallORM,
     analysis: CallAnalysisORM,
     contact_card: Optional[ContactCardORM],
+    obj_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build a single call log entry for objection call lists."""
     contact_name = None
@@ -37,6 +38,15 @@ def _build_call_log_entry(
             contact_name = contact_card.last_name
         else:
             contact_name = contact_card.primary_phone or "Unknown"
+
+    # For objections not matching any of the 9 defined enums, set sub_objection to the raw text
+    sub_objection = None
+    if obj_type and analysis and analysis.objections:
+        from app.domain.enums import ObjectionType
+        defined_values = {e.value for e in ObjectionType if e != ObjectionType.OTHER}
+        if obj_type not in defined_values:
+            sub_objection = obj_type
+
     return {
         "call_id": str(call.id),
         "lead_id": str(call.lead_id) if call.lead_id else None,
@@ -50,6 +60,7 @@ def _build_call_log_entry(
         "booking_status": analysis.booking_status if analysis else None,
         "transcript": getattr(call, "transcript", None),
         "summary": analysis.summary if analysis else None,
+        "sub_objection": sub_objection,
     }
 
 
@@ -173,7 +184,7 @@ class AnalyticsService:
                 
                 # Call logs: all calls where this objection occurred
                 call_logs = [
-                    _build_call_log_entry(call, analysis, contact_card)
+                    _build_call_log_entry(call, analysis, contact_card, obj_type=obj_type)
                     for analysis, call, contact_card in rows_for_obj
                 ]
                 # Sort by created_at desc
@@ -256,7 +267,7 @@ class AnalyticsService:
                             else:
                                 u_name = "Unknown"
                             user_call_logs = [
-                                _build_call_log_entry(call, analysis, contact_card)
+                                _build_call_log_entry(call, analysis, contact_card, obj_type=obj_type)
                                 for analysis, call, contact_card in u_rows
                             ]
                             user_call_logs.sort(

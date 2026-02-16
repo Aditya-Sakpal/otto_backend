@@ -408,6 +408,40 @@
             "description": "Get all sales reps for a company."
           },
           "response": []
+        },
+        {
+          "name": "List Assignees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/assignees?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "assignees"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company ID (required)"
+                },
+                {
+                  "key": "roles",
+                  "value": "csr,sales_rep",
+                  "description": "Comma-separated roles",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List users who can be assigned tasks (CSRs and Sales Reps)."
+          },
+          "response": []
         }
       ],
       "description": "User management endpoints."
@@ -612,6 +646,42 @@
               ]
             },
             "description": "Get comprehensive objection details for a single objection type."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Action Item from Call",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/calls/{{call_id}}/action-items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calls",
+                "{{call_id}}",
+                "action-items"
+              ]
+            },
+            "description": "Create an action item linked to a call and assign it to a user.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner_id\": \"{{user_id}}\",\n  \"action_type\": \"follow_up_call\",\n  \"raw_text\": \"Follow up with customer about quote\",\n  \"due_at\": null,\n  \"priority\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         }
@@ -908,6 +978,62 @@
               ]
             },
             "description": "Delete an appointment."
+          },
+          "response": []
+        },
+        {
+          "name": "List Past Appointments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments/past?company_id={{company_id}}&skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "past"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company/tenant ID"
+                },
+                {
+                  "key": "assigned_rep_id",
+                  "value": "",
+                  "description": "Filter by assigned sales rep",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Filter on or after (ISO 8601)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "Filter on or before (ISO 8601)",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Page size"
+                }
+              ]
+            },
+            "description": "List past appointments for a company."
           },
           "response": []
         }
@@ -1591,6 +1717,124 @@
             "description": "Get sales rep KPIs."
           },
           "response": []
+        },
+        {
+          "name": "Close Rate Trends",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/close-rate-trends?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "close-rate-trends"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID"
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": "User UUID (optional)",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Legacy start date (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "Legacy end date (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "start_a",
+                  "value": "",
+                  "description": "Period A start date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_a",
+                  "value": "",
+                  "description": "Period A end date",
+                  "disabled": true
+                },
+                {
+                  "key": "start_b",
+                  "value": "",
+                  "description": "Period B start date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_b",
+                  "value": "",
+                  "description": "Period B end date",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get close rate trends (closed/won deals). Supports dual-period comparison."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Pending Action",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/actions/pending/{{action_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "actions",
+                "pending",
+                "{{action_id}}",
+                "complete"
+              ]
+            },
+            "description": "Mark a pending action as completed."
+          },
+          "response": []
+        },
+        {
+          "name": "Reopen Pending Action",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/actions/pending/{{action_id}}/reopen",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "metrics",
+                "actions",
+                "pending",
+                "{{action_id}}",
+                "reopen"
+              ]
+            },
+            "description": "Reopen a completed pending action (set status back to pending)."
+          },
+          "response": []
         }
       ],
       "description": "Metrics and analytics endpoints."
@@ -2084,6 +2328,192 @@
               "body": "{\n    \"total_count\": 1,\n    \"count\": 1,\n    \"results\": [\n        {\n            \"id\": \"20000000-0000-0000-0000-000000000009\",\n            \"urgency_level\": null,\n            \"customer\": {\n                \"full_name\": \"Iris Taylor\",\n                \"phone\": \"+1-555-9001\",\n                \"address\": \"741 Birch Way, Portland, OR, 97201\"\n            },\n            \"sales_context\": {\n                \"intent\": null,\n                \"primary_objection\": \"landlord_approval\",\n                \"last_touched\": \"2026-01-14T21:43:26.773899Z\",\n                \"follow_up_count\": 0\n            },\n            \"appointment\": {\n                \"assigned_rep\": \"Christian Noren\",\n                \"scheduled_for\": \"2026-01-13T21:43:26.773899Z\",\n                \"recording_url\": null,\n                \"transcript_id\": null\n            },\n            \"workflow\": {\n                \"tasks\": [],\n                \"summary_notes\": \"Customer is renter and needs landlord coordination. Requires property owner involvement.\"\n            }\n        }\n    ]\n}"
             }
           ]
+        },
+        {
+          "name": "Get Sales Rep Stat",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sales_rep/exec/stat/{{sales_rep_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sales_rep",
+                "exec",
+                "stat",
+                "{{sales_rep_id}}"
+              ]
+            },
+            "description": "Get sales rep personal stats and pending leads."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Appointment Details (Exec)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sales_rep/exec/appointments/{{appointment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sales_rep",
+                "exec",
+                "appointments",
+                "{{appointment_id}}"
+              ]
+            },
+            "description": "Get appointment details for exec view."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ridealongs List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sales_rep/exec/dashboard/ridealongs_list?company_id={{company_id}}&skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sales_rep",
+                "exec",
+                "dashboard",
+                "ridealongs_list"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (required)"
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Filter on or after (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "Filter on or before (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter: pending, won, lost, no_show, rescheduled",
+                  "disabled": true
+                },
+                {
+                  "key": "ghost_mode",
+                  "value": "",
+                  "description": "Filter by ghost mode (true/false)",
+                  "disabled": true
+                },
+                {
+                  "key": "sales_rep_name",
+                  "value": "",
+                  "description": "Filter by rep name (partial)",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Page size"
+                }
+              ]
+            },
+            "description": "Get ridealongs (appointments) with optional filters."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sales Team Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sales_rep/exec/dashboard/sales_team_stats?company_id={{company_id}}&skip=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sales_rep",
+                "exec",
+                "dashboard",
+                "sales_team_stats"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (required)"
+                },
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Max results (omit for all)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get sales team stats per rep."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sales Rep Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sales_rep/exec/dashboard?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sales_rep",
+                "exec",
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID (required)"
+                }
+              ]
+            },
+            "description": "Get main dashboard: ridealongs_list and sales_team_stats."
+          },
+          "response": []
         }
       ],
       "description": "Sales rep specific endpoints."
@@ -2783,6 +3213,190 @@
             "description": "Upload a new document."
           },
           "response": []
+        },
+        {
+          "name": "Get Integration by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/integrations/{{integration_id}}?company_id={{company_id}}&provider_type=crm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "integrations",
+                "{{integration_id}}"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID"
+                },
+                {
+                  "key": "provider_type",
+                  "value": "crm",
+                  "description": "Integration type: 'crm' or 'voip'"
+                }
+              ]
+            },
+            "description": "Get integration details by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Integration",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/integrations/{{integration_id}}?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "integrations",
+                "{{integration_id}}"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID"
+                }
+              ]
+            },
+            "description": "Update/configure an existing integration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"crm_provider\": \"gohighlevel\",\n  \"crm_api_key\": \"\",\n  \"crm_company_id\": \"\",\n  \"voip_provider\": \"ctm\",\n  \"voip_api_key\": \"\",\n  \"voip_company_id\": \"\",\n  \"location_id\": \"\",\n  \"extra_metadata\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Integration Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/integrations/{{integration_id}}/logs?company_id={{company_id}}&limit=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "integrations",
+                "{{integration_id}}",
+                "logs"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID"
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Max log entries (default 50)"
+                }
+              ]
+            },
+            "description": "Get integration logs."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Document Metadata",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/documents/reference?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "documents",
+                "reference"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID"
+                }
+              ]
+            },
+            "description": "Update document metadata (name). Path param: reference, sop, csr_sop, or sales_sop.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Document Name\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings/documents/reference?company_id={{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "settings",
+                "documents",
+                "reference"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company UUID"
+                }
+              ]
+            },
+            "description": "Delete a document by type (reference, sop, csr_sop, sales_sop)."
+          },
+          "response": []
         }
       ],
       "description": "Settings management endpoints for integrations and documents."
@@ -3241,6 +3855,162 @@
         }
       ],
       "description": "Webhook endpoints for external services (telephony, CRM, etc.). No authentication required."
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "List Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks?company_id={{company_id}}&skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "company_id",
+                  "value": "{{company_id}}",
+                  "description": "Company ID (required)"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter: pending, in_progress, completed, cancelled",
+                  "disabled": true
+                },
+                {
+                  "key": "priority",
+                  "value": "",
+                  "description": "Filter by priority",
+                  "disabled": true
+                },
+                {
+                  "key": "assignee_id",
+                  "value": "",
+                  "description": "Filter by assignee user ID",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search in task text",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0",
+                  "description": "Pagination offset"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Page size"
+                }
+              ]
+            },
+            "description": "List tasks (action items) for the company with summary counts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Task by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Get a single task by ID with full details."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ]
+            },
+            "description": "Create a task manually. Executives can assign to CSR or Sales Rep.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{company_id}}\",\n  \"action_type\": \"follow_up_call\",\n  \"raw_text\": \"Follow up with customer regarding roof inspection quote\",\n  \"status\": \"pending\",\n  \"priority\": 2,\n  \"due_at\": null,\n  \"owner_id\": null,\n  \"lead_id\": null,\n  \"call_id\": null,\n  \"appointment_id\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Update a task: reassign, change status, priority, due date, or description.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"priority\": 3,\n  \"raw_text\": \"Updated task description\",\n  \"owner_id\": null,\n  \"due_at\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {

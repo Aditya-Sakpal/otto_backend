@@ -1,0 +1,140 @@
+{
+    "call_id": "446",
+    "company_id": "gpt52_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:45:18.423000",
+    "summary": {
+        "summary": "Les McCoy called back after missing a prior call to reconnect with the company about his roofing project. The representative confirmed the correct job address (6933 West Linda Sulane, Imperial, AZ 8538) and noted that another roof job for him was already completed and paid. The rep verified Les\u2019s contact information and discussed next steps for the upcoming roof installation, clarifying that this project is a foam one-inch silicone application, that materials will be brought the day of install, and that the work should take 1\u20133 days depending on roof size and weather. The rep explained arrival timing (7\u20139 AM), asked that the driveway be clear, and outlined communication expectations including a call/text from the assigned project manager the day before or morning of installation and a final walkthrough/job completion form required to release warranty documents. The rep also advised Les to expect a pre-lien notice letter from Titan Lain Services as a standard Arizona legal notice, not an actual lien. Les had no questions and expressed strong satisfaction with the company\u2019s prior work and confidence in the upcoming project.",
+        "key_points": [
+            "Customer (Les McCoy) called back because he missed the company\u2019s previous call and wanted to go over next steps for his roof project.",
+            "The address for the current job was confirmed as 6933 West Linda Sulane, Imperial, AZ 8538, and the customer stated the other job was completed and already paid for.",
+            "Project details discussed: foam one-inch silicone roof work; materials will be brought on installation day; install expected to take 1\u20133 days; crew arrives between 7\u20139 AM and driveway should be clear; customer does not need to be home but should be reachable by phone; final walkthrough and signed completion form are required to release warranty documents."
+        ],
+        "action_items": [
+            "Customer to keep driveway clear for crew arrival between 7\u20139 AM on installation day.",
+            "Customer to be available by phone during installation in case the crew/project manager needs to reach him."
+        ],
+        "next_steps": [
+            "Assigned project manager will call/text the customer the day prior to installation or the morning of installation.",
+            "After completion, project manager will schedule a final walkthrough and obtain a signed job completion form (or send via email if customer is not on site) to release warranty documents."
+        ],
+        "pending_actions": [
+            {
+                "type": "check_in",
+                "owner": "company",
+                "due_at": null,
+                "raw_text": "You're also going to receive receive a caller text a day prior to installation or the morning of from your assigned project manager, and this will be your point of contact throughout the job.",
+                "confidence": 0.74,
+                "contact_method": "any"
+            },
+            {
+                "type": "schedule_appointment",
+                "owner": "company",
+                "due_at": null,
+                "raw_text": "Once the job is complete, um, your assigned project manager will contact you to schedule a final walkthrough of the property.",
+                "confidence": 0.78,
+                "contact_method": "phone"
+            },
+            {
+                "type": "send_info",
+                "owner": "company",
+                "due_at": null,
+                "raw_text": "If you're not on site, the form will be sent to you via email.",
+                "confidence": 0.7,
+                "contact_method": "email"
+            }
+        ],
+        "sentiment_score": 0.88,
+        "confidence_score": 0.86
+    },
+    "compliance": {
+        "call_id": "446",
+        "target_role": "customer_rep",
+        "evaluation_mode": "sop_only",
+        "sop_compliance": {
+            "score": 0.86,
+            "compliance_rate": 0.86,
+            "stages": {
+                "total": 5,
+                "followed": [
+                    "Intake",
+                    "Qualify",
+                    "Present",
+                    "Close"
+                ],
+                "missed": [
+                    "Handle Objections"
+                ]
+            },
+            "issues": [
+                "Did not explicitly confirm the full service address during the main rep interaction (address was referenced, but not fully re-verified with the customer).",
+                "No clear close/confirmation of next steps timing (e.g., specific start date window or confirmation of when the project manager will reach out), beyond general expectations.",
+                "No objection handling occurred; stage marked as missed but no penalty for lack of objections per guidance."
+            ],
+            "positive_behaviors": [
+                "Professional greeting with company name and representative name.",
+                "Confirmed key contact details (phone, email, name).",
+                "Verified project/property reference and clarified that the other job was completed and paid.",
+                "Proactively asked about scheduling constraints within the next 4\u20136 weeks (timeline qualification).",
+                "Set clear expectations for installation (materials delivery, duration, arrival window, homeowner presence, driveway clearance).",
+                "Explained final walkthrough process and warranty document release requirements.",
+                "Provided compliance-related disclosure about the preliminary lien notice and reassured the customer appropriately.",
+                "Checked for questions and maintained a courteous, customer-focused tone."
+            ],
+            "confidence": 0.82
+        },
+        "timestamps": {
+            "sop_evaluated_at": "2026-01-19T13:45:12.651676"
+        }
+    },
+    "objections": {
+        "objections": [],
+        "total_count": 0
+    },
+    "qualification": {
+        "bant_scores": {
+            "need": 0.8,
+            "budget": 0.0,
+            "timeline": 0.5,
+            "authority": 1.0
+        },
+        "overall_score": 0.575,
+        "qualification_status": "warm",
+        "booking_status": "not_booked",
+        "call_outcome_category": "qualified_but_unbooked",
+        "appointment_confirmed": false,
+        "appointment_date": null,
+        "appointment_type": null,
+        "appointment_timezone": "UTC",
+        "appointment_time_confidence": 0.0,
+        "preferred_time_window": null,
+        "appointment_intent": null,
+        "original_appointment_datetime": null,
+        "new_requested_time": null,
+        "service_requested": "Roof installation (foam one inch silicone roofing)",
+        "service_not_offered_reason": null,
+        "service_address_raw": "6933 West Linda Sulane Imperia 8538",
+        "service_address_structured": {
+            "line1": "6933 West Linda Sulane",
+            "city": "Imperia",
+            "state": null,
+            "postal_code": "8538",
+            "country": "US"
+        },
+        "address_confidence": 0.55,
+        "customer_name": "Les McCoy",
+        "customer_name_confidence": 1.0,
+        "decision_makers": [
+            "Les McCoy (homeowner)"
+        ],
+        "urgency_signals": [
+            "the sooner, the better"
+        ],
+        "budget_indicators": [
+            "The other one is completed and it's already been paid for"
+        ],
+        "confidence_score": 0.72,
+        "follow_up_required": false,
+        "follow_up_reason": null
+    }
+}

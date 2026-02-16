@@ -1,0 +1,536 @@
+{
+  "call_id": 445,
+  "timestamp": "2026-01-19T08:50:49.621916",
+  "call_data": {
+    "call_id": "445",
+    "audio_url": "https://otto-call-recording.s3.us-east-1.amazonaws.com/v1/1323672265-redacted.mp3",
+    "call_date": "2026-01-16 19:48:43.693000",
+    "company_id": "string",
+    "created_at": "2026-01-16 20:16:28.511000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 55
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-16 20:16:28.511000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Thank you for calling Arizona Roofers. This is Bronte. How can I help you?",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Hi. I wanted to give you guys a call to see if you guys would be able to do a roof inspection in a property that's in Casagrand?",
+        "start_time": 5.0,
+        "end_time": 10.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yes. What's going on?",
+        "start_time": 10.0,
+        "end_time": 11.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I'm not too sure yet. This owner hasn't been there for a while. We won't try and get ready to get on the market, but we wanted to see about taking care of some repairs that might be needed before",
+        "start_time": 11.0,
+        "end_time": 16.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And what is- Do you guys offer free roof inspection?",
+        "start_time": 16.0,
+        "end_time": 18.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "We do free roof inspections for, um, property owners.",
+        "start_time": 18.0,
+        "end_time": 20.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Right. Exactly. So yeah. Um, but sorry, what was it?",
+        "start_time": 20.0,
+        "end_time": 22.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "It's 159 East Pebble Trow. And the zip code is the 85122?",
+        "start_time": 22.0,
+        "end_time": 25.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Let me check. Just make sure I got it right for you. It is, yes, 85122.",
+        "start_time": 25.0,
+        "end_time": 28.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. And then just to clarify, you were wanting Um, just like an inspection report?",
+        "start_time": 28.0,
+        "end_time": 31.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yes. Okay. Uh, so inspection reports are different than regular standard home estimates for repair. Um, is there any issues going on with the roof right now?",
+        "start_time": 31.0,
+        "end_time": 35.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Um, not that we know of. I mean, that's, that's why we wanted to get you guys out there to take a look at it, because we're sure there's something. just from like age or?",
+        "start_time": 35.0,
+        "end_time": 40.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "From age, yes. Okay. And what is your first and last name?",
+        "start_time": 40.0,
+        "end_time": 42.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "My first name is Deshay. My last name is Ramos.",
+        "start_time": 42.0,
+        "end_time": 44.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And and what's your relation to the property?",
+        "start_time": 44.0,
+        "end_time": 46.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I am the agent for the property.",
+        "start_time": 46.0,
+        "end_time": 47.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And who currently owns the, um, property?",
+        "start_time": 47.0,
+        "end_time": 49.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "His name is Ted.",
+        "start_time": 49.0,
+        "end_time": 50.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay, give me just one second to say. I love you. I love you.",
+        "start_time": 50.0,
+        "end_time": 52.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then can I ask if you know the age of the roof?",
+        "start_time": 52.0,
+        "end_time": 54.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I don't.",
+        "start_time": 54.0,
+        "end_time": 55.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And do you know what kind of roofing system it is, whether it's flat, shingle, tile?",
+        "start_time": 55.0,
+        "end_time": 58.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "And is the property in an HOA neighborhood? Yes.",
+        "start_time": 58.0,
+        "end_time": 60.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And is there any sort of like special access I should notate for the property like gate codes?",
+        "start_time": 60.0,
+        "end_time": 62.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "You guys can just come by.",
+        "start_time": 62.0,
+        "end_time": 63.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And does the roof have any solar panels?",
+        "start_time": 63.0,
+        "end_time": 65.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No.",
+        "start_time": 65.0,
+        "end_time": 66.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. All right. And then did you want me to make you the main point of contact for this job?",
+        "start_time": 66.0,
+        "end_time": 69.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Sure.",
+        "start_time": 69.0,
+        "end_time": 70.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And then are you most likely just going to go over the proposal with Ted?",
+        "start_time": 70.0,
+        "end_time": 72.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, exactly.",
+        "start_time": 72.0,
+        "end_time": 73.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay, perfect. And then if you do decide, great. If you decide to go forward with us, we can get Ted's information just after the fact.",
+        "start_time": 73.0,
+        "end_time": 76.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "But what is a good email for the actual proposal to get sent to?",
+        "start_time": 76.0,
+        "end_time": 78.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "It's going to be D as in delta, E as in elephant, S as in Sam, H as in helicopter. Uh, A is in alpha, Y is in yellow, dot H-O-M-E-S, holmes, A-Z at gmail dot com.",
+        "start_time": 78.0,
+        "end_time": 83.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. So I have to say holmes, sorry, to say dot holmes, A.Z at gmail.com, correct?",
+        "start_time": 83.0,
+        "end_time": 86.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "That's correct.",
+        "start_time": 86.0,
+        "end_time": 87.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And do you want me to use this phone number you're calling me on, um, as the best way to reach you?",
+        "start_time": 87.0,
+        "end_time": 90.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 90.0,
+        "end_time": 91.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Can I send this number of text confirmations about the appointment?",
+        "start_time": 91.0,
+        "end_time": 93.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 93.0,
+        "end_time": 94.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Do you have the schedule there so you can let me know when they're planning on coming by?",
+        "start_time": 94.0,
+        "end_time": 96.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I have to look at that in just one second. I have to finish with owner info.",
+        "start_time": 96.0,
+        "end_time": 99.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Is there a certain day or time you're wanting it done by?",
+        "start_time": 99.0,
+        "end_time": 101.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No. Some of the better. I guess whatever is your source availability.",
+        "start_time": 101.0,
+        "end_time": 104.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. It looks like I can have somebody out there Monday, January 19, and I can do really any time after 9 AM.",
+        "start_time": 104.0,
+        "end_time": 107.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. Well, that's fine.",
+        "start_time": 107.0,
+        "end_time": 108.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. I can either do a 10 a.m. to noon, a 1 p.m. to 3 p.m. or a 4 p.m. through 6 p.m. Which one do you prefer?",
+        "start_time": 108.0,
+        "end_time": 111.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "One to three.",
+        "start_time": 111.0,
+        "end_time": 112.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And Deshay, are you going to be the one present at the inspection time? You guys need me here to be present to inspect the roof?",
+        "start_time": 112.0,
+        "end_time": 115.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "We do need somebody present for liability reasons.",
+        "start_time": 115.0,
+        "end_time": 117.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. That sounds good. Yes, I'll put in there and I'll let you guys know if anything does change then.",
+        "start_time": 117.0,
+        "end_time": 120.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, if anything changes between now and then, just give me a call back at this number and I'll get everything squared away for you.",
+        "start_time": 120.0,
+        "end_time": 123.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then once we're off the phone here, you'll get a text confirmation with the appointment details and then the day of the appointment Your technician will give you a text or a phone call when they're about 30 minutes out from the property, um, so you can coordinate a time to get there if you're, um, you know, within that kind of time span and just so you know exactly when they'll be there.",
+        "start_time": 123.0,
+        "end_time": 128.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay, perfect.",
+        "start_time": 128.0,
+        "end_time": 129.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Um, I've got you scheduled on my side, just expect that, uh, confirmation text here in a bit.",
+        "start_time": 129.0,
+        "end_time": 131.0,
+        "original_speaker": "SPEAKER_00"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Thank you for calling Arizona Roofers. This is Bronte. How can I help you?\n\nhome_owner: Hi. I wanted to give you guys a call to see if you guys would be able to do a roof inspection in a property that's in Casagrand?\n\ncustomer_rep: Yes. What's going on?\n\nhome_owner: I'm not too sure yet. This owner hasn't been there for a while. We won't try and get ready to get on the market, but we wanted to see about taking care of some repairs that might be needed before\n\ncustomer_rep: Okay. And what is- Do you guys offer free roof inspection?\n\nhome_owner: We do free roof inspections for, um, property owners.\n\ncustomer_rep: Right. Exactly. So yeah. Um, but sorry, what was it?\n\nhome_owner: It's 159 East Pebble Trow. And the zip code is the 85122?\n\ncustomer_rep: Let me check. Just make sure I got it right for you. It is, yes, 85122.\n\nhome_owner: Okay. And then just to clarify, you were wanting Um, just like an inspection report?\n\ncustomer_rep: Yes. Okay. Uh, so inspection reports are different than regular standard home estimates for repair. Um, is there any issues going on with the roof right now?\n\nhome_owner: Um, not that we know of. I mean, that's, that's why we wanted to get you guys out there to take a look at it, because we're sure there's something. just from like age or?\n\ncustomer_rep: From age, yes. Okay. And what is your first and last name?\n\nhome_owner: My first name is Deshay. My last name is Ramos.\n\ncustomer_rep: Okay. And and what's your relation to the property?\n\nhome_owner: I am the agent for the property.\n\ncustomer_rep: And who currently owns the, um, property?\n\nhome_owner: His name is Ted.\n\ncustomer_rep: Okay, give me just one second to say. I love you. I love you.\n\ncustomer_rep: And then can I ask if you know the age of the roof?\n\nhome_owner: I don't.\n\ncustomer_rep: Okay. And do you know what kind of roofing system it is, whether it's flat, shingle, tile?\n\nhome_owner: And is the property in an HOA neighborhood? Yes.\n\ncustomer_rep: Okay. And is there any sort of like special access I should notate for the property like gate codes?\n\nhome_owner: You guys can just come by.\n\ncustomer_rep: Okay. And does the roof have any solar panels?\n\nhome_owner: No.\n\ncustomer_rep: Okay. All right. And then did you want me to make you the main point of contact for this job?\n\nhome_owner: Sure.\n\ncustomer_rep: Okay. And then are you most likely just going to go over the proposal with Ted?\n\nhome_owner: Yes, exactly.\n\ncustomer_rep: Okay, perfect. And then if you do decide, great. If you decide to go forward with us, we can get Ted's information just after the fact.\n\ncustomer_rep: But what is a good email for the actual proposal to get sent to?\n\nhome_owner: It's going to be D as in delta, E as in elephant, S as in Sam, H as in helicopter. Uh, A is in alpha, Y is in yellow, dot H-O-M-E-S, holmes, A-Z at gmail dot com.\n\ncustomer_rep: Okay. So I have to say holmes, sorry, to say dot holmes, A.Z at gmail.com, correct?\n\nhome_owner: That's correct.\n\ncustomer_rep: Okay. And do you want me to use this phone number you're calling me on, um, as the best way to reach you?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. Can I send this number of text confirmations about the appointment?\n\nhome_owner: Yes.\n\ncustomer_rep: Do you have the schedule there so you can let me know when they're planning on coming by?\n\nhome_owner: I have to look at that in just one second. I have to finish with owner info.\n\ncustomer_rep: Okay. Is there a certain day or time you're wanting it done by?\n\nhome_owner: No. Some of the better. I guess whatever is your source availability.\n\ncustomer_rep: All right. It looks like I can have somebody out there Monday, January 19, and I can do really any time after 9 AM.\n\nhome_owner: Okay. Well, that's fine.\n\ncustomer_rep: Okay. I can either do a 10 a.m. to noon, a 1 p.m. to 3 p.m. or a 4 p.m. through 6 p.m. Which one do you prefer?\n\nhome_owner: One to three.\n\ncustomer_rep: And Deshay, are you going to be the one present at the inspection time? You guys need me here to be present to inspect the roof?\n\nhome_owner: We do need somebody present for liability reasons.\n\ncustomer_rep: Okay. That sounds good. Yes, I'll put in there and I'll let you guys know if anything does change then.\n\nhome_owner: Yes, if anything changes between now and then, just give me a call back at this number and I'll get everything squared away for you.\n\ncustomer_rep: And then once we're off the phone here, you'll get a text confirmation with the appointment details and then the day of the appointment Your technician will give you a text or a phone call when they're about 30 minutes out from the property, um, so you can coordinate a time to get there if you're, um, you know, within that kind of time span and just so you know exactly when they'll be there.\n\nhome_owner: Okay, perfect.\n\ncustomer_rep: Um, I've got you scheduled on my side, just expect that, uh, confirmation text here in a bit."
+  },
+  "transcript": "customer_rep: Thank you for calling Arizona Roofers. This is Bronte. How can I help you?\n\nhome_owner: Hi. I wanted to give you guys a call to see if you guys would be able to do a roof inspection in a property that's in Casagrand?\n\ncustomer_rep: Yes. What's going on?\n\nhome_owner: I'm not too sure yet. This owner hasn't been there for a while. We won't try and get ready to get on the market, but we wanted to see about taking care of some repairs that might be needed before\n\ncustomer_rep: Okay. And what is- Do you guys offer free roof inspection?\n\nhome_owner: We do free roof inspections for, um, property owners.\n\ncustomer_rep: Right. Exactly. So yeah. Um, but sorry, what was it?\n\nhome_owner: It's 159 East Pebble Trow. And the zip code is the 85122?\n\ncustomer_rep: Let me check. Just make sure I got it right for you. It is, yes, 85122.\n\nhome_owner: Okay. And then just to clarify, you were wanting Um, just like an inspection report?\n\ncustomer_rep: Yes. Okay. Uh, so inspection reports are different than regular standard home estimates for repair. Um, is there any issues going on with the roof right now?\n\nhome_owner: Um, not that we know of. I mean, that's, that's why we wanted to get you guys out there to take a look at it, because we're sure there's something. just from like age or?\n\ncustomer_rep: From age, yes. Okay. And what is your first and last name?\n\nhome_owner: My first name is Deshay. My last name is Ramos.\n\ncustomer_rep: Okay. And and what's your relation to the property?\n\nhome_owner: I am the agent for the property.\n\ncustomer_rep: And who currently owns the, um, property?\n\nhome_owner: His name is Ted.\n\ncustomer_rep: Okay, give me just one second to say. I love you. I love you.\n\ncustomer_rep: And then can I ask if you know the age of the roof?\n\nhome_owner: I don't.\n\ncustomer_rep: Okay. And do you know what kind of roofing system it is, whether it's flat, shingle, tile?\n\nhome_owner: And is the property in an HOA neighborhood? Yes.\n\ncustomer_rep: Okay. And is there any sort of like special access I should notate for the property like gate codes?\n\nhome_owner: You guys can just come by.\n\ncustomer_rep: Okay. And does the roof have any solar panels?\n\nhome_owner: No.\n\ncustomer_rep: Okay. All right. And then did you want me to make you the main point of contact for this job?\n\nhome_owner: Sure.\n\ncustomer_rep: Okay. And then are you most likely just going to go over the proposal with Ted?\n\nhome_owner: Yes, exactly.\n\ncustomer_rep: Okay, perfect. And then if you do decide, great. If you decide to go forward with us, we can get Ted's information just after the fact.\n\ncustomer_rep: But what is a good email for the actual proposal to get sent to?\n\nhome_owner: It's going to be D as in delta, E as in elephant, S as in Sam, H as in helicopter. Uh, A is in alpha, Y is in yellow, dot H-O-M-E-S, holmes, A-Z at gmail dot com.\n\ncustomer_rep: Okay. So I have to say holmes, sorry, to say dot holmes, A.Z at gmail.com, correct?\n\nhome_owner: That's correct.\n\ncustomer_rep: Okay. And do you want me to use this phone number you're calling me on, um, as the best way to reach you?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. Can I send this number of text confirmations about the appointment?\n\nhome_owner: Yes.\n\ncustomer_rep: Do you have the schedule there so you can let me know when they're planning on coming by?\n\nhome_owner: I have to look at that in just one second. I have to finish with owner info.\n\ncustomer_rep: Okay. Is there a certain day or time you're wanting it done by?\n\nhome_owner: No. Some of the better. I guess whatever is your source availability.\n\ncustomer_rep: All right. It looks like I can have somebody out there Monday, January 19, and I can do really any time after 9 AM.\n\nhome_owner: Okay. Well, that's fine.\n\ncustomer_rep: Okay. I can either do a 10 a.m. to noon, a 1 p.m. to 3 p.m. or a 4 p.m. through 6 p.m. Which one do you prefer?\n\nhome_owner: One to three.\n\ncustomer_rep: And Deshay, are you going to be the one present at the inspection time? You guys need me here to be present to inspect the roof?\n\nhome_owner: We do need somebody present for liability reasons.\n\ncustomer_rep: Okay. That sounds good. Yes, I'll put in there and I'll let you guys know if anything does change then.\n\nhome_owner: Yes, if anything changes between now and then, just give me a call back at this number and I'll get everything squared away for you.\n\ncustomer_rep: And then once we're off the phone here, you'll get a text confirmation with the appointment details and then the day of the appointment Your technician will give you a text or a phone call when they're about 30 minutes out from the property, um, so you can coordinate a time to get there if you're, um, you know, within that kind of time span and just so you know exactly when they'll be there.\n\nhome_owner: Okay, perfect.\n\ncustomer_rep: Um, I've got you scheduled on my side, just expect that, uh, confirmation text here in a bit.",
+  "summary": {
+    "call_id": "445",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.9,
+        "compliance_rate": 0.9,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "GREETING & IDENTIFICATION",
+            "NEEDS DISCOVERY",
+            "QUALIFYING",
+            "SCHEDULING",
+            "SETTING EXPECTATIONS",
+            "CLOSE & CONFIRMATION"
+          ],
+          "missed": []
+        },
+        "issues": [],
+        "positive_behaviors": [
+          "Asked clarifying questions",
+          "Showed empathy for customer situation",
+          "Professional and courteous tone"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-16T20:16:23.575024"
+      },
+      "call_id": "445"
+    },
+    "created_at": "2026-01-16 20:16:28.885000",
+    "milvus_id": "vec_445_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "booked",
+      "call_outcome_category": "qualified_and_booked",
+      "appointment_confirmed": true,
+      "appointment_date": "2026-01-19T13:00:00",
+      "appointment_type": "in-person",
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 1.0,
+      "preferred_time_window": "afternoon",
+      "appointment_intent": "new",
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof inspection",
+      "service_not_offered_reason": null,
+      "service_address_raw": "159 East Pebble Trow, Casagrand, 85122",
+      "service_address_structured": {
+        "line1": "159 East Pebble Trow",
+        "city": "Casagrand",
+        "state": "Arizona",
+        "postal_code": "85122",
+        "country": "US"
+      },
+      "address_confidence": 1.0,
+      "customer_name": "Deshay Ramos",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "Deshay Ramos"
+      ],
+      "urgency_signals": [],
+      "budget_indicators": [],
+      "confidence_score": 0.8,
+      "follow_up_required": false,
+      "follow_up_reason": null,
+      "property_details": {
+        "roof_type": null,
+        "roof_age_years": null,
+        "stories": null,
+        "hoa_status": "yes",
+        "gated_community": false,
+        "has_solar": false,
+        "pets": null,
+        "property_access_notes": null,
+        "roof_condition": null,
+        "special_features": []
+      }
+    },
+    "summary": {
+      "summary": "A homeowner, Deshay Ramos, called Arizona Roofers to schedule a free roof inspection for a property in Casagrand. The property is a single-story home with a shingle roof, located in an HOA neighborhood. The homeowner is acting as an agent for the property owner, Ted. The inspection is scheduled for January 19, between 1 p.m. and 3 p.m. The homeowner will be present at the inspection for liability reasons.",
+      "key_points": [
+        "Customer wants a free roof inspection for a property in Casagrand.",
+        "Property is a single-story home with a shingle roof, located in an HOA neighborhood.",
+        "Homeowner is acting as an agent for the property owner, Ted.",
+        "Inspection is scheduled for January 19, between 1 p.m. and 3 p.m.",
+        "Homeowner will be present at the inspection for liability reasons."
+      ],
+      "action_items": [
+        "Schedule the roof inspection for January 19, between 1 p.m. and 3 p.m."
+      ],
+      "next_steps": [
+        "Send a text confirmation to the homeowner with the inspection details."
+      ],
+      "pending_actions": [
+        {
+          "type": "schedule_appointment",
+          "owner": "customer_rep",
+          "due_at": "2026-01-19T13:00:00",
+          "raw_text": "Inspection is scheduled for January 19, between 1 p.m. and 3 p.m.",
+          "confidence": 0.9,
+          "contact_method": "sms"
+        }
+      ],
+      "sentiment_score": 0.7,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

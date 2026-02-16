@@ -1,0 +1,147 @@
+{
+    "call_id": "451",
+    "company_id": "gpt52_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:50:17.779000",
+    "summary": {
+        "summary": "David Rosenberg, a homeowner in Phoenix, called Arizona Roofers to ask if they handle roof sealants for a second-floor walkout deck/balcony that needs to be sealed and properly pitched. The rep confirmed details, noting the roof is flat in the area of concern and that the main roof material is shingle (per customer\u2019s description), with an estimated roof age of about 12 years and no solar panels. David provided the property address (15227 South 14th Avenue, Phoenix, AZ 85045), email, and phone number, but declined to provide additional details like square footage. The rep scheduled a free inspection/site visit for Tuesday, January 20 from 10:00 AM to 12:00 PM, and David requested that the technician call before arriving; the rep agreed to note that and stated the tech typically calls about 30 minutes prior and that appointment confirmations would be sent via text/email.",
+        "key_points": [
+            "Customer needs a quote to seal and ensure proper pitch on a second-floor walkout deck/balcony area; research suggested a roofer is needed.",
+            "Property details provided: address is 15227 South 14th Avenue, Phoenix, AZ 85045; roof area discussed is flat; main roof described as shingle; roof age estimated around 12 years; no solar panels.",
+            "Appointment outcome: free inspection scheduled for Tuesday, 2026-01-20, 10:00 AM\u201312:00 PM, with customer requesting a call before the technician arrives (rep said typically ~30 minutes prior)."
+        ],
+        "action_items": [
+            "Complete the scheduled inspection of the balcony/flat roof area and provide a quote/proposal for sealing/coating and correcting pitch as needed.",
+            "Ensure the technician calls David before arriving (per customer request) and send appointment confirmation via text/email."
+        ],
+        "next_steps": [
+            "Technician performs the on-site inspection during the 10:00 AM\u201312:00 PM window on 2026-01-20 and reviews findings with David.",
+            "Company sends proposal/quote to the customer\u2019s email after inspection and discusses options."
+        ],
+        "pending_actions": [
+            {
+                "type": "inspection",
+                "owner": "company",
+                "due_at": "2026-01-20T10:00:00",
+                "raw_text": "We will see you Tuesday, January 20. from ten a.m. to twelve window.",
+                "confidence": 0.86,
+                "contact_method": "in_person"
+            },
+            {
+                "type": "confirm_appointment",
+                "owner": "company",
+                "due_at": "2026-01-20T09:30:00",
+                "raw_text": "just make sure someone just make sure just make sure someone calls me before the appointment.",
+                "confidence": 0.78,
+                "contact_method": "phone"
+            }
+        ],
+        "sentiment_score": 0.62,
+        "confidence_score": 0.84
+    },
+    "compliance": {
+        "call_id": "451",
+        "target_role": "customer_rep",
+        "evaluation_mode": "sop_only",
+        "sop_compliance": {
+            "score": 0.78,
+            "compliance_rate": 0.78,
+            "stages": {
+                "total": 5,
+                "followed": [
+                    "Intake",
+                    "Qualify",
+                    "Present",
+                    "Close"
+                ],
+                "missed": [
+                    "Handle Objections"
+                ]
+            },
+            "issues": [
+                "Did not clearly confirm the appointment date/time selection with the homeowner (rep presented options but then assumed Tuesday Jan 20 without explicit customer confirmation).",
+                "Needs discovery was partial: did not ask how long the issue has been occurring or whether anyone has previously inspected/attempted repairs.",
+                "Qualifying was incomplete: did not ask timeline/urgency for completion, whether other quotes were being obtained, or any budget/financing considerations.",
+                "When the homeowner expressed discomfort providing more info, the rep did not acknowledge/empathize or explain why the questions matter; continued with additional intake questions, which risked rapport/compliance with customer preferences.",
+                "Property/access details were incomplete: HOA/gated community was acknowledged but no gate code/access instructions were collected; also did not confirm who needs to be present beyond a brief mention.",
+                "Contact verification was incomplete: phone number was collected but not repeated back for confirmation; address was collected but not repeated back/confirmed."
+            ],
+            "positive_behaviors": [
+                "Professional greeting with company name and representative name.",
+                "Collected key contact details (full name, address, email, phone) and obtained consent for text/email updates.",
+                "Asked clarifying questions about the job scope (flat roof, balcony/patio recoating/pitching) and roof age estimate.",
+                "Set expectations for the appointment (2-hour window, call ahead ~30 minutes, free inspection, proposal/quote options) and stated next steps.",
+                "Agreed to add a note to ensure the technician calls before arrival, aligning with the homeowner\u2019s request."
+            ],
+            "confidence": 0.82
+        },
+        "timestamps": {
+            "sop_evaluated_at": "2026-01-19T13:50:13.371632"
+        }
+    },
+    "objections": {
+        "objections": [
+            {
+                "id": null,
+                "category_id": 9,
+                "category_text": "Refusal to provide information",
+                "objection_text": "Ma'am, I don't want to provide any more information. It's going far beyond that.",
+                "overcome": false,
+                "speaker_id": "home_owner",
+                "timestamp": null,
+                "confidence_score": 0.9,
+                "severity": "high",
+                "response_suggestions": [],
+                "created_at": "2026-01-19T13:50:19.614288"
+            }
+        ],
+        "total_count": 1
+    },
+    "qualification": {
+        "bant_scores": {
+            "need": 0.8,
+            "budget": 0.5,
+            "timeline": 0.8,
+            "authority": 1.0
+        },
+        "overall_score": 0.775,
+        "qualification_status": "hot",
+        "booking_status": "booked",
+        "call_outcome_category": "qualified_and_booked",
+        "appointment_confirmed": true,
+        "appointment_date": "2026-01-20T10:00:00",
+        "appointment_type": "in-person",
+        "appointment_timezone": "UTC",
+        "appointment_time_confidence": 0.7,
+        "preferred_time_window": "morning",
+        "appointment_intent": "new",
+        "original_appointment_datetime": null,
+        "new_requested_time": null,
+        "service_requested": "Inspection and quote for second-floor walkout deck/balcony flat roof sealant/recoating and correcting pitch/drainage",
+        "service_not_offered_reason": null,
+        "service_address_raw": "15227 South 14th Avenue, Phoenix, Arizona 85045",
+        "service_address_structured": {
+            "line1": "15227 South 14th Avenue",
+            "city": "Phoenix",
+            "state": "Arizona",
+            "postal_code": "85045",
+            "country": "US"
+        },
+        "address_confidence": 1.0,
+        "customer_name": "David",
+        "customer_name_confidence": 1.0,
+        "decision_makers": [
+            "David Rosenberg (homeowner)"
+        ],
+        "urgency_signals": [
+            "I just want to pick, I just want to see what day and time works best for you.",
+            "just make sure someone calls me before the appointment."
+        ],
+        "budget_indicators": [
+            "we need a quote on that."
+        ],
+        "confidence_score": 0.86,
+        "follow_up_required": false,
+        "follow_up_reason": null
+    }
+}

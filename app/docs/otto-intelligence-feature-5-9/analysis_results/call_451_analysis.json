@@ -1,0 +1,523 @@
+{
+  "call_id": 451,
+  "timestamp": "2026-01-19T08:50:54.298673",
+  "call_data": {
+    "call_id": "451",
+    "audio_url": "https://app.calltrackingmetrics.com/api/v1/accounts/541914/calls/CA5389c3c846f2044a4ccc266f6eb6c6e6/recording",
+    "call_date": "2026-01-17 22:28:15.934000",
+    "company_id": "string",
+    "created_at": "2026-01-17 22:29:12.406000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 53
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-17 22:29:12.406000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Thank you for calling Arizona Roofers. My name is Deva. How can I help you?",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, my name is David. I live in Alatruki. I was wondering, do you guys do roof sealants? We have a second floor walkout deck from the list of bedrooms that needs to be sealed and pitched and it's everywhere. what research is saying is it's a roofer we need to do this.",
+        "start_time": 5.0,
+        "end_time": 20.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "so you said you're in what part? alo tukki? alo tuki, yeah, ah in phoenix. oh, phoenix, okay. um and you just need your balcony pitched, if i heard that right, it kind of cut in now.",
+        "start_time": 20.0,
+        "end_time": 30.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "yeah, yeah, yeah, it's a second floor balcony patio that we. We needed, uh, you know, uh, the seal, the sealant, right, um, and then just to make sure that it's properly pitched, we need a quote on that.",
+        "start_time": 30.0,
+        "end_time": 40.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Oh, okay, so you, is your roof flat?",
+        "start_time": 40.0,
+        "end_time": 42.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, it's flat. I mean, it's, so like in the master bedroom, second floor, there's a walkout, and that walkout is, yeah, that's what I'm referring to.",
+        "start_time": 42.0,
+        "end_time": 50.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then, do you know how old the roof is?",
+        "start_time": 50.0,
+        "end_time": 52.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I can't. Um, I would say somewhere between 10 and maybe somewhere between 8 and 14 years, I'm guessing. I really don't know. We only live in the house for 5 years.",
+        "start_time": 52.0,
+        "end_time": 62.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Gotcha. Can I start with the property gathering?",
+        "start_time": 62.0,
+        "end_time": 64.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 64.0,
+        "end_time": 65.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "15227 South 14th Avenue. Okay. Phoenix, Arizona 85045.",
+        "start_time": 65.0,
+        "end_time": 70.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 70.0,
+        "end_time": 71.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "One moment. Quick question. How long has your company been in business?",
+        "start_time": 71.0,
+        "end_time": 75.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "25 years plus.",
+        "start_time": 75.0,
+        "end_time": 77.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Mm-hmm. Good. Alrighty. Can I get your It's your first and last name again?",
+        "start_time": 77.0,
+        "end_time": 80.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Sure. My first name is David. My last name is Rosenberg, R-O-S-E-N-B-E-R-G.",
+        "start_time": 80.0,
+        "end_time": 85.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Perfect. And you are the homeowner, correct?",
+        "start_time": 85.0,
+        "end_time": 87.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 87.0,
+        "end_time": 88.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. David, do you have a good email I can put on file? We usually send the proposal to this?",
+        "start_time": 88.0,
+        "end_time": 92.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. It is, um, D.R., the number\u2026 two at u s a dot com.",
+        "start_time": 92.0,
+        "end_time": 96.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "perfect. and david what is? i didn't know if your name is d r two at u s dot com.",
+        "start_time": 96.0,
+        "end_time": 100.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "yes, i got that. d r two at usa dot com.",
+        "start_time": 100.0,
+        "end_time": 103.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "yes. perfect. and then what's the best phone number to reach you?",
+        "start_time": 103.0,
+        "end_time": 106.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "eight four seven five two nine.",
+        "start_time": 106.0,
+        "end_time": 109.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And am I able to send you e-mail and text message updates about the Roo, like appointment confirmation?",
+        "start_time": 109.0,
+        "end_time": 113.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 113.0,
+        "end_time": 114.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Perfect. What is your guys' directional number? It seems like I got bounced around from Google to you. In case I have questions, anything else?",
+        "start_time": 114.0,
+        "end_time": 120.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "um i'd have to look that up one moment we i believe the main line hold on i'm not in office today i don't have everything in my face one moment",
+        "start_time": 120.0,
+        "end_time": 125.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "okay all right no worries but that is kind of how we answer calls it goes to all the entire team and. and that's probably what you got directed. the main line number is four eight o five eight eight four six six eight four eight zero one more time please four eight zero five eight eight four sixty six eight four sixty six six eight",
+        "start_time": 125.0,
+        "end_time": 135.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "five, eight, eight, four, six, six, eight.",
+        "start_time": 135.0,
+        "end_time": 138.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yes. Alrighty. And then, so you, what is the rest of your roof material? Just for my notes. Make sure we have them correct.",
+        "start_time": 138.0,
+        "end_time": 142.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, but I'm not looking at my main roof. My main roof is not the idea. I know. It's just, it's just for our notes. It's not for your inspection. I don't know. There's big singles, whatever. they're called those big heavy shingles",
+        "start_time": 142.0,
+        "end_time": 148.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "gotcha so shingle and flat you need your patio re coated probably yep yep okay coated and then the roof you said was about how many years old total is that you as a guess did you say thirteen no no twelve years twelve okay just say twelve.",
+        "start_time": 148.0,
+        "end_time": 155.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay, perfect. And then is this a one-story home or a two-story?",
+        "start_time": 155.0,
+        "end_time": 158.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "I believe you said two if I heard correct. And then how big is the home, square feet wise?",
+        "start_time": 158.0,
+        "end_time": 162.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Ma'am, I don't want to provide any more information. It's going far beyond that.",
+        "start_time": 162.0,
+        "end_time": 165.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "It's just part of my process to enter in all the information, but that's okay. Do you have any solar panels on the port, the part you want to do?",
+        "start_time": 165.0,
+        "end_time": 170.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No.",
+        "start_time": 170.0,
+        "end_time": 171.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "No. Is this a gated community? Any gate codes we should be aware of? And is there an HOA for the neighborhood?",
+        "start_time": 171.0,
+        "end_time": 175.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 175.0,
+        "end_time": 176.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And David, are you the only property owner?",
+        "start_time": 176.0,
+        "end_time": 179.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay.",
+        "start_time": 179.0,
+        "end_time": 180.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. Is there a certain day and time that works best for you to be present? Would you require you to be present during Right, but I would have to, I would have to book you for an inspection and then the technician will come out if you're interested.",
+        "start_time": 180.0,
+        "end_time": 187.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "That's the process. Do you want someone to call you? They would inspect the area that you want to work done and write up a report.",
+        "start_time": 187.0,
+        "end_time": 192.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay, okay, okay, yeah, that's fine. I, I'm just saying the inspector give me a call before they come over.",
+        "start_time": 192.0,
+        "end_time": 196.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, yes, okay, yes. They will give you a call when they're on their way usually 30 minutes before.",
+        "start_time": 196.0,
+        "end_time": 200.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "I just want to pick, I just want to see what day and time works best for you. I have my earliest available that I can get you in would be Tuesday, January 20th from 10 a.m. to 12. Or I could do Thursday, January 20.",
+        "start_time": 200.0,
+        "end_time": 207.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. So it's going to be a two hour appointment window.",
+        "start_time": 207.0,
+        "end_time": 210.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Uh, the technician will give you a call before they arrive and you'll be receiving a text confirmation of your appointment as well. How it kind of works is they'll come\u2026 come out there, chat with you a little bit. You can show them the area that you need inspecting our process as we do a full roof inspection free of charge either way.",
+        "start_time": 210.0,
+        "end_time": 218.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "And then they'll give you a quote on the area that you want inspected, multiple quotes, and you can discuss all of your options with us.",
+        "start_time": 218.0,
+        "end_time": 223.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And if you choose to go with the same date, it will take some money off to the top as well. So if you don't have any other questions, David, you're all set. We will see you Tuesday, January 20. from ten a.m. to twelve window.",
+        "start_time": 223.0,
+        "end_time": 230.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "just make sure someone just make sure just make sure someone calls me before the appointment.",
+        "start_time": 230.0,
+        "end_time": 233.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "okay, i will i will leave a note as well. but i will leave a of course, no problem. have a great day. thank you.",
+        "start_time": 233.0,
+        "end_time": 237.0,
+        "original_speaker": "SPEAKER_00"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Thank you for calling Arizona Roofers. My name is Deva. How can I help you?\n\nhome_owner: Yes, my name is David. I live in Alatruki. I was wondering, do you guys do roof sealants? We have a second floor walkout deck from the list of bedrooms that needs to be sealed and pitched and it's everywhere. what research is saying is it's a roofer we need to do this.\n\ncustomer_rep: so you said you're in what part? alo tukki? alo tuki, yeah, ah in phoenix. oh, phoenix, okay. um and you just need your balcony pitched, if i heard that right, it kind of cut in now.\n\nhome_owner: yeah, yeah, yeah, it's a second floor balcony patio that we. We needed, uh, you know, uh, the seal, the sealant, right, um, and then just to make sure that it's properly pitched, we need a quote on that.\n\ncustomer_rep: Oh, okay, so you, is your roof flat?\n\nhome_owner: Yes, it's flat. I mean, it's, so like in the master bedroom, second floor, there's a walkout, and that walkout is, yeah, that's what I'm referring to.\n\ncustomer_rep: And then, do you know how old the roof is?\n\nhome_owner: I can't. Um, I would say somewhere between 10 and maybe somewhere between 8 and 14 years, I'm guessing. I really don't know. We only live in the house for 5 years.\n\ncustomer_rep: Gotcha. Can I start with the property gathering?\n\nhome_owner: Yes.\n\ncustomer_rep: 15227 South 14th Avenue. Okay. Phoenix, Arizona 85045.\n\nhome_owner: Yes.\n\ncustomer_rep: One moment. Quick question. How long has your company been in business?\n\nhome_owner: 25 years plus.\n\ncustomer_rep: Okay. Mm-hmm. Good. Alrighty. Can I get your It's your first and last name again?\n\nhome_owner: Sure. My first name is David. My last name is Rosenberg, R-O-S-E-N-B-E-R-G.\n\ncustomer_rep: Perfect. And you are the homeowner, correct?\n\nhome_owner: Yes.\n\ncustomer_rep: All right. David, do you have a good email I can put on file? We usually send the proposal to this?\n\nhome_owner: Yes. It is, um, D.R., the number\u2026 two at u s a dot com.\n\ncustomer_rep: perfect. and david what is? i didn't know if your name is d r two at u s dot com.\n\nhome_owner: yes, i got that. d r two at usa dot com.\n\ncustomer_rep: yes. perfect. and then what's the best phone number to reach you?\n\nhome_owner: eight four seven five two nine.\n\ncustomer_rep: And am I able to send you e-mail and text message updates about the Roo, like appointment confirmation?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. Perfect. What is your guys' directional number? It seems like I got bounced around from Google to you. In case I have questions, anything else?\n\nhome_owner: um i'd have to look that up one moment we i believe the main line hold on i'm not in office today i don't have everything in my face one moment\n\ncustomer_rep: okay all right no worries but that is kind of how we answer calls it goes to all the entire team and. and that's probably what you got directed. the main line number is four eight o five eight eight four six six eight four eight zero one more time please four eight zero five eight eight four sixty six eight four sixty six six eight\n\nhome_owner: five, eight, eight, four, six, six, eight.\n\ncustomer_rep: Yes. Alrighty. And then, so you, what is the rest of your roof material? Just for my notes. Make sure we have them correct.\n\nhome_owner: Yes, but I'm not looking at my main roof. My main roof is not the idea. I know. It's just, it's just for our notes. It's not for your inspection. I don't know. There's big singles, whatever. they're called those big heavy shingles\n\ncustomer_rep: gotcha so shingle and flat you need your patio re coated probably yep yep okay coated and then the roof you said was about how many years old total is that you as a guess did you say thirteen no no twelve years twelve okay just say twelve.\n\nhome_owner: Okay, perfect. And then is this a one-story home or a two-story?\n\ncustomer_rep: I believe you said two if I heard correct. And then how big is the home, square feet wise?\n\nhome_owner: Ma'am, I don't want to provide any more information. It's going far beyond that.\n\ncustomer_rep: It's just part of my process to enter in all the information, but that's okay. Do you have any solar panels on the port, the part you want to do?\n\nhome_owner: No.\n\ncustomer_rep: No. Is this a gated community? Any gate codes we should be aware of? And is there an HOA for the neighborhood?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. And David, are you the only property owner?\n\nhome_owner: Okay.\n\ncustomer_rep: All right. Is there a certain day and time that works best for you to be present? Would you require you to be present during Right, but I would have to, I would have to book you for an inspection and then the technician will come out if you're interested.\n\nhome_owner: That's the process. Do you want someone to call you? They would inspect the area that you want to work done and write up a report.\n\ncustomer_rep: Okay, okay, okay, yeah, that's fine. I, I'm just saying the inspector give me a call before they come over.\n\nhome_owner: Yes, yes, okay, yes. They will give you a call when they're on their way usually 30 minutes before.\n\ncustomer_rep: I just want to pick, I just want to see what day and time works best for you. I have my earliest available that I can get you in would be Tuesday, January 20th from 10 a.m. to 12. Or I could do Thursday, January 20.\n\nhome_owner: Okay. So it's going to be a two hour appointment window.\n\ncustomer_rep: Uh, the technician will give you a call before they arrive and you'll be receiving a text confirmation of your appointment as well. How it kind of works is they'll come\u2026 come out there, chat with you a little bit. You can show them the area that you need inspecting our process as we do a full roof inspection free of charge either way.\n\nhome_owner: And then they'll give you a quote on the area that you want inspected, multiple quotes, and you can discuss all of your options with us.\n\ncustomer_rep: And if you choose to go with the same date, it will take some money off to the top as well. So if you don't have any other questions, David, you're all set. We will see you Tuesday, January 20. from ten a.m. to twelve window.\n\nhome_owner: just make sure someone just make sure just make sure someone calls me before the appointment.\n\ncustomer_rep: okay, i will i will leave a note as well. but i will leave a of course, no problem. have a great day. thank you."
+  },
+  "transcript": "customer_rep: Thank you for calling Arizona Roofers. My name is Deva. How can I help you?\n\nhome_owner: Yes, my name is David. I live in Alatruki. I was wondering, do you guys do roof sealants? We have a second floor walkout deck from the list of bedrooms that needs to be sealed and pitched and it's everywhere. what research is saying is it's a roofer we need to do this.\n\ncustomer_rep: so you said you're in what part? alo tukki? alo tuki, yeah, ah in phoenix. oh, phoenix, okay. um and you just need your balcony pitched, if i heard that right, it kind of cut in now.\n\nhome_owner: yeah, yeah, yeah, it's a second floor balcony patio that we. We needed, uh, you know, uh, the seal, the sealant, right, um, and then just to make sure that it's properly pitched, we need a quote on that.\n\ncustomer_rep: Oh, okay, so you, is your roof flat?\n\nhome_owner: Yes, it's flat. I mean, it's, so like in the master bedroom, second floor, there's a walkout, and that walkout is, yeah, that's what I'm referring to.\n\ncustomer_rep: And then, do you know how old the roof is?\n\nhome_owner: I can't. Um, I would say somewhere between 10 and maybe somewhere between 8 and 14 years, I'm guessing. I really don't know. We only live in the house for 5 years.\n\ncustomer_rep: Gotcha. Can I start with the property gathering?\n\nhome_owner: Yes.\n\ncustomer_rep: 15227 South 14th Avenue. Okay. Phoenix, Arizona 85045.\n\nhome_owner: Yes.\n\ncustomer_rep: One moment. Quick question. How long has your company been in business?\n\nhome_owner: 25 years plus.\n\ncustomer_rep: Okay. Mm-hmm. Good. Alrighty. Can I get your It's your first and last name again?\n\nhome_owner: Sure. My first name is David. My last name is Rosenberg, R-O-S-E-N-B-E-R-G.\n\ncustomer_rep: Perfect. And you are the homeowner, correct?\n\nhome_owner: Yes.\n\ncustomer_rep: All right. David, do you have a good email I can put on file? We usually send the proposal to this?\n\nhome_owner: Yes. It is, um, D.R., the number\u2026 two at u s a dot com.\n\ncustomer_rep: perfect. and david what is? i didn't know if your name is d r two at u s dot com.\n\nhome_owner: yes, i got that. d r two at usa dot com.\n\ncustomer_rep: yes. perfect. and then what's the best phone number to reach you?\n\nhome_owner: eight four seven five two nine.\n\ncustomer_rep: And am I able to send you e-mail and text message updates about the Roo, like appointment confirmation?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. Perfect. What is your guys' directional number? It seems like I got bounced around from Google to you. In case I have questions, anything else?\n\nhome_owner: um i'd have to look that up one moment we i believe the main line hold on i'm not in office today i don't have everything in my face one moment\n\ncustomer_rep: okay all right no worries but that is kind of how we answer calls it goes to all the entire team and. and that's probably what you got directed. the main line number is four eight o five eight eight four six six eight four eight zero one more time please four eight zero five eight eight four sixty six eight four sixty six six eight\n\nhome_owner: five, eight, eight, four, six, six, eight.\n\ncustomer_rep: Yes. Alrighty. And then, so you, what is the rest of your roof material? Just for my notes. Make sure we have them correct.\n\nhome_owner: Yes, but I'm not looking at my main roof. My main roof is not the idea. I know. It's just, it's just for our notes. It's not for your inspection. I don't know. There's big singles, whatever. they're called those big heavy shingles\n\ncustomer_rep: gotcha so shingle and flat you need your patio re coated probably yep yep okay coated and then the roof you said was about how many years old total is that you as a guess did you say thirteen no no twelve years twelve okay just say twelve.\n\nhome_owner: Okay, perfect. And then is this a one-story home or a two-story?\n\ncustomer_rep: I believe you said two if I heard correct. And then how big is the home, square feet wise?\n\nhome_owner: Ma'am, I don't want to provide any more information. It's going far beyond that.\n\ncustomer_rep: It's just part of my process to enter in all the information, but that's okay. Do you have any solar panels on the port, the part you want to do?\n\nhome_owner: No.\n\ncustomer_rep: No. Is this a gated community? Any gate codes we should be aware of? And is there an HOA for the neighborhood?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. And David, are you the only property owner?\n\nhome_owner: Okay.\n\ncustomer_rep: All right. Is there a certain day and time that works best for you to be present? Would you require you to be present during Right, but I would have to, I would have to book you for an inspection and then the technician will come out if you're interested.\n\nhome_owner: That's the process. Do you want someone to call you? They would inspect the area that you want to work done and write up a report.\n\ncustomer_rep: Okay, okay, okay, yeah, that's fine. I, I'm just saying the inspector give me a call before they come over.\n\nhome_owner: Yes, yes, okay, yes. They will give you a call when they're on their way usually 30 minutes before.\n\ncustomer_rep: I just want to pick, I just want to see what day and time works best for you. I have my earliest available that I can get you in would be Tuesday, January 20th from 10 a.m. to 12. Or I could do Thursday, January 20.\n\nhome_owner: Okay. So it's going to be a two hour appointment window.\n\ncustomer_rep: Uh, the technician will give you a call before they arrive and you'll be receiving a text confirmation of your appointment as well. How it kind of works is they'll come\u2026 come out there, chat with you a little bit. You can show them the area that you need inspecting our process as we do a full roof inspection free of charge either way.\n\nhome_owner: And then they'll give you a quote on the area that you want inspected, multiple quotes, and you can discuss all of your options with us.\n\ncustomer_rep: And if you choose to go with the same date, it will take some money off to the top as well. So if you don't have any other questions, David, you're all set. We will see you Tuesday, January 20. from ten a.m. to twelve window.\n\nhome_owner: just make sure someone just make sure just make sure someone calls me before the appointment.\n\ncustomer_rep: okay, i will i will leave a note as well. but i will leave a of course, no problem. have a great day. thank you.",
+  "summary": {
+    "call_id": "451",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.9,
+        "compliance_rate": 0.9,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "GREETING & IDENTIFICATION",
+            "NEEDS DISCOVERY",
+            "QUALIFYING",
+            "SCHEDULING",
+            "SETTING EXPECTATIONS",
+            "CLOSE & CONFIRMATION"
+          ],
+          "missed": []
+        },
+        "issues": [],
+        "positive_behaviors": [
+          "Asked clarifying questions",
+          "Gathered necessary information",
+          "Confirmed appointment details",
+          "Provided clear next steps"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-17T22:29:06.459078"
+      },
+      "call_id": "451"
+    },
+    "created_at": "2026-01-17 22:29:12.781000",
+    "milvus_id": "vec_451_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "booked",
+      "call_outcome_category": "qualified_and_booked",
+      "appointment_confirmed": true,
+      "appointment_date": "2026-01-20T10:00:00",
+      "appointment_type": "in-person",
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 1.0,
+      "preferred_time_window": "morning",
+      "appointment_intent": "new",
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof sealant and pitch for second floor balcony patio",
+      "service_not_offered_reason": null,
+      "service_address_raw": "15227 South 14th Avenue, Phoenix, Arizona 85045",
+      "service_address_structured": {
+        "line1": "15227 South 14th Avenue",
+        "city": "Phoenix",
+        "state": "Arizona",
+        "postal_code": "85045",
+        "country": "US"
+      },
+      "address_confidence": 1.0,
+      "customer_name": "David",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "David Rosenberg"
+      ],
+      "urgency_signals": [],
+      "budget_indicators": [],
+      "confidence_score": 0.8,
+      "follow_up_required": false,
+      "follow_up_reason": null,
+      "property_details": {
+        "roof_type": "shingle",
+        "roof_age_years": 12,
+        "stories": "two",
+        "hoa_status": "yes",
+        "gated_community": true,
+        "has_solar": false,
+        "pets": null,
+        "property_access_notes": null,
+        "roof_condition": null,
+        "special_features": []
+      }
+    },
+    "summary": {
+      "summary": "David Rosenberg, a homeowner in Phoenix, Arizona, called Arizona Roofers to inquire about sealing and pitching his second-floor balcony patio. He mentioned that the area needs to be sealed and pitched due to water damage. The customer representative, Deva, gathered information about the property, including its age, roof type, and HOA status. The representative scheduled an inspection for Tuesday, January 20, from 10 a.m. to 12 p.m. and informed David that the technician will contact him before the appointment.",
+      "key_points": [
+        "Customer needs to seal and pitch his second-floor balcony patio due to water damage.",
+        "The customer's roof is flat and approximately 12 years old.",
+        "The customer is the homeowner and has a HOA for the neighborhood.",
+        "The customer prefers to be present during the inspection and has a two-hour appointment window.",
+        "The customer will receive a text confirmation of the appointment and a call from the technician before they arrive."
+      ],
+      "action_items": [
+        "Schedule inspection for Tuesday, January 20, from 10 a.m. to 12 p.m."
+      ],
+      "next_steps": [
+        "Schedule inspection and technician visit"
+      ],
+      "pending_actions": [
+        {
+          "type": "schedule_appointment",
+          "owner": "customer_rep",
+          "due_at": "2026-01-20T10:00:00",
+          "raw_text": "Schedule inspection for Tuesday, January 20, from 10 a.m. to 12 p.m.",
+          "confidence": 0.9,
+          "contact_method": "phone"
+        }
+      ],
+      "sentiment_score": 0.7,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

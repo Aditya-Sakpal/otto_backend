@@ -1,0 +1,126 @@
+{
+    "call_id": 5002,
+    "status": "completed",
+    "summary": {
+      "summary": "The customer, Kevin, called Arizona Roofers to address a leaking flat roof over his patio, which has been progressively worsening. The roof was built in 2006 and had solar panels installed, but the leak is not related to the solar installation. The customer_rep, Travis, informed Kevin that the soonest they could complete the repair would be in 7 to 9 weeks due to high volume. Kevin was advised to consider hiring a local roofing handyman if he needed the issue resolved sooner.",
+      "key_points": [
+        "Leaking flat roof over patio",
+        "Built in 2006",
+        "Solar panels installed, but not the cause of the leak",
+        "Repair timeline: 7 to 9 weeks",
+        "Alternative: hiring a local roofing handyman"
+      ],
+      "action_items": [
+        "Schedule a repair",
+        "Consider hiring a local roofing handyman"
+      ],
+      "next_steps": [
+        "Kevin to decide on next course of action",
+        "Travis to follow up if Kevin decides to proceed with Arizona Roofers"
+      ],
+      "pending_actions": [
+        {
+          "type": "follow_up_call",
+          "owner": "customer_rep",
+          "due_at": null,
+          "raw_text": "Travis said to call back if Kevin can't find anybody and needs to get booked",
+          "confidence": 0.7,
+          "contact_method": "phone"
+        },
+        {
+          "type": "check_availability",
+          "owner": "customer",
+          "due_at": null,
+          "raw_text": "Kevin to check with local roofing handymen for availability",
+          "confidence": 0.5,
+          "contact_method": "any"
+        }
+      ],
+      "sentiment_score": 0.6,
+      "confidence_score": 0.8
+    },
+    "compliance": {
+      "call_id": 5002,
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 1,
+        "compliance_rate": 1,
+        "stages": {
+          "total": 2,
+          "followed": [
+            "Intake",
+            "Qualify"
+          ],
+          "missed": []
+        },
+        "issues": [],
+        "positive_behaviors": [
+          "REP was honest and transparent about timeline constraints",
+          "REP suggested helpful alternatives when unable to schedule",
+          "REP was professional and courteous"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2025-12-27T23:03:33.286438+00:00"
+      }
+    },
+    "objections": {
+      "objections": [
+        {
+          "id": 548,
+          "category_id": 2,
+          "category_text": "Timing",
+          "objection_text": "7 to 9 weeks is a long time",
+          "overcome": false,
+          "speaker_id": "home_owner",
+          "timestamp": null,
+          "confidence_score": 0.9,
+          "severity": "medium",
+          "response_suggestions": [],
+          "created_at": "2025-12-27T20:04:28.833466+00:00"
+        }
+      ],
+      "total_count": 1
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 1,
+        "budget": 0,
+        "timeline": 0.9,
+        "authority": 1
+      },
+      "overall_score": 0,
+      "qualification_status": "warm",
+      "decision_makers": [],
+      "urgency_signals": [],
+      "budget_indicators": [],
+      "confidence_score": 0,
+      "booking_status": "not_booked",
+      "call_outcome_category": "qualified_but_unbooked",
+      "appointment_confirmed": false,
+      "appointment_date": null,
+      "appointment_type": null,
+      "appointment_timezone": "America/Phoenix",
+      "appointment_time_confidence": 0,
+      "preferred_time_window": null,
+      "service_address_raw": "1384 East Natasha Drive, Casagrande, Arizona",
+      "service_address_structured": {
+        "line1": "1384 East Natasha Drive",
+        "city": "Casagrande",
+        "state": "Arizona",
+        "postal_code": null,
+        "country": "US"
+      },
+      "address_confidence": 0.9,
+      "appointment_intent": null,
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Flat roof repair",
+      "service_not_offered_reason": null,
+      "follow_up_required": true,
+      "follow_up_reason": "Sales Briefing: 2006-built flat roof with active leak getting progressively worse. Company timeline 7-9 weeks too long, customer may look for faster alternatives",
+      "customer_name": "Kevin",
+      "customer_name_confidence": 0.9
+    }

@@ -1,0 +1,132 @@
+{
+  "call_id": 447,
+  "status": "completed",
+  "job_id": "job_d43095b62481430dac5a3cb04c44e7b8",
+  "summary": {
+    "call_id": "447",
+    "company_id": "reprocess_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:25:08.339000",
+    "summary": {
+      "summary": "The homeowner called Arizona Richards requesting a quick quote for coating a 4,000 square foot flat roof. The representative confirmed it is a flat roof, verified the caller is the owner, and learned the last roof coating was done about five years ago. The representative explained that quotes cannot be provided over the phone and that a technician would need to perform an on-site inspection to provide pricing. The homeowner declined the inspection/visit, apologized for taking time, and ended the call without scheduling anything.",
+      "key_points": [
+        "Customer requested a quick quote for a 4,000 square foot roof coating.",
+        "Roof type is explicitly stated as a flat roof; last coating was 5 years ago and customer is the owner.",
+        "Rep stated they cannot give quotes over the phone and would need to send a technician for an inspection; customer declined and ended the call without booking."
+      ],
+      "action_items": [
+        "Offer to schedule an on-site inspection/technician visit if the customer calls back wanting a quote."
+      ],
+      "next_steps": [
+        "Customer would need to agree to an inspection visit in order to receive a quote."
+      ],
+      "pending_actions": [],
+      "sentiment_score": 0.55,
+      "confidence_score": 0.9
+    },
+    "compliance": {
+      "call_id": "447",
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.55,
+        "compliance_rate": 0.55,
+        "stages": {
+          "total": 5,
+          "followed": [
+            "Intake",
+            "Qualify",
+            "Present"
+          ],
+          "missed": [
+            "Handle Objections",
+            "Close"
+          ]
+        },
+        "issues": [
+          "Did not ask for caller name or verify contact information (phone/email) during intake",
+          "Did not gather key property details beyond flat roof and last coating (e.g., address, number of stories, roof access constraints)",
+          "Did not ask timeline/urgency for the recoating or whether anyone has inspected the roof",
+          "Did not attempt to handle the price objection/concern or offer ballpark ranges with disclaimer (if allowed) or explain pricing factors to reduce friction",
+          "Did not attempt to schedule an inspection/estimate or offer available appointment times after explaining that a technician is required",
+          "Did not provide next steps/expectations for an inspection visit (duration, what customer receives) or send confirmation"
+        ],
+        "positive_behaviors": [
+          "Professional greeting with company name and representative name",
+          "Asked clarifying questions to identify service type (roof coating) and roof type (flat roof)",
+          "Confirmed ownership/decision-maker status",
+          "Set a clear boundary that quotes require an on-site inspection",
+          "Maintained polite, courteous tone through call end"
+        ],
+        "confidence": 0.82
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-19T13:25:03.146365"
+      }
+    },
+    "objections": {
+      "objections": [
+        {
+          "id": null,
+          "category_id": 9,
+          "category_text": "Refusal / Not Interested (won't schedule inspection)",
+          "objection_text": "That's okay. I'm sorry. I wasted your time. Sorry. Have a nice day.",
+          "overcome": false,
+          "speaker_id": "home_owner",
+          "timestamp": null,
+          "confidence_score": 0.8,
+          "severity": "medium",
+          "response_suggestions": [],
+          "created_at": "2026-01-19T13:25:13.732031"
+        }
+      ],
+      "total_count": 1
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.5,
+        "timeline": 0.0,
+        "authority": 1.0
+      },
+      "overall_score": 0.575,
+      "qualification_status": "warm",
+      "booking_status": "not_booked",
+      "call_outcome_category": "qualified_but_unbooked",
+      "appointment_confirmed": false,
+      "appointment_date": null,
+      "appointment_type": null,
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.0,
+      "preferred_time_window": null,
+      "appointment_intent": null,
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Flat roof coating/recoating inspection and quote",
+      "service_not_offered_reason": null,
+      "service_address_raw": null,
+      "service_address_structured": {
+        "line1": null,
+        "city": null,
+        "state": null,
+        "postal_code": null,
+        "country": "US"
+      },
+      "address_confidence": 0.0,
+      "customer_name": null,
+      "customer_name_confidence": 0.0,
+      "decision_makers": [
+        "Home owner (caller)"
+      ],
+      "urgency_signals": [],
+      "budget_indicators": [
+        "I just need a quick quote for a 4,000 square foot roof.",
+        "I just want to see what the quote is, how much you guys charge"
+      ],
+      "confidence_score": 0.62,
+      "follow_up_required": false,
+      "follow_up_reason": null
+    }
+  },
+  "timestamp": "2026-01-19T13:25:13.735352"
+}

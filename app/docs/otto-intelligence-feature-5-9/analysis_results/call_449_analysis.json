@@ -1,0 +1,213 @@
+{
+  "call_id": 449,
+  "timestamp": "2026-01-19T08:50:53.008218",
+  "call_data": {
+    "call_id": "449",
+    "audio_url": "https://otto-call-recording.s3.us-east-1.amazonaws.com/v1/1323728081-redacted.mp3",
+    "call_date": "2026-01-17 19:59:04.440000",
+    "company_id": "string",
+    "created_at": "2026-01-17 20:09:50.825000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 8
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-17 20:09:50.825000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Thank you for calling Arizona Roofers. This is Bronte. How can I help you?",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Hi, this is Don Etherton. I need to have some piled roof pieces replaced on my roof up here in Wickhamberg. Do you do that kind of work?",
+        "start_time": 5.0,
+        "end_time": 15.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Um, it kind of depends. If it's just, uh, placing tiles, that's the job scope is just a little bit smaller than what we would typically take on. If it's a minor, um, you know, kind of repair relay like that, I would really suggest, um, like a repair specialist.",
+        "start_time": 15.0,
+        "end_time": 35.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Could you recommend anybody?",
+        "start_time": 35.0,
+        "end_time": 37.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "I don't have anybody off the top of my head, unfortunately, usually, um, other customers that have this same kind of issue. Um, usually I recommend going on Google specifically and typing in your city and then roofing handyman specialist, all three words, and usually Google pops up some direct contact cards, um, to get in direct communication with repair specialist. General contractors, roofing handymen, and it's usually a more time and cost effective service provider rather than like us per se, a roofing company.",
+        "start_time": 37.0,
+        "end_time": 65.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Um, right now I'm just looking at four to eight weeks to get work done. And so when it's something really minor like that, I would hate to have someone wait that long. Um, and then usually a, a roofing repair specialist will be more cost effective for something minor like this.",
+        "start_time": 65.0,
+        "end_time": 85.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yeah. Okay. All right. Thank you very much for your help.",
+        "start_time": 85.0,
+        "end_time": 90.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yes, of course. Have a good one. You too. Bye-bye.",
+        "start_time": 90.0,
+        "end_time": 95.0,
+        "original_speaker": "SPEAKER_00"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Thank you for calling Arizona Roofers. This is Bronte. How can I help you?\n\nhome_owner: Hi, this is Don Etherton. I need to have some piled roof pieces replaced on my roof up here in Wickhamberg. Do you do that kind of work?\n\ncustomer_rep: Um, it kind of depends. If it's just, uh, placing tiles, that's the job scope is just a little bit smaller than what we would typically take on. If it's a minor, um, you know, kind of repair relay like that, I would really suggest, um, like a repair specialist.\n\nhome_owner: Could you recommend anybody?\n\ncustomer_rep: I don't have anybody off the top of my head, unfortunately, usually, um, other customers that have this same kind of issue. Um, usually I recommend going on Google specifically and typing in your city and then roofing handyman specialist, all three words, and usually Google pops up some direct contact cards, um, to get in direct communication with repair specialist. General contractors, roofing handymen, and it's usually a more time and cost effective service provider rather than like us per se, a roofing company.\n\ncustomer_rep: Um, right now I'm just looking at four to eight weeks to get work done. And so when it's something really minor like that, I would hate to have someone wait that long. Um, and then usually a, a roofing repair specialist will be more cost effective for something minor like this.\n\nhome_owner: Yeah. Okay. All right. Thank you very much for your help.\n\ncustomer_rep: Yes, of course. Have a good one. You too. Bye-bye."
+  },
+  "transcript": "customer_rep: Thank you for calling Arizona Roofers. This is Bronte. How can I help you?\n\nhome_owner: Hi, this is Don Etherton. I need to have some piled roof pieces replaced on my roof up here in Wickhamberg. Do you do that kind of work?\n\ncustomer_rep: Um, it kind of depends. If it's just, uh, placing tiles, that's the job scope is just a little bit smaller than what we would typically take on. If it's a minor, um, you know, kind of repair relay like that, I would really suggest, um, like a repair specialist.\n\nhome_owner: Could you recommend anybody?\n\ncustomer_rep: I don't have anybody off the top of my head, unfortunately, usually, um, other customers that have this same kind of issue. Um, usually I recommend going on Google specifically and typing in your city and then roofing handyman specialist, all three words, and usually Google pops up some direct contact cards, um, to get in direct communication with repair specialist. General contractors, roofing handymen, and it's usually a more time and cost effective service provider rather than like us per se, a roofing company.\n\ncustomer_rep: Um, right now I'm just looking at four to eight weeks to get work done. And so when it's something really minor like that, I would hate to have someone wait that long. Um, and then usually a, a roofing repair specialist will be more cost effective for something minor like this.\n\nhome_owner: Yeah. Okay. All right. Thank you very much for your help.\n\ncustomer_rep: Yes, of course. Have a good one. You too. Bye-bye.",
+  "summary": {
+    "call_id": "449",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.7,
+        "compliance_rate": 0.7,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "Greeting & Identification",
+            "Needs Discovery",
+            "Qualifying"
+          ],
+          "missed": [
+            "Scheduling",
+            "Setting Expectations",
+            "Close & Confirmation"
+          ]
+        },
+        "issues": [
+          "Failed to handle objections",
+          "Did not schedule an appointment",
+          "Did not set expectations for the customer"
+        ],
+        "positive_behaviors": [
+          "Professional greeting with company name",
+          "Asked clarifying questions (e.g. 'What's the issue?')",
+          "Offered alternative solutions (e.g. recommending a repair specialist)"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-17T20:09:45.440930"
+      },
+      "call_id": "449"
+    },
+    "created_at": "2026-01-17 20:09:51.016000",
+    "milvus_id": "vec_449_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "not_booked",
+      "call_outcome_category": "qualified_but_unbooked",
+      "appointment_confirmed": false,
+      "appointment_date": null,
+      "appointment_type": null,
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.0,
+      "preferred_time_window": null,
+      "appointment_intent": null,
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof repair",
+      "service_not_offered_reason": "Don't offer that service",
+      "service_address_raw": "up here in Wickhamberg",
+      "service_address_structured": {
+        "line1": null,
+        "city": "Wickhamberg",
+        "state": null,
+        "postal_code": null,
+        "country": "US"
+      },
+      "address_confidence": 0.4,
+      "customer_name": "Don Etherton",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "Don Etherton (homeowner/customer)"
+      ],
+      "urgency_signals": [
+        "four to eight weeks",
+        "hate to have someone wait that long"
+      ],
+      "budget_indicators": [],
+      "confidence_score": 0.5,
+      "follow_up_required": false,
+      "follow_up_reason": null,
+      "property_details": {
+        "roof_type": null,
+        "roof_age_years": null,
+        "stories": null,
+        "hoa_status": null,
+        "gated_community": null,
+        "has_solar": null,
+        "pets": null,
+        "property_access_notes": null,
+        "roof_condition": null,
+        "special_features": []
+      }
+    },
+    "summary": {
+      "summary": "Don Etherton called Arizona Roofers to inquire about replacing piled roof pieces on his Wickhamberg property. The customer representative suggested a roofing repair specialist due to the minor nature of the issue and the long wait time for a full roofing company. The representative provided guidance on how to find a suitable handyman and recommended using Google to search for local repair specialists.",
+      "key_points": [
+        "Customer needs to replace piled roof pieces on his Wickhamberg property.",
+        "Customer prefers a quicker solution due to the minor nature of the issue.",
+        "Customer representative suggested a roofing repair specialist for a more cost-effective and time-efficient solution."
+      ],
+      "action_items": [
+        "Customer to find a suitable roofing repair specialist using Google search."
+      ],
+      "next_steps": [
+        "Customer to contact a roofing repair specialist for a quote and schedule the work."
+      ],
+      "pending_actions": [
+        {
+          "type": "send_info",
+          "owner": "customer",
+          "due_at": null,
+          "raw_text": "Customer to find a suitable roofing repair specialist using Google search.",
+          "confidence": 0.9,
+          "contact_method": "any"
+        }
+      ],
+      "sentiment_score": 0.5,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

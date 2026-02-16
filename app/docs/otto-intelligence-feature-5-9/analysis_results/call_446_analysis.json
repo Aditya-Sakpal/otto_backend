@@ -1,0 +1,548 @@
+{
+  "call_id": 446,
+  "timestamp": "2026-01-19T08:50:50.277362",
+  "call_data": {
+    "call_id": "446",
+    "audio_url": "https://otto-call-recording.s3.us-east-1.amazonaws.com/v1/1323683107-redacted.mp3",
+    "call_date": "2026-01-17 19:59:04.440000",
+    "company_id": "string",
+    "created_at": "2026-01-17 19:59:36.311000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 56
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-17 19:59:36.311000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Thank you for calling Arizona refers. My name is Eva. How can I help you out?",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Hey Eva, this is Les McCoy. I'm trying to get back with you guys again.",
+        "start_time": 5.0,
+        "end_time": 10.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Oh, did we even reach out to you again and you're still playing?",
+        "start_time": 10.0,
+        "end_time": 12.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, but I missed the call again.",
+        "start_time": 12.0,
+        "end_time": 14.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Oh, no. Okay. Hopefully, she's on another call. If anything, I can put you on a hold if you have the time. But let me see if she's available, one second.",
+        "start_time": 14.0,
+        "end_time": 20.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. All right. Last, you still there?",
+        "start_time": 20.0,
+        "end_time": 22.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, ma'am.",
+        "start_time": 22.0,
+        "end_time": 23.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay, perfect. I'm going to go ahead and get you transferred over to Raven. Please stay on the line.",
+        "start_time": 23.0,
+        "end_time": 28.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Of course, no problem.",
+        "start_time": 28.0,
+        "end_time": 30.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay, transferring now.",
+        "start_time": 30.0,
+        "end_time": 32.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. We finally got you.",
+        "start_time": 32.0,
+        "end_time": 34.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Good. Yeah, it was just, uh, reaching out, wanted to, um, kind of go over next steps for your project if you had a couple of minutes.",
+        "start_time": 34.0,
+        "end_time": 42.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Sure, absolutely. Awesome.",
+        "start_time": 42.0,
+        "end_time": 44.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Um, Brady, it might be a problem. Have we done one of your roofs already? I saw here that we had two jobs.",
+        "start_time": 44.0,
+        "end_time": 50.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "I'm sorry, one more time? I see here that we have two jobs.",
+        "start_time": 50.0,
+        "end_time": 54.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Um, this is the one for 6933 West Linda Sulane Imperia 8538. Is that correct?",
+        "start_time": 54.0,
+        "end_time": 60.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Correct. The other one is completed and it's already been paid for, the other one.",
+        "start_time": 60.0,
+        "end_time": 64.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. Perfect. That's the big number two.",
+        "start_time": 64.0,
+        "end_time": 66.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Oh, Brady. Awesome.",
+        "start_time": 66.0,
+        "end_time": 68.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And you may have already heard some of this information before, but I'll go ahead and give you a refresher.",
+        "start_time": 68.0,
+        "end_time": 72.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Oh, Brady, before that, can I just start with confirming everything is correct.",
+        "start_time": 72.0,
+        "end_time": 76.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Is this still the best phone number to reach you?",
+        "start_time": 76.0,
+        "end_time": 78.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, it is.",
+        "start_time": 78.0,
+        "end_time": 79.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yes. All right. And then email is L.A.",
+        "start_time": 79.0,
+        "end_time": 82.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, ma'am.",
+        "start_time": 82.0,
+        "end_time": 83.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Awesome. And then first name L.E.S., last name M.C.C.O.Y.",
+        "start_time": 83.0,
+        "end_time": 86.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, ma'am?",
+        "start_time": 86.0,
+        "end_time": 87.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Perfect. And then were there any, um, dates within the next four to six weeks that won't work for starting the installation of your roof?",
+        "start_time": 87.0,
+        "end_time": 94.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No. As far as I know, the sooner, the better.",
+        "start_time": 94.0,
+        "end_time": 96.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Perfect. And then after this phone call, I am going to send over a, um, let me see actually. Oh, you actually won't be meeting once on disregard since we are just doing the foam one inch silicone, so we should be good there and then open.",
+        "start_time": 96.0,
+        "end_time": 104.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "So the day of installation, um, the crew is going to bring the\u2026 materials with them that day. So you won't have to worry about anyone loading anything onto your roof prior.",
+        "start_time": 104.0,
+        "end_time": 110.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then installation can take anywhere from 1 to 3 days to complete. That is depending on material being used, size of your roof and weather conditions.",
+        "start_time": 110.0,
+        "end_time": 116.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "During install, we don't need you to be home. However, we just like to make sure that you're available by phone just in case we need to get a hold of you.",
+        "start_time": 116.0,
+        "end_time": 122.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "You're also going to receive receive a caller text a day prior to installation or the morning of from your assigned project manager, and this will be your point of contact throughout the job.",
+        "start_time": 122.0,
+        "end_time": 128.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Perfect. Great.",
+        "start_time": 128.0,
+        "end_time": 130.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Perfect. And then installers do arrive anywhere between 7 and 9 AM to begin work. So we just like to make sure that your driveway is clear prior to their arrival.",
+        "start_time": 130.0,
+        "end_time": 136.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. Awesome.",
+        "start_time": 136.0,
+        "end_time": 138.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then once the job is complete, um, your assigned project manager will contact you to schedule a final walkthrough of the property.",
+        "start_time": 138.0,
+        "end_time": 144.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And while your presence isn't required, we do recommend attending if you're available. At the time, you'll be asked to sign a job completion form.",
+        "start_time": 144.0,
+        "end_time": 150.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "If you're not on site, the form will be sent to you via email. And this document serves as your acknowledgement that the roof has been completed, and it is required in order for us to release your warranty documents.",
+        "start_time": 150.0,
+        "end_time": 158.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "If there's any leftover materials, they'll be picked up at that time.",
+        "start_time": 158.0,
+        "end_time": 160.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Perfect. And I'm not sure if you've received it yet, but you are going to receive a letter in the mail from Titan Lain Services.",
+        "start_time": 160.0,
+        "end_time": 166.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "It's going to be regarding a pre-lean notice for the project. I do want to reassure you that this is not a lien on your property, simply just a standard step required by Arizona state law to establish our lien rights in the event of nonpayment.",
+        "start_time": 166.0,
+        "end_time": 174.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And this notice is just simply notifying you of those rights if it asks for a signature in return. Just know you are not required to sign or return it.",
+        "start_time": 174.0,
+        "end_time": 180.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. Perfect.",
+        "start_time": 180.0,
+        "end_time": 182.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Perfect. Do you have any questions?",
+        "start_time": 182.0,
+        "end_time": 184.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Nope.",
+        "start_time": 184.0,
+        "end_time": 185.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Nope. Awesome.",
+        "start_time": 185.0,
+        "end_time": 187.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "You guys did a fantastic job up north, and I'm sure you'll do a quality quality job down here, so.",
+        "start_time": 187.0,
+        "end_time": 194.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Oh, we appreciate that. I'm very much impressed with your, uh, with your work.",
+        "start_time": 194.0,
+        "end_time": 198.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Very much impressed. We appreciate it, Wes.",
+        "start_time": 198.0,
+        "end_time": 202.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "I'll go ahead and let my team know.",
+        "start_time": 202.0,
+        "end_time": 204.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. Thank you very much. Appreciate it.",
+        "start_time": 204.0,
+        "end_time": 208.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "You're welcome. No problem.",
+        "start_time": 208.0,
+        "end_time": 210.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Have a good day.",
+        "start_time": 210.0,
+        "end_time": 212.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Alrighty, thanks. Of course.",
+        "start_time": 212.0,
+        "end_time": 214.0,
+        "original_speaker": "SPEAKER_00"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Thank you for calling Arizona refers. My name is Eva. How can I help you out?\n\nhome_owner: Hey Eva, this is Les McCoy. I'm trying to get back with you guys again.\n\ncustomer_rep: Oh, did we even reach out to you again and you're still playing?\n\nhome_owner: Yes, but I missed the call again.\n\ncustomer_rep: Oh, no. Okay. Hopefully, she's on another call. If anything, I can put you on a hold if you have the time. But let me see if she's available, one second.\n\ncustomer_rep: Okay. All right. Last, you still there?\n\nhome_owner: Yes, ma'am.\n\ncustomer_rep: Okay, perfect. I'm going to go ahead and get you transferred over to Raven. Please stay on the line.\n\nhome_owner: Of course, no problem.\n\ncustomer_rep: Okay, transferring now.\n\ncustomer_rep: Okay. We finally got you.\n\nhome_owner: Good. Yeah, it was just, uh, reaching out, wanted to, um, kind of go over next steps for your project if you had a couple of minutes.\n\ncustomer_rep: Sure, absolutely. Awesome.\n\nhome_owner: Um, Brady, it might be a problem. Have we done one of your roofs already? I saw here that we had two jobs.\n\ncustomer_rep: I'm sorry, one more time? I see here that we have two jobs.\n\nhome_owner: Um, this is the one for 6933 West Linda Sulane Imperia 8538. Is that correct?\n\ncustomer_rep: Correct. The other one is completed and it's already been paid for, the other one.\n\nhome_owner: Okay. Perfect. That's the big number two.\n\ncustomer_rep: Oh, Brady. Awesome.\n\ncustomer_rep: And you may have already heard some of this information before, but I'll go ahead and give you a refresher.\n\nhome_owner: Oh, Brady, before that, can I just start with confirming everything is correct.\n\ncustomer_rep: Is this still the best phone number to reach you?\n\nhome_owner: Yes, it is.\n\ncustomer_rep: Yes. All right. And then email is L.A.\n\nhome_owner: Yes, ma'am.\n\ncustomer_rep: Awesome. And then first name L.E.S., last name M.C.C.O.Y.\n\nhome_owner: Yes, ma'am?\n\ncustomer_rep: Perfect. And then were there any, um, dates within the next four to six weeks that won't work for starting the installation of your roof?\n\nhome_owner: No. As far as I know, the sooner, the better.\n\ncustomer_rep: Perfect. And then after this phone call, I am going to send over a, um, let me see actually. Oh, you actually won't be meeting once on disregard since we are just doing the foam one inch silicone, so we should be good there and then open.\n\ncustomer_rep: So the day of installation, um, the crew is going to bring the\u2026 materials with them that day. So you won't have to worry about anyone loading anything onto your roof prior.\n\ncustomer_rep: And then installation can take anywhere from 1 to 3 days to complete. That is depending on material being used, size of your roof and weather conditions.\n\ncustomer_rep: During install, we don't need you to be home. However, we just like to make sure that you're available by phone just in case we need to get a hold of you.\n\ncustomer_rep: You're also going to receive receive a caller text a day prior to installation or the morning of from your assigned project manager, and this will be your point of contact throughout the job.\n\nhome_owner: Perfect. Great.\n\ncustomer_rep: Perfect. And then installers do arrive anywhere between 7 and 9 AM to begin work. So we just like to make sure that your driveway is clear prior to their arrival.\n\nhome_owner: Okay. Awesome.\n\ncustomer_rep: And then once the job is complete, um, your assigned project manager will contact you to schedule a final walkthrough of the property.\n\ncustomer_rep: And while your presence isn't required, we do recommend attending if you're available. At the time, you'll be asked to sign a job completion form.\n\ncustomer_rep: If you're not on site, the form will be sent to you via email. And this document serves as your acknowledgement that the roof has been completed, and it is required in order for us to release your warranty documents.\n\ncustomer_rep: If there's any leftover materials, they'll be picked up at that time.\n\ncustomer_rep: Okay. Perfect. And I'm not sure if you've received it yet, but you are going to receive a letter in the mail from Titan Lain Services.\n\ncustomer_rep: It's going to be regarding a pre-lean notice for the project. I do want to reassure you that this is not a lien on your property, simply just a standard step required by Arizona state law to establish our lien rights in the event of nonpayment.\n\ncustomer_rep: And this notice is just simply notifying you of those rights if it asks for a signature in return. Just know you are not required to sign or return it.\n\nhome_owner: Okay. Perfect.\n\ncustomer_rep: Perfect. Do you have any questions?\n\nhome_owner: Nope.\n\nhome_owner: Nope. Awesome.\n\nhome_owner: You guys did a fantastic job up north, and I'm sure you'll do a quality quality job down here, so.\n\ncustomer_rep: Oh, we appreciate that. I'm very much impressed with your, uh, with your work.\n\ncustomer_rep: Very much impressed. We appreciate it, Wes.\n\ncustomer_rep: I'll go ahead and let my team know.\n\nhome_owner: Okay. Thank you very much. Appreciate it.\n\ncustomer_rep: You're welcome. No problem.\n\nhome_owner: Have a good day.\n\ncustomer_rep: Alrighty, thanks. Of course."
+  },
+  "transcript": "customer_rep: Thank you for calling Arizona refers. My name is Eva. How can I help you out?\n\nhome_owner: Hey Eva, this is Les McCoy. I'm trying to get back with you guys again.\n\ncustomer_rep: Oh, did we even reach out to you again and you're still playing?\n\nhome_owner: Yes, but I missed the call again.\n\ncustomer_rep: Oh, no. Okay. Hopefully, she's on another call. If anything, I can put you on a hold if you have the time. But let me see if she's available, one second.\n\ncustomer_rep: Okay. All right. Last, you still there?\n\nhome_owner: Yes, ma'am.\n\ncustomer_rep: Okay, perfect. I'm going to go ahead and get you transferred over to Raven. Please stay on the line.\n\nhome_owner: Of course, no problem.\n\ncustomer_rep: Okay, transferring now.\n\ncustomer_rep: Okay. We finally got you.\n\nhome_owner: Good. Yeah, it was just, uh, reaching out, wanted to, um, kind of go over next steps for your project if you had a couple of minutes.\n\ncustomer_rep: Sure, absolutely. Awesome.\n\nhome_owner: Um, Brady, it might be a problem. Have we done one of your roofs already? I saw here that we had two jobs.\n\ncustomer_rep: I'm sorry, one more time? I see here that we have two jobs.\n\nhome_owner: Um, this is the one for 6933 West Linda Sulane Imperia 8538. Is that correct?\n\ncustomer_rep: Correct. The other one is completed and it's already been paid for, the other one.\n\nhome_owner: Okay. Perfect. That's the big number two.\n\ncustomer_rep: Oh, Brady. Awesome.\n\ncustomer_rep: And you may have already heard some of this information before, but I'll go ahead and give you a refresher.\n\nhome_owner: Oh, Brady, before that, can I just start with confirming everything is correct.\n\ncustomer_rep: Is this still the best phone number to reach you?\n\nhome_owner: Yes, it is.\n\ncustomer_rep: Yes. All right. And then email is L.A.\n\nhome_owner: Yes, ma'am.\n\ncustomer_rep: Awesome. And then first name L.E.S., last name M.C.C.O.Y.\n\nhome_owner: Yes, ma'am?\n\ncustomer_rep: Perfect. And then were there any, um, dates within the next four to six weeks that won't work for starting the installation of your roof?\n\nhome_owner: No. As far as I know, the sooner, the better.\n\ncustomer_rep: Perfect. And then after this phone call, I am going to send over a, um, let me see actually. Oh, you actually won't be meeting once on disregard since we are just doing the foam one inch silicone, so we should be good there and then open.\n\ncustomer_rep: So the day of installation, um, the crew is going to bring the\u2026 materials with them that day. So you won't have to worry about anyone loading anything onto your roof prior.\n\ncustomer_rep: And then installation can take anywhere from 1 to 3 days to complete. That is depending on material being used, size of your roof and weather conditions.\n\ncustomer_rep: During install, we don't need you to be home. However, we just like to make sure that you're available by phone just in case we need to get a hold of you.\n\ncustomer_rep: You're also going to receive receive a caller text a day prior to installation or the morning of from your assigned project manager, and this will be your point of contact throughout the job.\n\nhome_owner: Perfect. Great.\n\ncustomer_rep: Perfect. And then installers do arrive anywhere between 7 and 9 AM to begin work. So we just like to make sure that your driveway is clear prior to their arrival.\n\nhome_owner: Okay. Awesome.\n\ncustomer_rep: And then once the job is complete, um, your assigned project manager will contact you to schedule a final walkthrough of the property.\n\ncustomer_rep: And while your presence isn't required, we do recommend attending if you're available. At the time, you'll be asked to sign a job completion form.\n\ncustomer_rep: If you're not on site, the form will be sent to you via email. And this document serves as your acknowledgement that the roof has been completed, and it is required in order for us to release your warranty documents.\n\ncustomer_rep: If there's any leftover materials, they'll be picked up at that time.\n\ncustomer_rep: Okay. Perfect. And I'm not sure if you've received it yet, but you are going to receive a letter in the mail from Titan Lain Services.\n\ncustomer_rep: It's going to be regarding a pre-lean notice for the project. I do want to reassure you that this is not a lien on your property, simply just a standard step required by Arizona state law to establish our lien rights in the event of nonpayment.\n\ncustomer_rep: And this notice is just simply notifying you of those rights if it asks for a signature in return. Just know you are not required to sign or return it.\n\nhome_owner: Okay. Perfect.\n\ncustomer_rep: Perfect. Do you have any questions?\n\nhome_owner: Nope.\n\nhome_owner: Nope. Awesome.\n\nhome_owner: You guys did a fantastic job up north, and I'm sure you'll do a quality quality job down here, so.\n\ncustomer_rep: Oh, we appreciate that. I'm very much impressed with your, uh, with your work.\n\ncustomer_rep: Very much impressed. We appreciate it, Wes.\n\ncustomer_rep: I'll go ahead and let my team know.\n\nhome_owner: Okay. Thank you very much. Appreciate it.\n\ncustomer_rep: You're welcome. No problem.\n\nhome_owner: Have a good day.\n\ncustomer_rep: Alrighty, thanks. Of course.",
+  "summary": {
+    "call_id": "446",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.8,
+        "compliance_rate": 0.8,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "GREETING & IDENTIFICATION",
+            "NEEDS DISCOVERY",
+            "QUALIFYING",
+            "SCHEDULING",
+            "SETTING EXPECTATIONS",
+            "CLOSE & CONFIRMATION"
+          ],
+          "missed": []
+        },
+        "issues": [
+          "Failed to handle objections properly",
+          "Did not ask about budget/financing discussion"
+        ],
+        "positive_behaviors": [
+          "Professional greeting with company name",
+          "Asked clarifying questions",
+          "Showed empathy for customer situation",
+          "Offered alternative solutions",
+          "Professional and courteous tone"
+        ],
+        "confidence": 0.9
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-17T19:59:30.822599"
+      },
+      "call_id": "446"
+    },
+    "created_at": "2026-01-17 19:59:36.688000",
+    "milvus_id": "vec_446_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "not_booked",
+      "call_outcome_category": "qualified_but_unbooked",
+      "appointment_confirmed": false,
+      "appointment_date": null,
+      "appointment_type": null,
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.0,
+      "preferred_time_window": null,
+      "appointment_intent": "new",
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof repair",
+      "service_not_offered_reason": null,
+      "service_address_raw": "6933 West Linda Sulane Imperia 8538",
+      "service_address_structured": {
+        "line1": "6933 West Linda Sulane Imperia",
+        "city": null,
+        "state": null,
+        "postal_code": "8538",
+        "country": "US"
+      },
+      "address_confidence": 0.0,
+      "customer_name": "Les McCoy",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "Les McCoy (homeowner/customer)"
+      ],
+      "urgency_signals": [
+        "the sooner, the better"
+      ],
+      "budget_indicators": [],
+      "confidence_score": 0.5,
+      "follow_up_required": false,
+      "follow_up_reason": null,
+      "property_details": {
+        "roof_type": null,
+        "roof_age_years": null,
+        "stories": null,
+        "hoa_status": null,
+        "gated_community": null,
+        "has_solar": true,
+        "pets": null,
+        "property_access_notes": null,
+        "roof_condition": null,
+        "special_features": []
+      }
+    },
+    "summary": {
+      "summary": "Les McCoy, the homeowner, called to confirm the next steps for his roof installation project with Arizona Refers. He confirmed his contact information and preferred start date for the installation. The customer representative, Raven, explained the installation process, including the arrival time of the crew, the duration of the installation, and the final walkthrough. Les expressed his appreciation for the company's work and confirmed that he had no questions.",
+      "key_points": [
+        "Customer confirmed contact information and preferred start date for roof installation.",
+        "Installation process explained, including arrival time, duration, and final walkthrough.",
+        "Customer expressed appreciation for company's work and confirmed no questions."
+      ],
+      "action_items": [
+        "Send confirmation email to Les McCoy with installation details."
+      ],
+      "next_steps": [
+        "Schedule installation for Les McCoy's roof."
+      ],
+      "pending_actions": [
+        {
+          "type": "send_info",
+          "owner": "customer_rep",
+          "due_at": null,
+          "raw_text": "Send confirmation email to Les McCoy with installation details.",
+          "confidence": 0.9,
+          "contact_method": "email"
+        }
+      ],
+      "sentiment_score": 0.9,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

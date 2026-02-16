@@ -1,0 +1,152 @@
+{
+  "call_id": 445,
+  "status": "completed",
+  "job_id": "job_082378b81e7e493b92e83fe605cbed03",
+  "summary": {
+    "call_id": "445",
+    "company_id": "reprocess_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:22:57.654000",
+    "summary": {
+      "summary": "Deshay Ramos, the real estate agent for a property in Casa Grande, called Arizona Roofers to request a roof inspection and an inspection report for 159 East Pebble Trow, ZIP 85122, as the owner (Ted) has not been at the home for a while and they want to address any potential age-related repairs before listing the property. The representative explained that inspection reports differ from standard repair estimates and confirmed there were no known current roof issues. Deshay confirmed the home is in an HOA, has no solar panels, and that no special access (such as gate codes) is needed. Deshay was set as the main point of contact, will review the proposal with Ted, provided an email for the proposal, and approved SMS confirmations. The appointment was scheduled for Monday, January 19, 2026, in the 1\u20133 PM window, with the requirement that someone be present for liability; Deshay agreed and will call back if anything changes, and the rep advised a confirmation text and a 30-minute-out notification from the technician.",
+      "key_points": [
+        "Caller is Deshay Ramos, the agent for the property; the owner is Ted, and Deshay will be the main point of contact and will go over the proposal with Ted.",
+        "Service requested: roof inspection and an inspection report for 159 East Pebble Trow, Casa Grande, AZ 85122; no known current roof issues, but concerns due to roof age (age unknown).",
+        "Property details captured: in an HOA; no solar panels; no special access/gate code needed; appointment scheduled for 2026-01-19 from 1:00 PM to 3:00 PM and someone must be present."
+      ],
+      "action_items": [
+        "Perform the scheduled roof inspection at the property during the 1\u20133 PM window on 2026-01-19.",
+        "Send the proposal/inspection information to Deshay at deshay.holmesaz@gmail.com after the inspection."
+      ],
+      "next_steps": [
+        "Customer receives SMS confirmation and technician provides a 30-minute-out call/text on the day of the appointment.",
+        "After inspection, Deshay reviews the proposal with Ted and, if proceeding, provides Ted\u2019s information."
+      ],
+      "pending_actions": [
+        {
+          "type": "confirm_appointment",
+          "owner": "customer_rep",
+          "due_at": null,
+          "raw_text": "once we're off the phone here, you'll get a text confirmation with the appointment details",
+          "confidence": 0.78,
+          "contact_method": "sms"
+        },
+        {
+          "type": "inspection",
+          "owner": "company",
+          "due_at": "2026-01-19T13:00:00",
+          "raw_text": "I've got you scheduled on my side",
+          "confidence": 0.7,
+          "contact_method": "in_person"
+        },
+        {
+          "type": "check_in",
+          "owner": "company",
+          "due_at": "2026-01-19T12:30:00",
+          "raw_text": "the day of the appointment Your technician will give you a text or a phone call when they're about 30 minutes out from the property",
+          "confidence": 0.86,
+          "contact_method": "any"
+        },
+        {
+          "type": "send_info",
+          "owner": "customer_rep",
+          "due_at": null,
+          "raw_text": "what is a good email for the actual proposal to get sent to?",
+          "confidence": 0.74,
+          "contact_method": "email"
+        }
+      ],
+      "sentiment_score": 0.82,
+      "confidence_score": 0.86
+    },
+    "compliance": {
+      "call_id": "445",
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.86,
+        "compliance_rate": 0.86,
+        "stages": {
+          "total": 5,
+          "followed": [
+            "Intake",
+            "Qualify",
+            "Present",
+            "Close"
+          ],
+          "missed": [
+            "Handle Objections"
+          ]
+        },
+        "issues": [
+          "Did not verify/collect the property owner (Ted) last name or a reliable owner contact method for follow-up (only noted 'Ted' and deferred details).",
+          "Did not confirm the full property details after asking (roof type question was asked but not answered/clarified; HOA was answered 'Yes' but no follow-up on HOA requirements).",
+          "Limited needs discovery: did not ask how long the property has been vacant, whether any prior inspections/repairs were done, or any visible interior/exterior leak indicators.",
+          "Did not explicitly restate/confirm the full appointment details (date/time window/address) at the end before closing (relied on text confirmation)."
+        ],
+        "positive_behaviors": [
+          "Professional greeting with company name and agent name.",
+          "Collected key intake details: caller name, role/relationship to property, address, email, and permission to text confirmations.",
+          "Asked relevant qualifying/property questions (roof age, roofing system type, HOA, gate/access, solar panels).",
+          "Set clear expectations for next steps: confirmation text and 30-minute technician pre-arrival call/text.",
+          "Successfully scheduled an inspection appointment with specific time window options."
+        ],
+        "confidence": 0.82
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-19T13:22:51.873747"
+      }
+    },
+    "objections": {
+      "objections": [],
+      "total_count": 0
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.5,
+        "budget": 0.0,
+        "timeline": 0.8,
+        "authority": 0.0
+      },
+      "overall_score": 0.325,
+      "qualification_status": "cold",
+      "booking_status": "booked",
+      "call_outcome_category": "qualified_and_booked",
+      "appointment_confirmed": true,
+      "appointment_date": "2026-01-19T13:00:00",
+      "appointment_type": "in-person",
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.7,
+      "preferred_time_window": "afternoon",
+      "appointment_intent": "new",
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof inspection (inspection report)",
+      "service_not_offered_reason": null,
+      "service_address_raw": "159 East Pebble Trow, 85122",
+      "service_address_structured": {
+        "line1": "159 East Pebble Trow",
+        "city": "Casagrand",
+        "state": null,
+        "postal_code": "85122",
+        "country": "US"
+      },
+      "address_confidence": 0.75,
+      "customer_name": "Deshay Ramos",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "Ted (property owner)",
+        "Deshay Ramos (agent / main point of contact)"
+      ],
+      "urgency_signals": [
+        "we won't try and get ready to get on the market",
+        "Some of the better."
+      ],
+      "budget_indicators": [],
+      "confidence_score": 0.78,
+      "follow_up_required": false,
+      "follow_up_reason": null
+    }
+  },
+  "timestamp": "2026-01-19T13:23:01.093964"
+}

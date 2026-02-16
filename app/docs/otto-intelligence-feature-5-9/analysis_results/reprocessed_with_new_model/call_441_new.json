@@ -1,0 +1,140 @@
+{
+  "call_id": 441,
+  "status": "completed",
+  "job_id": "job_04a730c3fe99493da880130f3d2a5f96",
+  "summary": {
+    "call_id": "441",
+    "company_id": "reprocess_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:19:24.942000",
+    "summary": {
+      "summary": "Robert Kovil called to schedule a roofer to inspect and repair an issue on a rental home owned by his mother-in-law, Marilyn Warwick, after a large rainstorm (around November) led to drywall caving in the garage. An insurance company/adjuster inspected and indicated the problem was at a \u201cdead valley\u201d where the tile roof sections come together and needs to be fixed. The representative collected the property address (3553 N Ramada, Mesa, AZ 85215), confirmed it is a single-story tile roof with no HOA, not in a gated community, and no solar, and gathered contact details for both Robert and the legal owner. The rep explained what to expect during the 1\u20132 hour inspection appointment and scheduled the visit for Friday from 1\u20133 PM, which works for Robert (preferred after 10 AM).",
+      "key_points": [
+        "Customer reported drywall caving in the garage after a big rainstorm (November) and said an insurance inspection identified an issue at a roof \u201cdead valley\u201d that needs repair.",
+        "Property details: tile roof, single-story home, no HOA, not gated, and no solar; address provided as 3553 N Ramada, Mesa, AZ 85215.",
+        "Appointment was scheduled for Friday between 1\u20133 PM; customer preferred anything after 10 and noted otherwise he doesn\u2019t get home until about 5."
+      ],
+      "action_items": [
+        "Complete on-site roof inspection and assess/diagnose the reported dead valley issue and any related leak/damage.",
+        "Collect the legal owner\u2019s email address (Marilyn Warwick) at the appointment if needed for records/communication."
+      ],
+      "next_steps": [
+        "Technician arrives Friday 1\u20133 PM, speaks with Robert, performs roof inspection, takes photos, and reviews findings/options with him.",
+        "Add/confirm Marilyn Warwick (legal owner) on the account and obtain her email during/after the visit."
+      ],
+      "pending_actions": [
+        {
+          "type": "inspection",
+          "owner": "company",
+          "due_at": null,
+          "raw_text": "All right. So I got you booked in here for this Friday between 1 and 3 p.m.",
+          "confidence": 0.78,
+          "contact_method": "in_person"
+        },
+        {
+          "type": "verify_details",
+          "owner": "Robert Kovil",
+          "due_at": null,
+          "raw_text": "We can get that from you at the appointment if you\n\nhome_owner: Yeah, that's fine. I'll get that.",
+          "confidence": 0.74,
+          "contact_method": "in_person"
+        }
+      ],
+      "sentiment_score": 0.78,
+      "confidence_score": 0.86
+    },
+    "compliance": {
+      "call_id": "441",
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.86,
+        "compliance_rate": 0.86,
+        "stages": {
+          "total": 5,
+          "followed": [
+            "Intake",
+            "Qualify",
+            "Present",
+            "Close"
+          ],
+          "missed": [
+            "Handle Objections"
+          ]
+        },
+        "issues": [
+          "Did not explicitly obtain a clear yes/no consent for text updates (asked permission but no customer response captured before moving on).",
+          "Did not confirm the full address back to the caller for accuracy (street + city/state/ZIP readback).",
+          "Did not confirm who needs to be present at the appointment (legal owner vs. resident) despite noting the owner must be on the account.",
+          "Limited qualifying: did not ask timeline/urgency for repair beyond scheduling availability, and did not ask whether other quotes were being obtained.",
+          "No explicit confirmation that an appointment confirmation would be sent via text/email (method and expectation not clearly stated)."
+        ],
+        "positive_behaviors": [
+          "Professional greeting and identified self.",
+          "Conducted needs discovery with clarifying questions about the issue and prior insurance inspection findings.",
+          "Collected key intake details: address, caller name, phone number, email, and legal owner contact information.",
+          "Gathered property qualifiers relevant to roofing (tile roof, single story, HOA, solar).",
+          "Successfully scheduled an appointment window that matched customer availability.",
+          "Set clear expectations for the appointment (duration, technician arrival window, inspection process, photos, and review of options).",
+          "Closed by confirming the appointment date/time window."
+        ],
+        "confidence": 0.82
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-19T13:19:18.323421"
+      }
+    },
+    "objections": {
+      "objections": [],
+      "total_count": 0
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.8,
+        "authority": 0.0
+      },
+      "overall_score": 0.4,
+      "qualification_status": "cold",
+      "booking_status": "booked",
+      "call_outcome_category": "qualified_and_booked",
+      "appointment_confirmed": true,
+      "appointment_date": null,
+      "appointment_type": "in-person",
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.7,
+      "preferred_time_window": "afternoon",
+      "appointment_intent": "new",
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof inspection and repair estimate for tile roof leak/damage (dead valley) causing drywall collapse in garage",
+      "service_not_offered_reason": null,
+      "service_address_raw": "3553 North Ramada, Mesa, 85215",
+      "service_address_structured": {
+        "line1": "3553 North Ramada",
+        "city": "Mesa",
+        "state": null,
+        "postal_code": "85215",
+        "country": "US"
+      },
+      "address_confidence": 0.85,
+      "customer_name": "Robert Kovil",
+      "customer_name_confidence": 0.95,
+      "decision_makers": [
+        "Marilyn Warwick (mother-in-law, legal owner)",
+        "Robert Kovil (resident/caller)"
+      ],
+      "urgency_signals": [
+        "During that last big rainstorm we had, I think it was November",
+        "I had basically, I had some drywall kind of caving inside of my garage",
+        "that it needed to get, um, so we needed to get it fixed"
+      ],
+      "budget_indicators": [],
+      "confidence_score": 0.83,
+      "follow_up_required": false,
+      "follow_up_reason": null
+    }
+  },
+  "timestamp": "2026-01-19T13:19:30.553315"
+}

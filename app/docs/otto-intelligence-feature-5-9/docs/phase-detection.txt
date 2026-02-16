@@ -1,0 +1,7 @@
+LLM Detection → Boundary Resolution → Timestamp Calculation → Analytics
+                      ↓
+              • Sort by start index
+              • Split overlaps by confidence
+              • Fill gaps proportionally
+              • Extend to full coverage
+              • Recalculate timestamps

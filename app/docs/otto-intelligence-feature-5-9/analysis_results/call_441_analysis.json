@@ -1,0 +1,527 @@
+{
+  "call_id": 441,
+  "timestamp": "2026-01-19T08:50:46.231896",
+  "call_data": {
+    "call_id": "441",
+    "audio_url": "https://otto-call-recording.s3.us-east-1.amazonaws.com/v1/1323580300-redacted.mp3",
+    "call_date": "2026-01-16 19:48:43.693000",
+    "company_id": "string",
+    "created_at": "2026-01-16 19:55:05.436000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 53
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-16 19:55:05.436000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Thank you for calling us on our roofers. This is Matty. How can I help you?",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, hi. I'm calling up. I need to schedule somebody to come out and look at getting over a pair down on our roof.",
+        "start_time": 5.0,
+        "end_time": 10.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yes, if you don't mind me asking, how old is your roof?",
+        "start_time": 10.0,
+        "end_time": 12.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I'm not sure. It's a rental. My mother owns it all. I know. Oh, yes. Go ahead. Let me know a little bit about what's going on with the roof as well.",
+        "start_time": 12.0,
+        "end_time": 18.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Let me know a little bit about what's going on with the roof as well.",
+        "start_time": 18.0,
+        "end_time": 20.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. It's a, yeah. During that last big rainstorm we had, I think it was November, um, I had basically, I had some drywall kind of caving inside of my garage. So I had an insurance company come out and they went up top and looked and they said that it was a, a dead well or something like that. It's kind of where the tiles kind of come together. There's like a little trough or dead trough, dead valley, yeah. That's what they said it was and that it needed to get, um, so we needed to get it fixed.",
+        "start_time": 20.0,
+        "end_time": 35.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yes, I was thinking definitely get you some help there with that. Could I have the home address, please?",
+        "start_time": 35.0,
+        "end_time": 40.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, three, five, five, three, north, Ramada, R-A-M-A-D-A, and that's Mesa, eight, five, two, one, five. It's my, my, uh, mother-in-law owns a home.",
+        "start_time": 40.0,
+        "end_time": 50.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Are you the one that resides there?",
+        "start_time": 50.0,
+        "end_time": 52.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I reside there. I'm a wife, yes.",
+        "start_time": 52.0,
+        "end_time": 55.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Then can I have your first and last name, please?",
+        "start_time": 55.0,
+        "end_time": 58.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. My first name is Robert. My last name is Kovil, D-O-L. D is in Victor, I-L-L-E.",
+        "start_time": 58.0,
+        "end_time": 65.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. And then just to verify, the number that you're calling me on is a good one for you?",
+        "start_time": 65.0,
+        "end_time": 70.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. Yes, 602-309-6062, yes.",
+        "start_time": 70.0,
+        "end_time": 72.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right, and then do we have permission to send you important text updates regarding your appointment with us?",
+        "start_time": 72.0,
+        "end_time": 78.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "All right, and also lastly here, could I please get a good email for you?",
+        "start_time": 78.0,
+        "end_time": 80.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yes, it's K falls, that's K as in kilo, F and box, A, L, L, S, rob, R-O-B, at gmail.com.",
+        "start_time": 80.0,
+        "end_time": 85.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. And then also, would you mind giving me your mother-in-law's contact info just because we do have to have the legal owner of the home on the account here?",
+        "start_time": 85.0,
+        "end_time": 95.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Oh, yes. Give me a second here. Let me pull it up, okay? All right. Putting you on speaker there. Can you hear me?",
+        "start_time": 95.0,
+        "end_time": 100.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, I can hear you.",
+        "start_time": 100.0,
+        "end_time": 101.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Her first name is Marilyn. Is that M-A-R-Y-L-A-N-D?",
+        "start_time": 101.0,
+        "end_time": 105.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "M-A-r-I-L-Y-N. Oh, Marilyn. I heard Marilyn.",
+        "start_time": 105.0,
+        "end_time": 110.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. No problem. And last name is Warwick, W-A-R, R-I-K. And then do you have her phone number?",
+        "start_time": 110.0,
+        "end_time": 115.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. It is 602-818-4957. So it's 602-819-4957?",
+        "start_time": 115.0,
+        "end_time": 120.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "That's correct. And then do you happen to have her e-mail just so she can be sent over the course as well?",
+        "start_time": 120.0,
+        "end_time": 125.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No, I do not. Okay. We can get that from you at the appointment if you Yeah, that's fine. I'll get that.",
+        "start_time": 125.0,
+        "end_time": 130.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. All right, now I just have a, a few more questions about the home, if you wouldn't mind answering none for me?",
+        "start_time": 130.0,
+        "end_time": 135.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "All right. So you said that you had some, um, drywall collapse in the ceiling, and when you had, uh, your insurance adjuster come out, you said that there was an issue with one of your dead valleys?",
+        "start_time": 135.0,
+        "end_time": 145.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yep. All right. Is the home a tile roof?",
+        "start_time": 145.0,
+        "end_time": 148.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Uh, yeah.",
+        "start_time": 148.0,
+        "end_time": 149.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. And is it a single story home?",
+        "start_time": 149.0,
+        "end_time": 151.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 151.0,
+        "end_time": 152.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And then do you know if it's part of an HOA?",
+        "start_time": 152.0,
+        "end_time": 155.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No HOA.",
+        "start_time": 155.0,
+        "end_time": 156.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. And is it by any transicated community?",
+        "start_time": 156.0,
+        "end_time": 160.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Nope.",
+        "start_time": 160.0,
+        "end_time": 161.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Right. And then lastly here, is there any solar on the roof?",
+        "start_time": 161.0,
+        "end_time": 165.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No.",
+        "start_time": 165.0,
+        "end_time": 166.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Let me look here at our schedule for you. the best because I'm off that day. That's possible. Otherwise, I don't get home until like 5.",
+        "start_time": 166.0,
+        "end_time": 175.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. So we have Friday available. Is there a certain time maybe that would work better for you?",
+        "start_time": 175.0,
+        "end_time": 180.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Anything after 10. Okay. So we could do 1 p.m. to 3 p.m.",
+        "start_time": 180.0,
+        "end_time": 185.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. That's great.",
+        "start_time": 185.0,
+        "end_time": 186.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Let me just add this into our calendar. And then if you don't mind, while I'm getting this put into our schedule here, just want to go through what to expect for the appointment with us with you?",
+        "start_time": 186.0,
+        "end_time": 195.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "All right.",
+        "start_time": 195.0,
+        "end_time": 196.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "So our appointments, they do typically take about 1 to 2 hours, but we only really need you there for the first 15 and the last 30 minutes of that appointment time. Your technician will arrive within that window and then once he gets there, he'll talk to you a little bit and get to know more about what's been going on. Then once he's done talking with you, he'll get up onto the roof and he'll do his inspection. He'll take around 50 to 100 photos and he'll document any damage that he does find. Then once he is done with that, he'll get down from the roof and then he'll sit down with future table and discuss his findings as well as all the potential options with you.",
+        "start_time": 196.0,
+        "end_time": 215.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay.",
+        "start_time": 215.0,
+        "end_time": 216.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. Do you have any questions about that, Robert, or any other questions?",
+        "start_time": 216.0,
+        "end_time": 220.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Nope. Nope.",
+        "start_time": 220.0,
+        "end_time": 222.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. So I got you booked in here for this Friday between 1 and 3 p.m.",
+        "start_time": 222.0,
+        "end_time": 225.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "All right. Sounds great. Thank you.",
+        "start_time": 225.0,
+        "end_time": 228.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. You're welcome. Hope you have a great day.",
+        "start_time": 228.0,
+        "end_time": 230.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "All right. Bye.",
+        "start_time": 230.0,
+        "end_time": 231.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Bye.",
+        "start_time": 231.0,
+        "end_time": 232.0,
+        "original_speaker": "SPEAKER_00"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Thank you for calling us on our roofers. This is Matty. How can I help you?\n\nhome_owner: Yes, hi. I'm calling up. I need to schedule somebody to come out and look at getting over a pair down on our roof.\n\ncustomer_rep: Yes, if you don't mind me asking, how old is your roof?\n\nhome_owner: I'm not sure. It's a rental. My mother owns it all. I know. Oh, yes. Go ahead. Let me know a little bit about what's going on with the roof as well.\n\ncustomer_rep: Let me know a little bit about what's going on with the roof as well.\n\nhome_owner: Okay. It's a, yeah. During that last big rainstorm we had, I think it was November, um, I had basically, I had some drywall kind of caving inside of my garage. So I had an insurance company come out and they went up top and looked and they said that it was a, a dead well or something like that. It's kind of where the tiles kind of come together. There's like a little trough or dead trough, dead valley, yeah. That's what they said it was and that it needed to get, um, so we needed to get it fixed.\n\ncustomer_rep: Yes, I was thinking definitely get you some help there with that. Could I have the home address, please?\n\nhome_owner: Yes, three, five, five, three, north, Ramada, R-A-M-A-D-A, and that's Mesa, eight, five, two, one, five. It's my, my, uh, mother-in-law owns a home.\n\ncustomer_rep: Okay. Are you the one that resides there?\n\nhome_owner: I reside there. I'm a wife, yes.\n\ncustomer_rep: Okay. Then can I have your first and last name, please?\n\nhome_owner: Yes. My first name is Robert. My last name is Kovil, D-O-L. D is in Victor, I-L-L-E.\n\ncustomer_rep: All right. And then just to verify, the number that you're calling me on is a good one for you?\n\nhome_owner: Yes. Yes, 602-309-6062, yes.\n\ncustomer_rep: All right, and then do we have permission to send you important text updates regarding your appointment with us?\n\nhome_owner: All right, and also lastly here, could I please get a good email for you?\n\ncustomer_rep: Yes, it's K falls, that's K as in kilo, F and box, A, L, L, S, rob, R-O-B, at gmail.com.\n\nhome_owner: Okay. And then also, would you mind giving me your mother-in-law's contact info just because we do have to have the legal owner of the home on the account here?\n\ncustomer_rep: Oh, yes. Give me a second here. Let me pull it up, okay? All right. Putting you on speaker there. Can you hear me?\n\nhome_owner: Yes, I can hear you.\n\ncustomer_rep: Okay. Her first name is Marilyn. Is that M-A-R-Y-L-A-N-D?\n\nhome_owner: M-A-r-I-L-Y-N. Oh, Marilyn. I heard Marilyn.\n\ncustomer_rep: Okay. No problem. And last name is Warwick, W-A-R, R-I-K. And then do you have her phone number?\n\nhome_owner: Yes. It is 602-818-4957. So it's 602-819-4957?\n\ncustomer_rep: That's correct. And then do you happen to have her e-mail just so she can be sent over the course as well?\n\nhome_owner: No, I do not. Okay. We can get that from you at the appointment if you Yeah, that's fine. I'll get that.\n\ncustomer_rep: Okay. All right, now I just have a, a few more questions about the home, if you wouldn't mind answering none for me?\n\nhome_owner: All right. So you said that you had some, um, drywall collapse in the ceiling, and when you had, uh, your insurance adjuster come out, you said that there was an issue with one of your dead valleys?\n\ncustomer_rep: Yep. All right. Is the home a tile roof?\n\nhome_owner: Uh, yeah.\n\ncustomer_rep: All right. And is it a single story home?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. And then do you know if it's part of an HOA?\n\nhome_owner: No HOA.\n\ncustomer_rep: Okay. And is it by any transicated community?\n\nhome_owner: Nope.\n\ncustomer_rep: Right. And then lastly here, is there any solar on the roof?\n\nhome_owner: No.\n\ncustomer_rep: Okay. Let me look here at our schedule for you. the best because I'm off that day. That's possible. Otherwise, I don't get home until like 5.\n\nhome_owner: Yes. So we have Friday available. Is there a certain time maybe that would work better for you?\n\ncustomer_rep: Anything after 10. Okay. So we could do 1 p.m. to 3 p.m.\n\nhome_owner: Yes. That's great.\n\ncustomer_rep: Let me just add this into our calendar. And then if you don't mind, while I'm getting this put into our schedule here, just want to go through what to expect for the appointment with us with you?\n\nhome_owner: All right.\n\ncustomer_rep: So our appointments, they do typically take about 1 to 2 hours, but we only really need you there for the first 15 and the last 30 minutes of that appointment time. Your technician will arrive within that window and then once he gets there, he'll talk to you a little bit and get to know more about what's been going on. Then once he's done talking with you, he'll get up onto the roof and he'll do his inspection. He'll take around 50 to 100 photos and he'll document any damage that he does find. Then once he is done with that, he'll get down from the roof and then he'll sit down with future table and discuss his findings as well as all the potential options with you.\n\nhome_owner: Okay.\n\ncustomer_rep: All right. Do you have any questions about that, Robert, or any other questions?\n\nhome_owner: Nope. Nope.\n\ncustomer_rep: All right. So I got you booked in here for this Friday between 1 and 3 p.m.\n\nhome_owner: All right. Sounds great. Thank you.\n\ncustomer_rep: All right. You're welcome. Hope you have a great day.\n\nhome_owner: All right. Bye.\n\ncustomer_rep: Bye."
+  },
+  "transcript": "customer_rep: Thank you for calling us on our roofers. This is Matty. How can I help you?\n\nhome_owner: Yes, hi. I'm calling up. I need to schedule somebody to come out and look at getting over a pair down on our roof.\n\ncustomer_rep: Yes, if you don't mind me asking, how old is your roof?\n\nhome_owner: I'm not sure. It's a rental. My mother owns it all. I know. Oh, yes. Go ahead. Let me know a little bit about what's going on with the roof as well.\n\ncustomer_rep: Let me know a little bit about what's going on with the roof as well.\n\nhome_owner: Okay. It's a, yeah. During that last big rainstorm we had, I think it was November, um, I had basically, I had some drywall kind of caving inside of my garage. So I had an insurance company come out and they went up top and looked and they said that it was a, a dead well or something like that. It's kind of where the tiles kind of come together. There's like a little trough or dead trough, dead valley, yeah. That's what they said it was and that it needed to get, um, so we needed to get it fixed.\n\ncustomer_rep: Yes, I was thinking definitely get you some help there with that. Could I have the home address, please?\n\nhome_owner: Yes, three, five, five, three, north, Ramada, R-A-M-A-D-A, and that's Mesa, eight, five, two, one, five. It's my, my, uh, mother-in-law owns a home.\n\ncustomer_rep: Okay. Are you the one that resides there?\n\nhome_owner: I reside there. I'm a wife, yes.\n\ncustomer_rep: Okay. Then can I have your first and last name, please?\n\nhome_owner: Yes. My first name is Robert. My last name is Kovil, D-O-L. D is in Victor, I-L-L-E.\n\ncustomer_rep: All right. And then just to verify, the number that you're calling me on is a good one for you?\n\nhome_owner: Yes. Yes, 602-309-6062, yes.\n\ncustomer_rep: All right, and then do we have permission to send you important text updates regarding your appointment with us?\n\nhome_owner: All right, and also lastly here, could I please get a good email for you?\n\ncustomer_rep: Yes, it's K falls, that's K as in kilo, F and box, A, L, L, S, rob, R-O-B, at gmail.com.\n\nhome_owner: Okay. And then also, would you mind giving me your mother-in-law's contact info just because we do have to have the legal owner of the home on the account here?\n\ncustomer_rep: Oh, yes. Give me a second here. Let me pull it up, okay? All right. Putting you on speaker there. Can you hear me?\n\nhome_owner: Yes, I can hear you.\n\ncustomer_rep: Okay. Her first name is Marilyn. Is that M-A-R-Y-L-A-N-D?\n\nhome_owner: M-A-r-I-L-Y-N. Oh, Marilyn. I heard Marilyn.\n\ncustomer_rep: Okay. No problem. And last name is Warwick, W-A-R, R-I-K. And then do you have her phone number?\n\nhome_owner: Yes. It is 602-818-4957. So it's 602-819-4957?\n\ncustomer_rep: That's correct. And then do you happen to have her e-mail just so she can be sent over the course as well?\n\nhome_owner: No, I do not. Okay. We can get that from you at the appointment if you Yeah, that's fine. I'll get that.\n\ncustomer_rep: Okay. All right, now I just have a, a few more questions about the home, if you wouldn't mind answering none for me?\n\nhome_owner: All right. So you said that you had some, um, drywall collapse in the ceiling, and when you had, uh, your insurance adjuster come out, you said that there was an issue with one of your dead valleys?\n\ncustomer_rep: Yep. All right. Is the home a tile roof?\n\nhome_owner: Uh, yeah.\n\ncustomer_rep: All right. And is it a single story home?\n\nhome_owner: Yes.\n\ncustomer_rep: Okay. And then do you know if it's part of an HOA?\n\nhome_owner: No HOA.\n\ncustomer_rep: Okay. And is it by any transicated community?\n\nhome_owner: Nope.\n\ncustomer_rep: Right. And then lastly here, is there any solar on the roof?\n\nhome_owner: No.\n\ncustomer_rep: Okay. Let me look here at our schedule for you. the best because I'm off that day. That's possible. Otherwise, I don't get home until like 5.\n\nhome_owner: Yes. So we have Friday available. Is there a certain time maybe that would work better for you?\n\ncustomer_rep: Anything after 10. Okay. So we could do 1 p.m. to 3 p.m.\n\nhome_owner: Yes. That's great.\n\ncustomer_rep: Let me just add this into our calendar. And then if you don't mind, while I'm getting this put into our schedule here, just want to go through what to expect for the appointment with us with you?\n\nhome_owner: All right.\n\ncustomer_rep: So our appointments, they do typically take about 1 to 2 hours, but we only really need you there for the first 15 and the last 30 minutes of that appointment time. Your technician will arrive within that window and then once he gets there, he'll talk to you a little bit and get to know more about what's been going on. Then once he's done talking with you, he'll get up onto the roof and he'll do his inspection. He'll take around 50 to 100 photos and he'll document any damage that he does find. Then once he is done with that, he'll get down from the roof and then he'll sit down with future table and discuss his findings as well as all the potential options with you.\n\nhome_owner: Okay.\n\ncustomer_rep: All right. Do you have any questions about that, Robert, or any other questions?\n\nhome_owner: Nope. Nope.\n\ncustomer_rep: All right. So I got you booked in here for this Friday between 1 and 3 p.m.\n\nhome_owner: All right. Sounds great. Thank you.\n\ncustomer_rep: All right. You're welcome. Hope you have a great day.\n\nhome_owner: All right. Bye.\n\ncustomer_rep: Bye.",
+  "summary": {
+    "call_id": "441",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.9,
+        "compliance_rate": 0.9,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "GREETING & IDENTIFICATION",
+            "NEEDS DISCOVERY",
+            "QUALIFYING",
+            "SCHEDULING",
+            "SETTING EXPECTATIONS",
+            "CLOSE & CONFIRMATION"
+          ],
+          "missed": []
+        },
+        "issues": [],
+        "positive_behaviors": [
+          "Professional greeting with company name",
+          "Asked clarifying questions",
+          "Gathered necessary information",
+          "Confirmed appointment details",
+          "Provided clear expectations"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-16T19:55:00.014570"
+      },
+      "call_id": "441"
+    },
+    "created_at": "2026-01-16 19:55:05.811000",
+    "milvus_id": "vec_441_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "booked",
+      "call_outcome_category": "qualified_and_booked",
+      "appointment_confirmed": true,
+      "appointment_date": "2026-01-22T13:00:00",
+      "appointment_type": "in-person",
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 1.0,
+      "preferred_time_window": "afternoon",
+      "appointment_intent": "new",
+      "service_requested": "Roof repair",
+      "service_not_offered_reason": null,
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_address_raw": "3553 North Ramada, Mesa, 85215",
+      "service_address_structured": {
+        "line1": "3553 North Ramada",
+        "city": "Mesa",
+        "state": "Arizona",
+        "postal_code": "85215",
+        "country": "US"
+      },
+      "address_confidence": 1.0,
+      "customer_name": "Robert Kovil",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "Robert Kovil",
+        "Marilyn Warwick"
+      ],
+      "urgency_signals": [
+        "last big rainstorm we had",
+        "November",
+        "we needed to get it fixed"
+      ],
+      "budget_indicators": [],
+      "confidence_score": 0.8,
+      "follow_up_required": false,
+      "follow_up_reason": null,
+      "property_details": {
+        "roof_type": "tile",
+        "roof_age_years": null,
+        "stories": "single",
+        "hoa_status": "no",
+        "gated_community": false,
+        "has_solar": false,
+        "pets": null,
+        "property_access_notes": null,
+        "roof_condition": null,
+        "special_features": []
+      }
+    },
+    "summary": {
+      "summary": "A customer, Robert Kovil, called to schedule a roof inspection and repair due to a dead valley issue that caused drywall collapse in the garage during a rainstorm. The customer resides in a single-story tile-roofed home with no HOA. The representative booked an appointment for this Friday between 1 and 3 p.m. and explained the inspection process.",
+      "key_points": [
+        "Customer needs roof inspection and repair due to dead valley issue causing drywall collapse in garage.",
+        "Customer resides in a single-story tile-roofed home with no HOA.",
+        "Appointment booked for this Friday between 1 and 3 p.m."
+      ],
+      "action_items": [
+        "Send technician to inspect and repair the roof on Friday between 1 and 3 p.m."
+      ],
+      "next_steps": [
+        "Schedule appointment for Friday between 1 and 3 p.m."
+      ],
+      "pending_actions": [
+        {
+          "type": "schedule_appointment",
+          "owner": "customer_rep",
+          "due_at": "2026-01-16T13:00:00",
+          "raw_text": "Booked an appointment for this Friday between 1 and 3 p.m.",
+          "confidence": 0.9,
+          "contact_method": "phone"
+        }
+      ],
+      "sentiment_score": 0.7,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

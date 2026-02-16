@@ -1,0 +1,132 @@
+{
+    "call_id": "441",
+    "company_id": "gpt52_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:40:20.974000",
+    "summary": {
+        "summary": "Robert called to schedule a roofer to inspect and repair an issue on a rental property owned by his mother-in-law after a large rainstorm in November caused drywall to cave in inside the garage. He said an insurance company/adjuster inspected the roof and identified a problem in a \u201cdead valley\u201d area where the tile sections meet and advised it needed to be fixed. The representative collected the service address in Mesa, confirmed property details (tile roof, single-story, no HOA, not gated, no solar), gathered Robert\u2019s contact information and the legal owner\u2019s (Marilyn Warwick) name and phone number, and explained what to expect during the 1\u20132 hour inspection appointment. The call concluded with an inspection/visit scheduled for Friday between 1\u20133 PM, which worked for Robert (preferred after 10 AM).",
+        "key_points": [
+            "Customer reported drywall caving in inside the garage after a big rainstorm in November; insurance inspection indicated a \u201cdead valley\u201d area on the tile roof needs repair.",
+            "Property details confirmed: tile roof, single-story home, no HOA, not gated, and no solar panels.",
+            "Appointment scheduled for Friday 1\u20133 PM (customer preferred anything after 10 AM); rep explained the inspection process and timeframe."
+        ],
+        "action_items": [
+            "Complete on-site roof inspection and document findings with photos.",
+            "Add legal owner (Marilyn Warwick) details to the account and collect her email at the appointment if needed."
+        ],
+        "next_steps": [
+            "Technician arrives Friday between 1\u20133 PM to inspect the roof and review findings/options with Robert.",
+            "At the appointment, obtain Marilyn Warwick\u2019s email address for account/communications."
+        ],
+        "pending_actions": [
+            {
+                "type": "inspection",
+                "owner": "company",
+                "due_at": null,
+                "raw_text": "All right. So I got you booked in here for this Friday between 1 and 3 p.m.",
+                "confidence": 0.74,
+                "contact_method": "in_person"
+            },
+            {
+                "type": "verify_details",
+                "owner": "customer",
+                "due_at": null,
+                "raw_text": "Okay. We can get that from you at the appointment if you\n\nhome_owner: Yeah, that's fine. I'll get that.",
+                "confidence": 0.72,
+                "contact_method": "in_person"
+            }
+        ],
+        "sentiment_score": 0.78,
+        "confidence_score": 0.86
+    },
+    "compliance": {
+        "call_id": "441",
+        "target_role": "customer_rep",
+        "evaluation_mode": "sop_only",
+        "sop_compliance": {
+            "score": 0.86,
+            "compliance_rate": 0.86,
+            "stages": {
+                "total": 5,
+                "followed": [
+                    "Intake",
+                    "Qualify",
+                    "Present",
+                    "Close"
+                ],
+                "missed": [
+                    "Handle Objections"
+                ]
+            },
+            "issues": [
+                "Did not explicitly capture consent response for sending text updates (asked permission but caller did not answer and rep moved on).",
+                "Did not confirm the full appointment details at close beyond day/time window (e.g., confirm address again, who will be present/decision maker, and any access considerations like pets/gate codes).",
+                "Limited qualifying: did not confirm decision-maker availability/authorization for the legal owner at the appointment (owner contact collected, but presence/approval process not clarified).",
+                "Did not ask timeline/urgency for repair beyond scheduling availability (e.g., how soon they need work completed)."
+            ],
+            "positive_behaviors": [
+                "Professional greeting and identified self.",
+                "Performed solid needs discovery (asked roof age, gathered issue details, confirmed roof type and home characteristics).",
+                "Collected and verified key contact details (address, caller name, phone, email) and obtained legal owner contact information as required.",
+                "Asked relevant property qualifiers (single story, HOA, solar).",
+                "Successfully scheduled an appointment and provided clear expectations for the inspection process, duration, and deliverables (photos, findings, options).",
+                "Checked for questions before ending the call and closed politely."
+            ],
+            "confidence": 0.82
+        },
+        "timestamps": {
+            "sop_evaluated_at": "2026-01-19T13:40:15.375531"
+        }
+    },
+    "objections": {
+        "objections": [],
+        "total_count": 0
+    },
+    "qualification": {
+        "bant_scores": {
+            "need": 0.8,
+            "budget": 0.0,
+            "timeline": 0.8,
+            "authority": 0.0
+        },
+        "overall_score": 0.4,
+        "qualification_status": "cold",
+        "booking_status": "booked",
+        "call_outcome_category": "qualified_and_booked",
+        "appointment_confirmed": true,
+        "appointment_date": "2026-01-23T13:00:00",
+        "appointment_type": "in-person",
+        "appointment_timezone": "UTC",
+        "appointment_time_confidence": 0.9,
+        "preferred_time_window": "afternoon",
+        "appointment_intent": "new",
+        "original_appointment_datetime": null,
+        "new_requested_time": null,
+        "service_requested": "Roof inspection and repair estimate for tile roof leak/dead valley issue (drywall collapse in garage after rainstorm)",
+        "service_not_offered_reason": null,
+        "service_address_raw": "3553 North Ramada, Mesa, 85215",
+        "service_address_structured": {
+            "line1": "3553 North Ramada",
+            "city": "Mesa",
+            "state": null,
+            "postal_code": "85215",
+            "country": "US"
+        },
+        "address_confidence": 0.75,
+        "customer_name": "Robert Kovil",
+        "customer_name_confidence": 0.95,
+        "decision_makers": [
+            "Marilyn Warwick (legal owner/mother-in-law)",
+            "Robert Kovil (resident/point of contact)"
+        ],
+        "urgency_signals": [
+            "During that last big rainstorm we had, I think it was November",
+            "I had some drywall kind of caving inside of my garage",
+            "we needed to get it fixed"
+        ],
+        "budget_indicators": [],
+        "confidence_score": 0.78,
+        "follow_up_required": false,
+        "follow_up_reason": null
+    }
+}

@@ -1,0 +1,143 @@
+{
+    "call_id": "442",
+    "company_id": "gpt52_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:41:32.290000",
+    "summary": {
+        "summary": "Sandy called Arizona Roofers requesting an estimate and inspection for her roof after noticing a couple of broken tiles and at least one loose/misaligned tile, and she wants it checked before the next monsoon season because the roof is old and she\u2019s unsure of its overall condition. Travis confirmed the service area (Maricopa/Rancho El Dorado) and pulled up the property details, noting it is a one-story tile roof with a small flat roof section over the back patio. He verified Sandy\u2019s last name, confirmed the calling number as best contact, obtained permission to send SMS updates, collected her Yahoo email address, confirmed the home is in an HOA but not gated, and noted there are three indoor cats. They scheduled an on-site visit/inspection for Monday between 1\u20133, with the specific rep to be assigned closer to the appointment.",
+        "key_points": [
+            "Customer wants an estimate/roof check due to visible broken tiles and a loose/misaligned tile; roof is described as old and she wants it checked before monsoon season.",
+            "Property details discussed: one-story tile roof with a small flat roof area over the back patio; address provided as 22042 North Reis R.E.I.F. drive in Rancho El Dorado (Maricopa).",
+            "HOA community confirmed; not gated; pets are three indoor cats; customer approved receiving text (SMS) updates and provided a Yahoo email address."
+        ],
+        "action_items": [
+            "Complete the scheduled on-site roof inspection/estimate appointment on Monday between 1\u20133.",
+            "Assign/confirm which representative (one of two) will be coming out and notify the customer via SMS/phone as appropriate."
+        ],
+        "next_steps": [
+            "Field rep visits the property during the 1\u20133 Monday window to assess tile damage and overall roof condition (including the flat patio section).",
+            "After inspection, provide Sandy with the estimate and recommended repairs."
+        ],
+        "pending_actions": [
+            {
+                "type": "inspection",
+                "owner": "company",
+                "due_at": null,
+                "raw_text": "I'll set it in schedule... We can do Monday. I have you in the schedule between 1 to 3.",
+                "confidence": 0.78,
+                "contact_method": "in_person"
+            },
+            {
+                "type": "confirm_appointment",
+                "owner": "customer_rep",
+                "due_at": null,
+                "raw_text": "Most likely it's between 2 reps, but I'll schedule it usually the Friday before.",
+                "confidence": 0.74,
+                "contact_method": "sms"
+            }
+        ],
+        "sentiment_score": 0.82,
+        "confidence_score": 0.86
+    },
+    "compliance": {
+        "call_id": "442",
+        "target_role": "customer_rep",
+        "evaluation_mode": "sop_only",
+        "sop_compliance": {
+            "score": 0.82,
+            "compliance_rate": 0.82,
+            "stages": {
+                "total": 5,
+                "followed": [
+                    "Intake",
+                    "Qualify",
+                    "Close"
+                ],
+                "missed": [
+                    "Present",
+                    "Handle Objections"
+                ]
+            },
+            "issues": [
+                "Did not clearly set appointment expectations (what will happen during inspection, duration, what customer will receive, next steps).",
+                "Did not verify decision-maker/homeowner status.",
+                "Limited needs discovery: did not ask how long the issue has been present or whether anyone has previously inspected the roof.",
+                "Did not confirm full contact details explicitly (only confirmed phone is best; did not restate/confirm email spelling back accurately and briefly had confusion 'what.com' vs 'yahoo.com').",
+                "Did not explicitly confirm the appointment date (Monday) and that it is MLK Day with certainty; rep sounded unsure about holiday operations."
+            ],
+            "positive_behaviors": [
+                "Professional greeting with company name and representative name; asked for caller name.",
+                "Captured and confirmed key contact details (last name, best callback number, permission for text updates, email).",
+                "Gathered relevant property/access details (HOA, gated status, pets) and referenced roof type/stories from records.",
+                "Scheduled an appointment and offered alternative timing when the initial window did not work.",
+                "Maintained a courteous, friendly tone throughout the call."
+            ],
+            "confidence": 0.84
+        },
+        "timestamps": {
+            "sop_evaluated_at": "2026-01-19T13:41:27.061684"
+        }
+    },
+    "objections": {
+        "objections": [
+            {
+                "id": null,
+                "category_id": 4,
+                "category_text": "Scheduling Conflict",
+                "objection_text": "You picked one day I had something going at 1 o'clock.",
+                "overcome": false,
+                "speaker_id": "home_owner",
+                "timestamp": null,
+                "confidence_score": 0.9,
+                "severity": "medium",
+                "response_suggestions": [],
+                "created_at": "2026-01-19T13:41:37.801304"
+            }
+        ],
+        "total_count": 1
+    },
+    "qualification": {
+        "bant_scores": {
+            "need": 0.8,
+            "budget": 0.0,
+            "timeline": 0.8,
+            "authority": 1.0
+        },
+        "overall_score": 0.65,
+        "qualification_status": "warm",
+        "booking_status": "booked",
+        "call_outcome_category": "qualified_and_booked",
+        "appointment_confirmed": true,
+        "appointment_date": "2026-01-19T13:00:00",
+        "appointment_type": "in-person",
+        "appointment_timezone": "UTC",
+        "appointment_time_confidence": 0.7,
+        "preferred_time_window": "afternoon",
+        "appointment_intent": "new",
+        "original_appointment_datetime": null,
+        "new_requested_time": null,
+        "service_requested": "Roof inspection/estimate for loose and broken roof tiles (tile roof; possible flat roof over patio)",
+        "service_not_offered_reason": null,
+        "service_address_raw": "22042 North Reis R.E.I.F. drive. 8-5-1-3-8 (Rancho El Dorado, Narcopa)",
+        "service_address_structured": {
+            "line1": "22042 North Reis R.E.I.F. Drive",
+            "city": "Narcopa",
+            "state": null,
+            "postal_code": "85138",
+            "country": "US"
+        },
+        "address_confidence": 0.75,
+        "customer_name": "Sandy Balak",
+        "customer_name_confidence": 0.95,
+        "decision_makers": [
+            "Sandy Balak (homeowner)"
+        ],
+        "urgency_signals": [
+            "before the next monsoon season"
+        ],
+        "budget_indicators": [],
+        "confidence_score": 0.78,
+        "follow_up_required": false,
+        "follow_up_reason": null
+    }
+}

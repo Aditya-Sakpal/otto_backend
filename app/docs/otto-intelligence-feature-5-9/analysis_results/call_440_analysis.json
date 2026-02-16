@@ -1,0 +1,415 @@
+{
+  "call_id": 440,
+  "timestamp": "2026-01-19T08:50:45.569170",
+  "call_data": {
+    "call_id": "440",
+    "audio_url": "https://otto-call-recording.s3.us-east-1.amazonaws.com/v1/1323570943-redacted.mp3",
+    "call_date": "2026-01-16 19:48:43.693000",
+    "company_id": "string",
+    "created_at": "2026-01-16 19:49:25.329000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 37
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-16 19:49:25.329000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Hello. Hi, this is Matty with Arizona Roofers. How are you?",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Hey, doing fine. How are you.",
+        "start_time": 5.0,
+        "end_time": 8.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "I'm doing great. Thank you for asking. I'm just giving you a call. Could I see you message us about having about half a dozen lakes in 3 different areas of your home?",
+        "start_time": 8.0,
+        "end_time": 15.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. Yes. Can you give me a little bit more information on that? How long is it? Since last October, early October October, there was big heavy rain and we had a few more spots showing up in these new areas. We used to have some leaks in the bedroom, but it seemed to expand out to some other rooms. And yeah, I just want to get a look at it and we'll see what we can do to take care of that.",
+        "start_time": 15.0,
+        "end_time": 35.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "I appreciate it. Let's see here, I have your address as 3161 East Athena Court in Gilbert. All right, just making sure I have that correct there. And then I have your last name, that's McCulloch?",
+        "start_time": 35.0,
+        "end_time": 45.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. Sorry if I said that incorrectly. No, you said it exactly right.",
+        "start_time": 45.0,
+        "end_time": 50.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right, cool. I always get so worried I'm saying people's names wrong. Most people get that one wrong. You nailed it, for sure. All right, thank you. And then just to verify, this is a good number to contact you on?",
+        "start_time": 50.0,
+        "end_time": 60.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 60.0,
+        "end_time": 61.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then do we have permission to send you important text updates regarding your appointment with us?",
+        "start_time": 61.0,
+        "end_time": 65.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, that's fine.",
+        "start_time": 65.0,
+        "end_time": 66.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right, thanks. Thank you for that, Will. And then lastly here, could I please get a good e-mail for you?",
+        "start_time": 66.0,
+        "end_time": 70.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Once you do will at will524.com? So it's will at will525.com? Right.",
+        "start_time": 70.0,
+        "end_time": 75.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then now I just have some questions about your home, if you just wouldn't mind answering them for me?",
+        "start_time": 75.0,
+        "end_time": 80.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Sure.",
+        "start_time": 80.0,
+        "end_time": 81.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. So do you know how old your roof is?",
+        "start_time": 81.0,
+        "end_time": 84.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Probably about 14 years ago. It's the original roof. I also built, I think, 14 years ago.",
+        "start_time": 84.0,
+        "end_time": 90.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. And then do you have a tile lease?",
+        "start_time": 90.0,
+        "end_time": 92.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 92.0,
+        "end_time": 93.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then how many storeys is your home?",
+        "start_time": 93.0,
+        "end_time": 95.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "A single storey. A single storey home?",
+        "start_time": 95.0,
+        "end_time": 98.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And then are you part of an HOA will?",
+        "start_time": 98.0,
+        "end_time": 100.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 100.0,
+        "end_time": 101.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "So is it a gated community?",
+        "start_time": 101.0,
+        "end_time": 103.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No.",
+        "start_time": 103.0,
+        "end_time": 104.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. Thank you. And then last Do you have any solar on your roof?",
+        "start_time": 104.0,
+        "end_time": 108.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, I do.",
+        "start_time": 108.0,
+        "end_time": 110.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. Thank you for answering that for me. We go ahead and take a look at our schedule here. Is there a certain time of the day or maybe even a certain time of week that usually works better for you?",
+        "start_time": 110.0,
+        "end_time": 120.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Kind of hit or mess. So like let's just see what she's got open when we can go from there.",
+        "start_time": 120.0,
+        "end_time": 125.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "So I can do this Thursday anytime throughout the day. I have a 7.30 to a 9, a 10 a.m. to a 12, 1 p.m. to 3 p.m. or a 4 p.m.",
+        "start_time": 125.0,
+        "end_time": 135.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. Sounds good. I'll get you added in here for that.",
+        "start_time": 135.0,
+        "end_time": 140.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And if you don't mind, I just want to let you know what to expect for the appointment with us. All right. So our appointments typically take around one to two hours. It just depends on the size of the home. Your technician will arrive within that appointment window. And then once he gets there, he'll talk to you a little bit and get to know more about what's been going on with your roof. But once he's done talking to you, he'll get up onto your roof. He'll do his inspection. He'll take around 50 to 100 photos and then he'll document any damage that he does find as well. And once he's done with that, he'll get down from your roof and then he'll sit down with you at your table and discuss his findings as well as all the potential options with you.",
+        "start_time": 140.0,
+        "end_time": 165.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "That sounds good with you, Will? Absolutely.",
+        "start_time": 165.0,
+        "end_time": 170.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. Do you have any questions for me?",
+        "start_time": 170.0,
+        "end_time": 172.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Nope. Not at all.",
+        "start_time": 172.0,
+        "end_time": 174.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "That's the 15th? Yes. You should have found that confirmation text message as well.",
+        "start_time": 174.0,
+        "end_time": 180.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay. Super.",
+        "start_time": 180.0,
+        "end_time": 182.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. Well, we will see you this Thursday. Excellent. Thanks so much. Have a great day.",
+        "start_time": 182.0,
+        "end_time": 190.0,
+        "original_speaker": "SPEAKER_00"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Hello. Hi, this is Matty with Arizona Roofers. How are you?\n\nhome_owner: Hey, doing fine. How are you.\n\ncustomer_rep: I'm doing great. Thank you for asking. I'm just giving you a call. Could I see you message us about having about half a dozen lakes in 3 different areas of your home?\n\nhome_owner: Yes. Yes. Can you give me a little bit more information on that? How long is it? Since last October, early October October, there was big heavy rain and we had a few more spots showing up in these new areas. We used to have some leaks in the bedroom, but it seemed to expand out to some other rooms. And yeah, I just want to get a look at it and we'll see what we can do to take care of that.\n\ncustomer_rep: I appreciate it. Let's see here, I have your address as 3161 East Athena Court in Gilbert. All right, just making sure I have that correct there. And then I have your last name, that's McCulloch?\n\nhome_owner: Yes. Sorry if I said that incorrectly. No, you said it exactly right.\n\ncustomer_rep: All right, cool. I always get so worried I'm saying people's names wrong. Most people get that one wrong. You nailed it, for sure. All right, thank you. And then just to verify, this is a good number to contact you on?\n\nhome_owner: Yes.\n\ncustomer_rep: And then do we have permission to send you important text updates regarding your appointment with us?\n\nhome_owner: Yes, that's fine.\n\ncustomer_rep: All right, thanks. Thank you for that, Will. And then lastly here, could I please get a good e-mail for you?\n\nhome_owner: Once you do will at will524.com? So it's will at will525.com? Right.\n\ncustomer_rep: And then now I just have some questions about your home, if you just wouldn't mind answering them for me?\n\nhome_owner: Sure.\n\ncustomer_rep: All right. So do you know how old your roof is?\n\nhome_owner: Probably about 14 years ago. It's the original roof. I also built, I think, 14 years ago.\n\ncustomer_rep: All right. And then do you have a tile lease?\n\nhome_owner: Yes.\n\ncustomer_rep: And then how many storeys is your home?\n\nhome_owner: A single storey. A single storey home?\n\ncustomer_rep: And then are you part of an HOA will?\n\nhome_owner: Yes.\n\ncustomer_rep: So is it a gated community?\n\nhome_owner: No.\n\ncustomer_rep: All right. Thank you. And then last Do you have any solar on your roof?\n\nhome_owner: Yes, I do.\n\ncustomer_rep: All right. Thank you for answering that for me. We go ahead and take a look at our schedule here. Is there a certain time of the day or maybe even a certain time of week that usually works better for you?\n\nhome_owner: Kind of hit or mess. So like let's just see what she's got open when we can go from there.\n\ncustomer_rep: So I can do this Thursday anytime throughout the day. I have a 7.30 to a 9, a 10 a.m. to a 12, 1 p.m. to 3 p.m. or a 4 p.m.\n\nhome_owner: Okay. Sounds good. I'll get you added in here for that.\n\ncustomer_rep: And if you don't mind, I just want to let you know what to expect for the appointment with us. All right. So our appointments typically take around one to two hours. It just depends on the size of the home. Your technician will arrive within that appointment window. And then once he gets there, he'll talk to you a little bit and get to know more about what's been going on with your roof. But once he's done talking to you, he'll get up onto your roof. He'll do his inspection. He'll take around 50 to 100 photos and then he'll document any damage that he does find as well. And once he's done with that, he'll get down from your roof and then he'll sit down with you at your table and discuss his findings as well as all the potential options with you.\n\nhome_owner: That sounds good with you, Will? Absolutely.\n\ncustomer_rep: All right. Do you have any questions for me?\n\nhome_owner: Nope. Not at all.\n\ncustomer_rep: That's the 15th? Yes. You should have found that confirmation text message as well.\n\nhome_owner: Okay. Super.\n\ncustomer_rep: All right. Well, we will see you this Thursday. Excellent. Thanks so much. Have a great day."
+  },
+  "transcript": "customer_rep: Hello. Hi, this is Matty with Arizona Roofers. How are you?\n\nhome_owner: Hey, doing fine. How are you.\n\ncustomer_rep: I'm doing great. Thank you for asking. I'm just giving you a call. Could I see you message us about having about half a dozen lakes in 3 different areas of your home?\n\nhome_owner: Yes. Yes. Can you give me a little bit more information on that? How long is it? Since last October, early October October, there was big heavy rain and we had a few more spots showing up in these new areas. We used to have some leaks in the bedroom, but it seemed to expand out to some other rooms. And yeah, I just want to get a look at it and we'll see what we can do to take care of that.\n\ncustomer_rep: I appreciate it. Let's see here, I have your address as 3161 East Athena Court in Gilbert. All right, just making sure I have that correct there. And then I have your last name, that's McCulloch?\n\nhome_owner: Yes. Sorry if I said that incorrectly. No, you said it exactly right.\n\ncustomer_rep: All right, cool. I always get so worried I'm saying people's names wrong. Most people get that one wrong. You nailed it, for sure. All right, thank you. And then just to verify, this is a good number to contact you on?\n\nhome_owner: Yes.\n\ncustomer_rep: And then do we have permission to send you important text updates regarding your appointment with us?\n\nhome_owner: Yes, that's fine.\n\ncustomer_rep: All right, thanks. Thank you for that, Will. And then lastly here, could I please get a good e-mail for you?\n\nhome_owner: Once you do will at will524.com? So it's will at will525.com? Right.\n\ncustomer_rep: And then now I just have some questions about your home, if you just wouldn't mind answering them for me?\n\nhome_owner: Sure.\n\ncustomer_rep: All right. So do you know how old your roof is?\n\nhome_owner: Probably about 14 years ago. It's the original roof. I also built, I think, 14 years ago.\n\ncustomer_rep: All right. And then do you have a tile lease?\n\nhome_owner: Yes.\n\ncustomer_rep: And then how many storeys is your home?\n\nhome_owner: A single storey. A single storey home?\n\ncustomer_rep: And then are you part of an HOA will?\n\nhome_owner: Yes.\n\ncustomer_rep: So is it a gated community?\n\nhome_owner: No.\n\ncustomer_rep: All right. Thank you. And then last Do you have any solar on your roof?\n\nhome_owner: Yes, I do.\n\ncustomer_rep: All right. Thank you for answering that for me. We go ahead and take a look at our schedule here. Is there a certain time of the day or maybe even a certain time of week that usually works better for you?\n\nhome_owner: Kind of hit or mess. So like let's just see what she's got open when we can go from there.\n\ncustomer_rep: So I can do this Thursday anytime throughout the day. I have a 7.30 to a 9, a 10 a.m. to a 12, 1 p.m. to 3 p.m. or a 4 p.m.\n\nhome_owner: Okay. Sounds good. I'll get you added in here for that.\n\ncustomer_rep: And if you don't mind, I just want to let you know what to expect for the appointment with us. All right. So our appointments typically take around one to two hours. It just depends on the size of the home. Your technician will arrive within that appointment window. And then once he gets there, he'll talk to you a little bit and get to know more about what's been going on with your roof. But once he's done talking to you, he'll get up onto your roof. He'll do his inspection. He'll take around 50 to 100 photos and then he'll document any damage that he does find as well. And once he's done with that, he'll get down from your roof and then he'll sit down with you at your table and discuss his findings as well as all the potential options with you.\n\nhome_owner: That sounds good with you, Will? Absolutely.\n\ncustomer_rep: All right. Do you have any questions for me?\n\nhome_owner: Nope. Not at all.\n\ncustomer_rep: That's the 15th? Yes. You should have found that confirmation text message as well.\n\nhome_owner: Okay. Super.\n\ncustomer_rep: All right. Well, we will see you this Thursday. Excellent. Thanks so much. Have a great day.",
+  "summary": {
+    "call_id": "440",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.9,
+        "compliance_rate": 0.9,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "Greeting & Identification",
+            "Needs Discovery",
+            "Qualifying",
+            "Scheduling",
+            "Setting Expectations",
+            "Close & Confirmation"
+          ],
+          "missed": []
+        },
+        "issues": [],
+        "positive_behaviors": [
+          "Professional greeting with company name",
+          "Asked clarifying questions",
+          "Showed empathy for customer situation",
+          "Offered alternative solutions",
+          "Professional and courteous tone"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-16T19:49:19.662476"
+      },
+      "call_id": "440"
+    },
+    "created_at": "2026-01-16 19:49:25.533000",
+    "milvus_id": "vec_440_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "booked",
+      "call_outcome_category": "qualified_and_booked",
+      "appointment_confirmed": true,
+      "appointment_date": "2026-01-21T07:30:00",
+      "appointment_type": "in-person",
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 1.0,
+      "preferred_time_window": "morning",
+      "appointment_intent": "new",
+      "service_requested": "Roof inspection and repair",
+      "service_not_offered_reason": null,
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_address_raw": "3161 East Athena Court, Gilbert",
+      "service_address_structured": {
+        "line1": "3161 East Athena Court",
+        "city": "Gilbert",
+        "state": null,
+        "postal_code": null,
+        "country": "US"
+      },
+      "address_confidence": 0.7,
+      "customer_name": "McCulloch",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "McCulloch"
+      ],
+      "urgency_signals": [
+        "since last October",
+        "early October October",
+        "big heavy rain"
+      ],
+      "budget_indicators": [],
+      "confidence_score": 0.8,
+      "follow_up_required": false,
+      "property_details": {
+        "roof_type": "tile",
+        "roof_age_years": 14,
+        "stories": "single",
+        "hoa_status": "yes",
+        "gated_community": false,
+        "has_solar": true,
+        "pets": null,
+        "property_access_notes": null,
+        "roof_condition": "leaking in 3 areas",
+        "special_features": []
+      }
+    },
+    "summary": {
+      "summary": "A homeowner, Will McCulloch, contacted Arizona Roofers to report leaks in their single-story home with a 14-year-old tile roof. The representative, Matty, scheduled an inspection for Thursday and explained the process, including taking photos and discussing findings with the homeowner. The homeowner agreed to the appointment and provided contact information.",
+      "key_points": [
+        "Homeowner reports leaks in their single-story home with a 14-year-old tile roof.",
+        "Representative schedules an inspection for Thursday and explains the process.",
+        "Homeowner agrees to the appointment and provides contact information."
+      ],
+      "action_items": [
+        "Schedule inspection for Thursday",
+        "Prepare for inspection by gathering necessary information"
+      ],
+      "next_steps": [
+        "Schedule inspection for Thursday",
+        "Follow up with homeowner after inspection"
+      ],
+      "pending_actions": [
+        {
+          "type": "schedule_appointment",
+          "owner": "customer_rep",
+          "due_at": "2026-01-20T10:00:00",
+          "raw_text": "I'll get you on the calendar for Thursday.",
+          "confidence": 0.9,
+          "contact_method": "phone"
+        }
+      ],
+      "sentiment_score": 0.7,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

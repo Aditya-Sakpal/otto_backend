@@ -1,0 +1,128 @@
+{
+    "call_id": "440",
+    "company_id": "gpt52_test",
+    "status": "completed",
+    "processed_at": "2026-01-19T13:38:41.499000",
+    "summary": {
+        "summary": "Will McCulloch called Arizona Roofers to address about half a dozen roof leaks in three areas of his home that began after heavy rain in early October and have expanded beyond prior bedroom leaks into other rooms. Matty verified the property address (3161 East Athena Court, Gilbert), confirmed contact number, obtained permission to send SMS updates, and collected Will\u2019s email. Matty gathered key home details (original ~14-year-old tile roof, single-story, HOA community, not gated, has solar) and then offered appointment windows for Thursday. Will agreed, and Matty scheduled the visit and explained the inspection process (1\u20132 hours, roof inspection with 50\u2013100 photos, then a sit-down to review findings and options). The call ended with confirmation that a confirmation text would be sent and the appointment is set for Thursday.",
+        "key_points": [
+            "Customer reports about half a dozen leaks in three areas of the home, worsening/expanding since heavy rain in early October; previously had leaks in a bedroom and now in other rooms.",
+            "Property details: original tile roof about 14 years old; single-story home; in an HOA; not a gated community; has solar on the roof.",
+            "Appointment scheduled for Thursday, with SMS updates permitted; technician will perform a 1\u20132 hour inspection, take 50\u2013100 photos, and review findings/options with the homeowner."
+        ],
+        "action_items": [
+            "Conduct on-site roof inspection for reported leaks and document findings with photos.",
+            "Send/ensure appointment confirmation and updates via SMS (and use provided email if needed)."
+        ],
+        "next_steps": [
+            "Technician arrives within the scheduled Thursday appointment window and inspects the roof.",
+            "After inspection, technician reviews photos/findings with Will and discusses repair/replacement options."
+        ],
+        "pending_actions": [
+            {
+                "type": "inspection",
+                "owner": "company",
+                "due_at": null,
+                "raw_text": "So our appointments typically take around one to two hours... he'll get up onto your roof. He'll do his inspection. He'll take around 50 to 100 photos",
+                "confidence": 0.78,
+                "contact_method": "in_person"
+            },
+            {
+                "type": "confirm_appointment",
+                "owner": "customer_rep",
+                "due_at": null,
+                "raw_text": "You should have found that confirmation text message as well.",
+                "confidence": 0.74,
+                "contact_method": "sms"
+            }
+        ],
+        "sentiment_score": 0.82,
+        "confidence_score": 0.86
+    },
+    "compliance": {
+        "call_id": "440",
+        "target_role": "customer_rep",
+        "evaluation_mode": "sop_only",
+        "sop_compliance": {
+            "score": 0.9,
+            "compliance_rate": 0.9,
+            "stages": {
+                "total": 5,
+                "followed": [
+                    "Intake",
+                    "Qualify",
+                    "Present",
+                    "Close"
+                ],
+                "missed": [
+                    "Handle Objections"
+                ]
+            },
+            "issues": [
+                "Did not explicitly confirm the exact appointment window selected (rep listed multiple windows but did not restate which one was booked).",
+                "Email capture had a clarification mismatch (rep repeated will@will525.com after caller said will@will524.com, then caller confirmed; potential risk of incorrect email on file).",
+                "Did not ask qualifying questions about decision-maker/homeowner status, timeline/urgency, or whether other quotes were being obtained."
+            ],
+            "positive_behaviors": [
+                "Professional greeting with company identification and rep name.",
+                "Verified address, last name pronunciation, phone number, and obtained permission for text updates.",
+                "Conducted structured needs discovery and property qualification (roof age, tile, stories, HOA, gated status, solar).",
+                "Set clear expectations for the inspection appointment (duration, arrival window, inspection steps, photos, review of findings/options).",
+                "Confirmed that a confirmation text was sent and invited questions before ending the call."
+            ],
+            "confidence": 0.78
+        },
+        "timestamps": {
+            "sop_evaluated_at": "2026-01-19T13:38:35.856569"
+        }
+    },
+    "objections": {
+        "objections": [],
+        "total_count": 0
+    },
+    "qualification": {
+        "bant_scores": {
+            "need": 0.8,
+            "budget": 0.0,
+            "timeline": 0.8,
+            "authority": 1.0
+        },
+        "overall_score": 0.65,
+        "qualification_status": "warm",
+        "booking_status": "booked",
+        "call_outcome_category": "qualified_and_booked",
+        "appointment_confirmed": true,
+        "appointment_date": "2026-01-15T07:30:00",
+        "appointment_type": "in-person",
+        "appointment_timezone": "UTC",
+        "appointment_time_confidence": 0.7,
+        "preferred_time_window": "any",
+        "appointment_intent": "new",
+        "original_appointment_datetime": null,
+        "new_requested_time": null,
+        "service_requested": "Roof leak inspection and repair consultation",
+        "service_not_offered_reason": null,
+        "service_address_raw": "3161 East Athena Court in Gilbert",
+        "service_address_structured": {
+            "line1": "3161 East Athena Court",
+            "city": "Gilbert",
+            "state": null,
+            "postal_code": null,
+            "country": "US"
+        },
+        "address_confidence": 0.8,
+        "customer_name": "Will McCulloch",
+        "customer_name_confidence": 0.9,
+        "decision_makers": [
+            "Will McCulloch (homeowner)"
+        ],
+        "urgency_signals": [
+            "Since last October, early October October, there was big heavy rain and we had a few more spots showing up in these new areas.",
+            "We used to have some leaks in the bedroom, but it seemed to expand out to some other rooms."
+        ],
+        "budget_indicators": [],
+        "confidence_score": 0.86,
+        "follow_up_required": false,
+        "follow_up_reason": null
+    }
+}

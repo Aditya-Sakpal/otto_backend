@@ -1,0 +1,122 @@
+[
+  {
+    "call_id": "440",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 2,
+    "num_key_points": 3
+  },
+  {
+    "call_id": "441",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 1,
+    "num_key_points": 3
+  },
+  {
+    "call_id": "442",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 1,
+    "num_key_points": 3
+  },
+  {
+    "call_id": "443",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 1,
+    "num_key_points": 3
+  },
+  {
+    "call_id": "445",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 1,
+    "num_key_points": 5
+  },
+  {
+    "call_id": "446",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 1,
+    "num_key_points": 3
+  },
+  {
+    "call_id": "447",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 1,
+    "num_key_points": 3
+  },
+  {
+    "call_id": "449",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 1,
+    "num_key_points": 3
+  },
+  {
+    "call_id": "450",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 1,
+    "num_key_points": 6
+  },
+  {
+    "call_id": "451",
+    "has_customer_name": false,
+    "has_address": false,
+    "has_email": false,
+    "has_phone": false,
+    "appointment_scheduled": false,
+    "booking_status": null,
+    "num_objections": 0,
+    "num_action_items": 1,
+    "num_key_points": 5
+  }
+]

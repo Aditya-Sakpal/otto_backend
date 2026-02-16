@@ -1,0 +1,62 @@
+[
+  {
+    "call_id": 440,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_a1fba09cdcd7410b84dc4d9aa14cf2f6\",\"call_id\":\"440\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_a1fba09cdcd7410b84dc4d9aa14cf2f6\",\"created_at\":\"2026-01-19T13:04:28.498293\"}",
+    "timestamp": "2026-01-19T13:04:28.502390"
+  },
+  {
+    "call_id": 441,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_05c177b78a7746349e11a756007aa397\",\"call_id\":\"441\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_05c177b78a7746349e11a756007aa397\",\"created_at\":\"2026-01-19T13:04:31.143569\"}",
+    "timestamp": "2026-01-19T13:04:31.147484"
+  },
+  {
+    "call_id": 442,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_dd8d2b91b02f4c9984e8e67ba2fd8c5d\",\"call_id\":\"442\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_dd8d2b91b02f4c9984e8e67ba2fd8c5d\",\"created_at\":\"2026-01-19T13:04:33.592323\"}",
+    "timestamp": "2026-01-19T13:04:33.595774"
+  },
+  {
+    "call_id": 443,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_2d92cff97b4a43a58570af547efcec8f\",\"call_id\":\"443\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_2d92cff97b4a43a58570af547efcec8f\",\"created_at\":\"2026-01-19T13:04:36.038769\"}",
+    "timestamp": "2026-01-19T13:04:36.043146"
+  },
+  {
+    "call_id": 445,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_f14e885396304429ae59a0a21288f281\",\"call_id\":\"445\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_f14e885396304429ae59a0a21288f281\",\"created_at\":\"2026-01-19T13:04:38.691715\"}",
+    "timestamp": "2026-01-19T13:04:38.695417"
+  },
+  {
+    "call_id": 446,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_47597d25017242b6abcd041cd0f24afa\",\"call_id\":\"446\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_47597d25017242b6abcd041cd0f24afa\",\"created_at\":\"2026-01-19T13:04:41.361564\"}",
+    "timestamp": "2026-01-19T13:04:41.364388"
+  },
+  {
+    "call_id": 447,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_999e3fd85d6c434a815cd53b93a8edc3\",\"call_id\":\"447\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_999e3fd85d6c434a815cd53b93a8edc3\",\"created_at\":\"2026-01-19T13:04:43.807541\"}",
+    "timestamp": "2026-01-19T13:04:43.810588"
+  },
+  {
+    "call_id": 449,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_78543a019e5f4c3e8b9e1cf28653fc76\",\"call_id\":\"449\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_78543a019e5f4c3e8b9e1cf28653fc76\",\"created_at\":\"2026-01-19T13:04:46.255255\"}",
+    "timestamp": "2026-01-19T13:04:46.257649"
+  },
+  {
+    "call_id": 450,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_b85585d1fa854ed0b35da254cb498add\",\"call_id\":\"450\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_b85585d1fa854ed0b35da254cb498add\",\"created_at\":\"2026-01-19T13:04:48.897379\"}",
+    "timestamp": "2026-01-19T13:04:48.901031"
+  },
+  {
+    "call_id": 451,
+    "status": "failed",
+    "error": "Failed to submit: 202 - {\"job_id\":\"job_6e259657b94745638a855d8b8ab9c83b\",\"call_id\":\"451\",\"status\":\"queued\",\"message\":\"Call processing initiated successfully\",\"estimated_completion_time\":null,\"status_url\":\"/api/v1/call-processing/status/job_6e259657b94745638a855d8b8ab9c83b\",\"created_at\":\"2026-01-19T13:04:51.573586\"}",
+    "timestamp": "2026-01-19T13:04:51.576744"
+  }
+]

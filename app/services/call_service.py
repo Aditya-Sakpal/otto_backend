@@ -1436,6 +1436,10 @@ class CallService:
                             ContactCardORM.extra_metadata['property_type'].astext == "commercial"
                         )
                     )
+                elif quick_filter_lower == "service_not_offered":
+                    query = query.where(
+                        func.lower(CallAnalysisORM.booking_status) == "service_not_offered"
+                    )
 
             # Search filter (customer name, CSR name, or phone number)
             if search:

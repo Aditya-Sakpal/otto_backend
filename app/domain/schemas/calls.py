@@ -35,7 +35,6 @@ class CallLogEntry(BaseModel):
     action_items: Optional[List[Any]] = None
     score: Optional[float] = None
     objections: Optional[str] = None
-    sub_objection: Optional[str] = None
     tags: Optional[str] = None
     transcript: Optional[str] = None
 

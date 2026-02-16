@@ -3,7 +3,7 @@ Objection classification utility.
 
 Maps raw objection strings from Shunya to standardized objection categories.
 """
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 from app.domain.enums import ObjectionType
 
 
@@ -131,8 +131,8 @@ class ObjectionClassifier:
                 if keyword.lower() in normalized:
                     return category.value
 
-        # No match found - return the raw objection as-is
-        return raw_objection.strip()
+        # No match found - classify as "other"
+        return ObjectionType.OTHER.value
 
     @classmethod
     def classify_list(cls, raw_objections: List[str]) -> List[str]:
@@ -178,6 +178,55 @@ class ObjectionClassifier:
                 unique_classified.append(obj)
 
         return unique_classified
+
+    @classmethod
+    def classify_with_raw(cls, raw_objection: str) -> Tuple[str, Optional[str]]:
+        """
+        Classify a raw objection and preserve the raw text when it falls into 'other'.
+
+        Returns:
+            Tuple of (classified_category, raw_text_or_none).
+            raw_text is only set when the category is 'other'.
+        """
+        if not raw_objection or not isinstance(raw_objection, str):
+            return (ObjectionType.OTHER.value, None)
+
+        normalized = raw_objection.lower().strip()
+
+        for category, keywords in cls.CLASSIFICATION_RULES.items():
+            for keyword in keywords:
+                if keyword.lower() in normalized:
+                    return (category.value, None)
+
+        # No match - "other" with raw text preserved
+        return (ObjectionType.OTHER.value, raw_objection.strip())
+
+    @classmethod
+    def classify_and_deduplicate_with_raw(cls, raw_objections: List[str]) -> List[Tuple[str, Optional[str]]]:
+        """
+        Classify objections, deduplicate non-'other' categories,
+        and preserve raw text for 'other' entries.
+
+        Returns:
+            List of (classified_category, raw_text_or_none) tuples.
+            Non-'other' categories are deduplicated.
+            'other' entries are all preserved with their raw text.
+        """
+        if not raw_objections:
+            return []
+
+        seen_categories = set()
+        result = []
+        for raw in raw_objections:
+            category, raw_text = cls.classify_with_raw(raw)
+            if category != ObjectionType.OTHER.value:
+                if category not in seen_categories:
+                    seen_categories.add(category)
+                    result.append((category, None))
+            else:
+                result.append((category, raw_text))
+
+        return result
 
     @classmethod
     def expand_objection_filter(cls, objection: str) -> List[str]:

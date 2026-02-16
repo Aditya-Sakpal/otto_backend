@@ -25,7 +25,6 @@ def _build_call_log_entry(
     call: CallORM,
     analysis: CallAnalysisORM,
     contact_card: Optional[ContactCardORM],
-    obj_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build a single call log entry for objection call lists."""
     contact_name = None
@@ -38,14 +37,6 @@ def _build_call_log_entry(
             contact_name = contact_card.last_name
         else:
             contact_name = contact_card.primary_phone or "Unknown"
-
-    # For objections not matching any of the 9 defined enums, set sub_objection to the raw text
-    sub_objection = None
-    if obj_type and analysis and analysis.objections:
-        from app.domain.enums import ObjectionType
-        defined_values = {e.value for e in ObjectionType if e != ObjectionType.OTHER}
-        if obj_type not in defined_values:
-            sub_objection = obj_type
 
     return {
         "call_id": str(call.id),
@@ -60,7 +51,6 @@ def _build_call_log_entry(
         "booking_status": analysis.booking_status if analysis else None,
         "transcript": getattr(call, "transcript", None),
         "summary": analysis.summary if analysis else None,
-        "sub_objection": sub_objection,
     }
 
 
@@ -87,6 +77,122 @@ class AnalyticsService:
 
         return ObjectionClassifier.classify_and_deduplicate(analysis.objections)
 
+    async def _build_objection_item(
+        self,
+        obj_type: str,
+        rows_for_obj: List[Tuple[Any, Any, Any]],
+        leads_set: set,
+        include_company_metrics: bool,
+        start_dt: Optional[datetime],
+        end_dt: Optional[datetime],
+        users_map: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
+        """Build the full metrics dict for an objection type (reused for top-level and sub-objections)."""
+        from app.infrastructure.database.models.user import UserORM
+
+        count = len(rows_for_obj)
+        item: Dict[str, Any] = {
+            "objection_type": obj_type,
+            "count": count,
+            "affected_leads_count": len(leads_set),
+        }
+
+        # Call logs
+        call_logs = [
+            _build_call_log_entry(call, analysis, contact_card)
+            for analysis, call, contact_card in rows_for_obj
+        ]
+        call_logs.sort(key=lambda x: (x["created_at"] or ""), reverse=True)
+        item["call_logs"] = call_logs
+
+        if include_company_metrics:
+            booked = sum(
+                1 for a, _c, _cc in rows_for_obj
+                if a.booking_status and str(a.booking_status).lower() == "booked"
+            )
+            unbooked = count - booked
+            total_bookable = booked + unbooked
+            booking_rate = round((booked / total_bookable * 100), 2) if total_bookable else None
+            item["booked"] = booked
+            item["unbooked"] = unbooked
+            item["booking_rate"] = booking_rate
+
+            # Booking rate trend: by week
+            trend: List[Dict[str, Any]] = []
+            if start_dt and end_dt and rows_for_obj:
+                week_buckets: Dict[date, List[Tuple[Any, Any, Any]]] = defaultdict(list)
+                for a, c, cc in rows_for_obj:
+                    if c.created_at:
+                        d = c.created_at.date()
+                        week_start = d - timedelta(days=d.weekday())
+                        week_buckets[week_start].append((a, c, cc))
+                for week_start in sorted(week_buckets.keys()):
+                    if week_start < start_dt.date() or week_start > end_dt.date():
+                        continue
+                    week_rows = week_buckets[week_start]
+                    w_booked = sum(
+                        1 for a, _, _ in week_rows
+                        if a.booking_status and str(a.booking_status).lower() == "booked"
+                    )
+                    w_total = len(week_rows)
+                    w_rate = round((w_booked / w_total * 100), 2) if w_total else 0
+                    trend.append({
+                        "period_start": week_start.isoformat(),
+                        "period_end": (week_start + timedelta(days=6)).isoformat(),
+                        "booking_rate": w_rate,
+                        "booked": w_booked,
+                        "unbooked": w_total - w_booked,
+                    })
+                trend.sort(key=lambda x: x["period_start"])
+            item["booking_rate_trend"] = trend
+
+            # Most coaching needs: per user
+            user_rows: Dict[Optional[UUID], List[Tuple[Any, Any, Any]]] = defaultdict(list)
+            for a, c, cc in rows_for_obj:
+                user_rows[c.handled_by_user_id].append((a, c, cc))
+
+            # Fetch users_map if not provided
+            if users_map is None:
+                u_ids = [uid for uid in user_rows.keys() if uid is not None]
+                if u_ids:
+                    users_result = await self.session.execute(
+                        select(UserORM).where(UserORM.id.in_(u_ids))
+                    )
+                    users_map = {u.id: u for u in users_result.scalars().all()}
+                else:
+                    users_map = {}
+
+            most_coaching_needs: List[Dict[str, Any]] = []
+            for uid in list(user_rows.keys()):
+                u_rows = user_rows[uid]
+                u_unbooked = sum(
+                    1 for a, _, _ in u_rows
+                    if not (a.booking_status and str(a.booking_status).lower() == "booked")
+                )
+                u_user = users_map.get(uid) if uid else None
+                if u_user:
+                    u_name = " ".join(
+                        filter(None, [u_user.first_name, u_user.last_name])
+                    ) or u_user.email or "Unknown"
+                else:
+                    u_name = "Unknown"
+                user_call_logs = [
+                    _build_call_log_entry(call, analysis, contact_card)
+                    for analysis, call, contact_card in u_rows
+                ]
+                user_call_logs.sort(key=lambda x: (x["created_at"] or ""), reverse=True)
+                most_coaching_needs.append({
+                    "user_id": str(uid) if uid else None,
+                    "user_name": u_name,
+                    "email": u_user.email if u_user else None,
+                    "unbooked_count": u_unbooked,
+                    "call_logs": user_call_logs,
+                })
+            most_coaching_needs.sort(key=lambda x: x["unbooked_count"], reverse=True)
+            item["most_coaching_needs"] = most_coaching_needs
+
+        return item
+
     async def get_top_objections(
         self,
         company_id: Optional[UUID] = None,
@@ -96,20 +202,23 @@ class AnalyticsService:
     ) -> Dict[str, Any]:
         """
         Get top objections aggregated by company or user.
-        
+
         When called by company_id (no user_id): returns objections with
         - objection_type, count, affected_leads_count
         - booking_rate, booked, unbooked, booking_rate_trend (start to end date)
         - most_coaching_needs: user details + unbooked count for that objection + call_logs per user
         - call_logs: all call details where that objection occurred (company-wide)
-        
+
+        For objection_type "other", includes a sub_objections array with per-raw-objection breakdown.
+
         When called by user_id: returns objections with
         - objection_type, count, affected_leads_count
         - call_logs: call details where that objection occurred for that user only
         """
         try:
             from app.infrastructure.database.models.user import UserORM
-            
+            from app.domain.objection_classifier import ObjectionClassifier
+
             # Resolution rules
             if user_id:
                 user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
@@ -119,7 +228,7 @@ class AnalyticsService:
                 company_id = user.company_id
             elif not company_id:
                 raise ValueError("Either company_id or user_id is required")
-            
+
             # Date range for filtering (call date)
             start_dt = None
             end_dt = None
@@ -127,7 +236,7 @@ class AnalyticsService:
                 start_dt = datetime.combine(start_date, datetime.min.time())
             if end_date:
                 end_dt = datetime.combine(end_date, datetime.max.time())
-            
+
             # Get analyses with objections, joined with calls and contact_card (exclude existing customer & service not offered)
             query = (
                 select(CallAnalysisORM, CallORM, ContactCardORM)
@@ -146,28 +255,56 @@ class AnalyticsService:
                 query = query.where(CallORM.created_at >= start_dt)
             if end_dt is not None:
                 query = query.where(CallORM.created_at <= end_dt)
-            
+
             results = await self.session.execute(query)
             rows = results.all()
-            
+
             # Per objection: list of (analysis, call, contact_card) for building counts and call_logs
             objection_rows: Dict[str, List[Tuple[Any, Any, Any]]] = defaultdict(list)
             objection_leads: Dict[str, set] = defaultdict(set)
-            
+
+            # For "other" sub-grouping: raw_text -> list of (analysis, call, contact_card)
+            other_sub_rows: Dict[str, List[Tuple[Any, Any, Any]]] = defaultdict(list)
+            other_sub_leads: Dict[str, set] = defaultdict(set)
+
             for analysis, call, contact_card in rows:
                 if not analysis.objections:
                     continue
-                # Classify objections before aggregating
-                classified_objections = self._classify_objections_in_analysis(analysis)
-                for obj_type in classified_objections:
-                    if not obj_type or not str(obj_type).strip():
+                classified_pairs = ObjectionClassifier.classify_and_deduplicate_with_raw(analysis.objections)
+                for category, raw_text in classified_pairs:
+                    if not category or not str(category).strip():
                         continue
-                    obj_type_normalized = str(obj_type).strip()
-                    objection_rows[obj_type_normalized].append((analysis, call, contact_card))
+                    category_normalized = str(category).strip()
+                    objection_rows[category_normalized].append((analysis, call, contact_card))
                     if call.lead_id:
-                        objection_leads[obj_type_normalized].add(call.lead_id)
-            
+                        objection_leads[category_normalized].add(call.lead_id)
+
+                    # Track sub-grouping for "other"
+                    if category_normalized == "other" and raw_text:
+                        raw_text_normalized = raw_text.strip()
+                        if raw_text_normalized:
+                            other_sub_rows[raw_text_normalized].append((analysis, call, contact_card))
+                            if call.lead_id:
+                                other_sub_leads[raw_text_normalized].add(call.lead_id)
+
+            # Pre-fetch all users for company metrics to avoid repeated queries
+            users_map = None
+            if not user_id:
+                all_user_ids = set()
+                for rows_for_obj in objection_rows.values():
+                    for _, c, _ in rows_for_obj:
+                        if c.handled_by_user_id:
+                            all_user_ids.add(c.handled_by_user_id)
+                if all_user_ids:
+                    users_result = await self.session.execute(
+                        select(UserORM).where(UserORM.id.in_(list(all_user_ids)))
+                    )
+                    users_map = {u.id: u for u in users_result.scalars().all()}
+                else:
+                    users_map = {}
+
             # Build response objections list
+            include_company = not user_id
             objections_out: List[Dict[str, Any]] = []
             for obj_type in sorted(
                 objection_rows.keys(),
@@ -175,125 +312,44 @@ class AnalyticsService:
                 reverse=True,
             ):
                 rows_for_obj = objection_rows[obj_type]
-                count = len(rows_for_obj)
-                item: Dict[str, Any] = {
-                    "objection_type": obj_type,
-                    "count": count,
-                    "affected_leads_count": len(objection_leads.get(obj_type, set())),
-                }
-                
-                # Call logs: all calls where this objection occurred
-                call_logs = [
-                    _build_call_log_entry(call, analysis, contact_card, obj_type=obj_type)
-                    for analysis, call, contact_card in rows_for_obj
-                ]
-                # Sort by created_at desc
-                call_logs.sort(
-                    key=lambda x: (x["created_at"] or ""),
-                    reverse=True,
+                leads_set = objection_leads.get(obj_type, set())
+
+                item = await self._build_objection_item(
+                    obj_type, rows_for_obj, leads_set,
+                    include_company_metrics=include_company,
+                    start_dt=start_dt, end_dt=end_dt,
+                    users_map=users_map,
                 )
-                item["call_logs"] = call_logs
-                
-                if not user_id:
-                    # company_id only: add booking_rate, booked, unbooked, booking_rate_trend, most_coaching_needs
-                    booked = sum(
-                        1
-                        for a, _c, _cc in rows_for_obj
-                        if a.booking_status and str(a.booking_status).lower() == "booked"
-                    )
-                    unbooked = count - booked
-                    total_bookable = booked + unbooked
-                    booking_rate = round((booked / total_bookable * 100), 2) if total_bookable else None
-                    item["booked"] = booked
-                    item["unbooked"] = unbooked
-                    item["booking_rate"] = booking_rate
-                    
-                    # Booking rate trend: by week from start to end
-                    trend: List[Dict[str, Any]] = []
-                    if start_dt and end_dt and rows_for_obj:
-                        # Group rows by week (week start)
-                        week_buckets: Dict[date, List[Tuple[Any, Any, Any]]] = defaultdict(list)
-                        for a, c, cc in rows_for_obj:
-                            if c.created_at:
-                                # Use Monday as week start
-                                d = c.created_at.date()
-                                week_start = d - timedelta(days=d.weekday())
-                                week_buckets[week_start].append((a, c, cc))
-                        for week_start in sorted(week_buckets.keys()):
-                            if week_start < start_dt.date() or week_start > end_dt.date():
-                                continue
-                            week_rows = week_buckets[week_start]
-                            w_booked = sum(
-                                1
-                                for a, _, _ in week_rows
-                                if a.booking_status and str(a.booking_status).lower() == "booked"
-                            )
-                            w_total = len(week_rows)
-                            w_rate = round((w_booked / w_total * 100), 2) if w_total else 0
-                            trend.append({
-                                "period_start": week_start.isoformat(),
-                                "period_end": (week_start + timedelta(days=6)).isoformat(),
-                                "booking_rate": w_rate,
-                                "booked": w_booked,
-                                "unbooked": w_total - w_booked,
-                            })
-                        trend.sort(key=lambda x: x["period_start"])
-                    item["booking_rate_trend"] = trend
-                    
-                    # Most coaching needs: per user who faced this objection: user details, unbooked count, call_logs
-                    user_rows: Dict[Optional[UUID], List[Tuple[Any, Any, Any]]] = defaultdict(list)
-                    for a, c, cc in rows_for_obj:
-                        user_rows[c.handled_by_user_id].append((a, c, cc))
-                    
-                    most_coaching_needs: List[Dict[str, Any]] = []
-                    user_ids = [uid for uid in user_rows.keys() if uid is not None]
-                    if user_ids:
-                        users_result = await self.session.execute(
-                            select(UserORM).where(UserORM.id.in_(user_ids))
+
+                # For "other", add sub_objections array
+                if obj_type == "other" and other_sub_rows:
+                    sub_objections = []
+                    for sub_type in sorted(
+                        other_sub_rows.keys(),
+                        key=lambda k: len(other_sub_rows[k]),
+                        reverse=True,
+                    ):
+                        sub_rows = other_sub_rows[sub_type]
+                        sub_leads = other_sub_leads.get(sub_type, set())
+                        sub_item = await self._build_objection_item(
+                            sub_type, sub_rows, sub_leads,
+                            include_company_metrics=include_company,
+                            start_dt=start_dt, end_dt=end_dt,
+                            users_map=users_map,
                         )
-                        users_map = {u.id: u for u in users_result.scalars().all()}
-                        for uid in list(user_rows.keys()):
-                            u_rows = user_rows[uid]
-                            u_unbooked = sum(
-                                1
-                                for a, _, _ in u_rows
-                                if not (a.booking_status and str(a.booking_status).lower() == "booked")
-                            )
-                            u_user = users_map.get(uid) if uid else None
-                            if u_user:
-                                u_name = " ".join(
-                                    filter(None, [u_user.first_name, u_user.last_name])
-                                ) or u_user.email or "Unknown"
-                            else:
-                                u_name = "Unknown"
-                            user_call_logs = [
-                                _build_call_log_entry(call, analysis, contact_card, obj_type=obj_type)
-                                for analysis, call, contact_card in u_rows
-                            ]
-                            user_call_logs.sort(
-                                key=lambda x: (x["created_at"] or ""),
-                                reverse=True,
-                            )
-                            most_coaching_needs.append({
-                                "user_id": str(uid) if uid else None,
-                                "user_name": u_name,
-                                "email": u_user.email if u_user else None,
-                                "unbooked_count": u_unbooked,
-                                "call_logs": user_call_logs,
-                            })
-                        most_coaching_needs.sort(key=lambda x: x["unbooked_count"], reverse=True)
-                    item["most_coaching_needs"] = most_coaching_needs
-                
+                        sub_objections.append(sub_item)
+                    item["sub_objections"] = sub_objections
+
                 objections_out.append(item)
-            
+
             response: Dict[str, Any] = {"objections": objections_out}
             if start_date is not None:
                 response["start_date"] = start_date.isoformat()
             if end_date is not None:
                 response["end_date"] = end_date.isoformat()
-            
+
             return response
-            
+
         except Exception as e:
             logger.error(f"Error getting top objections: {e}")
             traceback.print_exc()

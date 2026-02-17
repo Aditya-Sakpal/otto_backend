@@ -2,7 +2,7 @@
 Appointment Pydantic schemas for API requests and responses.
 """
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -75,41 +75,65 @@ class AppointmentUpdate(BaseModel):
     )
 
 
-class AppointmentInsightSummary(BaseModel):
-    """Structured insights extracted from the related call analysis."""
+class PendingActionDetail(BaseModel):
+    """Structured pending action extracted from recording."""
+    type: str = Field(..., description="Action type (e.g., send_info, follow_up_call)")
+    owner: str = Field(..., description="Owner role (e.g., customer_rep, sales_rep)")
+    raw_text: str = Field(..., description="Raw text of the action item")
+    due_at: Optional[datetime] = Field(None, description="When the action is due")
+    confidence: Optional[float] = Field(None, description="Confidence score (0-1)")
+    contact_method: Optional[str] = Field(None, description="Contact method (e.g., email, phone)")
 
-    summary: Optional[str] = Field(
-        None,
-        description="Summary of the associated call",
-    )
-    key_points: List[str] = Field(
-        default_factory=list,
-        description="Key points discussed during the call",
-    )
-    sop_stages_completed: List[str] = Field(
-        default_factory=list,
-        description="SOP stages that were completed",
-    )
-    sop_stages_missed: List[str] = Field(
-        default_factory=list,
-        description="SOP stages that were missed",
-    )
-    objections: List[str] = Field(
-        default_factory=list,
-        description="Objections raised during the call",
-    )
-    action_items: List[str] = Field(
-        default_factory=list,
-        description="Action items identified during the call",
-    )
-    follow_up_required: Optional[bool] = Field(
-        None,
-        description="Whether a follow-up is required",
-    )
-    follow_up_reason: Optional[str] = Field(
-        None,
-        description="Reason for the required follow-up, if any",
-    )
+
+class ObjectionDetail(BaseModel):
+    """Detailed objection with category and handling information."""
+    category_id: int = Field(..., description="Objection category ID")
+    category_text: str = Field(..., description="Objection category name")
+    objection_text: str = Field(..., description="The actual objection raised")
+    overcome: bool = Field(..., description="Whether the objection was overcome")
+    severity: str = Field(..., description="Severity level (low, medium, high)")
+    confidence_score: float = Field(..., description="Confidence score (0-1)")
+    response_suggestions: List[str] = Field(default_factory=list, description="Suggested responses for future")
+
+
+class ComplianceStageDetail(BaseModel):
+    """Compliance details for a specific SOP stage."""
+    score: float = Field(..., description="Stage compliance score (0-1)")
+    issues: List[str] = Field(default_factory=list, description="Issues identified in this stage")
+
+
+class AppointmentInsightSummary(BaseModel):
+    """Structured insights extracted from the related call analysis (recording analysis)."""
+
+    # Summary section
+    summary: Optional[str] = Field(None, description="Call summary text")
+    key_points: List[str] = Field(default_factory=list, description="Key points from the call")
+    pending_actions: List[PendingActionDetail] = Field(default_factory=list, description="Structured pending actions")
+    sentiment_score: Optional[float] = Field(None, description="Sentiment score (0-1)")
+
+    # Objections section
+    objections: List[ObjectionDetail] = Field(default_factory=list, description="List of detailed objections")
+    objections_total_count: int = Field(default=0, description="Total number of objections detected")
+
+    # Compliance section (SOP)
+    sop_compliance_score: Optional[float] = Field(None, description="Overall SOP compliance score (0-1)")
+    sop_stages: Dict[str, ComplianceStageDetail] = Field(default_factory=dict, description="Compliance by stage")
+    sop_positive_behaviors: List[str] = Field(default_factory=list, description="Positive behaviors observed")
+    sop_issues: List[str] = Field(default_factory=list, description="Overall compliance issues")
+
+    # Qualification section (BANT)
+    qualification_overall_score: Optional[float] = Field(None, description="Overall qualification score (0-1)")
+    bant_scores: Dict[str, float] = Field(default_factory=dict, description="BANT scores (need, budget, authority, timeline)")
+    qualification_status: Optional[str] = Field(None, description="Qualification status (e.g., warm, hot, cold)")
+
+    # Lead score section
+    lead_total_score: Optional[int] = Field(None, description="Total lead score (0-100)")
+    lead_band: Optional[str] = Field(None, description="Lead band/category (e.g., warm, hot)")
+
+    # Legacy fields (for backward compatibility)
+    action_items: List[str] = Field(default_factory=list, description="Action items identified (legacy)")
+    follow_up_required: Optional[bool] = Field(None, description="Whether a follow-up is required")
+    follow_up_reason: Optional[str] = Field(None, description="Reason for the required follow-up, if any")
 
 
 class AppointmentResponse(AppointmentBase):
@@ -152,4 +176,106 @@ class AppointmentResponse(AppointmentBase):
 
     class Config:
         from_attributes = True
+
+
+# ============================================================================
+# Appointment Context Schemas (Wave 2: Pre-Meeting Intelligence)
+# ============================================================================
+
+
+class CallSummaryItem(BaseModel):
+    """Call summary with AI analysis."""
+
+    call_id: UUID
+    call_type: str  # "csr_call", "sales_call", "missed_call"
+    call_date: datetime
+    duration_seconds: Optional[int]
+    audio_url: Optional[str]
+    summary: Optional[str] = None
+    key_points: List[str] = Field(default_factory=list)
+    objections: List[str] = Field(default_factory=list)
+    sentiment_score: Optional[float] = None
+    handled_by_name: Optional[str] = None
+
+
+class ContactCardInfo(BaseModel):
+    """Contact card details."""
+
+    id: UUID
+    first_name: Optional[str]
+    last_name: Optional[str]
+    email: Optional[str]
+    primary_phone: Optional[str]
+    address: Optional[str]
+    city: Optional[str]
+    state: Optional[str]
+
+
+class LeadContextInfo(BaseModel):
+    """Lead status and metadata."""
+
+    id: UUID
+    status: str  # LeadStatus enum value
+    deal_size: Optional[float]
+    deal_type: Optional[str]
+    lead_score: Optional[float] = None  # Future: from intelligence service
+
+
+class AggregatedObjections(BaseModel):
+    """Objections aggregated across all calls."""
+
+    unique_objections: List[str]
+    objection_counts: Dict[str, int]  # objection -> count
+    top_objections: List[str]  # Top 3 by frequency
+
+
+class PendingActionItem(BaseModel):
+    """Pending action for the lead."""
+
+    id: UUID
+    raw_text: str
+    priority: Optional[int]
+    status: str
+    due_at: Optional[datetime]
+    owner_name: Optional[str]
+
+
+class AIBriefing(BaseModel):
+    """AI-generated pre-meeting brief."""
+
+    briefing_text: str
+    focus_areas: List[str] = Field(default_factory=list)
+    generated_at: datetime
+
+
+class AppointmentContextResponse(BaseModel):
+    """Comprehensive appointment context for pre-meeting intelligence."""
+
+    # Appointment basics
+    appointment_id: UUID
+    scheduled_start: datetime
+    scheduled_end: Optional[datetime]
+    location_address: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
+    outcome: Optional[str]
+
+    # Contact and rep info
+    contact_info: ContactCardInfo
+    sales_rep_name: Optional[str]
+
+    # Lead context
+    lead_info: LeadContextInfo
+
+    # Conversation history (CSR + sales calls)
+    conversation_history: List[CallSummaryItem]
+
+    # Aggregated objections
+    objections: AggregatedObjections
+
+    # Pending actions
+    pending_actions: List[PendingActionItem]
+
+    # AI briefing (may be None if Shoonya unavailable)
+    ai_briefing: Optional[AIBriefing]
 

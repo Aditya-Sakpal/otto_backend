@@ -260,16 +260,39 @@ async def get_sales_team_stats(
 async def get_dashboard(
     db: DbSession,
     company_id: UUID = Query(..., description="Company UUID"),
+    start_date: Optional[str] = Query(None, description="Start date for filtering objections (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date for filtering objections (YYYY-MM-DD)"),
     current_user: User = Depends(
         require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])
     ),
 ) -> SalesRepDashboardResponse:
     """
-    Get main dashboard: ridealongs_list (latest 9 appointments of the day)
-    and sales_team_stats (top 3 reps).
+    Get main dashboard: ridealongs_list (latest 9 appointments of the day),
+    sales_team_stats (top 3 reps), and objections (same format as /metrics/objections/top).
     """
+    from datetime import date as date_type
+    
+    start_dt = None
+    end_dt = None
+    if start_date:
+        try:
+            start_dt = date_type.fromisoformat(start_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="start_date must be in YYYY-MM-DD format",
+            )
+    if end_date:
+        try:
+            end_dt = date_type.fromisoformat(end_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="end_date must be in YYYY-MM-DD format",
+            )
+    
     service = SalesRepDashboardService(db)
-    return await service.get_dashboard(company_id=company_id)
+    return await service.get_dashboard(company_id=company_id, start_date=start_dt, end_date=end_dt)
 
 
 @router.get("/tasks")

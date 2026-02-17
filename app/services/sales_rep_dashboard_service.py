@@ -19,7 +19,9 @@ from app.domain.schemas.sales_rep_dashboard import (
     RidealongEntry,
     SalesTeamStatsEntry,
     SalesRepDashboardResponse,
-    ObjectionBreakdownEntry,
+    ObjectionEntry,
+    CallLogEntry,
+    MostCoachingNeedEntry,
     SalesOverview,
     CoreKpis,
     Trends,
@@ -29,6 +31,7 @@ from app.domain.schemas.sales_rep_dashboard import (
     OttoAssistedSales,
     AttendanceMetrics,
 )
+from app.services.analytics_service import AnalyticsService
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.user import UserORM
@@ -126,9 +129,12 @@ class SalesRepDashboardService:
     async def get_dashboard(
         self,
         company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
     ) -> SalesRepDashboardResponse:
         """
         Get main dashboard: ridealongs_list (up to 9 today) and sales_team_stats (up to 3).
+        Also includes objections in the same format as /metrics/objections/top.
         """
         today = date.today()
 
@@ -172,16 +178,17 @@ class SalesRepDashboardService:
 
         sales_team_stats = await self._get_sales_team_stats(company_id, skip=0, limit=3)
 
-        objections_breakdown = await self._get_objections_breakdown(company_id)
+        # Get objections in the same format as /metrics/objections/top
+        objections = await self._get_objections(company_id, start_date=start_date, end_date=end_date, limit=10)
         sales_overview = await self._get_sales_overview(company_id)
         team_coaching_metrics = await self._get_team_coaching_metrics(
-            company_id, objections_breakdown, sales_team_stats
+            company_id, objections, sales_team_stats
         )
 
         return SalesRepDashboardResponse(
             ridealongs_list=ridealongs,
             sales_team_stats=sales_team_stats,
-            objections_breakdown=objections_breakdown,
+            objections=objections,
             sales_overview=sales_overview,
             team_coaching_metrics=team_coaching_metrics,
         )
@@ -357,25 +364,70 @@ class SalesRepDashboardService:
         entries.sort(key=lambda e: e.win_rate, reverse=True)
         return entries[skip : skip + limit]
 
-    async def _get_objections_breakdown(
-        self, company_id: UUID, limit: int = 10
-    ) -> List[ObjectionBreakdownEntry]:
-        """Get top objections with percentages for dashboard."""
+    async def _get_objections(
+        self, company_id: UUID, start_date: Optional[date] = None, end_date: Optional[date] = None, limit: int = 10
+    ) -> List[ObjectionEntry]:
+        """Get top objections with call_logs matching /metrics/objections/top format."""
         try:
-            result = await self.metrics_service.get_top_objections(
+            analytics_service = AnalyticsService(self.session)
+            result = await analytics_service.get_top_objections(
                 company_id=company_id,
-                limit=limit,
+                user_id=None,  # Company-wide
+                start_date=start_date,
+                end_date=end_date,
             )
-            objections = result.get("objections") or []
-            return [
-                ObjectionBreakdownEntry(
-                    objection_text=obj.get("objection_type", ""),
-                    percentage=float(obj.get("percentage", 0)),
-                )
-                for obj in objections
-            ]
+            objections_data = result.get("objections") or []
+            
+            # Convert to ObjectionEntry format
+            objections = []
+            for obj_data in objections_data[:limit]:
+                call_logs = []
+                for call_log_data in obj_data.get("call_logs", []):
+                    call_logs.append(CallLogEntry(
+                        call_id=call_log_data.get("call_id", ""),
+                        lead_id=call_log_data.get("lead_id"),
+                        contact_name=call_log_data.get("contact_name", "Unknown"),
+                        phone_number=call_log_data.get("phone_number", ""),
+                        audio_url=call_log_data.get("audio_url"),
+                        call_type=call_log_data.get("call_type"),
+                        duration_seconds=call_log_data.get("duration_seconds"),
+                        created_at=call_log_data.get("created_at"),
+                        qualification_status=call_log_data.get("qualification_status"),
+                        booking_status=call_log_data.get("booking_status"),
+                        transcript=call_log_data.get("transcript"),
+                        summary=call_log_data.get("summary"),
+                    ))
+                
+                # Convert most_coaching_needs to most_coaching_need format
+                # get_top_objections returns "most_coaching_needs" (plural) per objection
+                most_coaching_need = []
+                most_coaching_needs_data = obj_data.get("most_coaching_needs", [])
+                for mcn_data in most_coaching_needs_data:
+                    # Handle both formats: user_id/user_name (from get_top_objections) or csr_id/csr_name (from get_calls_by_objection_self)
+                    user_id = mcn_data.get("user_id") or mcn_data.get("csr_id")
+                    user_name = mcn_data.get("user_name") or mcn_data.get("csr_name", "Unknown")
+                    unbooked_count = mcn_data.get("unbooked_count", 0) or mcn_data.get("unbooked_calls", 0)
+                    
+                    if user_id:  # Only add if we have a user_id
+                        most_coaching_need.append(MostCoachingNeedEntry(
+                            csr_id=str(user_id),
+                            csr_name=user_name,
+                            unbooked_calls=unbooked_count,
+                        ))
+                
+                objections.append(ObjectionEntry(
+                    objection_type=obj_data.get("objection_type", ""),
+                    count=obj_data.get("count", 0),
+                    affected_leads_count=obj_data.get("affected_leads_count", 0),
+                    call_logs=call_logs,
+                    most_coaching_need=most_coaching_need,
+                ))
+            
+            return objections
         except Exception as e:
-            logger.warning(f"Could not load objections_breakdown: {e}")
+            logger.warning(f"Could not load objections: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     def _format_duration_as_hm(self, total_seconds: float) -> str:
@@ -440,16 +492,21 @@ class SalesRepDashboardService:
     async def _get_team_coaching_metrics(
         self,
         company_id: UUID,
-        objections_breakdown: List[ObjectionBreakdownEntry],
+        objections: List[ObjectionEntry],
         sales_team_stats: List[SalesTeamStatsEntry],
     ) -> Optional[TeamCoachingMetrics]:
         """Build team_coaching_metrics from objections, SOP, Otto usage, attendance."""
         try:
-            common_objection_peak = (
-                max((o.percentage for o in objections_breakdown), default=0.0)
-                if objections_breakdown
-                else 0.0
-            )
+            # Calculate common_objection_peak from objections count
+            common_objection_peak = 0.0
+            if objections:
+                # Get the objection with the highest count
+                max_count = max((o.count for o in objections), default=0)
+                if max_count > 0:
+                    # Calculate percentage (simplified - could be improved with total)
+                    total_count = sum(o.count for o in objections)
+                    if total_count > 0:
+                        common_objection_peak = round((max_count / total_count) * 100, 2)
 
             script_adherence = 0.0
             avg_sop = await self.session.execute(

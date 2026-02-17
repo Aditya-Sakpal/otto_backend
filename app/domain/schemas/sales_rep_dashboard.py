@@ -35,10 +35,51 @@ class SalesTeamStatsEntry(BaseModel):
 
 
 class ObjectionBreakdownEntry(BaseModel):
-    """Single objection in objections_breakdown."""
+    """Single objection in objections_breakdown (legacy format - kept for backward compatibility)."""
 
     objection_text: str = Field(..., description="Objection label (e.g. I need a lower price)")
     percentage: float = Field(..., description="Percentage (0-100)")
+
+
+class CallLogEntry(BaseModel):
+    """Single call log entry in objections call_logs."""
+
+    call_id: str = Field(..., description="Call UUID")
+    lead_id: Optional[str] = Field(None, description="Lead UUID")
+    contact_name: str = Field(..., description="Contact name")
+    phone_number: str = Field(..., description="Phone number")
+    audio_url: Optional[str] = Field(None, description="Audio recording URL")
+    call_type: Optional[str] = Field(None, description="Call type")
+    duration_seconds: Optional[int] = Field(None, description="Duration in seconds")
+    created_at: Optional[str] = Field(None, description="Call creation timestamp (ISO format)")
+    qualification_status: Optional[str] = Field(None, description="Qualification status")
+    booking_status: Optional[str] = Field(None, description="Booking status")
+    transcript: Optional[str] = Field(None, description="Call transcript")
+    summary: Optional[str] = Field(None, description="Call summary")
+
+
+class MostCoachingNeedEntry(BaseModel):
+    """Single entry in most_coaching_need array."""
+
+    csr_id: str = Field(..., description="User ID (CSR or Sales Rep)")
+    csr_name: str = Field(..., description="User name (CSR or Sales Rep)")
+    unbooked_calls: int = Field(..., description="Number of unbooked calls/appointments with this objection")
+
+
+class ObjectionEntry(BaseModel):
+    """Single objection entry matching metrics/objections/top format."""
+
+    objection_type: str = Field(..., description="Objection type (e.g., price, timing, authority)")
+    count: int = Field(..., description="Number of calls/appointments with this objection")
+    affected_leads_count: int = Field(..., description="Number of unique leads affected")
+    call_logs: List[CallLogEntry] = Field(
+        default_factory=list,
+        description="List of calls/appointments with this objection",
+    )
+    most_coaching_need: List[MostCoachingNeedEntry] = Field(
+        default_factory=list,
+        description="List of CSRs/Sales Reps with unbooked calls/appointments for this objection",
+    )
 
 
 class CoreKpis(BaseModel):
@@ -129,9 +170,9 @@ class SalesRepDashboardResponse(BaseModel):
         default_factory=list,
         description="Sales team stats (up to 3)",
     )
-    objections_breakdown: List[ObjectionBreakdownEntry] = Field(
+    objections: List[ObjectionEntry] = Field(
         default_factory=list,
-        description="Top objections with percentages",
+        description="Top objections with call_logs (same format as /metrics/objections/top)",
     )
     sales_overview: Optional[SalesOverview] = Field(
         None,

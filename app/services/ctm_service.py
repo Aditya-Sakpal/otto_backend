@@ -22,6 +22,7 @@ from app.core.encryption import decrypt_api_key
 from app.domain.models.call import Call
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.contact import ContactRepository
+from app.infrastructure.repositories.appointment import AppointmentRepository
 from app.domain.users.repository import UserRepository
 from app.core.s3 import get_s3_service
 from app.services.call_service import CallService
@@ -43,6 +44,7 @@ class CTMService:
         self.call_repo = CallRepository(session)
         self.contact_repo = ContactRepository(session)
         self.user_repo = UserRepository(session)
+        self.appointment_repo = AppointmentRepository(session)
 
     @staticmethod
     def verify_ctm_signature(
@@ -397,6 +399,17 @@ class CTMService:
 
                 call = await self.call_repo.update(existing_call.id, existing_call)
                 logger.info("Call updated", call_id=str(call.id), ctm_call_id=call_id_ctm)
+                
+                # Also update appointment's audio_url if this call is linked to an appointment
+                if s3_audio_url and call.audio_url:
+                    appointment = await self.appointment_repo.get_by_interaction_id(call.id)
+                    if appointment:
+                        appointment.audio_url = call.audio_url
+                        appointment.mark_updated()
+                        await self.appointment_repo.update(appointment.id, appointment)
+                        logger.info(
+                            f"Updated appointment {appointment.id} with audio_url from CTM call {call.id}"
+                        )
             else:
                 # Create new call
                 call = Call(

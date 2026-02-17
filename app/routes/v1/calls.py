@@ -269,7 +269,7 @@ async def get_call(
 async def get_calls_by_objection_self(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),
-    user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
+    user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     objection: str = Query(..., description="Objection type (e.g., authority, price, timing)"),
     company_id: Optional[UUID] = Query(None, description="Company UUID"),
 ):
@@ -279,13 +279,16 @@ async def get_calls_by_objection_self(
     Returns data for three tabs:
     1. Calls: List of calls with that objection (with contact name and recording URL)
     2. Unbooked leads: Leads that are unbooked and have that objection
-    3. Most coaching need: CSRs with unbooked calls for that objection
+    3. Most coaching need: CSRs/Sales Reps with unbooked calls for that objection
 
     Query Parameters:
     - objection: Objection type (required) - e.g., 'authority', 'price', 'timing', 'competitor', 'need'
     - company_id: Company UUID (optional, defaults to user's company)
 
-    Access: CSR, EXECUTIVE
+    Access: CSR, SALES_REP, EXECUTIVE
+    
+    Note: For CSR and SALES_REP roles, results are filtered to the current user's calls only.
+    For EXECUTIVE role, results show company-wide data.
     """
     try:
         # Use company_id from query or fall back to current user's company
@@ -299,10 +302,22 @@ async def get_calls_by_objection_self(
             )
 
         service = AnalyticsService(db)
+        # Filter by user if CSR or SALES_REP, otherwise show company-wide data
+        user_id = None
+        user_role = None
+        if user.role in [UserRole.CSR, UserRole.SALES_REP]:
+            user_id = user.id
+            # Safely get role value - handle both enum and string cases
+            if hasattr(user.role, 'value'):
+                user_role = user.role.value
+            else:
+                user_role = str(user.role)
+        
         result = await service.get_calls_by_objection_self(
             company_id=company_id,
             objection=objection,
-            user_id=user.id if user.role == UserRole.CSR else None,  # Filter by user if CSR
+            user_id=user_id,
+            user_role=user_role,
         )
 
         return result

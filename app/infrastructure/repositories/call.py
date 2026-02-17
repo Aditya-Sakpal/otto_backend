@@ -4,7 +4,7 @@ Call repository.
 from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -57,5 +57,20 @@ class CallRepository(BaseRepository[CallORM, Call]):
             )
         except Exception as e:
             logger.error(f"Error getting calls by company: {e}")
+            raise e
+
+    async def get_by_lead_id(self, lead_id: UUID) -> List[Call]:
+        """Get all calls for a lead, ordered by most recent first."""
+        try:
+            query = (
+                select(CallORM)
+                .where(CallORM.lead_id == lead_id)
+                .order_by(desc(CallORM.created_at))
+            )
+            result = await self.session.execute(query)
+            orm_objs = result.scalars().all()
+            return [self._to_domain(obj) for obj in orm_objs]
+        except Exception as e:
+            logger.error(f"Error getting calls by lead: {e}")
             raise e
 

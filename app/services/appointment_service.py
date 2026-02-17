@@ -790,15 +790,15 @@ class AppointmentService:
             ))
 
         # 10. Generate AI briefing
-        ai_briefing = await self._generate_ai_briefing(
-            contact_name=f"{contact_card.first_name or ''} {contact_card.last_name or ''}".strip(),
-            appointment_date=appointment.scheduled_start,
-            lead_status=lead.status.value if hasattr(lead.status, 'value') else str(lead.status),
-            deal_size=lead.deal_size,
-            conversation_history=conversation_history[:3],  # Last 3 calls
-            top_objections=top_objections,
-            pending_actions=pending_actions[:3],  # Top 3 actions
-        )
+        # ai_briefing = await self._generate_ai_briefing(
+        #     contact_name=f"{contact_card.first_name or ''} {contact_card.last_name or ''}".strip(),
+        #     appointment_date=appointment.scheduled_start,
+        #     lead_status=lead.status.value if hasattr(lead.status, 'value') else str(lead.status),
+        #     deal_size=lead.deal_size,
+        #     conversation_history=conversation_history[:3],  # Last 3 calls
+        #     top_objections=top_objections,
+        #     pending_actions=pending_actions[:3],  # Top 3 actions
+        # )
 
         # 11. Build response
         return AppointmentContextResponse(
@@ -830,7 +830,7 @@ class AppointmentService:
             conversation_history=conversation_history,
             objections=aggregated_objections,
             pending_actions=pending_actions,
-            ai_briefing=ai_briefing,
+            # ai_briefing=ai_briefing,
         )
 
     async def _generate_ai_briefing(

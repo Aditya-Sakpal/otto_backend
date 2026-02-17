@@ -22,6 +22,7 @@ from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.appointment import AppointmentRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.services.call_service import CallService
+from app.domain.schemas.calls import RecordingAnalysisResponse
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -240,10 +241,10 @@ async def complete_recording(
             try:
                 from datetime import datetime
                 from app.core.config import settings
-                
+
                 # Construct webhook URL for Shunya to notify us when processing completes
                 webhook_url = f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
-                
+
                 result = await shoonya.process_call(
                     call_id=str(call.id),
                     company_id=str(call.company_id),
@@ -282,5 +283,47 @@ async def complete_recording(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
+        )
+
+
+@router.get("/{call_id}/analysis", response_model=RecordingAnalysisResponse, responses=RESPONSES)
+async def get_recording_analysis(
+    db: DbSession,
+    call_id: UUID,
+    user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.EXECUTIVE, UserRole.CSR])),
+):
+    """
+    Get comprehensive recording analysis for post-meeting insights.
+
+    Returns structured analysis with:
+    - Summary (key points, pending actions, sentiment)
+    - Objections (detected, categorized, with handling status)
+    - Compliance (SOP score, stages, positive behaviors, issues)
+    - Qualification (overall score, BANT scores, status)
+    - Lead score (total score, lead band)
+
+    **Recording Analysis Screen (Post-Meeting Insights)**
+
+    Access: Sales reps, executives, and CSRs
+    """
+    try:
+        service = CallService(db)
+        analysis = await service.get_recording_analysis(call_id)
+
+        if not analysis:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Recording analysis not found for call {call_id}",
+            )
+
+        return analysis
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching recording analysis: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch recording analysis: {str(e)}",
         )
 

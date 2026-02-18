@@ -277,5 +277,5 @@ class AppointmentContextResponse(BaseModel):
     pending_actions: List[PendingActionItem]
 
     # AI briefing (may be None if Shoonya unavailable)
-    ai_briefing: Optional[AIBriefing]
+    ai_briefing: Optional[AIBriefing] = None
 

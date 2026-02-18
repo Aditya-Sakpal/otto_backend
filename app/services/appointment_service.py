@@ -830,7 +830,8 @@ class AppointmentService:
             conversation_history=conversation_history,
             objections=aggregated_objections,
             pending_actions=pending_actions,
-            # ai_briefing=ai_briefing,
+            # ai_briefing=ai_briefing, # Shunya API does not work as of yet
+            ai_briefing=None,
         )
 
     async def _generate_ai_briefing(

@@ -18,8 +18,19 @@ from app.domain.schemas.appointment import (
     AppointmentCreate,
     AppointmentUpdate,
     AppointmentResponse,
+    AppointmentInsightSummary,
+    AppointmentContextResponse,
+    CallSummaryItem,
+    ContactCardInfo,
+    LeadContextInfo,
+    AggregatedObjections,
+    PendingActionItem,
+    AIBriefing,
+    PendingActionDetail,
+    ObjectionDetail,
+    ComplianceStageDetail,
 )
-from app.domain.enums import AppointmentOutcome
+from app.domain.enums import AppointmentOutcome, PendingActionStatus
 from app.domain.schemas.appointment_details import (
     AppointmentDetailsResponse,
     AppointmentOverview,
@@ -30,6 +41,8 @@ from app.domain.users.repository import UserRepository
 from app.infrastructure.repositories.analysis import CallAnalysisRepository
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.lead import LeadRepository
+from app.infrastructure.repositories.pending_action import PendingActionRepository
+from app.infrastructure.integrations.shoonya import get_shoonya_client
 
 logger = get_logger(__name__)
 
@@ -54,6 +67,7 @@ class AppointmentService:
         self.analysis_repo = CallAnalysisRepository(session)
         self.call_repo = CallRepository(session)
         self.lead_repo = LeadRepository(session)
+        self.pending_action_repo = PendingActionRepository(session)
 
     async def get_by_id(self, appointment_id: UUID) -> Optional[Appointment]:
         """Get appointment by ID."""
@@ -153,20 +167,126 @@ class AppointmentService:
             logger.error(f"Error deleting appointment: {e}")
             raise
 
+    async def _build_appointment_insights(self, interaction_id: UUID) -> Optional[AppointmentInsightSummary]:
+        """
+        Build comprehensive appointment insights from call analysis.
+
+        Args:
+            interaction_id: Call ID (from appointment.interaction_id)
+
+        Returns:
+            AppointmentInsightSummary with full recording analysis or None if not available
+        """
+        try:
+            # Get call analysis
+            analysis = await self.analysis_repo.get_by_call_id(interaction_id)
+            if not analysis:
+                return None
+
+            # Build pending actions
+            pending_actions = []
+            if analysis.pending_actions:
+                for action_dict in analysis.pending_actions:
+                    pending_actions.append(PendingActionDetail(
+                        type=action_dict.get("type", ""),
+                        owner=action_dict.get("owner", ""),
+                        raw_text=action_dict.get("raw_text", ""),
+                        due_at=action_dict.get("due_at"),
+                        confidence=action_dict.get("confidence"),
+                        contact_method=action_dict.get("contact_method"),
+                    ))
+
+            # Build objections with details
+            objection_details = []
+            if analysis.objections and analysis.objection_texts:
+                for i, obj in enumerate(analysis.objections):
+                    obj_text = analysis.objection_texts[i] if i < len(analysis.objection_texts) else ""
+                    objection_details.append(ObjectionDetail(
+                        category_id=i + 1,
+                        category_text=obj.value if hasattr(obj, 'value') else str(obj),
+                        objection_text=obj_text,
+                        overcome=False,  # Not available in current data
+                        severity="medium",  # Default
+                        confidence_score=0.8,  # Default
+                        response_suggestions=[],
+                    ))
+
+            # Build SOP stages
+            sop_stages = {}
+            for stage in analysis.sop_stages_completed or []:
+                sop_stages[stage] = ComplianceStageDetail(score=1.0, issues=[])
+            for stage in analysis.sop_stages_missed or []:
+                sop_stages[stage] = ComplianceStageDetail(score=0.0, issues=["Stage not completed"])
+
+            # Build BANT scores
+            bant_scores = {}
+            if analysis.bant_need_score is not None:
+                bant_scores["need"] = analysis.bant_need_score
+            if analysis.bant_budget_score is not None:
+                bant_scores["budget"] = analysis.bant_budget_score
+            if analysis.bant_authority_score is not None:
+                bant_scores["authority"] = analysis.bant_authority_score
+            if analysis.bant_timeline_score is not None:
+                bant_scores["timeline"] = analysis.bant_timeline_score
+
+            # Calculate lead score (0-100 scale)
+            lead_score = None
+            lead_band = None
+            if analysis.qualification_overall_score is not None:
+                lead_score = int(analysis.qualification_overall_score * 100)
+                if lead_score >= 80:
+                    lead_band = "hot"
+                elif lead_score >= 60:
+                    lead_band = "warm"
+                elif lead_score >= 40:
+                    lead_band = "cold"
+                else:
+                    lead_band = "unqualified"
+
+            return AppointmentInsightSummary(
+                # Summary section
+                summary=analysis.summary,
+                key_points=list(analysis.key_points) if analysis.key_points else [],
+                pending_actions=pending_actions,
+                sentiment_score=analysis.sentiment_score,
+                # Objections section
+                objections=objection_details,
+                objections_total_count=analysis.objections_total_count or len(objection_details),
+                # Compliance section
+                sop_compliance_score=analysis.sop_compliance_score,
+                sop_stages=sop_stages,
+                sop_positive_behaviors=list(analysis.sop_compliance_positive_behaviors) if analysis.sop_compliance_positive_behaviors else [],
+                sop_issues=list(analysis.sop_compliance_issues) if analysis.sop_compliance_issues else [],
+                # Qualification section
+                qualification_overall_score=analysis.qualification_overall_score,
+                bant_scores=bant_scores,
+                qualification_status=analysis.qualification_status,
+                # Lead score section
+                lead_total_score=lead_score,
+                lead_band=lead_band,
+                # Legacy fields
+                action_items=list(analysis.action_items) if analysis.action_items else [],
+                follow_up_required=analysis.follow_up_required,
+                follow_up_reason=analysis.follow_up_reason,
+            )
+        except Exception as e:
+            logger.error(f"Error building appointment insights: {e}", exc_info=True)
+            return None
+
     async def _enrich_appointment_response(
         self,
         appointment: Appointment,
         include_full_details: bool = False,
     ) -> AppointmentResponse:
         """
-        Enrich appointment with contact and user details.
+        Enrich appointment with contact and user details, and recording insights.
 
         Args:
             appointment: Appointment domain model
             include_full_details: If True, includes full contact_details and assigned_rep_details
 
         Returns:
-            Enriched AppointmentResponse
+            Enriched AppointmentResponse with insights if recording analysis exists
         """
         response_data = AppointmentResponse.model_validate(appointment).model_dump()
 
@@ -209,6 +329,12 @@ class AppointmentService:
                         "role": rep_user.role.value if hasattr(rep_user.role, 'value') else str(rep_user.role),
                         "is_active": rep_user.is_active,
                     }
+
+        # Get recording insights if interaction_id exists
+        if appointment.interaction_id:
+            insights = await self._build_appointment_insights(appointment.interaction_id)
+            if insights:
+                response_data["insights"] = insights.model_dump()
 
         return AppointmentResponse(**response_data)
 
@@ -296,6 +422,43 @@ class AppointmentService:
             start_date=start_date,
             end_date=end_date,
             past_only=past_only,
+            skip=skip,
+            limit=limit,
+        )
+
+        return [
+            await self._enrich_appointment_response(appointment, include_full_details=False)
+            for appointment in appointments
+        ]
+
+    async def list_upcoming_appointments(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[AppointmentResponse]:
+        """
+        Get upcoming appointments (future, pending status only).
+
+        Returns appointments with:
+        - scheduled_start >= now (future)
+        - outcome is None or 'pending'
+        - Sorted by scheduled_start ASC (soonest first)
+        - Enriched with contact and rep names
+
+        Args:
+            company_id: Company UUID
+            assigned_rep_id: Optional filter by assigned sales rep
+            skip: Pagination offset
+            limit: Max results
+
+        Returns:
+            List of enriched upcoming appointments
+        """
+        appointments = await self.appointment_repo.get_upcoming(
+            company_id=company_id,
+            assigned_rep_id=assigned_rep_id,
             skip=skip,
             limit=limit,
         )
@@ -499,4 +662,289 @@ class AppointmentService:
             status=status,
             appointment_overview=overview,
         )
+
+    async def get_appointment_context(self, appointment_id: UUID) -> Optional[AppointmentContextResponse]:
+        """
+        Get comprehensive appointment context for pre-meeting intelligence.
+
+        Returns appointment with lead, contact, call history, objections,
+        pending actions, and AI-generated briefing.
+
+        Args:
+            appointment_id: Appointment UUID
+
+        Returns:
+            AppointmentContextResponse with full context or None if not found
+        """
+        # 1. Get appointment
+        appointment = await self.appointment_repo.get_by_id(appointment_id)
+        if not appointment:
+            logger.warning(f"Appointment {appointment_id} not found")
+            return None
+
+        # 2. Get lead (required)
+        lead = await self.lead_repo.get_by_id(appointment.lead_id)
+        if not lead:
+            logger.error(f"Lead {appointment.lead_id} not found for appointment {appointment_id}")
+            return None
+
+        # 3. Get contact card (required)
+        contact_card = await self.contact_repo.get_by_id(appointment.contact_card_id)
+        if not contact_card:
+            logger.error(f"Contact card {appointment.contact_card_id} not found")
+            return None
+
+        # 4. Get sales rep name
+        sales_rep_name = None
+        if appointment.assigned_rep_id:
+            rep_user = await self.user_repo.get_by_id(appointment.assigned_rep_id)
+            if rep_user:
+                first = rep_user.first_name or ""
+                last = rep_user.last_name or ""
+                sales_rep_name = f"{first} {last}".strip() or None
+
+        # 5. Get all calls for this lead
+        calls = await self.call_repo.get_by_lead_id(lead.id)
+
+        # 6. Batch fetch call analyses
+        call_ids = [call.id for call in calls]
+        analyses_map = {}
+        if call_ids:
+            for call_id in call_ids:
+                analysis = await self.analysis_repo.get_by_call_id(call_id)
+                if analysis:
+                    analyses_map[call_id] = analysis
+
+        # 7. Build conversation history
+        conversation_history = []
+        all_objections = []
+
+        for call in calls:
+            analysis = analyses_map.get(call.id)
+
+            # Get handler name
+            handler_name = None
+            if call.handled_by_user_id:
+                handler = await self.user_repo.get_by_id(call.handled_by_user_id)
+                if handler:
+                    handler_name = f"{handler.first_name or ''} {handler.last_name or ''}".strip() or None
+
+            # Build call summary item
+            call_item = CallSummaryItem(
+                call_id=call.id,
+                call_type=call.call_type.value if hasattr(call.call_type, 'value') else str(call.call_type),
+                call_date=call.created_at,
+                duration_seconds=call.duration_seconds,
+                audio_url=call.audio_url,
+                summary=analysis.summary if analysis else None,
+                key_points=list(analysis.key_points) if analysis and analysis.key_points else [],
+                objections=list(analysis.objections) if analysis and analysis.objections else [],
+                sentiment_score=analysis.sentiment_score if analysis else None,
+                handled_by_name=handler_name,
+            )
+            conversation_history.append(call_item)
+
+            # Collect objections
+            if analysis and analysis.objections:
+                all_objections.extend(analysis.objections)
+
+        # Sort conversation history by date (most recent first)
+        conversation_history.sort(key=lambda x: x.call_date, reverse=True)
+
+        # 8. Aggregate objections
+        objection_counts = {}
+        for obj in all_objections:
+            obj_str = obj.value if hasattr(obj, 'value') else str(obj)
+            objection_counts[obj_str] = objection_counts.get(obj_str, 0) + 1
+
+        unique_objections = list(objection_counts.keys())
+        top_objections = sorted(unique_objections, key=lambda x: objection_counts[x], reverse=True)[:3]
+
+        aggregated_objections = AggregatedObjections(
+            unique_objections=unique_objections,
+            objection_counts=objection_counts,
+            top_objections=top_objections,
+        )
+
+        # 9. Get pending actions for this lead
+        pending_actions_domain = await self.pending_action_repo.get_by_lead(
+            lead_id=lead.id,
+            status=PendingActionStatus.PENDING,
+        )
+
+        pending_actions = []
+        for action in pending_actions_domain[:5]:  # Limit to 5 most urgent
+            owner_name = None
+            if action.owner_id:
+                owner = await self.user_repo.get_by_id(action.owner_id)
+                if owner:
+                    owner_name = f"{owner.first_name or ''} {owner.last_name or ''}".strip() or None
+
+            pending_actions.append(PendingActionItem(
+                id=action.id,
+                raw_text=action.raw_text or "",
+                priority=action.priority,
+                status=action.status.value if hasattr(action.status, 'value') else str(action.status),
+                due_at=action.due_at,
+                owner_name=owner_name,
+            ))
+
+        # 10. Generate AI briefing
+        # ai_briefing = await self._generate_ai_briefing(
+        #     contact_name=f"{contact_card.first_name or ''} {contact_card.last_name or ''}".strip(),
+        #     appointment_date=appointment.scheduled_start,
+        #     lead_status=lead.status.value if hasattr(lead.status, 'value') else str(lead.status),
+        #     deal_size=lead.deal_size,
+        #     conversation_history=conversation_history[:3],  # Last 3 calls
+        #     top_objections=top_objections,
+        #     pending_actions=pending_actions[:3],  # Top 3 actions
+        # )
+
+        # 11. Build response
+        return AppointmentContextResponse(
+            appointment_id=appointment.id,
+            scheduled_start=appointment.scheduled_start,
+            scheduled_end=appointment.scheduled_end,
+            location_address=appointment.location_address,
+            latitude=appointment.latitude,
+            longitude=appointment.longitude,
+            outcome=appointment.outcome.value if appointment.outcome and hasattr(appointment.outcome, 'value') else appointment.outcome,
+            contact_info=ContactCardInfo(
+                id=contact_card.id,
+                first_name=contact_card.first_name,
+                last_name=contact_card.last_name,
+                email=contact_card.email,
+                primary_phone=contact_card.primary_phone,
+                address=contact_card.address,
+                city=contact_card.city,
+                state=contact_card.state,
+            ),
+            sales_rep_name=sales_rep_name,
+            lead_info=LeadContextInfo(
+                id=lead.id,
+                status=lead.status.value if hasattr(lead.status, 'value') else str(lead.status),
+                deal_size=lead.deal_size,
+                deal_type=lead.extra_metadata.get("deal_type") if lead.extra_metadata else None,
+                lead_score=None,  # Future: integrate with intelligence service
+            ),
+            conversation_history=conversation_history,
+            objections=aggregated_objections,
+            pending_actions=pending_actions,
+            # ai_briefing=ai_briefing, # Shunya API does not work as of yet
+            ai_briefing=None,
+        )
+
+    async def _generate_ai_briefing(
+        self,
+        contact_name: str,
+        appointment_date: datetime,
+        lead_status: str,
+        deal_size: Optional[float],
+        conversation_history: List[CallSummaryItem],
+        top_objections: List[str],
+        pending_actions: List[PendingActionItem],
+    ) -> Optional[AIBriefing]:
+        """
+        Generate AI briefing using Ask Otto.
+
+        Creates a one-off conversation with Shoonya to generate a pre-meeting brief.
+        Returns None if Shoonya is unavailable.
+        """
+        try:
+            shoonya = get_shoonya_client()
+            if not shoonya.is_available():
+                logger.warning("Shoonya unavailable - cannot generate AI briefing")
+                return None
+
+            # Build briefing prompt
+            prompt = self._build_briefing_prompt(
+                contact_name=contact_name,
+                appointment_date=appointment_date,
+                lead_status=lead_status,
+                deal_size=deal_size,
+                conversation_history=conversation_history,
+                top_objections=top_objections,
+                pending_actions=pending_actions,
+            )
+
+            # Create temporary conversation for briefing
+            conv_result = await shoonya.create_ask_otto_conversation(
+                company_id=str(conversation_history[0].call_id) if conversation_history else "system",
+                user_id=None,
+                metadata={"purpose": "appointment_briefing"},
+            )
+            conv_id = conv_result.get("conversation_id") or conv_result.get("id")
+
+            # Send message and get briefing
+            response = await shoonya.send_ask_otto_message(
+                conversation_id=conv_id,
+                message=prompt,
+                company_id="system",
+            )
+
+            briefing_text = response.get("answer") or response.get("message") or ""
+
+            # Extract focus areas from briefing (simple keyword extraction)
+            focus_areas = self._extract_focus_areas(briefing_text)
+
+            return AIBriefing(
+                briefing_text=briefing_text,
+                focus_areas=focus_areas,
+                generated_at=datetime.utcnow(),
+            )
+        except Exception as e:
+            logger.error(f"Error generating AI briefing: {e}")
+            return None
+
+    def _build_briefing_prompt(
+        self,
+        contact_name: str,
+        appointment_date: datetime,
+        lead_status: str,
+        deal_size: Optional[float],
+        conversation_history: List[CallSummaryItem],
+        top_objections: List[str],
+        pending_actions: List[PendingActionItem],
+    ) -> str:
+        """Build prompt for AI briefing generation."""
+        prompt_parts = [
+            f"Generate a concise pre-meeting briefing for a sales appointment with {contact_name} scheduled for {appointment_date.strftime('%Y-%m-%d %H:%M')}.",
+            f"\nLead Status: {lead_status}",
+        ]
+
+        if deal_size:
+            prompt_parts.append(f"Deal Size: ${deal_size:,.2f}")
+
+        if conversation_history:
+            prompt_parts.append("\n\nRecent Conversations:")
+            for i, call in enumerate(conversation_history[:3], 1):
+                prompt_parts.append(f"\n{i}. {call.call_type} on {call.call_date.strftime('%Y-%m-%d')}:")
+                if call.summary:
+                    prompt_parts.append(f"   Summary: {call.summary[:200]}")
+
+        if top_objections:
+            prompt_parts.append("\n\nTop Objections Raised:")
+            for i, obj in enumerate(top_objections[:3], 1):
+                prompt_parts.append(f"{i}. {obj}")
+
+        if pending_actions:
+            prompt_parts.append("\n\nPending Actions:")
+            for i, action in enumerate(pending_actions[:3], 1):
+                prompt_parts.append(f"{i}. {action.raw_text}")
+
+        prompt_parts.append("\n\nProvide a brief overview (3-5 sentences), key topics to discuss, how to handle objections, and recommended next steps.")
+
+        return "".join(prompt_parts)
+
+    def _extract_focus_areas(self, briefing_text: str) -> List[str]:
+        """Extract focus areas from briefing text (simple keyword extraction)."""
+        focus_keywords = ["focus on", "prioritize", "key topic", "important to", "should discuss", "address"]
+        focus_areas = []
+
+        for line in briefing_text.split("\n"):
+            line_lower = line.lower()
+            if any(keyword in line_lower for keyword in focus_keywords):
+                focus_areas.append(line.strip("- •*"))
+
+        return focus_areas[:5]  # Max 5 focus areas
 

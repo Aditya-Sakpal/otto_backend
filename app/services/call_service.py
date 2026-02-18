@@ -35,6 +35,17 @@ from app.domain.models.lead import Lead
 from app.domain.models.appointment import Appointment
 from app.domain.enums import LeadStatus, DealStatus, AppointmentOutcome
 from app.services.ghost_mode_service import GhostModeService
+from app.domain.schemas.calls import (
+    RecordingAnalysisResponse,
+    RecordingSummary,
+    RecordingObjections,
+    RecordingCompliance,
+    RecordingQualification,
+    RecordingLeadScore,
+    PendingActionDetail,
+    ObjectionDetail,
+    ComplianceStageDetail,
+)
 
 logger = get_logger(__name__)
 
@@ -1695,3 +1706,143 @@ class CallService:
             logger.error(f"Error getting call logs: {e}")
             traceback.print_exc()
             raise
+
+    async def get_recording_analysis(self, call_id: UUID) -> Optional[RecordingAnalysisResponse]:
+        """
+        Get comprehensive recording analysis for post-meeting insights.
+
+        Returns structured analysis with summary, objections, compliance,
+        qualification, and lead scoring.
+
+        Args:
+            call_id: Call UUID
+
+        Returns:
+            RecordingAnalysisResponse or None if analysis not found
+        """
+        try:
+            # Get call analysis
+            analysis = await self.analysis_repo.get_by_call_id(call_id)
+            if not analysis:
+                return None
+
+            # 1. Summary section
+            pending_actions_structured = []
+            if analysis.pending_actions:
+                for action in analysis.pending_actions:
+                    if isinstance(action, dict):
+                        pending_actions_structured.append(PendingActionDetail(
+                            type=action.get("type", "unknown"),
+                            owner=action.get("owner", "unknown"),
+                            raw_text=action.get("raw_text", ""),
+                            due_at=action.get("due_at"),
+                            confidence=action.get("confidence"),
+                            contact_method=action.get("contact_method"),
+                        ))
+
+            summary = RecordingSummary(
+                summary=analysis.summary or "",
+                key_points=analysis.key_points or [],
+                pending_actions=pending_actions_structured,
+                sentiment_score=analysis.sentiment_score,
+            )
+
+            # 2. Objections section
+            objection_details = []
+            if analysis.objections and analysis.objection_texts:
+                for idx, objection in enumerate(analysis.objections):
+                    objection_text = analysis.objection_texts[idx] if idx < len(analysis.objection_texts) else ""
+
+                    # Parse objection string to extract category
+                    objection_str = objection.value if hasattr(objection, 'value') else str(objection)
+
+                    objection_details.append(ObjectionDetail(
+                        category_id=idx + 1,
+                        category_text=objection_str,
+                        objection_text=objection_text or objection_str,
+                        overcome=True,  # Default to True if not specified
+                        severity="medium",  # Default severity
+                        confidence_score=0.85,  # Default confidence
+                        response_suggestions=[],  # Can be enhanced later
+                    ))
+
+            objections = RecordingObjections(
+                objections=objection_details,
+                total_count=analysis.objections_total_count or len(objection_details),
+            )
+
+            # 3. Compliance section
+            stages_detail = {}
+
+            # Create stage details from completed and missed stages
+            completed_stages = analysis.sop_stages_completed or []
+            missed_stages = analysis.sop_stages_missed or []
+
+            for stage in completed_stages:
+                stages_detail[stage.lower().replace(" ", "_")] = ComplianceStageDetail(
+                    score=0.95,  # High score for completed stages
+                    issues=[],
+                )
+
+            for stage in missed_stages:
+                stage_key = stage.lower().replace(" ", "_")
+                stages_detail[stage_key] = ComplianceStageDetail(
+                    score=0.0,  # Low score for missed stages
+                    issues=[f"Missed: {stage}"],
+                )
+
+            compliance = RecordingCompliance(
+                score=analysis.sop_compliance_score or 0.0,
+                stages=stages_detail,
+                positive_behaviors=analysis.sop_compliance_positive_behaviors or [],
+                issues=analysis.sop_compliance_issues or [],
+            )
+
+            # 4. Qualification section
+            bant_scores = {
+                "need": analysis.bant_need_score or 0.0,
+                "budget": analysis.bant_budget_score or 0.0,
+                "authority": analysis.bant_authority_score or 0.0,
+                "timeline": analysis.bant_timeline_score or 0.0,
+            }
+
+            qualification = RecordingQualification(
+                overall_score=analysis.qualification_overall_score or 0.0,
+                bant_scores=bant_scores,
+                qualification_status=analysis.qualification_status or "unqualified",
+            )
+
+            # 5. Lead score section
+            # Calculate lead score based on qualification score (0-1 -> 0-100)
+            total_score = int((analysis.qualification_overall_score or 0.0) * 100)
+
+            # Determine lead band based on score
+            if total_score >= 80:
+                lead_band = "hot"
+            elif total_score >= 60:
+                lead_band = "warm"
+            elif total_score >= 40:
+                lead_band = "cold"
+            else:
+                lead_band = "unqualified"
+
+            lead_score = RecordingLeadScore(
+                total_score=total_score,
+                lead_band=lead_band,
+            )
+
+            # Build complete response
+            return RecordingAnalysisResponse(
+                call_id=str(call_id),
+                status=analysis.status.value if hasattr(analysis.status, 'value') else str(analysis.status),
+                summary=summary,
+                objections=objections,
+                compliance=compliance,
+                qualification=qualification,
+                lead_score=lead_score,
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting recording analysis: {e}")
+            traceback.print_exc()
+            return None

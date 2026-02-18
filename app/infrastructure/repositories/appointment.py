@@ -257,6 +257,57 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
             logger.error(f"Error getting filtered ridealongs: {e}")
             raise e
 
+    async def get_upcoming(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[Appointment]:
+        """
+        Get upcoming appointments (future, pending status only).
+
+        Returns appointments with:
+        - scheduled_start >= now (future)
+        - outcome is None or 'pending'
+        - Sorted by scheduled_start ASC (soonest first)
+
+        Args:
+            company_id: Company UUID
+            assigned_rep_id: Optional filter by assigned sales rep
+            skip: Pagination offset
+            limit: Max results
+
+        Returns:
+            List of upcoming appointments
+        """
+        try:
+            print(datetime.now(timezone.utc))
+            query = (
+                select(AppointmentORM)
+                .where(AppointmentORM.company_id == company_id)
+                .where(AppointmentORM.scheduled_start >= datetime.now(timezone.utc))
+                .where(
+                    or_(
+                        AppointmentORM.outcome.is_(None),
+                        AppointmentORM.outcome == "pending",
+                    )
+                )
+            )
+
+            if assigned_rep_id:
+                query = query.where(AppointmentORM.assigned_rep_id == assigned_rep_id)
+
+            query = query.order_by(AppointmentORM.scheduled_start.asc())
+            query = query.offset(skip).limit(limit)
+
+            result = await self.session.execute(query)
+            orm_objs = result.scalars().all()
+            return [self._to_domain(obj) for obj in orm_objs]
+        except Exception as e:
+            logger.error(f"Error getting upcoming appointments: {e}")
+            raise e
+
     async def update_appointment(self, appointment: Appointment) -> Appointment:
         """Update appointment."""
         try:

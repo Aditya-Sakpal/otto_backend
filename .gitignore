@@ -230,6 +230,9 @@ __marimo__/
 .vscode/settings.json
 .vscode/settings.json
 
+# Claude settings
+.claude/
+
 # miscelleaneous
 context.md
 CLAUDE.md

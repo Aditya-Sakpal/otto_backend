@@ -18,6 +18,7 @@ from app.domain.schemas.appointment import (
     AppointmentUpdate,
     AppointmentResponse,
     AppointmentInsightSummary,
+    AppointmentContextResponse,
 )
 from app.domain.users.models import User
 from app.domain.users.repository import UserRepository
@@ -245,6 +246,68 @@ async def list_past_appointments(
         )
 
 
+@router.get("/upcoming", response_model=List[AppointmentResponse], responses=RESPONSES)
+async def list_upcoming_appointments(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company/tenant ID"),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    assigned_rep_id: Optional[UUID] = Query(
+        None,
+        description="Filter appointments by assigned sales rep (user_id)",
+    ),
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
+) -> List[AppointmentResponse]:
+    """
+    List upcoming appointments (future, pending status only).
+
+    Returns appointments with:
+    - scheduled_start >= now (future)
+    - outcome is None or 'pending'
+    - Sorted by scheduled_start ASC (soonest first)
+
+    Access: Any authenticated user
+
+    Query Parameters:
+    - company_id: Filter by company/tenant
+    - assigned_rep_id: Filter by assigned sales rep (user_id)
+    - skip: Pagination offset
+    - limit: Maximum number of results (1-1000)
+    """
+    try:
+        service = AppointmentService(db)
+
+        if assigned_rep_id:
+            user_repo = UserRepository(db)
+            rep_user = await user_repo.get_by_id(assigned_rep_id)
+            if rep_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="assigned_rep_id: user not found",
+                )
+            if rep_user.role != UserRole.SALES_REP:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="assigned_rep_id must be a user with role sales_rep",
+                )
+
+        return await service.list_upcoming_appointments(
+            company_id=company_id,
+            assigned_rep_id=assigned_rep_id,
+            skip=skip,
+            limit=limit,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing upcoming appointments: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
 @router.get("/{appointment_id}", response_model=AppointmentResponse, responses=RESPONSES)
 async def get_appointment(
     appointment_id: UUID,
@@ -294,6 +357,48 @@ async def get_appointment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
+        )
+
+
+@router.get(
+    "/{appointment_id}/context",
+    response_model=AppointmentContextResponse,
+    responses=RESPONSES,
+)
+async def get_appointment_context(
+    appointment_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.EXECUTIVE])),
+):
+    """
+    Get comprehensive appointment context for pre-meeting intelligence.
+
+    Returns appointment details, lead info, contact info, CSR conversation history,
+    previous objections, pending actions, and AI-generated briefing.
+
+    **Wave 2: Pre-Meeting Intelligence**
+
+    Access: Sales reps and executives only
+    """
+    try:
+        service = AppointmentService(db)
+        context = await service.get_appointment_context(appointment_id)
+
+        if not context:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Appointment {appointment_id} not found or missing required data",
+            )
+
+        return context
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching appointment context: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch appointment context: {str(e)}",
         )
 
 

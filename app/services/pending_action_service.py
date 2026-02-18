@@ -471,7 +471,10 @@ class PendingActionService:
         assigned_by_id: Optional[UUID] = None,
     ) -> Optional[PendingAction]:
         """Update task (reassign, status, priority, due_at, raw_text)."""
-        return await self.pending_action_repo.update_fields(
+        # Keep assignment behavior simple: respect provided owner_id (may be None).
+        # Do not auto-assign on CSR actions — UI should pass owner_id when CSR assigns.
+        # Update the pending action fields first
+        updated = await self.pending_action_repo.update_fields(
             task_id,
             owner_id=owner_id,
             status=status,
@@ -480,6 +483,67 @@ class PendingActionService:
             raw_text=raw_text,
             assigned_by_id=assigned_by_id,
         )
+
+        # If an owner (sales rep) was provided and the pending action is linked to a lead,
+        # ensure the lead is assigned to that rep and create an appointment record if the lead
+        # is already booked (or deal_status indicates 'booked').
+        try:
+            if owner_id is not None:
+                # Reload pending action to inspect lead_id/company
+                pending = await self.pending_action_repo.get_by_id(task_id)
+                lead_id = getattr(pending, "lead_id", None)
+                company_id = getattr(pending, "company_id", None)
+                if lead_id and company_id:
+                    # Assign lead to rep (updates lead.assigned_rep_id and audit)
+                    from app.infrastructure.repositories.lead import LeadRepository
+                    from app.infrastructure.repositories.appointment import AppointmentRepository
+                    from app.domain.models.appointment import Appointment as AppointmentDomain
+                    from datetime import datetime, timezone
+
+                    lead_repo = LeadRepository(self.session)
+                    appointment_repo = AppointmentRepository(self.session)
+
+                    # Assign the lead to the sales rep
+                    await lead_repo.assign_to_rep(lead_id=lead_id, sales_rep_id=owner_id, assigned_by_user_id=assigned_by_id)
+
+                    # Reload lead to check status and contact_card
+                    lead = await lead_repo.get_by_id(lead_id)
+                    lead_deal_status = getattr(lead, "deal_status", None)
+                    lead_status = getattr(lead, "status", None)
+                    contact_card_id = getattr(lead, "contact_card_id", None)
+
+                    # Consider booked if lead status indicates qualified_booked or deal_status == 'booked'
+                    is_booked = False
+                    if lead_status and str(lead_status).lower() == "qualified_booked":
+                        is_booked = True
+                    if lead_deal_status and str(lead_deal_status).lower() == "booked":
+                        is_booked = True
+
+                    if is_booked and contact_card_id:
+                        # Ensure we don't create duplicate appointment for this lead
+                        existing_appt = await appointment_repo.get_by_lead_id(lead_id)
+                        if not existing_appt:
+                            appt = AppointmentDomain(
+                                company_id=company_id,
+                                lead_id=lead_id,
+                                contact_card_id=contact_card_id,
+                                scheduled_start=datetime.now(timezone.utc),
+                                scheduled_end=None,
+                                location_address=None,
+                                latitude=None,
+                                longitude=None,
+                                outcome=None,
+                                assigned_rep_id=owner_id,
+                                interaction_id=None,
+                                audio_url=None,
+                                extra_metadata={"created_from": "csr_assignment", "assigned_via": "task_update"},
+                            )
+                            await appointment_repo.create(appt)
+        except Exception as e:
+            logger.warning(f"Could not create appointment on assignment: {e}")
+
+        return updated
+        # Note: this function no longer contains auto-assignment logic.
 
     async def create_task_manual(
         self,

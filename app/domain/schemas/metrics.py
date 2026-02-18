@@ -53,7 +53,7 @@ class BookingRateImprovementResponse(BaseModel):
     period_a: Optional[Dict[str, Any]] = None
     period_b: Optional[Dict[str, Any]] = None
     x_axis: Optional[List[str]] = None
-    y_axis: Optional[List[int]] = None
+    y_axis: Optional[List[float]] = None
 
 
 class CloseRateTrendsResponse(BaseModel):
@@ -74,13 +74,7 @@ class CloseRateTrendsResponse(BaseModel):
     period_a: Optional[Dict[str, Any]] = None
     period_b: Optional[Dict[str, Any]] = None
     x_axis: Optional[List[str]] = None
-    # Top-level y_axis ticks (nice round numbers) aligned with x_axis positions
-    y_axis: Optional[List[int]] = None
-    period_a: Optional[Dict[str, Any]] = None
-    period_b: Optional[Dict[str, Any]] = None
-    x_axis: Optional[List[str]] = None
-    # Top-level y_axis ticks (nice round numbers) aligned with x_axis positions
-    y_axis: Optional[List[int]] = None
+    y_axis: Optional[List[float]] = None
 
 
 class TopObjectionResponse(BaseModel):

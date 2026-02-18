@@ -222,20 +222,27 @@ async def get_booking_rate_improvement(
 ):
     """
     Get booking rate improvement metrics within date range.
-    
+
     - **company_id**: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
     - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.
     - **start_date**: Start of the current period (defaults to 30 days ago)
     - **end_date**: End of the current period (defaults to today)
-    
-    Compares booking rate between current period and previous period of same length.
+
+    **Dual-period mode (for charts):**
+    - **start_a, end_a**: Period A date range
+    - **start_b, end_b**: Period B date range
+    - Returns per-day booking rate percentage: (booked leads / qualified leads) × 100
+    - series[].y = booking rate % (0-100), y_axis = percentage ticks
+    - period summary includes average_booking_rate (avg of daily rates)
+
+    **Legacy mode:** Compares booking rate between current period and previous period of same length.
     Returns current rate, previous rate, improvement percentage, and totals.
-    
+
     Resolution Rules:
     - If user_id is provided: prefer user_id (even if company_id is also provided)
     - Else if company_id is provided: use company_id
     - Else: return 400 error "Either company_id or user_id is required"
-    
+
     Required role: Any authenticated user
     """
     # Resolution rules:
@@ -288,10 +295,7 @@ async def get_close_rate_trends(
     end_b: Optional[date] = Query(None, description="Period B end date (YYYY-MM-DD)"),
 ):
     """
-    Get close rate trends (closed/won deals) within date range.
-
-    Similar to booking rate improvement but tracks appointments with outcome='won'
-    and leads with status='closed_won'.
+    Get close rate trends within date range.
 
     - **company_id**: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
     - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user.
@@ -301,9 +305,12 @@ async def get_close_rate_trends(
     **Dual-period mode (for charts):**
     - **start_a, end_a**: Period A date range
     - **start_b, end_b**: Period B date range
-    - Returns per-day closed counts for both periods with x_axis and y_axis for plotting
+    - Returns per-day close rate percentage: (won appointments / total appointments) × 100
+    - series[].y = close rate % (0-100), y_axis = percentage ticks
+    - period summary includes average_close_rate (avg of daily rates)
 
-    Compares close rate between current period and previous period of same length.
+    **Legacy mode:** Compares close rate between current period and previous period of same length.
+    Tracks appointments with outcome='won' and leads with status='closed_won'.
     Returns current rate, previous rate, improvement percentage, and totals.
     """
     # Validate that at least one of company_id or user_id is provided

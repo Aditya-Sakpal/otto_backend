@@ -205,7 +205,8 @@ class MetricsService:
             )
             total_appointments_count = total_appointments.scalar() or 0
             
-            # Conversion rate: booked leads (in period) / total leads created in period.
+            # Booking rate: per product owner request, compute as:
+            # booking_rate = (total number of qualified leads / total number of booked leads) * 100
             # "Booked" = status qualified_booked (case-insensitive) OR deal_status booked (trim + lower).
             # Include leads that became booked *during* the period: created_at in range OR updated_at in range.
             is_booked = or_(
@@ -237,7 +238,14 @@ class MetricsService:
                 select(func.count(LeadORM.id)).where(*booked_in_period_filters)
             )
             booked_count = booked_leads.scalar() or 0
-            conversion_rate = (booked_count / total_leads_count * 100) if total_leads_count > 0 else 0.0
+            # Use qualified_leads_count computed earlier.
+            # Per requested formula: booking_rate = (qualified_leads_count / booked_count) * 100
+            if booked_count > 0:
+                booking_rate = (qualified_leads_count / booked_count) * 100
+            else:
+                booking_rate = 0.0
+            # Keep 'conversion_rate' field name for backward compatibility but populate with booking_rate.
+            conversion_rate = booking_rate
 
             # Total revenue: sum deal_size for leads that are booked (same is_booked def) and in period
             revenue_filters = booked_in_period_filters

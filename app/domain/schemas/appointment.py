@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, List, Dict
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.domain.enums import AppointmentOutcome
 
@@ -73,6 +73,29 @@ class AppointmentUpdate(BaseModel):
         None,
         description="Updated metadata for the appointment",
     )
+
+
+class AppointmentLocationUpdate(BaseModel):
+    """Schema for updating an appointment's location address.
+
+    Provide either appointment_id or lead_id (not both) to identify the appointment.
+    """
+
+    appointment_id: Optional[UUID] = Field(None, description="Appointment ID")
+    lead_id: Optional[UUID] = Field(None, description="Lead ID whose appointment to update")
+    location_address: str = Field(
+        ...,
+        min_length=1,
+        description="New location/address for the appointment",
+    )
+
+    @model_validator(mode="after")
+    def check_one_id_provided(self):
+        if self.appointment_id and self.lead_id:
+            raise ValueError("Provide either appointment_id or lead_id, not both")
+        if not self.appointment_id and not self.lead_id:
+            raise ValueError("Either appointment_id or lead_id is required")
+        return self
 
 
 class PendingActionDetail(BaseModel):

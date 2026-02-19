@@ -235,9 +235,11 @@ class MetricsService:
             )
             booked_appointments_count = booked_appts.scalar() or 0
 
-            # Per requested formula: booking_rate = (qualified_leads_count / booked_appointments_count) * 100
-            if booked_appointments_count > 0:
-                booking_rate = (booked_appointments_count / qualified_leads_count) * 100
+            # Booking rate: (booked_leads / total qualified leads) * 100
+            # Use total_appointments_count as the value for "booked_leads" in the response (UI expects this).
+            booked_leads_value = total_appointments_count or 0
+            if qualified_leads_count > 0:
+                booking_rate = (booked_leads_value / qualified_leads_count) * 100
             else:
                 booking_rate = 0.0
             # Keep 'conversion_rate' field name for backward compatibility but populate with booking_rate.
@@ -275,8 +277,8 @@ class MetricsService:
                 "missed_calls": missed_calls_count,
                 "total_appointments": total_appointments_count,
                 "conversion_rate": round(conversion_rate, 2),
-                # Keep booked_leads field but populate with appointment-based booked count to match UI "Booked Appointments"
-                "booked_leads": booked_appointments_count,
+                # Keep booked_leads field but populate with total appointments count to match UI "Booked Appointments"
+                "booked_leads": booked_leads_value,
                 "total_revenue": round(revenue, 2),
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),

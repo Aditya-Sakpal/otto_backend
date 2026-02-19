@@ -173,13 +173,9 @@ class MetricsService:
             active_leads_count = active_leads.scalar() or 0
             
             # Qualified leads in date range
-            # Count leads with deal_status = "qualified" OR status in qualified statuses
-            # This handles both the deal_status field and the status field for qualification
+            # Count leads whose status is one of the qualified statuses
             qualified_leads_filters = lead_filters + [
-                or_(
-                    LeadORM.deal_status == "qualified",
-                    LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
-                )
+                LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
             ]
             qualified_leads = await self.session.execute(
                 select(func.count(LeadORM.id)).where(*qualified_leads_filters)
@@ -205,28 +201,14 @@ class MetricsService:
             )
             total_appointments_count = total_appointments.scalar() or 0
 
-            # Booked leads = count of QUALIFIED leads (in period) that have at least one appointment (in period).
-            # This ensures booked_leads <= qualified_leads always (one lead can have multiple appointments).
-            booked_leads_subq = (
-                select(AppointmentORM.lead_id)
-                .where(
-                    AppointmentORM.company_id == company_id,
-                    AppointmentORM.created_at >= start_dt,
-                    AppointmentORM.created_at <= end_dt,
-                )
-            )
+            # Booked appointments (lead-count): number of leads with status == 'qualified_booked'
+            booked_leads_filters = lead_filters + [
+                LeadORM.status == "qualified_booked"
+            ]
             if user_id:
-                booked_leads_subq = booked_leads_subq.where(
-                    AppointmentORM.assigned_rep_id == user_id
-                )
-            booked_leads_subq = booked_leads_subq.distinct()
+                booked_leads_filters.append(LeadORM.assigned_rep_id == user_id)
             booked_leads_result = await self.session.execute(
-                select(func.count(LeadORM.id))
-                .select_from(LeadORM)
-                .where(
-                    *qualified_leads_filters,
-                    LeadORM.id.in_(booked_leads_subq),
-                )
+                select(func.count(LeadORM.id)).where(*booked_leads_filters)
             )
             booked_leads_value = booked_leads_result.scalar() or 0
 

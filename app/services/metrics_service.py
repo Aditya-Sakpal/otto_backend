@@ -256,7 +256,8 @@ class MetricsService:
                 "qualified_leads": qualified_leads_count,
                 "total_calls": total_calls_count,
                 "missed_calls": missed_calls_count,
-                "total_appointments": total_appointments_count,
+                "total_appointments": booked_leads_value,
+                # "total_appointments": total_appointments_count,
                 "conversion_rate": round(conversion_rate, 2),
                 # booked_leads = qualified leads with >= 1 appointment (ensures <= qualified_leads, avoids rate > 100%)
                 "booked_leads": booked_leads_value,

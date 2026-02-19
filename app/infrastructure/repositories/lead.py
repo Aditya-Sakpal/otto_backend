@@ -698,6 +698,19 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             lead_orm.extra_metadata["assignment_history"].append(assignment_info)
             lead_orm.extra_metadata["last_assignment"] = assignment_info
 
+            # Update any existing appointments for this lead so their assigned_rep_id matches
+            try:
+                from app.infrastructure.database.models.appointment import AppointmentORM
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                appts = appt_result.scalars().all()
+                for ap in appts:
+                    ap.assigned_rep_id = sales_rep_id
+            except Exception:
+                # Non-fatal: log and continue; assignment of lead is primary
+                logger.debug(f"Failed to update appointments for lead {lead_id} when assigning to {sales_rep_id}")
+
             await self.session.commit()
 
             # Reload lead with relationships for _to_domain

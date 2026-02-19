@@ -237,7 +237,7 @@ class MetricsService:
 
             # Per requested formula: booking_rate = (qualified_leads_count / booked_appointments_count) * 100
             if booked_appointments_count > 0:
-                booking_rate = (qualified_leads_count / booked_appointments_count) * 100
+                booking_rate = (booked_appointments_count / qualified_leads_count) * 100
             else:
                 booking_rate = 0.0
             # Keep 'conversion_rate' field name for backward compatibility but populate with booking_rate.

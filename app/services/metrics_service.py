@@ -204,40 +204,33 @@ class MetricsService:
                 select(func.count(AppointmentORM.id)).where(*appointment_filters)
             )
             total_appointments_count = total_appointments.scalar() or 0
-            
-            # Booking rate: per product owner request, compute as:
-            # booking_rate = (total number of qualified leads / total number of booked leads) * 100
-            # "Booked" = status qualified_booked (case-insensitive) OR deal_status booked (trim + lower).
-            # Include leads that became booked *during* the period: created_at in range OR updated_at in range.
-            is_booked = or_(
-                func.lower(LeadORM.status) == "qualified_booked",
-                and_(
-                    LeadORM.deal_status.isnot(None),
-                    func.lower(func.trim(LeadORM.deal_status)) == "booked",
-                ),
-            )
-            # Booked appointments in period (align with UI): count appointments created in the period
-            # where appointment.booking_status indicates a booking (e.g., "booked" or "confirmed").
-            from sqlalchemy import func as sa_func
-            booked_appt_filters = [
-                AppointmentORM.company_id == company_id,
-                AppointmentORM.created_at >= start_dt,
-                AppointmentORM.created_at <= end_dt,
-                or_(
-                    func.lower(AppointmentORM.booking_status) == "booked",
-                    func.lower(AppointmentORM.booking_status) == "confirmed",
-                ),
-            ]
-            if user_id:
-                booked_appt_filters.append(AppointmentORM.assigned_rep_id == user_id)
-            booked_appts = await self.session.execute(
-                select(func.count(AppointmentORM.id)).where(*booked_appt_filters)
-            )
-            booked_appointments_count = booked_appts.scalar() or 0
 
-            # Booking rate: (booked_leads / total qualified leads) * 100
-            # Use total_appointments_count as the value for "booked_leads" in the response (UI expects this).
-            booked_leads_value = total_appointments_count or 0
+            # Booked leads = count of QUALIFIED leads (in period) that have at least one appointment (in period).
+            # This ensures booked_leads <= qualified_leads always (one lead can have multiple appointments).
+            booked_leads_subq = (
+                select(AppointmentORM.lead_id)
+                .where(
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.created_at >= start_dt,
+                    AppointmentORM.created_at <= end_dt,
+                )
+            )
+            if user_id:
+                booked_leads_subq = booked_leads_subq.where(
+                    AppointmentORM.assigned_rep_id == user_id
+                )
+            booked_leads_subq = booked_leads_subq.distinct()
+            booked_leads_result = await self.session.execute(
+                select(func.count(LeadORM.id))
+                .select_from(LeadORM)
+                .where(
+                    *qualified_leads_filters,
+                    LeadORM.id.in_(booked_leads_subq),
+                )
+            )
+            booked_leads_value = booked_leads_result.scalar() or 0
+
+            # Booking rate: (booked_leads / qualified_leads) * 100
             if qualified_leads_count > 0:
                 booking_rate = (booked_leads_value / qualified_leads_count) * 100
             else:
@@ -246,7 +239,13 @@ class MetricsService:
             conversion_rate = booking_rate
 
             # Total revenue: sum deal_size for leads that are booked (lead-based) and in period.
-            # Build lead-based booked filters (created OR updated in period) for revenue calculation.
+            is_booked = or_(
+                func.lower(LeadORM.status) == "qualified_booked",
+                and_(
+                    LeadORM.deal_status.isnot(None),
+                    func.lower(func.trim(LeadORM.deal_status)) == "booked",
+                ),
+            )
             lead_booked_in_period_filters = [
                 LeadORM.company_id == company_id,
                 is_booked,
@@ -277,7 +276,7 @@ class MetricsService:
                 "missed_calls": missed_calls_count,
                 "total_appointments": total_appointments_count,
                 "conversion_rate": round(conversion_rate, 2),
-                # Keep booked_leads field but populate with total appointments count to match UI "Booked Appointments"
+                # booked_leads = qualified leads with >= 1 appointment (ensures <= qualified_leads, avoids rate > 100%)
                 "booked_leads": booked_leads_value,
                 "total_revenue": round(revenue, 2),
                 "start_date": start_dt.isoformat(),

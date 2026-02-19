@@ -75,6 +75,16 @@ class AppointmentUpdate(BaseModel):
     )
 
 
+class AppointmentLocationUpdate(BaseModel):
+    """Schema for updating an appointment's location address."""
+
+    location_address: str = Field(
+        ...,
+        min_length=1,
+        description="New location/address for the appointment",
+    )
+
+
 class PendingActionDetail(BaseModel):
     """Structured pending action extracted from recording."""
     type: str = Field(..., description="Action type (e.g., send_info, follow_up_call)")

@@ -16,10 +16,12 @@ from app.domain.enums import UserRole
 from app.domain.schemas.appointment import (
     AppointmentCreate,
     AppointmentUpdate,
+    AppointmentLocationUpdate,
     AppointmentResponse,
     AppointmentInsightSummary,
     AppointmentContextResponse,
 )
+from app.infrastructure.integrations.google_geocoding import get_google_geocoding_client
 from app.domain.users.models import User
 from app.domain.users.repository import UserRepository
 from app.services.appointment_service import AppointmentService
@@ -477,6 +479,61 @@ async def update_appointment(
         raise
     except Exception as e:
         logger.error(f"Error updating appointment: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.put("/{appointment_id}/location", response_model=AppointmentResponse, responses=RESPONSES)
+async def update_appointment_location(
+    appointment_id: UUID,
+    payload: AppointmentLocationUpdate,
+    db: DbSession,
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+) -> AppointmentResponse:
+    """
+    Update an appointment's location address and trigger geocoding.
+
+    Every invocation re-geocodes the address to refresh latitude/longitude.
+
+    Access: Any authenticated user
+    """
+    try:
+        service = AppointmentService(db)
+
+        existing = await service.get_by_id(appointment_id)
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found",
+            )
+
+        # Geocode the new address
+        geocoding_client = get_google_geocoding_client()
+        coords = await geocoding_client.geocode(address=payload.location_address)
+
+        if coords:
+            lat, lng = coords
+            logger.info(f"Geocoded appointment {appointment_id}: ({lat}, {lng})")
+        else:
+            lat, lng = None, None
+            logger.warning(f"Geocoding returned no results for: {payload.location_address}")
+
+        # Update address + coordinates in one shot
+        existing.location_address = payload.location_address
+        existing.latitude = lat
+        existing.longitude = lng
+        existing.mark_updated()
+
+        updated = await service.appointment_repo.update(appointment_id, existing)
+
+        return AppointmentResponse.model_validate(updated)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating appointment location: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

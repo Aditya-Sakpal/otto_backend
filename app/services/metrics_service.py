@@ -216,8 +216,36 @@ class MetricsService:
                     func.lower(func.trim(LeadORM.deal_status)) == "booked",
                 ),
             )
-            # Booked in period = currently booked AND (created in range OR updated in range)
-            booked_in_period_filters = [
+            # Booked appointments in period (align with UI): count appointments created in the period
+            # where appointment.booking_status indicates a booking (e.g., "booked" or "confirmed").
+            from sqlalchemy import func as sa_func
+            booked_appt_filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.created_at >= start_dt,
+                AppointmentORM.created_at <= end_dt,
+                or_(
+                    func.lower(AppointmentORM.booking_status) == "booked",
+                    func.lower(AppointmentORM.booking_status) == "confirmed",
+                ),
+            ]
+            if user_id:
+                booked_appt_filters.append(AppointmentORM.assigned_rep_id == user_id)
+            booked_appts = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*booked_appt_filters)
+            )
+            booked_appointments_count = booked_appts.scalar() or 0
+
+            # Per requested formula: booking_rate = (qualified_leads_count / booked_appointments_count) * 100
+            if booked_appointments_count > 0:
+                booking_rate = (qualified_leads_count / booked_appointments_count) * 100
+            else:
+                booking_rate = 0.0
+            # Keep 'conversion_rate' field name for backward compatibility but populate with booking_rate.
+            conversion_rate = booking_rate
+
+            # Total revenue: sum deal_size for leads that are booked (lead-based) and in period.
+            # Build lead-based booked filters (created OR updated in period) for revenue calculation.
+            lead_booked_in_period_filters = [
                 LeadORM.company_id == company_id,
                 is_booked,
                 or_(
@@ -233,24 +261,9 @@ class MetricsService:
                 ),
             ]
             if user_id:
-                booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
-            booked_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(*booked_in_period_filters)
-            )
-            booked_count = booked_leads.scalar() or 0
-            # Use qualified_leads_count computed earlier.
-            # Per requested formula: booking_rate = (qualified_leads_count / booked_count) * 100
-            if booked_count > 0:
-                booking_rate = (booked_count / qualified_leads_count ) * 100
-            else:
-                booking_rate = 0.0
-            # Keep 'conversion_rate' field name for backward compatibility but populate with booking_rate.
-            conversion_rate = booking_rate
-
-            # Total revenue: sum deal_size for leads that are booked (same is_booked def) and in period
-            revenue_filters = booked_in_period_filters
+                lead_booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
             total_revenue = await self.session.execute(
-                select(func.sum(LeadORM.deal_size)).where(*revenue_filters)
+                select(func.sum(LeadORM.deal_size)).where(*lead_booked_in_period_filters)
             )
             revenue = total_revenue.scalar() or 0.0
 
@@ -262,7 +275,8 @@ class MetricsService:
                 "missed_calls": missed_calls_count,
                 "total_appointments": total_appointments_count,
                 "conversion_rate": round(conversion_rate, 2),
-                "booked_leads": booked_count,
+                # Keep booked_leads field but populate with appointment-based booked count to match UI "Booked Appointments"
+                "booked_leads": booked_appointments_count,
                 "total_revenue": round(revenue, 2),
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),

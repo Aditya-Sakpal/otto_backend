@@ -27,6 +27,26 @@ from app.services.appointment_service import AppointmentService
 router = APIRouter()
 logger = get_logger(__name__)
 
+
+def _normalize_objections(raw_objections: list) -> list:
+    """Convert plain-string objections to ObjectionDetail-compatible dicts."""
+    normalized = []
+    for item in raw_objections:
+        if isinstance(item, dict):
+            normalized.append(item)
+        elif isinstance(item, str):
+            normalized.append({
+                "category_id": 0,
+                "category_text": item,
+                "objection_text": item,
+                "overcome": False,
+                "severity": "medium",
+                "confidence_score": 0.0,
+                "response_suggestions": [],
+            })
+    return normalized
+
+
 RESPONSES = {
     400: {"description": "Bad request (e.g. invalid date format)"},
     403: {"description": "Forbidden"},
@@ -340,9 +360,11 @@ async def get_appointment(
                 key_points=insights_payload.get("key_points") or [],
                 sop_stages_completed=insights_payload.get("sop_stages_completed") or [],
                 sop_stages_missed=insights_payload.get("sop_stages_missed") or [],
-                objections=insights_payload.get("objections")
-                or insights_payload.get("objections_found")
-                or [],
+                objections=_normalize_objections(
+                    insights_payload.get("objections")
+                    or insights_payload.get("objections_found")
+                    or []
+                ),
                 action_items=insights_payload.get("action_items") or [],
                 follow_up_required=insights_payload.get("follow_up_required"),
                 follow_up_reason=insights_payload.get("follow_up_reason"),

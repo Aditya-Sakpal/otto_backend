@@ -38,7 +38,8 @@ class PendingActionRepository(BaseRepository[PendingActionORM, PendingAction]):
             query = select(self.orm_model).where(self.orm_model.company_id == company_id)
             if status:
                 query = query.where(self.orm_model.status == status.value)
-            query = query.offset(skip).limit(limit).order_by(desc(self.orm_model.due_at))
+            # Order by most recently created first for task management views.
+            query = query.offset(skip).limit(limit).order_by(desc(self.orm_model.created_at))
             result = await self.session.execute(query)
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
@@ -56,7 +57,8 @@ class PendingActionRepository(BaseRepository[PendingActionORM, PendingAction]):
             query = select(self.orm_model).where(self.orm_model.lead_id == lead_id)
             if status:
                 query = query.where(self.orm_model.status == status.value)
-            query = query.order_by(desc(self.orm_model.due_at))
+            # Order by most recently created first for task management views.
+            query = query.order_by(desc(self.orm_model.created_at))
             result = await self.session.execute(query)
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
@@ -76,7 +78,8 @@ class PendingActionRepository(BaseRepository[PendingActionORM, PendingAction]):
             query = select(self.orm_model).where(self.orm_model.owner_id == owner_id)
             if status:
                 query = query.where(self.orm_model.status == status.value)
-            query = query.offset(skip).limit(limit).order_by(desc(self.orm_model.due_at))
+            # Order by most recently created first for task management views.
+            query = query.offset(skip).limit(limit).order_by(desc(self.orm_model.created_at))
             result = await self.session.execute(query)
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
@@ -227,9 +230,10 @@ class PendingActionRepository(BaseRepository[PendingActionORM, PendingAction]):
                 query = query.where(PendingActionORM.due_at >= due_date_from)
             if due_date_to is not None:
                 query = query.where(PendingActionORM.due_at <= due_date_to)
+            # Default task listing: recent first, then by due date (soonest)
             query = query.order_by(
-                PendingActionORM.due_at.asc().nulls_last(),
                 desc(PendingActionORM.created_at),
+                PendingActionORM.due_at.asc().nulls_last(),
             ).offset(skip).limit(limit)
             result = await self.session.execute(query)
             return list(result.scalars().all())

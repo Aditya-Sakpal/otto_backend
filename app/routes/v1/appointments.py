@@ -16,16 +16,38 @@ from app.domain.enums import UserRole
 from app.domain.schemas.appointment import (
     AppointmentCreate,
     AppointmentUpdate,
+    AppointmentLocationUpdate,
     AppointmentResponse,
     AppointmentInsightSummary,
     AppointmentContextResponse,
 )
+from app.infrastructure.integrations.google_geocoding import get_google_geocoding_client
 from app.domain.users.models import User
 from app.domain.users.repository import UserRepository
 from app.services.appointment_service import AppointmentService
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+def _normalize_objections(raw_objections: list) -> list:
+    """Convert plain-string objections to ObjectionDetail-compatible dicts."""
+    normalized = []
+    for item in raw_objections:
+        if isinstance(item, dict):
+            normalized.append(item)
+        elif isinstance(item, str):
+            normalized.append({
+                "category_id": 0,
+                "category_text": item,
+                "objection_text": item,
+                "overcome": False,
+                "severity": "medium",
+                "confidence_score": 0.0,
+                "response_suggestions": [],
+            })
+    return normalized
+
 
 RESPONSES = {
     400: {"description": "Bad request (e.g. invalid date format)"},
@@ -340,9 +362,11 @@ async def get_appointment(
                 key_points=insights_payload.get("key_points") or [],
                 sop_stages_completed=insights_payload.get("sop_stages_completed") or [],
                 sop_stages_missed=insights_payload.get("sop_stages_missed") or [],
-                objections=insights_payload.get("objections")
-                or insights_payload.get("objections_found")
-                or [],
+                objections=_normalize_objections(
+                    insights_payload.get("objections")
+                    or insights_payload.get("objections_found")
+                    or []
+                ),
                 action_items=insights_payload.get("action_items") or [],
                 follow_up_required=insights_payload.get("follow_up_required"),
                 follow_up_reason=insights_payload.get("follow_up_reason"),
@@ -420,6 +444,67 @@ async def create_appointment(
         return AppointmentResponse.model_validate(appointment)
     except Exception as e:
         logger.error(f"Error creating appointment: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.put("/location", response_model=AppointmentResponse, responses=RESPONSES)
+async def update_appointment_location(
+    payload: AppointmentLocationUpdate,
+    db: DbSession,
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+) -> AppointmentResponse:
+    """
+    Update an appointment's location address and re-geocode coordinates.
+
+    Identify the appointment by providing either `appointment_id` or `lead_id`
+    in the request body (exactly one required).
+
+    Access: Any authenticated user
+    """
+    try:
+        service = AppointmentService(db)
+
+        if payload.appointment_id:
+            existing = await service.get_by_id(payload.appointment_id)
+            not_found_msg = "Appointment not found"
+        else:
+            existing = await service.get_by_lead(payload.lead_id)
+            not_found_msg = "No appointment found for this lead"
+
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=not_found_msg,
+            )
+
+        # Geocode the new address
+        geocoding_client = get_google_geocoding_client()
+        coords = await geocoding_client.geocode(address=payload.location_address)
+
+        if coords:
+            lat, lng = coords
+            logger.info(f"Geocoded appointment {existing.id}: ({lat}, {lng})")
+        else:
+            lat, lng = None, None
+            logger.warning(f"Geocoding returned no results for: {payload.location_address}")
+
+        # Update address + coordinates in one shot
+        existing.location_address = payload.location_address
+        existing.latitude = lat
+        existing.longitude = lng
+        existing.mark_updated()
+
+        updated = await service.appointment_repo.update(existing.id, existing)
+
+        return AppointmentResponse.model_validate(updated)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating appointment location: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

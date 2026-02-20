@@ -125,3 +125,4 @@ def create_app() -> FastAPI:
 # Create app instance
 app = create_app()
 
+__reload_marker__ = "reload-for-call-logs-fix"

@@ -25,6 +25,52 @@ class PendingActionRepository(BaseRepository[PendingActionORM, PendingAction]):
     
     def __init__(self, session: AsyncSession):
         super().__init__(session, PendingActionORM, PendingAction)
+
+    async def create(self, domain_obj: PendingAction) -> PendingAction:
+        """Create pending action and mirror to action_items table for visibility."""
+        try:
+            created = await super().create(domain_obj)
+            # Mirror into action_items (non-fatal)
+            try:
+                from sqlalchemy import text
+                import json
+
+                insert_sql = text(
+                    \"\"\"INSERT INTO action_items (
+                        id, company_id, lead_id, call_id, appointment_id,
+                        action_type, raw_text, status, due_at, priority,
+                        owner_id, source, extra_metadata, created_at, assigned_by_id
+                    ) VALUES (
+                        uuid_generate_v4(), :company_id, :lead_id, :call_id, :appointment_id,
+                        :action_type, :raw_text, :status, :due_at, :priority,
+                        :owner_id, :source, :extra_metadata, CURRENT_TIMESTAMP, :assigned_by_id
+                    )\"\"\")
+
+                await self.session.execute(
+                    insert_sql,
+                    {
+                        "company_id": str(created.company_id) if getattr(created, "company_id", None) else None,
+                        "lead_id": str(created.lead_id) if getattr(created, "lead_id", None) else None,
+                        "call_id": str(created.call_id) if getattr(created, "call_id", None) else None,
+                        "appointment_id": str(created.appointment_id) if getattr(created, "appointment_id", None) else None,
+                        "action_type": created.action_type,
+                        "raw_text": created.raw_text,
+                        "status": created.status.value if hasattr(created.status, "value") else str(created.status),
+                        "due_at": created.due_at,
+                        "priority": created.priority,
+                        "owner_id": str(created.owner_id) if getattr(created, "owner_id", None) else None,
+                        "source": created.source if getattr(created, "source", None) else "shunya",
+                        "extra_metadata": json.dumps(created.extra_metadata) if getattr(created, "extra_metadata", None) else None,
+                        "assigned_by_id": str(created.assigned_by_id) if getattr(created, "assigned_by_id", None) else None,
+                    },
+                )
+            except Exception:
+                logger.exception("Failed to mirror pending action into action_items; continuing")
+
+            return created
+        except Exception as e:
+            logger.error(f"Error creating pending action: {e}")
+            raise
     
     async def get_by_company(
         self,

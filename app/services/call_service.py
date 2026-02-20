@@ -1,4 +1,4 @@
-"""
+﻿"""
 Call service.
 
 Orchestrates call-related business logic:
@@ -20,6 +20,7 @@ from app.domain.models.call import Call
 from app.domain.models.analysis import CallAnalysis
 from app.domain.models.pending_action import PendingAction
 from app.domain.enums import AnalysisStatus, PendingActionStatus
+from app.core.datetime_utils import isoformat_utc
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.analysis import CallAnalysisRepository
 from app.infrastructure.repositories.pending_action import PendingActionRepository
@@ -269,7 +270,7 @@ class CallService:
         """
         Trigger AI analysis directly without creating a call record first.
 
-        This is the new flow: CRM ΓåÆ Shunya ΓåÆ call_analyses ΓåÆ appointment
+        This is the new flow: CRM ╬ô├Ñ├å Shunya ╬ô├Ñ├å call_analyses ╬ô├Ñ├å appointment
 
         Args:
             company_id: Company UUID

@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select, and_, or_, func as sql_func, desc
+from sqlalchemy import select, and_, or_, func as sql_func, desc, text
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,19 +32,9 @@ class PendingActionRepository(BaseRepository[PendingActionORM, PendingAction]):
             created = await super().create(domain_obj)
             # Mirror into action_items (non-fatal)
             try:
-                from sqlalchemy import text
                 import json
 
-                insert_sql = text(
-                    \"\"\"INSERT INTO action_items (
-                        id, company_id, lead_id, call_id, appointment_id,
-                        action_type, raw_text, status, due_at, priority,
-                        owner_id, source, extra_metadata, created_at, assigned_by_id
-                    ) VALUES (
-                        uuid_generate_v4(), :company_id, :lead_id, :call_id, :appointment_id,
-                        :action_type, :raw_text, :status, :due_at, :priority,
-                        :owner_id, :source, :extra_metadata, CURRENT_TIMESTAMP, :assigned_by_id
-                    )\"\"\")
+                insert_sql = text("INSERT INTO action_items (id, company_id, lead_id, call_id, appointment_id, action_type, raw_text, status, due_at, priority, owner_id, source, extra_metadata, created_at, assigned_by_id) VALUES (uuid_generate_v4(), :company_id, :lead_id, :call_id, :appointment_id, :action_type, :raw_text, :status, :due_at, :priority, :owner_id, :source, :extra_metadata, CURRENT_TIMESTAMP, :assigned_by_id)")
 
                 await self.session.execute(
                     insert_sql,
@@ -455,3 +445,4 @@ class PendingActionRepository(BaseRepository[PendingActionORM, PendingAction]):
         if "status" in data and isinstance(data["status"], PendingActionStatus):
             data["status"] = data["status"].value
         return self.orm_model(**data)
+

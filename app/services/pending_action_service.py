@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -372,9 +372,11 @@ class PendingActionService:
         # Use action_items listing for task list
         query = (
             select(ActionItemORM)
-            .outerjoin(ActionItemORM.call)
-            .outerjoin(ActionItemORM.owner)
-            .outerjoin(ActionItemORM.assigned_by)
+            .options(
+                selectinload(ActionItemORM.call),
+                selectinload(ActionItemORM.owner),
+                selectinload(ActionItemORM.assigned_by),
+            )
             .where(ActionItemORM.company_id == company_id)
             .order_by(ActionItemORM.created_at.desc())
             .offset(skip)

@@ -175,7 +175,7 @@ class MetricsService:
             # Qualified leads in date range
             # Count leads whose status is one of the qualified statuses
             qualified_leads_filters = lead_filters + [
-                LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
+                LeadORM.status.in_(["qualified_booked", "qualified_unbooked"])
             ]
             qualified_leads = await self.session.execute(
                 select(func.count(LeadORM.id)).where(*qualified_leads_filters)

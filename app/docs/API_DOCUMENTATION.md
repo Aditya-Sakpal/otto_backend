@@ -34,6 +34,7 @@ To use this data, run `backend/seed_dummy_data.sql` against your database.
 4. [Leads](#leads)
 5. [Task Management](#task-management)
 6. [Metrics](#metrics)
+7. [Sales Rep Dashboard](#sales-rep-dashboard)
 7. [Call Processing (Shunya)](#call-processing-shunya)
 8. [Ask Otto (Shunya)](#ask-otto-shunya)
 9. [Insights (Shunya)](#insights-shunya)
@@ -3459,6 +3460,81 @@ Update/configure an existing integration.
 
 ---
 
+## Sales Rep Dashboard
+
+### GET `/sales_rep/exec/dashboard`
+
+Sales rep dashboard endpoint — returns today's ridealongs, top sales team stats, appointment-focused objections, sales overview, team coaching metrics, and most coaching opportunities for sales reps.
+
+**Query Parameters:**
+- `company_id` (UUID, required) - Company UUID (example provided)
+- `start_date` (string, optional) - Start date for filtering objections and coaching metrics (YYYY-MM-DD). Defaults to 30 days ago.
+- `end_date` (string, optional) - End date for filtering (YYYY-MM-DD). Defaults to today.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Example Request:**
+```
+GET /api/v1/sales_rep/exec/dashboard?company_id=11111111-1111-1111-1111-111111111111&start_date=2026-02-14&end_date=2026-02-20
+```
+
+**Response:** `200 OK`
+```json
+{
+  "ridealongs_list": [ /* up to 9 entries */ ],
+  "sales_team_stats": [ /* top reps */ ],
+  "objections": [
+    {
+      "objection_type": "other",
+      "count": 232,
+      "affected_appointments_count": 89,
+      "appointment_logs": [
+        {
+          "call_id": "1745b7a1-5cc3-4d4f-9044-6f5bb74c10ba",
+          "appointment_id": "50000000-0000-0000-0000-000000000001",
+          "lead_id": "f2de0246-2137-44d1-8799-28b82be9bc3a",
+          "contact_name": "Stratton Group",
+          "phone_number": "5207794609",
+          "audio_url": "https://...",
+          "call_type": null,
+          "duration_seconds": 103,
+          "created_at": "2026-02-19T23:24:10.607403+00:00",
+          "appointment_status": "warm",
+          "transcript": null,
+          "summary": "Call summary..."
+        }
+      ]
+    }
+  ],
+  "sales_overview": { /* core_kpis + trends */ },
+  "team_coaching_metrics": { /* attendance, otto usage, etc. */ },
+  "most_coaching_opportunities": [
+    {
+      "user_id": "6861c27e-eff5-482d-b9ae-2489a8b375dd",
+      "sales_rep_name": "Nikolas Pagoulatos",
+      "success_rate": 50.0,
+      "win_ratio": "8/16",
+      "appointments_won": 8,
+      "appointments_pending": 16,
+      "total_appointments": 16,
+      "most_coaching_need": [
+        {
+          "objection": "Communication Issues",
+          "appointments_lost": 50.0,
+          "appointment_lost_ratio": "6/12"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Required Role:** `SALES_REP`, `CSR`, or `EXECUTIVE`
+
+---
 ### GET `/settings/integrations/{integration_id}/logs`
 
 Get integration logs.

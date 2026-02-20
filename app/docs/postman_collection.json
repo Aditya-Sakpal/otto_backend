@@ -3009,6 +3009,18 @@
                   "key": "company_id",
                   "value": "{{company_id}}",
                   "description": "Company UUID (required)"
+                },
+                {
+                  "key": "start_date",
+                  "value": "2026-02-14",
+                  "description": "Start date (YYYY-MM-DD)",
+                  "disabled": false
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-02-20",
+                  "description": "End date (YYYY-MM-DD)",
+                  "disabled": false
                 }
               ]
             },

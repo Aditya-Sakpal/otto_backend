@@ -11,6 +11,23 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+import json
+from datetime import datetime
+from app.core.datetime_utils import isoformat_utc
+
+
+class UTCJSONResponse(JSONResponse):
+    """Custom JSONResponse that serializes datetimes to ISO 8601 UTC (+00:00)."""
+
+    def render(self, content: any) -> bytes:
+        def _default(o):
+            if isinstance(o, datetime):
+                return isoformat_utc(o)
+            # fall back to FastAPI's default behavior for other types
+            raise TypeError
+
+        return json.dumps(content, default=_default, ensure_ascii=False).encode("utf-8")
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
@@ -72,6 +89,7 @@ def create_app() -> FastAPI:
         version="2.0.0",
         docs_url="/docs" if settings.ENABLE_DOCS else None,
         redoc_url="/redoc" if settings.ENABLE_DOCS else None,
+        default_response_class=UTCJSONResponse,
         lifespan=lifespan,
     )
 

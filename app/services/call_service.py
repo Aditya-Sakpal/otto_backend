@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.domain.models.call import Call
 from app.domain.models.analysis import CallAnalysis
+from app.core.datetime_utils import isoformat_utc
 from app.domain.models.pending_action import PendingAction
 from app.domain.enums import AnalysisStatus, PendingActionStatus
 from app.infrastructure.repositories.call import CallRepository
@@ -236,7 +237,7 @@ class CallService:
                         audio_url=call.audio_url,
                         phone_number=call.phone_number,
                         duration=call.duration_seconds or 0,
-                        call_date=call.created_at.isoformat() if call.created_at else datetime.utcnow().isoformat(),
+                        call_date=isoformat_utc(call.created_at) if call.created_at else isoformat_utc(datetime.now(timezone.utc)),
                         webhook_url=webhook_url,
                         metadata={
                             "call_type": call_type_str,
@@ -323,7 +324,7 @@ class CallService:
                 audio_url=audio_url,
                 phone_number=phone_number,
                 duration=duration_seconds or 0,
-                call_date=call_date or datetime.utcnow().isoformat(),
+                call_date=call_date or isoformat_utc(datetime.now(timezone.utc)),
                 webhook_url=webhook_url,
                 metadata=metadata,
             )
@@ -1067,7 +1068,7 @@ class CallService:
                     'call_id': str(call.id),
                     'qualification_status': analysis.qualification_status,
                     'booking_status': analysis.booking_status,
-                    'updated_at': datetime.now(timezone.utc).isoformat(),
+                    'updated_at': isoformat_utc(datetime.now(timezone.utc)),
                 }
                 
                 # Update lead
@@ -1104,7 +1105,7 @@ class CallService:
                             'call_id': str(call.id),
                             'qualification_status': analysis.qualification_status,
                             'booking_status': analysis.booking_status,
-                            'created_at': datetime.now(timezone.utc).isoformat(),
+                            'created_at': isoformat_utc(datetime.now(timezone.utc)),
                         },
                     },
                 )
@@ -1273,12 +1274,16 @@ class CallService:
                     )
 
                     # Insert into database
-                    await self.pending_action_repo.create(pending_action)
+                    created_pending = await self.pending_action_repo.create(pending_action)
+                    # Also insert into action_items table for duplicate tracking/visibility
+                    try:
+                        from sqlalchemy import text
+                        insert_sql = text(\n+                            \"\"\"\n+                            INSERT INTO action_items (\n+                                id, company_id, lead_id, call_id, appointment_id,\n+                                action_type, raw_text, status, due_at, priority,\n+                                owner_id, source, extra_metadata, created_at, assigned_by_id\n+                            ) VALUES (\n+                                uuid_generate_v4(), :company_id, :lead_id, :call_id, :appointment_id,\n+                                :action_type, :raw_text, :status, :due_at, :priority,\n+                                :owner_id, :source, :extra_metadata, CURRENT_TIMESTAMP, :assigned_by_id\n+                            )\n+                            \"\"\"\n+                        )\n+                        await self.session.execute(\n+                            insert_sql,\n+                            {\n+                                \"company_id\": str(call.company_id) if call.company_id else None,\n+                                \"lead_id\": str(call.lead_id) if call.lead_id else None,\n+                                \"call_id\": str(call.id),\n+                                \"appointment_id\": None,\n+                                \"action_type\": action_type,\n+                                \"raw_text\": raw_text,\n+                                \"status\": \"pending\",\n+                                \"due_at\": due_at,\n+                                \"priority\": priority,\n+                                \"owner_id\": str(owner_id) if owner_id else None,\n+                                \"source\": \"shunya\",\n+                                \"extra_metadata\": json.dumps(pending_action.extra_metadata) if pending_action.extra_metadata else None,\n+                                \"assigned_by_id\": None,\n+                            },\n+                        )\n+                    except Exception:\n+                        logger.exception(\"Failed to insert action_item record; continuing\")\n                     logger.debug(\n                         \"Pending action created\",\n                         call_id=str(call.id),\n                         action_type=action_type,\n                         due_at=isoformat_utc(due_at) if due_at else None,\n                     )\n*** End Patch"}}
                     logger.debug(
                         "Pending action created",
                         call_id=str(call.id),
                         action_type=action_type,
-                        due_at=due_at.isoformat() if due_at else None,
+                        due_at=isoformat_utc(due_at) if due_at else None,
                     )
 
                 except Exception as e:
@@ -1637,7 +1642,7 @@ class CallService:
                     dt = call.created_at
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=timezone.utc)
-                    call_received = dt.isoformat()
+                    call_received = isoformat_utc(dt)
 
                 # Get dropdown fields
                 audio_url = call.audio_url

@@ -32,6 +32,7 @@ from app.domain.schemas.sales_rep_dashboard import (
     AttendanceMetrics,
 )
 from app.services.analytics_service import AnalyticsService
+from app.core.datetime_utils import isoformat_utc
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.user import UserORM
@@ -483,7 +484,7 @@ class SalesRepDashboardService:
                 phone_number = row.phone_number
                 audio_url = row.audio_url
                 duration_seconds = row.duration_seconds
-                created_at = row.created_at.isoformat() if row.created_at else None
+                created_at = isoformat_utc(row.created_at) if row.created_at else None
                 call_type = row.call_type
                 qualification_status = row.qualification_status
                 objections_field = row.objections

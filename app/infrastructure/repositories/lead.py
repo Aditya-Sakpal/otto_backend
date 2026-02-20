@@ -685,9 +685,10 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
 
             # Store assignment info
             from datetime import datetime, timezone
+            from app.core.datetime_utils import isoformat_utc
             assignment_info = {
                 "assigned_by": str(assigned_by_user_id),
-                "assigned_at": datetime.now(timezone.utc).isoformat(),
+                "assigned_at": isoformat_utc(datetime.now(timezone.utc)),
                 "previous_rep_id": str(previous_rep_id) if previous_rep_id else None,
             }
 

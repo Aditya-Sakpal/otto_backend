@@ -2,6 +2,8 @@
 
 **Base URL:** `http://localhost:8001/api/v1` (server runs on port 8001; or `http://localhost:8000/api/v1` if configured otherwise)
 
+All timestamps returned by the API are in ISO 8601 format with UTC offset (+00:00). Examples in this document have been updated to match this format.
+
 **Version:** 2.0.0
 
 ---

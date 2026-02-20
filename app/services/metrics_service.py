@@ -102,15 +102,15 @@ class MetricsService:
         If not provided, defaults to last 30 days.
         """
         if end_date:
-            end_dt = datetime.combine(end_date, datetime.max.time())
+            end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
         else:
-            end_dt = datetime.utcnow()
-        
+            end_dt = datetime.now(timezone.utc)
+
         if start_date:
-            start_dt = datetime.combine(start_date, datetime.min.time())
+            start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
         else:
             start_dt = end_dt - timedelta(days=30)
-        
+
         return start_dt, end_dt
     
     async def get_company_overview(

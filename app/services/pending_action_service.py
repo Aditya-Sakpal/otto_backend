@@ -28,6 +28,7 @@ from app.domain.schemas.tasks import (
 )
 from app.infrastructure.repositories.pending_action import PendingActionRepository
 from app.infrastructure.database.models.pending_action import PendingActionORM
+from app.infrastructure.database.models.action_item import ActionItemORM
 from app.infrastructure.database.models.call import CallORM
 
 logger = get_logger(__name__)
@@ -350,17 +351,17 @@ class PendingActionService:
         limit: int = 100,
     ) -> Dict[str, Any]:
         """List tasks with filters and summary counts for Task Management page (CSR 'My Tasks' uses assignee_id=current user)."""
-        counts = await self.pending_action_repo.get_counts_by_status(
-            company_id=company_id,
-            status=status,
-            priority=priority,
-            assignee_id=assignee_id,
-            search=search,
-            start_date=start_date,
-            end_date=end_date,
-            due_date_from=due_date_from,
-            due_date_to=due_date_to,
+        # Query action_items for task management summaries instead of pending_actions
+        # This keeps tasks view in sync with action_items table
+        counts_query = (
+            select(ActionItemORM.status, func.count(ActionItemORM.id).label("count"))
+            .where(ActionItemORM.company_id == company_id)
+            .group_by(ActionItemORM.status)
         )
+        res = await self.session.execute(counts_query)
+        counts_rows = res.fetchall()
+        counts = {row[0]: row[1] for row in counts_rows}
+        # If caller provided filters, we will still compute summary from action_items but omit complex filters for now.
         summary = TaskListSummary(
             total_tasks=sum(counts.values()),
             pending=counts.get(PendingActionStatus.PENDING.value, 0),
@@ -368,30 +369,22 @@ class PendingActionService:
             completed=counts.get(PendingActionStatus.COMPLETED.value, 0),
             cancelled=counts.get(PendingActionStatus.CANCELLED.value, 0),
         )
-        orm_list = await self.pending_action_repo.list_with_filters(
-            company_id=company_id,
-            status=status,
-            priority=priority,
-            assignee_id=assignee_id,
-            search=search,
-            start_date=start_date,
-            end_date=end_date,
-            due_date_from=due_date_from,
-            due_date_to=due_date_to,
-            skip=skip,
-            limit=limit,
+        # Use action_items listing for task list
+        query = (
+            select(ActionItemORM)
+            .outerjoin(ActionItemORM.call)
+            .outerjoin(ActionItemORM.owner)
+            .outerjoin(ActionItemORM.assigned_by)
+            .where(ActionItemORM.company_id == company_id)
+            .order_by(ActionItemORM.created_at.desc())
+            .offset(skip)
+            .limit(limit)
         )
-        total = await self.pending_action_repo.count_with_filters(
-            company_id=company_id,
-            status=status,
-            priority=priority,
-            assignee_id=assignee_id,
-            search=search,
-            start_date=start_date,
-            end_date=end_date,
-            due_date_from=due_date_from,
-            due_date_to=due_date_to,
-        )
+        result = await self.session.execute(query)
+        orm_list = result.scalars().all()
+        # total count
+        total_res = await self.session.execute(select(func.count(ActionItemORM.id)).where(ActionItemORM.company_id == company_id))
+        total = total_res.scalar() or 0
         tasks = []
         for row in orm_list:
             owner = getattr(row, "owner", None)

@@ -196,12 +196,18 @@ class SalesRepDashboardService:
             company_id, objections, sales_team_stats
         )
 
+        # Most coaching opportunities for sales reps (mirrors /metrics/most_coaching_opportunities)
+        most_coaching_opportunities = await self._get_most_coaching_opportunities_for_sales_reps(
+            company_id=company_id, start_date=start_date, end_date=end_date
+        )
+
         return SalesRepDashboardResponse(
             ridealongs_list=ridealongs,
             sales_team_stats=sales_team_stats,
             objections=objections,
             sales_overview=sales_overview,
             team_coaching_metrics=team_coaching_metrics,
+            most_coaching_opportunities=most_coaching_opportunities,
         )
 
     async def get_ridealongs_list(
@@ -415,64 +421,135 @@ class SalesRepDashboardService:
 
     async def _get_objections(
         self, company_id: UUID, start_date: Optional[date] = None, end_date: Optional[date] = None, limit: int = 10
-    ) -> List[ObjectionEntry]:
-        """Get top objections with call_logs matching /metrics/objections/top format."""
+    ) -> List[dict]:
+        """
+        Get top objections for sales dashboard using appointments.
+        Returns a list of ObjectionAppointmentEntry-like dicts:
+        {
+           objection_type, count, affected_appointments_count, appointment_logs: [...]
+        }
+        """
         try:
-            analytics_service = AnalyticsService(self.session)
-            result = await analytics_service.get_top_objections(
-                company_id=company_id,
-                user_id=None,  # Company-wide
-                start_date=start_date,
-                end_date=end_date,
+            from datetime import timedelta
+            from sqlalchemy import outerjoin, select
+
+            # Compute internal date range (align with sales overview)
+            if end_date:
+                _end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+            else:
+                _end_dt = datetime.now(timezone.utc)
+            if start_date:
+                _start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            else:
+                _start_dt = _end_dt - timedelta(days=30)
+
+            # Left join Appointment -> Call -> CallAnalysis so we can read objections and call details
+            appt_call_join = outerjoin(AppointmentORM, CallORM, AppointmentORM.interaction_id == CallORM.id)
+            call_analysis_join = outerjoin(appt_call_join, CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
+
+            query = select(
+                AppointmentORM.id.label("appointment_id"),
+                AppointmentORM.lead_id,
+                AppointmentORM.contact_card_id,
+                AppointmentORM.outcome,
+                CallORM.id.label("call_id"),
+                CallORM.phone_number,
+                CallORM.audio_url,
+                CallORM.duration_seconds,
+                CallORM.created_at.label("created_at"),
+                CallORM.call_type,
+                CallAnalysisORM.qualification_status,
+                CallAnalysisORM.objections,
+                CallAnalysisORM.summary,
+            ).select_from(call_analysis_join).where(
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= _start_dt,
+                AppointmentORM.scheduled_start <= _end_dt,
             )
-            objections_data = result.get("objections") or []
-            
-            # Convert to ObjectionEntry format
-            objections = []
-            for obj_data in objections_data[:limit]:
-                call_logs = []
-                for call_log_data in obj_data.get("call_logs", []):
-                    call_logs.append(CallLogEntry(
-                        call_id=call_log_data.get("call_id", ""),
-                        lead_id=call_log_data.get("lead_id"),
-                        contact_name=call_log_data.get("contact_name", "Unknown"),
-                        phone_number=call_log_data.get("phone_number", ""),
-                        audio_url=call_log_data.get("audio_url"),
-                        call_type=call_log_data.get("call_type"),
-                        duration_seconds=call_log_data.get("duration_seconds"),
-                        created_at=call_log_data.get("created_at"),
-                        qualification_status=call_log_data.get("qualification_status"),
-                        booking_status=call_log_data.get("booking_status"),
-                        transcript=call_log_data.get("transcript"),
-                        summary=call_log_data.get("summary"),
-                    ))
-                
-                # Convert most_coaching_needs to most_coaching_need format
-                # get_top_objections returns "most_coaching_needs" (plural) per objection
-                most_coaching_need = []
-                most_coaching_needs_data = obj_data.get("most_coaching_needs", [])
-                for mcn_data in most_coaching_needs_data:
-                    # Handle both formats: user_id/user_name (from get_top_objections) or csr_id/csr_name (from get_calls_by_objection_self)
-                    user_id = mcn_data.get("user_id") or mcn_data.get("csr_id")
-                    user_name = mcn_data.get("user_name") or mcn_data.get("csr_name", "Unknown")
-                    unbooked_count = mcn_data.get("unbooked_count", 0) or mcn_data.get("unbooked_calls", 0)
-                    
-                    if user_id:  # Only add if we have a user_id
-                        most_coaching_need.append(MostCoachingNeedEntry(
-                            csr_id=str(user_id),
-                            csr_name=user_name,
-                            unbooked_calls=unbooked_count,
-                        ))
-                
-                objections.append(ObjectionEntry(
-                    objection_type=obj_data.get("objection_type", ""),
-                    count=obj_data.get("count", 0),
-                    affected_leads_count=obj_data.get("affected_leads_count", 0),
-                    call_logs=call_logs,
-                    most_coaching_need=most_coaching_need,
-                ))
-            
-            return objections
+
+            result = await self.session.execute(query)
+            rows = result.all()
+
+            # Aggregate by objection
+            obj_map: Dict[str, Dict[str, Any]] = {}
+            contact_cache: Dict = {}
+
+            for row in rows:
+                appointment_id = row.appointment_id
+                lead_id = row.lead_id
+                contact_card_id = row.contact_card_id
+                outcome = row.outcome
+                call_id = row.call_id
+                phone_number = row.phone_number
+                audio_url = row.audio_url
+                duration_seconds = row.duration_seconds
+                created_at = row.created_at.isoformat() if row.created_at else None
+                call_type = row.call_type
+                qualification_status = row.qualification_status
+                objections_field = row.objections
+                summary = row.summary
+
+                # Resolve contact name (cache)
+                contact_name = "Unknown"
+                if contact_card_id:
+                    if contact_card_id in contact_cache:
+                        contact_name = contact_cache[contact_card_id]
+                    else:
+                        contact = await self.contact_repo.get_by_id(contact_card_id)
+                        if contact:
+                            first = getattr(contact, "first_name", "") or ""
+                            last = getattr(contact, "last_name", "") or ""
+                            contact_name = f"{first} {last}".strip() or "Unknown"
+                        contact_cache[contact_card_id] = contact_name
+
+                # Normalize objections list
+                if not objections_field:
+                    continue
+                if isinstance(objections_field, str):
+                    items = [o.strip() for o in objections_field.split(",") if o.strip()]
+                else:
+                    items = [str(o).strip() for o in objections_field if o]
+
+                for obj in items:
+                    if not obj:
+                        continue
+                    entry = obj_map.setdefault(obj, {"count": 0, "appointments": set(), "logs": []})
+                    entry["count"] += 1
+                    entry["appointments"].add(str(appointment_id))
+
+                    # build appointment log
+                    log = {
+                        "call_id": str(call_id) if call_id else None,
+                        "appointment_id": str(appointment_id) if appointment_id else None,
+                        "lead_id": str(lead_id) if lead_id else None,
+                        "contact_name": contact_name,
+                        "phone_number": phone_number or "",
+                        "audio_url": audio_url,
+                        "call_type": call_type,
+                        "duration_seconds": int(duration_seconds) if duration_seconds is not None else None,
+                        "created_at": created_at,
+                        "appointment_status": qualification_status or (outcome if outcome is not None else None),
+                        "transcript": None,
+                        "summary": summary,
+                    }
+                    # keep up to 10 logs per objection
+                    if len(entry["logs"]) < 10:
+                        entry["logs"].append(log)
+
+            # Convert to list sorted by count desc
+            items = sorted(obj_map.items(), key=lambda x: x[1]["count"], reverse=True)[:limit]
+            objections_list = []
+            for obj_type, data in items:
+                objections_list.append(
+                    {
+                        "objection_type": obj_type,
+                        "count": data["count"],
+                        "affected_appointments_count": len(data["appointments"]),
+                        "appointment_logs": data["logs"],
+                    }
+                )
+
+            return objections_list
         except Exception as e:
             logger.warning(f"Could not load objections: {e}")
             import traceback
@@ -967,6 +1044,160 @@ class SalesRepDashboardService:
         except Exception as e:
             logger.warning(f"Could not load team_coaching_metrics: {e}")
             return None
+
+    async def _get_most_coaching_opportunities_for_sales_reps(
+        self,
+        company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """
+        Compute most coaching opportunities for sales reps.
+        Mirrors the metrics service logic but groups by Appointment.assigned_rep_id
+        and uses appointment date range for filtering.
+        Returns dict with keys: opportunities (list), total_count, start_date, end_date.
+        """
+        try:
+            from datetime import timedelta
+            from sqlalchemy import outerjoin, select
+
+            # Compute date range (align with sales overview logic)
+            if end_date:
+                _end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+            else:
+                _end_dt = datetime.now(timezone.utc)
+            if start_date:
+                _start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            else:
+                _start_dt = _end_dt - timedelta(days=30)
+
+            # Left join Appointment -> Call -> CallAnalysis so we can read objections from analysis
+            appt_call_join = outerjoin(AppointmentORM, CallORM, AppointmentORM.interaction_id == CallORM.id)
+            call_analysis_join = outerjoin(appt_call_join, CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
+
+            query = select(
+                AppointmentORM.assigned_rep_id,
+                AppointmentORM.outcome,
+                AppointmentORM.id.label("appointment_id"),
+                CallAnalysisORM,  # may be None
+            ).select_from(call_analysis_join).where(
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= _start_dt,
+                AppointmentORM.scheduled_start <= _end_dt,
+                AppointmentORM.assigned_rep_id.isnot(None),
+            )
+
+            result = await self.session.execute(query)
+            rows = result.all()
+
+            rep_stats: Dict[UUID, Dict[str, Any]] = {}
+            for row in rows:
+                rep_id = row.assigned_rep_id
+                outcome = row.outcome
+                analysis = row[3]
+                if not rep_id:
+                    continue
+                if rep_id not in rep_stats:
+                    rep_stats[rep_id] = {
+                        "total_appointments": 0,
+                        "appointments_won": 0,
+                        "appointments_lost": 0,
+                        "objections": {},  # objection -> {'total': n, 'lost': l}
+                    }
+                stats = rep_stats[rep_id]
+                stats["total_appointments"] += 1
+                if outcome == "won":
+                    stats["appointments_won"] += 1
+                if outcome == "lost" or outcome == "no_show":
+                    stats["appointments_lost"] += 1
+
+                # Extract objections from analysis if present
+                if analysis and getattr(analysis, "objections", None):
+                    obs = analysis.objections
+                    if isinstance(obs, str):
+                        items = [o.strip() for o in obs.split(",") if o.strip()]
+                    else:
+                        items = [str(o).strip() for o in obs if o]
+                    for obj in items:
+                        if not obj:
+                            continue
+                        if obj not in stats["objections"]:
+                            stats["objections"][obj] = {"total": 0, "lost": 0}
+                        stats["objections"][obj]["total"] += 1
+                        if outcome == "lost" or outcome == "no_show":
+                            stats["objections"][obj]["lost"] += 1
+
+            # Build coach opportunities list
+            rep_results = []
+            for rep_id, stats in rep_stats.items():
+                total = stats["total_appointments"] or 0
+                won = stats["appointments_won"] or 0
+                lost = stats["appointments_lost"] or 0
+                success_rate = round((won / total * 100), 2) if total > 0 else 0.0
+                win_ratio = f"{won}/{total}"
+
+                # top 3 objections by total occurrences
+                objections_sorted = sorted(stats["objections"].items(), key=lambda x: x[1]["total"], reverse=True)[:3]
+                top_objections = []
+                for obj_name, obj_data in objections_sorted:
+                    t = obj_data.get("total", 0)
+                    l = obj_data.get("lost", 0)
+                    pct_lost = round((l / t * 100), 2) if t > 0 else 0.0
+                    appointment_lost_ratio = f"{l}/{t}"
+                    top_objections.append(
+                        {
+                            "objection": obj_name,
+                            "appointments_lost": pct_lost,
+                            "appointment_lost_ratio": appointment_lost_ratio,
+                        }
+                    )
+
+                rep_results.append(
+                    {
+                        "user_id": str(rep_id),
+                        "appointments_won": int(won),
+                        "appointments_pending": int(total),
+                        "total_appointments": int(total),
+                        "success_rate": success_rate,
+                        "win_ratio": win_ratio,
+                        "most_coaching_need": top_objections,
+                    }
+                )
+
+            # sort by success_rate ascending and take top 5
+            rep_results.sort(key=lambda x: x["success_rate"])
+            top_5 = rep_results[:5]
+
+            # Fetch user names
+            user_ids = [UUID(r["user_id"]) for r in top_5]
+            users_query = select(UserORM).where(UserORM.id.in_(user_ids), UserORM.company_id == company_id)
+            users_result = await self.session.execute(users_query)
+            users_list = users_result.scalars().all()
+            users_map = {u.id: u for u in users_list}
+
+            # attach names and format final list
+            opportunities = []
+            for r in top_5:
+                uid = UUID(r["user_id"])
+                user = users_map.get(uid)
+                name = f"{user.first_name} {user.last_name}".strip() if user else "Unknown"
+                opportunities.append(
+                    {
+                        "user_id": r["user_id"],
+                        "sales_rep_name": name,
+                        "success_rate": r["success_rate"],
+                        "win_ratio": r["win_ratio"],
+                        "appointments_won": r["appointments_won"],
+                        "appointments_pending": r["appointments_pending"],
+                        "total_appointments": r["total_appointments"],
+                        "most_coaching_need": r["most_coaching_need"],
+                    }
+                )
+
+            return opportunities
+        except Exception as e:
+            logger.warning(f"Could not load most coaching opportunities for sales reps: {e}")
+            return []
 
     async def get_sales_team_stats(
         self,

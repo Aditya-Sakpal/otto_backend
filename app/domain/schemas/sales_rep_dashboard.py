@@ -82,6 +82,35 @@ class ObjectionEntry(BaseModel):
     )
 
 
+class AppointmentLogEntry(BaseModel):
+    """Single appointment log entry for objections in sales dashboard."""
+
+    call_id: Optional[str] = Field(None, description="Call UUID")
+    appointment_id: Optional[str] = Field(None, description="Appointment UUID")
+    lead_id: Optional[str] = Field(None, description="Lead UUID")
+    contact_name: str = Field(..., description="Contact name")
+    phone_number: str = Field(..., description="Phone number")
+    audio_url: Optional[str] = Field(None, description="Audio recording URL")
+    call_type: Optional[str] = Field(None, description="Call type")
+    duration_seconds: Optional[int] = Field(None, description="Duration in seconds")
+    created_at: Optional[str] = Field(None, description="Call creation timestamp (ISO format)")
+    appointment_status: Optional[str] = Field(None, description="Appointment/qualification status")
+    transcript: Optional[str] = Field(None, description="Call transcript")
+    summary: Optional[str] = Field(None, description="Call/appointment summary")
+
+
+class ObjectionAppointmentEntry(BaseModel):
+    """Objection entry formatted for sales rep dashboard (appointment-focused)."""
+
+    objection_type: str = Field(..., description="Objection type (e.g., price, timing, authority)")
+    count: int = Field(..., description="Number of appointments with this objection")
+    affected_appointments_count: int = Field(..., description="Number of unique appointments affected")
+    appointment_logs: List[AppointmentLogEntry] = Field(
+        default_factory=list,
+        description="List of appointment logs with this objection",
+    )
+
+
 class CoreKpis(BaseModel):
     """Core KPIs for sales overview."""
 
@@ -159,6 +188,30 @@ class TeamCoachingMetrics(BaseModel):
     attendance: AttendanceMetrics = Field(..., description="Attendance metrics")
 
 
+class SalesRepObjectionLossEntry(BaseModel):
+    """Objection entry specific for sales rep coaching opportunities (appointment-based)."""
+
+    objection: str = Field(..., description="Objection text")
+    appointments_lost: float = Field(..., description="Percentage of appointments lost for this objection (0-100)")
+    appointment_lost_ratio: str = Field(..., description="Lost / total_with_objection (e.g. 6/12)")
+
+
+class SalesRepCoachingOpportunityEntry(BaseModel):
+    """Single sales-rep coaching opportunity entry (appointment-focused)."""
+
+    user_id: str = Field(..., description="Sales rep user UUID")
+    sales_rep_name: str = Field(..., description="Sales rep display name")
+    success_rate: float = Field(..., description="Success rate percentage (won / total * 100)")
+    win_ratio: str = Field(..., description="Won/total string (e.g. '8/16')")
+    appointments_won: int = Field(..., description="Number of appointments won")
+    appointments_pending: int = Field(..., description="Number of appointments assigned (pending/resolved) - total appointments")
+    total_appointments: int = Field(..., description="Total appointments (same as appointments_pending)")
+    most_coaching_need: List[SalesRepObjectionLossEntry] = Field(
+        default_factory=list,
+        description="Top objections with appointment-lost metrics",
+    )
+
+
 class SalesRepDashboardResponse(BaseModel):
     """Main dashboard response with ridealongs, sales team stats, and overview sections."""
 
@@ -170,9 +223,9 @@ class SalesRepDashboardResponse(BaseModel):
         default_factory=list,
         description="Sales team stats (up to 3)",
     )
-    objections: List[ObjectionEntry] = Field(
+    objections: List[ObjectionAppointmentEntry] = Field(
         default_factory=list,
-        description="Top objections with call_logs (same format as /metrics/objections/top)",
+        description="Top objections (appointment-focused) with appointment_logs",
     )
     sales_overview: Optional[SalesOverview] = Field(
         None,
@@ -181,6 +234,10 @@ class SalesRepDashboardResponse(BaseModel):
     team_coaching_metrics: Optional[TeamCoachingMetrics] = Field(
         None,
         description="Team coaching metrics",
+    )
+    most_coaching_opportunities: List[SalesRepCoachingOpportunityEntry] = Field(
+        default_factory=list,
+        description="Most coaching opportunities for sales reps (appointment-focused list)",
     )
 
 

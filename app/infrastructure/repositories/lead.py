@@ -247,17 +247,44 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             if statuses:
                 query = query.where(LeadORM.status.in_(statuses))
             if search and search.strip():
+                # Build subquery to get lead IDs matching contact search to avoid DISTINCT over JSON columns
                 search_term = f"%{search.strip().lower()}%"
-                query = query.outerjoin(ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id).where(
-                    or_(
-                        func.lower(ContactCardORM.first_name).like(search_term),
-                        func.lower(ContactCardORM.last_name).like(search_term),
-                        func.lower(ContactCardORM.primary_phone).like(search_term),
+                subq = (
+                    select(LeadORM.id)
+                    .outerjoin(ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id)
+                    .where(
+                        LeadORM.company_id == company_id,
+                        or_(
+                            func.lower(ContactCardORM.first_name).like(search_term),
+                            func.lower(ContactCardORM.last_name).like(search_term),
+                            func.lower(ContactCardORM.primary_phone).like(search_term),
+                        ),
                     )
-                ).distinct()
-            result = await self.session.execute(
-                query.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit)
-            )
+                    .distinct()
+                    .subquery()
+                )
+
+                # Final query selects leads by id in subquery (avoids DISTINCT on whole row)
+                final_q = (
+                    select(LeadORM)
+                    .options(
+                        selectinload(LeadORM.contact_card),
+                        selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                    )
+                    .where(LeadORM.company_id == company_id, LeadORM.id.in_(select(subq.c.id)))
+                )
+                if start_date is not None:
+                    final_q = final_q.where(LeadORM.created_at >= datetime.combine(start_date, datetime.min.time()))
+                if end_date is not None:
+                    final_q = final_q.where(LeadORM.created_at <= datetime.combine(end_date, datetime.max.time()))
+                if statuses:
+                    final_q = final_q.where(LeadORM.status.in_(statuses))
+
+                result = await self.session.execute(final_q.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit))
+            else:
+                result = await self.session.execute(
+                    query.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit)
+                )
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:

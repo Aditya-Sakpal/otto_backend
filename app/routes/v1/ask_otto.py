@@ -56,6 +56,110 @@ RESPONSES = {
 }
 
 
+@router.get("/conversations", responses=RESPONSES)
+async def list_user_conversations(
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+):
+    """
+    Get all conversation threads for the authenticated user.
+    User ID is extracted from the JWT token.
+    """
+    try:
+        query = (
+            select(AskOttoConversationORM)
+            .where(AskOttoConversationORM.user_id == current_user.id)
+            .order_by(AskOttoConversationORM.created_at.desc())
+        )
+        result = await db.execute(query)
+        conversations = result.scalars().all()
+
+        return {
+            "conversations": [
+                {
+                    "id": str(conv.id),
+                    "conversation_id": conv.shunya_conversation_id,
+                    "company_id": str(conv.company_id),
+                    "title": conv.title,
+                    "context": conv.context,
+                    "created_at": conv.created_at.isoformat(),
+                    "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
+                }
+                for conv in conversations
+            ],
+            "total": len(conversations),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing conversations: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list conversations: {str(e)}",
+        )
+
+
+@router.get("/thread/chats", responses=RESPONSES)
+async def get_thread_chats(
+    thread_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+):
+    """
+    Get all chats/messages of a particular conversation thread.
+    Thread ID is passed as a query parameter.
+    """
+    try:
+        # Verify the conversation exists
+        conv_query = select(AskOttoConversationORM).where(
+            AskOttoConversationORM.id == thread_id
+        )
+        conv_result = await db.execute(conv_query)
+        conversation = conv_result.scalar_one_or_none()
+
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation thread not found",
+            )
+
+        # Get all messages ordered by creation time
+        messages_query = (
+            select(AskOttoMessageORM)
+            .where(AskOttoMessageORM.conversation_id == thread_id)
+            .order_by(AskOttoMessageORM.created_at)
+        )
+        messages_result = await db.execute(messages_query)
+        messages = messages_result.scalars().all()
+
+        return {
+            "thread_id": str(thread_id),
+            "title": conversation.title,
+            "company_id": str(conversation.company_id),
+            "messages": [
+                {
+                    "id": str(msg.id),
+                    "role": msg.role,
+                    "content": msg.content,
+                    "message_metadata": msg.message_metadata,
+                    "created_at": msg.created_at.isoformat(),
+                }
+                for msg in messages
+            ],
+            "total": len(messages),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting thread chats: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get thread chats: {str(e)}",
+        )
+
+
 @router.post(
     "/conversations",
     status_code=status.HTTP_201_CREATED,

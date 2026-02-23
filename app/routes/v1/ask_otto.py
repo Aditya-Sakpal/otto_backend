@@ -6,10 +6,11 @@ Handles conversational querying over calls, customers, and insights.
 import asyncio
 import json
 import traceback
-from typing import AsyncGenerator, Optional, List
+from datetime import datetime
+from typing import Any, AsyncGenerator, Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -27,44 +28,191 @@ router = APIRouter(prefix="/ask-otto", tags=["ask-otto"])
 logger = get_logger(__name__)
 
 
-# Request/Response Models
+# ──────────────────────────── Request Models ────────────────────────────
+
 class CreateConversationRequest(BaseModel):
-    """Request to create a conversation."""
-    company_id: str = Field(..., description="Company UUID")
-    context: Optional[dict] = Field(None, description="Optional conversation context")
+    """Request body to create a new Ask Otto conversation thread."""
+    company_id: str = Field(
+        ...,
+        description="UUID of the company this conversation belongs to",
+        json_schema_extra={"example": "6d40b509-82bc-4d21-9614-de91cc25dc1b"},
+    )
+    context: Optional[dict] = Field(
+        None,
+        description="Optional context/metadata to seed the conversation (e.g. page the user is on, selected lead, etc.)",
+        json_schema_extra={"example": {"source": "dashboard", "lead_id": "abc-123"}},
+    )
 
 
 class SendMessageRequest(BaseModel):
-    """Request to send a message."""
-    message: str = Field(..., description="User message")
+    """Request body to send a user message in a conversation."""
+    message: str = Field(
+        ...,
+        description="The user's message / question to Ask Otto",
+        json_schema_extra={"example": "What are the top objections this week?"},
+    )
 
+
+# ──────────────────────────── Response Models ───────────────────────────
 
 class CreateConversationResponse(BaseModel):
-    """Response from creating an Ask Otto conversation."""
-    id: str = Field(..., description="Local conversation UUID")
-    conversation_id: str = Field(..., description="Shunya or local conversation ID")
-    company_id: str = Field(..., description="Company UUID")
+    """Response returned after creating a new conversation thread."""
+    id: str = Field(..., description="Local database UUID of the conversation")
+    conversation_id: str = Field(..., description="Shunya conversation ID (falls back to local UUID if Shunya is unavailable)")
+    company_id: str = Field(..., description="UUID of the company")
 
     class Config:
         extra = "allow"
+        json_schema_extra = {
+            "example": {
+                "id": "3cc9a055-30ce-44d2-b06e-d49e437293a7",
+                "conversation_id": "288c269f-8fd2-4d9e-bd7e-8aaf27847610",
+                "company_id": "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+            }
+        }
 
+
+class ConversationThread(BaseModel):
+    """A single conversation thread summary (no messages)."""
+    id: str = Field(..., description="Local database UUID of the conversation thread")
+    conversation_id: Optional[str] = Field(None, description="Shunya conversation ID (may be null for local-only threads)")
+    company_id: str = Field(..., description="UUID of the company this thread belongs to")
+    title: Optional[str] = Field(None, description="Auto-generated or user-set title for the thread")
+    context: Optional[dict] = Field(None, description="Context/metadata that was provided when the thread was created")
+    created_at: str = Field(..., description="ISO 8601 timestamp of when the thread was created")
+    updated_at: Optional[str] = Field(None, description="ISO 8601 timestamp of the last update (null if never updated)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "3cc9a055-30ce-44d2-b06e-d49e437293a7",
+                "conversation_id": "288c269f-8fd2-4d9e-bd7e-8aaf27847610",
+                "company_id": "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+                "title": "Weekly objections analysis",
+                "context": {"source": "dashboard"},
+                "created_at": "2026-01-31T09:16:34.937817+00:00",
+                "updated_at": None,
+            }
+        }
+
+
+class ListConversationsResponse(BaseModel):
+    """Response containing all conversation threads for the authenticated user."""
+    conversations: List[ConversationThread] = Field(..., description="List of conversation threads, ordered by most recent first")
+    total: int = Field(..., description="Total number of conversation threads returned")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "conversations": [
+                    {
+                        "id": "3cc9a055-30ce-44d2-b06e-d49e437293a7",
+                        "conversation_id": "288c269f-8fd2-4d9e-bd7e-8aaf27847610",
+                        "company_id": "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+                        "title": "Weekly objections analysis",
+                        "context": None,
+                        "created_at": "2026-01-31T09:16:34.937817+00:00",
+                        "updated_at": None,
+                    }
+                ],
+                "total": 1,
+            }
+        }
+
+
+class ChatMessage(BaseModel):
+    """A single message within a conversation thread."""
+    id: str = Field(..., description="UUID of this message")
+    role: str = Field(..., description="Who sent this message: 'user' or 'assistant'")
+    content: str = Field(..., description="The message text content (may contain markdown)")
+    message_metadata: Optional[dict] = Field(None, description="Extra metadata from Shunya (conversation_id, message_id, citations, etc.)")
+    created_at: str = Field(..., description="ISO 8601 timestamp of when this message was sent")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "7fa14583-4021-4860-a78e-47543108ac72",
+                "role": "user",
+                "content": "What are the top objections this week?",
+                "message_metadata": None,
+                "created_at": "2026-01-31T09:16:34.937817+00:00",
+            }
+        }
+
+
+class ThreadChatsResponse(BaseModel):
+    """Response containing all messages (chats) in a conversation thread."""
+    thread_id: str = Field(..., description="UUID of the conversation thread")
+    title: Optional[str] = Field(None, description="Title of the conversation thread (may be null)")
+    company_id: str = Field(..., description="UUID of the company this thread belongs to")
+    messages: List[ChatMessage] = Field(..., description="List of messages in chronological order (oldest first)")
+    total: int = Field(..., description="Total number of messages in this thread")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "thread_id": "3cc9a055-30ce-44d2-b06e-d49e437293a7",
+                "title": "Weekly objections analysis",
+                "company_id": "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+                "messages": [
+                    {
+                        "id": "7fa14583-4021-4860-a78e-47543108ac72",
+                        "role": "user",
+                        "content": "What are the top objections this week?",
+                        "message_metadata": None,
+                        "created_at": "2026-01-31T09:16:34.937817+00:00",
+                    },
+                    {
+                        "id": "9c21a0e6-84f8-4d23-a27a-9351ab7daa6b",
+                        "role": "assistant",
+                        "content": "Based on the calls this week, the top objections were:\n1. **Scheduling confusion**...",
+                        "message_metadata": {"conversation_id": "288c269f-...", "message_id": "msg_6095a2b5..."},
+                        "created_at": "2026-01-31T09:16:38.123456+00:00",
+                    },
+                ],
+                "total": 2,
+            }
+        }
+
+
+# ──────────────────────────── Error Responses ───────────────────────────
 
 RESPONSES = {
-    403: {"description": "Forbidden"},
-    404: {"description": "Conversation not found"},
+    401: {"description": "Unauthorized - Bearer token is missing or invalid"},
+    403: {"description": "Forbidden - User does not have the required role (CSR / Sales Rep / Executive)"},
+    404: {"description": "Conversation thread not found for the given ID"},
     500: {"description": "Internal server error"},
 }
 
 
-@router.get("/conversations", responses=RESPONSES)
+@router.get(
+    "/conversations",
+    response_model=ListConversationsResponse,
+    summary="List all conversation threads for the logged-in user",
+    description="""
+Returns every Ask Otto conversation thread that belongs to the currently
+authenticated user. The **user_id is automatically extracted from the
+Bearer JWT token** — no need to pass it explicitly.
+
+**Authentication:** Bearer token required (roles: CSR, Sales Rep, Executive).
+
+**Ordering:** Threads are returned newest-first (`created_at DESC`).
+
+**Frontend usage:** Call this endpoint on the Ask Otto sidebar / thread list page
+to populate the user's conversation history.
+""",
+    responses={
+        **RESPONSES,
+        200: {
+            "description": "List of conversation threads returned successfully",
+            "model": ListConversationsResponse,
+        },
+    },
+)
 async def list_user_conversations(
     db: DbSession,
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
 ):
-    """
-    Get all conversation threads for the authenticated user.
-    User ID is extracted from the JWT token.
-    """
     try:
         query = (
             select(AskOttoConversationORM)
@@ -100,16 +248,43 @@ async def list_user_conversations(
         )
 
 
-@router.get("/thread/chats", responses=RESPONSES)
+@router.get(
+    "/thread/chats",
+    response_model=ThreadChatsResponse,
+    summary="Get all messages (chats) in a conversation thread",
+    description="""
+Returns every message in a single Ask Otto conversation thread, in
+**chronological order** (oldest first), so the frontend can render the
+chat history top-to-bottom.
+
+**Query parameter:**
+- `thread_id` (required, UUID) — the conversation thread ID obtained from
+  the `GET /ask-otto/conversations` endpoint (use the `id` field).
+
+**Authentication:** Bearer token required (roles: CSR, Sales Rep, Executive).
+
+**Each message contains:**
+| Field | Description |
+|---|---|
+| `id` | UUID of the message |
+| `role` | `"user"` or `"assistant"` |
+| `content` | Message text (may contain markdown) |
+| `message_metadata` | Extra Shunya metadata (citations, sources) — nullable |
+| `created_at` | ISO 8601 timestamp |
+""",
+    responses={
+        **RESPONSES,
+        200: {
+            "description": "All messages in the thread returned successfully",
+            "model": ThreadChatsResponse,
+        },
+    },
+)
 async def get_thread_chats(
-    thread_id: UUID,
     db: DbSession,
+    thread_id: UUID = Query(..., description="UUID of the conversation thread to fetch messages for"),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
 ):
-    """
-    Get all chats/messages of a particular conversation thread.
-    Thread ID is passed as a query parameter.
-    """
     try:
         # Verify the conversation exists
         conv_query = select(AskOttoConversationORM).where(

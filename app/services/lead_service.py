@@ -148,6 +148,32 @@ class LeadService:
             limit=limit,
         )
     
+    async def get_pipeline_view(
+        self,
+        company_id: UUID,
+    ) -> dict:
+        """
+        Get leads grouped by pipeline stage.
+
+        Returns a dictionary with all pipeline stages as keys,
+        each containing an array of leads in that stage.
+        """
+        from app.domain.enums import PipelineStage
+
+        # Initialize all stages with empty lists
+        pipeline: dict = {stage.value: [] for stage in PipelineStage}
+
+        # Fetch all leads that have a pipeline_stage
+        leads = await self.lead_repo.get_by_pipeline_stages(company_id=company_id)
+
+        for lead in leads:
+            ps = lead.pipeline_stage
+            stage_value = ps.value if hasattr(ps, "value") else ps
+            if stage_value and stage_value in pipeline:
+                pipeline[stage_value].append(lead)
+
+        return pipeline
+
     async def get_detail_by_id(self, lead_id: UUID) -> Optional[LeadDetail]:
         """Get detailed lead information for lead details page."""
         return await self.lead_repo.get_detail_by_id(lead_id)

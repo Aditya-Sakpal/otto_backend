@@ -540,6 +540,30 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             logger.error(f"Error counting leads by statuses: {e}")
             raise e
 
+    async def get_by_pipeline_stages(
+        self,
+        company_id: UUID,
+    ) -> List[Lead]:
+        """Get all leads for a company that have a pipeline_stage set, with relationships loaded."""
+        try:
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                )
+                .where(
+                    LeadORM.company_id == company_id,
+                    LeadORM.pipeline_stage.isnot(None),
+                )
+                .order_by(LeadORM.created_at.desc())
+            )
+            orm_objs = result.scalars().all()
+            return [self._to_domain(obj) for obj in orm_objs]
+        except Exception as e:
+            logger.error(f"Error getting leads by pipeline stages: {e}")
+            raise e
+
     async def get_detail_by_id(self, lead_id: UUID) -> Optional[LeadDetail]:
         """Get detailed lead information for lead details page."""
         try:

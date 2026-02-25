@@ -16,6 +16,7 @@ from app.domain.models.lead_detail import LeadDetail
 from app.domain.users.models import User
 from app.services.lead_service import LeadService
 from pydantic import BaseModel, Field
+from typing import Dict
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -128,6 +129,33 @@ async def list_leads(
         )
     except Exception as e:
         logger.error(f"Error listing leads: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/pipeline", response_model=Dict[str, List[Lead]], responses=RESPONSES)
+async def get_pipeline_view(
+    company_id: UUID,
+    db: DbSession,
+    user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
+) -> Dict[str, List[Lead]]:
+    """
+    Get leads grouped by pipeline stage.
+
+    Returns a dictionary with all pipeline stages as keys
+    (qualified, unqualified, service_not_offered, booked, appointment_ran, won, lost, review),
+    each containing an array of leads in that stage.
+
+    Access: EXECUTIVE, CSR
+    """
+    try:
+        service = LeadService(db)
+        return await service.get_pipeline_view(company_id=company_id)
+    except Exception as e:
+        logger.error(f"Error getting pipeline view: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

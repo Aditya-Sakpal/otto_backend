@@ -12,7 +12,7 @@ from app.core.dependencies import DbSession
 from app.core.permissions import require_manager_or_csr, require_manager_or_sales_rep
 from app.core.logging import get_logger
 from app.domain.models.lead import Lead
-from app.domain.models.lead_detail import LeadDetail
+from app.domain.models.lead_detail import LeadDetail, PipelineLeadDetail
 from app.domain.users.models import User
 from app.services.lead_service import LeadService
 from pydantic import BaseModel, Field
@@ -233,6 +233,48 @@ async def get_lead_details(
         raise
     except Exception as e:
         logger.error(f"Error getting lead details: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/{lead_id}/pipeline-detail", response_model=PipelineLeadDetail, responses=RESPONSES)
+async def get_pipeline_lead_detail(
+    lead_id: UUID,
+    db: DbSession,
+    user: User = Depends(require_manager_or_csr),
+) -> PipelineLeadDetail:
+    """
+    Get 3-tab pipeline lead detail view.
+
+    Returns structured data for the three tabs shown in the pipeline card detail:
+
+    - **lead** (always present): CSR stage — overall engagement (last touched, next move,
+      summary, key points) and all conversations (calls) with their analysis data.
+    - **appointment** (present when a linked appointment exists): appointment details
+      including contact name, assigned sales rep, status, location, date/time, meeting URL.
+    - **result** (present when appointment has been conducted): outcome engagement
+      (last touched, next move, summary, key points) and the appointment call conversation.
+
+    Access: EXECUTIVE, CSR
+    """
+    try:
+        service = LeadService(db)
+        detail = await service.get_pipeline_detail_by_id(lead_id)
+
+        if not detail:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead not found",
+            )
+
+        return detail
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting pipeline lead detail: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

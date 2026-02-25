@@ -214,6 +214,7 @@ class AnalyticsService:
         user_id: Optional[UUID] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        unbooked_only: bool = False,
     ) -> Dict[str, Any]:
         """
         Get top objections aggregated by company or user.
@@ -274,6 +275,8 @@ class AnalyticsService:
                 calls_query = calls_query.where(CallORM.created_at >= start_dt)
             if end_dt is not None:
                 calls_query = calls_query.where(CallORM.created_at <= end_dt)
+            if unbooked_only:
+                calls_query = calls_query.where(CallAnalysisORM.booking_status == "not_booked")
 
             calls_results = await self.session.execute(calls_query)
             calls_rows = calls_results.all()
@@ -454,6 +457,8 @@ class AnalyticsService:
                 response["start_date"] = start_date.isoformat()
             if end_date is not None:
                 response["end_date"] = end_date.isoformat()
+            if unbooked_only:
+                response["unbooked_only"] = True
 
             return response
 

@@ -381,23 +381,25 @@ async def get_top_objections(
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
     limit: Optional[int] = Query(None, ge=1, le=20, description="Number of top objections to return (optional, returns all if not specified)"),
+    unbooked_only: bool = Query(False, description="If true, only include objections from calls where the lead was NOT booked (booking_status = 'not_booked')"),
 ):
     """
     Get top objections aggregated by company or user.
-    
+
     **When called by company_id:** Returns objections with objection_type, count, affected_leads_count;
     plus booking_rate, booked, unbooked, booking_rate_trend (start to end date);
     most_coaching_needs (user_id, user details, unbooked count for that objection, call_logs per user);
     and call_logs (all call details where that objection occurred for the company).
-    
+
     **When called by user_id:** Returns objections with objection_type, count, affected_leads_count;
     plus call_logs (call details where that objection occurred for that user only).
-    
+
     - **company_id**: Company UUID (optional if user_id is provided)
     - **user_id**: User UUID (optional). If provided, objections are scoped to that user. If both provided, user_id is used.
     - **start_date**, **end_date**: Filter objections by call date range.
     - **limit**: Optional limit on number of top objections returned.
-    
+    - **unbooked_only**: If true, only include objections from unbooked calls (booking_status = 'not_booked').
+
     Required role: CSR, SALES_REP, or EXECUTIVE
     """
     if not company_id and not user_id:
@@ -416,6 +418,7 @@ async def get_top_objections(
         user_id=user_id,
         start_date=start_date,
         end_date=end_date,
+        unbooked_only=unbooked_only,
     )
     
     if limit is not None:

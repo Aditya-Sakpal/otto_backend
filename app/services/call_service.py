@@ -1084,6 +1084,65 @@ class CallService:
             traceback.print_exc()
             # Non-critical: do not re-raise
 
+    async def _process_pending_actions(
+        self,
+        call: Any,
+        analysis_data: Dict[str, Any],
+        analysis: Any,
+    ) -> None:
+        """
+        Create ActionItem rows from AI-generated next_steps and action_items
+        extracted from the Shunya analysis payload.
+
+        Reads from:
+          analysis_data["summary"]["next_steps"]   – recommended next actions
+          analysis_data["summary"]["action_items"] – explicit action items
+          analysis_data["summary"]["pending_actions"] – pending tasks
+
+        Each string is stored as a separate ActionItemORM row with source="ai_analysis".
+        """
+        try:
+            from app.infrastructure.database.models.action_item import ActionItemORM
+
+            summary_section = analysis_data.get("summary", {})
+            if not isinstance(summary_section, dict):
+                return
+
+            # Collect all action texts from the three possible fields
+            action_texts: List[str] = []
+            for field in ("next_steps", "action_items", "pending_actions"):
+                items = summary_section.get(field) or []
+                if isinstance(items, list):
+                    action_texts.extend(str(i).strip() for i in items if i and str(i).strip())
+
+            if not action_texts:
+                return
+
+            lead_id = getattr(call, "lead_id", None)
+            company_id = getattr(call, "company_id", None)
+
+            for text in action_texts:
+                action_item = ActionItemORM(
+                    company_id=company_id,
+                    lead_id=lead_id,
+                    call_id=call.id,
+                    action_type="follow_up",
+                    raw_text=text,
+                    status="pending",
+                    source="ai_analysis",
+                )
+                self.session.add(action_item)
+
+            await self.session.flush()
+            logger.info(
+                f"Created {len(action_texts)} action items from analysis",
+                call_id=str(call.id),
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing pending actions: {e}", call_id=str(call.id))
+            # Non-critical: do not re-raise
+
     async def get_call_logs(
         self,
         company_id: UUID,

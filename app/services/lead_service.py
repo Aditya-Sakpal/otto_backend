@@ -13,7 +13,7 @@ from sqlalchemy.inspection import inspect
 
 from app.core.logging import get_logger
 from app.domain.models.lead import Lead
-from app.domain.models.lead_detail import LeadDetail
+from app.domain.models.lead_detail import LeadDetail, PipelineLeadDetail
 from app.domain.schemas.sales_rep import (
     PendingLeadsResponse,
     PendingLeadResultItem,
@@ -177,6 +177,10 @@ class LeadService:
     async def get_detail_by_id(self, lead_id: UUID) -> Optional[LeadDetail]:
         """Get detailed lead information for lead details page."""
         return await self.lead_repo.get_detail_by_id(lead_id)
+
+    async def get_pipeline_detail_by_id(self, lead_id: UUID) -> Optional[PipelineLeadDetail]:
+        """Get 3-tab pipeline lead detail (lead, appointment, result)."""
+        return await self.lead_repo.get_pipeline_detail_by_id(lead_id)
 
     async def get_pending_leads(
         self,

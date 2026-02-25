@@ -65,6 +65,7 @@ class LeadDetail(BaseModel):
     company_id: UUID
     status: str
     deal_status: Optional[str] = None
+    pipeline_stage: Optional[str] = None
     deal_size: Optional[float] = None
     created_at: datetime
     updated_at: Optional[datetime] = None

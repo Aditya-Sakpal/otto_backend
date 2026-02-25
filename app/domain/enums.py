@@ -41,6 +41,18 @@ class DealStatus(str, Enum):
     LOST = "lost"
 
 
+class PipelineStage(str, Enum):
+    """Pipeline stage - tracks where the lead is in the sales pipeline."""
+    QUALIFIED = "qualified"
+    UNQUALIFIED = "unqualified"
+    SERVICE_NOT_OFFERED = "service_not_offered"
+    BOOKED = "booked"
+    APPOINTMENT_RAN = "appointment_ran"
+    WON = "won"
+    LOST = "lost"
+    REVIEW = "review"
+
+
 class AppointmentOutcome(str, Enum):
     """Appointment outcome."""
     PENDING = "pending"

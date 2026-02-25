@@ -514,7 +514,7 @@ class GHLService:
         from app.infrastructure.repositories.contact import ContactRepository
         from app.domain.users.repository import UserRepository
         from app.domain.models.lead import Lead
-        from app.domain.enums import LeadStatus, DealStatus
+        from app.domain.enums import LeadStatus, DealStatus, PipelineStage
 
         try:
             location_id = event.get("locationId")
@@ -565,17 +565,20 @@ class GHLService:
                     existing_lead = lead
                     break
 
-            # Map GHL status to our LeadStatus
+            # Map GHL status to our LeadStatus and PipelineStage
             ghl_status = opp_data.get("status", "open")
             if ghl_status == "won":
                 status = LeadStatus.CLOSED_WON
                 deal_status = DealStatus.WON
+                pipeline_stage = PipelineStage.WON
             elif ghl_status == "lost":
                 status = LeadStatus.CLOSED_LOST
                 deal_status = DealStatus.LOST
+                pipeline_stage = PipelineStage.LOST
             else:
                 status = LeadStatus.NEW
                 deal_status = None
+                pipeline_stage = None
 
             # Get assigned user if available
             assigned_rep_id = None
@@ -605,6 +608,7 @@ class GHLService:
                 "contact_card_id": contact_card.id,
                 "status": status.value,
                 "deal_status": deal_status.value if deal_status else None,
+                "pipeline_stage": pipeline_stage.value if pipeline_stage else None,
                 "deal_size": opp_data.get("monetaryValue"),
                 "extra_metadata": {
                     "ghl_opportunity_id": opportunity_id,
@@ -837,7 +841,7 @@ class GHLService:
                     pass
 
             # Map appointment status to outcome
-            from app.domain.enums import AppointmentOutcome
+            from app.domain.enums import AppointmentOutcome, PipelineStage
             appt_status = full_appt_data.get("appointmentStatus", "").lower()
             if appt_status == "confirmed":
                 outcome = AppointmentOutcome.PENDING
@@ -908,6 +912,23 @@ class GHLService:
                 # Create new appointment
                 appointment = Appointment(**appointment_data)
                 await appt_repo.create(appointment)
+
+            # Update lead pipeline_stage based on appointment status
+            if appt_status == "completed" and lead:
+                from sqlalchemy import select
+                from app.infrastructure.database.models.lead import LeadORM
+                result = await db_session.execute(
+                    select(LeadORM).where(LeadORM.id == lead.id)
+                )
+                lead_orm = result.scalar_one_or_none()
+                if lead_orm:
+                    lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
+                    await db_session.flush()
+                    logger.info(
+                        f"Updated lead pipeline_stage to appointment_ran",
+                        lead_id=str(lead.id),
+                        ghl_appointment_id=appointment_id,
+                    )
 
             # Trigger background geocoding if location_address is set
             if appointment_data.get("location_address"):

@@ -20,6 +20,7 @@ class LeadORM(Base):
     contact_card_id: Mapped[UUID] = mapped_column(ForeignKey("contact_cards.id"), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="new", index=True)
     deal_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    pipeline_stage: Mapped[str | None] = mapped_column(String, nullable=True)
     assigned_rep_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     deal_size: Mapped[float | None] = mapped_column(Float, nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

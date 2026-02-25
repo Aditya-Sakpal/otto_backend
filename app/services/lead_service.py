@@ -391,6 +391,21 @@ class LeadService:
             assigned_by_user_id=assigned_by_user_id,
         )
     
+    @staticmethod
+    def _derive_pipeline_stage(lead_status: "LeadStatus") -> Optional[str]:
+        """Derive pipeline_stage from a LeadStatus value."""
+        from app.domain.enums import LeadStatus, PipelineStage
+        mapping = {
+            LeadStatus.QUALIFIED_UNBOOKED: PipelineStage.QUALIFIED,
+            LeadStatus.QUALIFIED_BOOKED: PipelineStage.BOOKED,
+            LeadStatus.QUALIFIED_SERVICE_NOT_OFFERED: PipelineStage.SERVICE_NOT_OFFERED,
+            LeadStatus.ABANDONED: PipelineStage.UNQUALIFIED,
+            LeadStatus.CLOSED_WON: PipelineStage.WON,
+            LeadStatus.CLOSED_LOST: PipelineStage.LOST,
+        }
+        stage = mapping.get(lead_status)
+        return stage.value if stage else None
+
     async def update_status(
         self,
         lead_id: UUID,
@@ -400,27 +415,32 @@ class LeadService:
     ) -> Optional[Lead]:
         """
         Update lead status and optionally log to lead_status_changes audit table.
-        
+        Also auto-derives pipeline_stage from the new status.
+
         Args:
             lead_id: Lead ID
             status: New status value
             changed_by_user_id: User making the change (for audit; if provided, audit row is created)
             reason: Optional reason for the change
-            
+
         Returns:
             Updated lead or None if not found
         """
         from app.domain.enums import LeadStatus
-        
+
         try:
-            LeadStatus(status)
+            lead_status_enum = LeadStatus(status)
         except ValueError:
             raise ValueError(f"Invalid lead status: {status}")
-        
+
+        # Derive pipeline_stage from the new status
+        pipeline_stage = self._derive_pipeline_stage(lead_status_enum)
+
         return await self.lead_repo.update_status(
             lead_id=lead_id,
             status=status,
             changed_by_user_id=changed_by_user_id,
             reason=reason,
+            pipeline_stage=pipeline_stage,
         )
 

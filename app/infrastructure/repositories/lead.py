@@ -13,7 +13,7 @@ from sqlalchemy.inspection import inspect
 from app.core.logging import get_logger
 from app.domain.models.lead import Lead
 from app.domain.models.lead_detail import LeadDetail, ContactInfo, AgentInfo, OverallEngagement, Conversation
-from app.domain.enums import DealStatus
+from app.domain.enums import DealStatus, PipelineStage
 from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.lead_status_change import LeadStatusChangeORM
 from app.infrastructure.database.models.contact import ContactCardORM
@@ -174,6 +174,18 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 )
                 deal_status = None
 
+        # Validate and convert pipeline_stage
+        pipeline_stage = None
+        if orm_obj.pipeline_stage:
+            try:
+                pipeline_stage = PipelineStage(orm_obj.pipeline_stage)
+            except ValueError:
+                logger.warning(
+                    f"Invalid pipeline_stage value: {orm_obj.pipeline_stage} for lead {orm_obj.id}, "
+                    "setting to None"
+                )
+                pipeline_stage = None
+
         # Convert to domain model
         lead_data = {
             "id": orm_obj.id,
@@ -181,6 +193,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "contact_card_id": orm_obj.contact_card_id,
             "status": orm_obj.status,
             "deal_status": deal_status,
+            "pipeline_stage": pipeline_stage,
             "assigned_rep_id": orm_obj.assigned_rep_id,
             "deal_size": orm_obj.deal_size,
             "closed_at": orm_obj.closed_at,
@@ -669,6 +682,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 company_id=lead_orm.company_id,
                 status=lead_orm.status,
                 deal_status=lead_orm.deal_status,
+                pipeline_stage=lead_orm.pipeline_stage,
                 deal_size=lead_orm.deal_size,
                 created_at=lead_orm.created_at,
                 updated_at=lead_orm.updated_at,
@@ -768,8 +782,9 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         status: str,
         changed_by_user_id: Optional[UUID] = None,
         reason: Optional[str] = None,
+        pipeline_stage: Optional[str] = None,
     ) -> Optional[Lead]:
-        """Update lead status and optionally log to lead_status_changes audit table."""
+        """Update lead status, pipeline_stage, and optionally log to lead_status_changes audit table."""
         try:
             result = await self.session.execute(
                 select(LeadORM).where(LeadORM.id == lead_id)
@@ -784,6 +799,8 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             company_id = lead_orm.company_id
 
             lead_orm.status = status
+            if pipeline_stage is not None:
+                lead_orm.pipeline_stage = pipeline_stage
             new_deal_status = lead_orm.deal_status
 
             if changed_by_user_id is not None:

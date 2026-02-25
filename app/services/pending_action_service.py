@@ -373,7 +373,7 @@ class PendingActionService:
         query = (
             select(ActionItemORM)
             .options(
-                selectinload(ActionItemORM.call),
+                selectinload(ActionItemORM.call).selectinload(CallORM.contact_card),
                 selectinload(ActionItemORM.owner),
                 selectinload(ActionItemORM.assigned_by),
             )

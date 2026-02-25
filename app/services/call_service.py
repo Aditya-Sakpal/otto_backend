@@ -34,7 +34,7 @@ from app.domain.users.repository import UserRepository
 from app.domain.users.models import User
 from app.domain.models.lead import Lead
 from app.domain.models.appointment import Appointment
-from app.domain.enums import LeadStatus, DealStatus, AppointmentOutcome
+from app.domain.enums import LeadStatus, DealStatus, AppointmentOutcome, PipelineStage
 from app.services.ghost_mode_service import GhostModeService
 from app.domain.schemas.calls import (
     RecordingAnalysisResponse,
@@ -852,7 +852,30 @@ class CallService:
             return DealStatus.NEW
         
         return None
-    
+
+    def _map_to_pipeline_stage(
+        self,
+        lead_status: LeadStatus,
+    ) -> Optional[PipelineStage]:
+        """
+        Map LeadStatus to PipelineStage.
+
+        Args:
+            lead_status: The lead status after call analysis
+
+        Returns:
+            Appropriate PipelineStage enum value or None
+        """
+        mapping = {
+            LeadStatus.QUALIFIED_UNBOOKED: PipelineStage.QUALIFIED,
+            LeadStatus.QUALIFIED_BOOKED: PipelineStage.BOOKED,
+            LeadStatus.QUALIFIED_SERVICE_NOT_OFFERED: PipelineStage.SERVICE_NOT_OFFERED,
+            LeadStatus.ABANDONED: PipelineStage.UNQUALIFIED,
+            LeadStatus.CLOSED_WON: PipelineStage.WON,
+            LeadStatus.CLOSED_LOST: PipelineStage.LOST,
+        }
+        return mapping.get(lead_status)
+
     async def _find_existing_lead(
         self,
         contact_card_id: UUID,
@@ -996,11 +1019,70 @@ class CallService:
     ) -> None:
         """
         Update dependent entities based on call analysis.
-        ...
-        (file truncated for brevity in this patch; real file contains full implementation)
+
+        Updates lead status, deal_status, and pipeline_stage based on
+        qualification_status and booking_status from the analysis.
+        Also creates/updates appointments when booking_status is 'booked'.
         """
-        # For brevity in this patch file, delegate to original function if present.
-        pass
+        try:
+            if not call.lead_id and not call.contact_card_id:
+                logger.debug("No lead_id or contact_card_id on call, skipping dependent entity updates")
+                return
+
+            # Find the lead
+            lead = None
+            if call.lead_id:
+                lead = await self.lead_repo.get_by_id(call.lead_id)
+            if not lead and call.contact_card_id and call.company_id:
+                lead = await self._find_existing_lead(call.contact_card_id, call.company_id)
+
+            if not lead:
+                logger.debug("No lead found for call, skipping dependent entity updates", call_id=str(call.id))
+                return
+
+            # Map to lead status and pipeline stage
+            qualification_status = getattr(analysis, "qualification_status", None)
+            booking_status = getattr(analysis, "booking_status", None)
+
+            new_lead_status = self._map_to_lead_status(qualification_status, booking_status)
+            new_deal_status = self._map_to_deal_status(booking_status)
+            new_pipeline_stage = self._map_to_pipeline_stage(new_lead_status)
+
+            # Update lead fields
+            from sqlalchemy import select
+            from app.infrastructure.database.models.lead import LeadORM
+
+            result = await self.session.execute(
+                select(LeadORM).where(LeadORM.id == lead.id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if not lead_orm:
+                return
+
+            lead_orm.status = new_lead_status.value
+            if new_deal_status:
+                lead_orm.deal_status = new_deal_status.value
+            if new_pipeline_stage:
+                lead_orm.pipeline_stage = new_pipeline_stage.value
+
+            await self.session.flush()
+
+            logger.info(
+                "Updated lead from call analysis",
+                lead_id=str(lead.id),
+                call_id=str(call.id),
+                status=new_lead_status.value,
+                pipeline_stage=new_pipeline_stage.value if new_pipeline_stage else None,
+            )
+
+            # Create/update appointment if booked
+            if booking_status and booking_status.lower() == "booked":
+                await self._upsert_appointment_from_call(call, analysis)
+
+        except Exception as e:
+            logger.error(f"Error updating dependent entities: {e}", call_id=str(call.id))
+            traceback.print_exc()
+            # Non-critical: do not re-raise
 
     async def get_call_logs(
         self,

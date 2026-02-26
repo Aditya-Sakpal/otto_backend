@@ -4,7 +4,8 @@ Leads API routes.
 Provides lead management endpoints.
 """
 import traceback
-from typing import List, Optional
+from datetime import datetime
+from typing import List, Optional, Dict
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
@@ -16,7 +17,6 @@ from app.domain.models.lead_detail import LeadDetail, PipelineLeadDetail
 from app.domain.users.models import User
 from app.services.lead_service import LeadService
 from pydantic import BaseModel, Field
-from typing import Dict
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -147,7 +147,7 @@ async def get_pipeline_view(
     Get leads grouped by pipeline stage.
 
     Returns a dictionary with all pipeline stages as keys
-    (qualified, unqualified, service_not_offered, booked, appointment_ran, won, lost, review),
+    (qualified, unqualified, service_not_offered, booked, appointment, appointment_ran, won, lost, review),
     each containing an array of leads in that stage (capped by `limit`).
 
     Access: EXECUTIVE, CSR
@@ -302,6 +302,116 @@ class UpdateLeadStatusRequest(BaseModel):
     reason: Optional[str] = Field(None, description="Optional reason for the change (audit)")
 
 
+class MoveLeadStageRequest(BaseModel):
+    """
+    Request to move a lead forward to a new pipeline stage.
+
+    **Pipeline order (forward only):**
+    unqualified / service_not_offered / review (0) → qualified (1) → booked (2)
+    → appointment (3) → appointment_ran (4) → won / lost (5)
+
+    **Required fields per target_stage:**
+
+    | target_stage    | Required fields                                                      |
+    |-----------------|----------------------------------------------------------------------|
+    | qualified       | *(none)*                                                             |
+    | booked          | `scheduled_start`                                                    |
+    | appointment     | `assigned_rep_id`; also `scheduled_start` if no appointment exists   |
+    | appointment_ran | *(none)*                                                             |
+    | won             | `deal_size`                                                          |
+    | lost            | *(none)* — `reason` is optional                                      |
+    """
+    target_stage: str = Field(
+        ...,
+        description="Target pipeline stage. Allowed values: qualified, booked, appointment, appointment_ran, won, lost",
+        json_schema_extra={"enum": ["qualified", "booked", "appointment", "appointment_ran", "won", "lost"]},
+    )
+    scheduled_start: Optional[datetime] = Field(
+        None,
+        description="Appointment date/time in ISO 8601 format. "
+        "REQUIRED when target_stage='booked'. "
+        "REQUIRED when target_stage='appointment' and no appointment exists for this lead.",
+    )
+    scheduled_end: Optional[datetime] = Field(
+        None,
+        description="Appointment end date/time in ISO 8601 (optional).",
+    )
+    location_address: Optional[str] = Field(
+        None,
+        description="Appointment location / service address (optional, e.g. '123 Main St, Phoenix AZ').",
+    )
+    assigned_rep_id: Optional[UUID] = Field(
+        None,
+        description="UUID of the sales rep to assign. REQUIRED when target_stage='appointment'. "
+        "The rep must be an active user with role='sales_rep' in the same company.",
+    )
+    deal_size: Optional[float] = Field(
+        None,
+        description="Deal value in dollars. REQUIRED when target_stage='won'.",
+    )
+    reason: Optional[str] = Field(
+        None,
+        description="Reason / note for this move (optional). Stored in the audit log (lead_status_changes table).",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "summary": "Move to booked",
+                    "value": {
+                        "target_stage": "booked",
+                        "scheduled_start": "2026-03-15T10:00:00Z",
+                        "location_address": "123 Main St, Phoenix AZ",
+                    },
+                },
+                {
+                    "summary": "Move to appointment (assign rep)",
+                    "value": {
+                        "target_stage": "appointment",
+                        "assigned_rep_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+                    },
+                },
+                {
+                    "summary": "Move to won",
+                    "value": {
+                        "target_stage": "won",
+                        "deal_size": 12500.00,
+                        "reason": "Customer signed contract",
+                    },
+                },
+                {
+                    "summary": "Move to lost",
+                    "value": {
+                        "target_stage": "lost",
+                        "reason": "Customer chose a competitor",
+                    },
+                },
+            ]
+        }
+    }
+
+
+class MoveLeadStageResponse(BaseModel):
+    """
+    Response after successfully moving a lead to a new pipeline stage.
+
+    Includes the updated lead object, the previous/new stage names,
+    and flags indicating whether an appointment was created or updated as a side-effect.
+    """
+    lead: Lead = Field(..., description="The updated lead object after the stage move")
+    previous_stage: Optional[str] = Field(None, description="Pipeline stage the lead was in before the move")
+    new_stage: str = Field(..., description="Pipeline stage the lead is in now")
+    appointment_created: bool = Field(
+        False,
+        description="True if a new appointment row was created (happens when moving to booked/appointment without an existing appointment)",
+    )
+    appointment_updated: bool = Field(
+        False,
+        description="True if an existing appointment was updated (e.g. rep assigned, or outcome set to won/lost)",
+    )
+
+
 @router.post("/{lead_id}/assign", response_model=AssignLeadResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def assign_lead(
     lead_id: UUID,
@@ -426,5 +536,115 @@ async def update_lead_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update lead status: {str(e)}",
+        )
+
+
+@router.post(
+    "/{lead_id}/move-stage",
+    response_model=MoveLeadStageResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        **RESPONSES,
+        200: {
+            "description": "Lead successfully moved to the new pipeline stage",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "lead": {
+                            "id": "ede64a3e-cb73-44c4-94cc-35af4a95b0ac",
+                            "status": "qualified_booked",
+                            "deal_status": "booked",
+                            "pipeline_stage": "booked",
+                            "assigned_rep_id": None,
+                            "deal_size": None,
+                            "closed_at": None,
+                        },
+                        "previous_stage": "qualified",
+                        "new_stage": "booked",
+                        "appointment_created": True,
+                        "appointment_updated": False,
+                    }
+                }
+            },
+        },
+    },
+    summary="Move lead forward in pipeline",
+    tags=["Pipeline"],
+)
+async def move_lead_stage(
+    lead_id: UUID,
+    request: MoveLeadStageRequest,
+    db: DbSession,
+    user: User = Depends(require_manager_or_csr),
+) -> MoveLeadStageResponse:
+    """
+    Move a lead **forward** through pipeline stages. Backward moves are rejected.
+
+    ## Pipeline Stage Order
+
+    | Order | Stages                                  |
+    |-------|-----------------------------------------|
+    | 0     | unqualified, service_not_offered, review |
+    | 1     | qualified                               |
+    | 2     | booked                                  |
+    | 3     | appointment                             |
+    | 4     | appointment_ran                         |
+    | 5     | won, lost                               |
+
+    Skipping stages is allowed (e.g. qualified → won).
+
+    ## Required Fields Per Target Stage
+
+    | target_stage     | Required                       | Side-effects                                  |
+    |------------------|--------------------------------|-----------------------------------------------|
+    | **qualified**    | —                              | Lead status → qualified_unbooked              |
+    | **booked**       | `scheduled_start`              | Creates appointment if none exists            |
+    | **appointment**  | `assigned_rep_id`              | Assigns rep; creates/updates appointment      |
+    | **appointment_ran** | —                           | —                                             |
+    | **won**          | `deal_size`                    | Sets closed_at; appointment outcome → won     |
+    | **lost**         | — (`reason` optional)          | Sets closed_at; appointment outcome → lost    |
+
+    ## Error Responses (400)
+
+    - `"Cannot move backward from 'won' to 'booked'. Only forward movement is allowed."`
+    - `"scheduled_start is required when moving to 'booked'"`
+    - `"assigned_rep_id is required when moving to 'appointment'"`
+    - `"deal_size is required when moving to 'won'"`
+    - `"Sales rep with ID ... not found or not active"`
+    - `"Lead and sales rep must belong to the same company"`
+
+    ## Audit
+
+    Every move is logged to the `lead_status_changes` table with old/new status,
+    old/new deal_status, the user who made the change, and an optional reason.
+    """
+    try:
+        service = LeadService(db)
+        result = await service.move_pipeline_stage(
+            lead_id=lead_id,
+            target_stage=request.target_stage,
+            changed_by_user_id=user.id,
+            scheduled_start=request.scheduled_start,
+            scheduled_end=request.scheduled_end,
+            location_address=request.location_address,
+            assigned_rep_id=request.assigned_rep_id,
+            deal_size=request.deal_size,
+            reason=request.reason,
+        )
+        return result
+    except ValueError as e:
+        logger.error(f"Validation error moving lead stage: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error moving lead stage: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to move lead stage: {str(e)}",
         )
 

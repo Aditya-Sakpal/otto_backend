@@ -476,3 +476,112 @@ class LeadService:
             pipeline_stage=pipeline_stage,
         )
 
+    async def move_pipeline_stage(
+        self,
+        lead_id: UUID,
+        target_stage: str,
+        changed_by_user_id: UUID,
+        scheduled_start: Optional[datetime] = None,
+        scheduled_end: Optional[datetime] = None,
+        location_address: Optional[str] = None,
+        assigned_rep_id: Optional[UUID] = None,
+        deal_size: Optional[float] = None,
+        reason: Optional[str] = None,
+    ) -> dict:
+        """
+        Move a lead forward through pipeline stages with validation.
+
+        Validates forward-only movement, required inputs per target stage,
+        and delegates DB mutations to the repository.
+        """
+        from app.domain.enums import PipelineStage, PIPELINE_STAGE_ORDER
+        from app.infrastructure.database.models.lead import LeadORM
+
+        # Validate target_stage is a valid PipelineStage
+        try:
+            target = PipelineStage(target_stage)
+        except ValueError:
+            raise ValueError(f"Invalid pipeline stage: {target_stage}")
+
+        movable_stages = {
+            PipelineStage.QUALIFIED,
+            PipelineStage.BOOKED,
+            PipelineStage.APPOINTMENT,
+            PipelineStage.APPOINTMENT_RAN,
+            PipelineStage.WON,
+            PipelineStage.LOST,
+        }
+        if target not in movable_stages:
+            raise ValueError(
+                f"Cannot move to stage '{target_stage}'. "
+                f"Valid targets: {[s.value for s in movable_stages]}"
+            )
+
+        # Fetch lead
+        lead_result = await self.session.execute(
+            select(LeadORM).where(LeadORM.id == lead_id)
+        )
+        lead_orm = lead_result.scalar_one_or_none()
+        if not lead_orm:
+            raise ValueError("Lead not found")
+
+        # Validate forward-only movement
+        current_stage = lead_orm.pipeline_stage
+        current_order = PIPELINE_STAGE_ORDER.get(current_stage, -1)
+        target_order = PIPELINE_STAGE_ORDER[target.value]
+
+        if target_order <= current_order and current_order > 0:
+            raise ValueError(
+                f"Cannot move backward from '{current_stage}' to '{target_stage}'. "
+                f"Only forward movement is allowed."
+            )
+
+        # Validate stage-specific required inputs
+        if target == PipelineStage.BOOKED:
+            if not scheduled_start:
+                raise ValueError("scheduled_start is required when moving to 'booked'")
+
+        elif target == PipelineStage.APPOINTMENT:
+            if not assigned_rep_id:
+                raise ValueError("assigned_rep_id is required when moving to 'appointment'")
+            # Validate rep exists, is active, and belongs to same company
+            rep_result = await self.session.execute(
+                select(UserORM).where(
+                    UserORM.id == assigned_rep_id,
+                    UserORM.role == "sales_rep",
+                    UserORM.is_active == True,
+                )
+            )
+            rep_orm = rep_result.scalar_one_or_none()
+            if not rep_orm:
+                raise ValueError(f"Sales rep with ID {assigned_rep_id} not found or not active")
+            if lead_orm.company_id != rep_orm.company_id:
+                raise ValueError("Lead and sales rep must belong to the same company")
+
+            # If no appointment exists yet, scheduled_start is required
+            existing_appt = await self.session.execute(
+                select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+            )
+            if not existing_appt.scalar_one_or_none() and not scheduled_start:
+                raise ValueError(
+                    "scheduled_start is required when moving to 'appointment' "
+                    "and no appointment exists for this lead"
+                )
+
+        elif target == PipelineStage.WON:
+            if deal_size is None:
+                raise ValueError("deal_size is required when moving to 'won'")
+
+        # Delegate to repository
+        return await self.lead_repo.move_pipeline_stage(
+            lead_id=lead_id,
+            target_stage=target,
+            changed_by_user_id=changed_by_user_id,
+            scheduled_start=scheduled_start,
+            scheduled_end=scheduled_end,
+            location_address=location_address,
+            assigned_rep_id=assigned_rep_id,
+            deal_size=deal_size,
+            reason=reason,
+        )
+

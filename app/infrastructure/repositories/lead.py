@@ -953,6 +953,16 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             # Update assignment
             lead_orm.assigned_rep_id = sales_rep_id
 
+            # Transition pipeline_stage: booked -> appointment when rep is assigned
+            from app.domain.enums import PipelineStage
+            if lead_orm.pipeline_stage == PipelineStage.BOOKED.value:
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
+                logger.info(
+                    f"Transitioned lead pipeline_stage from booked to appointment",
+                    lead_id=str(lead_id),
+                    assigned_rep_id=str(sales_rep_id),
+                )
+
             # Update extra_metadata to track assignment history
             if lead_orm.extra_metadata is None:
                 lead_orm.extra_metadata = {}
@@ -1067,6 +1077,177 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             return self._to_domain(lead_orm)
         except Exception as e:
             logger.error(f"Error updating lead status: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
+
+    async def move_pipeline_stage(
+        self,
+        lead_id: UUID,
+        target_stage: "PipelineStage",
+        changed_by_user_id: UUID,
+        scheduled_start=None,
+        scheduled_end=None,
+        location_address: str = None,
+        assigned_rep_id: UUID = None,
+        deal_size: float = None,
+        reason: str = None,
+    ) -> dict:
+        """
+        Move lead to a new pipeline stage, update related fields,
+        handle appointment side effects, and log an audit trail.
+        """
+        from app.domain.enums import LeadStatus, AppointmentOutcome
+        from uuid import uuid4
+        from datetime import timezone
+
+        try:
+            result = await self.session.execute(
+                select(LeadORM).where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if not lead_orm:
+                raise ValueError("Lead not found")
+
+            # Capture old values for audit
+            old_status = lead_orm.status
+            old_deal_status = lead_orm.deal_status
+            previous_stage = lead_orm.pipeline_stage
+
+            appointment_created = False
+            appointment_updated = False
+
+            # --- Apply changes per target stage ---
+            if target_stage == PipelineStage.QUALIFIED:
+                lead_orm.status = LeadStatus.QUALIFIED_UNBOOKED.value
+                lead_orm.deal_status = DealStatus.NURTURING.value
+                lead_orm.pipeline_stage = PipelineStage.QUALIFIED.value
+
+            elif target_stage == PipelineStage.BOOKED:
+                lead_orm.status = LeadStatus.QUALIFIED_BOOKED.value
+                lead_orm.deal_status = DealStatus.BOOKED.value
+                lead_orm.pipeline_stage = PipelineStage.BOOKED.value
+                # Create appointment if none exists
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if not existing_appt:
+                    new_appt = AppointmentORM(
+                        id=uuid4(),
+                        company_id=lead_orm.company_id,
+                        lead_id=lead_id,
+                        contact_card_id=lead_orm.contact_card_id,
+                        scheduled_start=scheduled_start,
+                        scheduled_end=scheduled_end,
+                        location_address=location_address,
+                        outcome=AppointmentOutcome.PENDING.value,
+                    )
+                    self.session.add(new_appt)
+                    appointment_created = True
+
+            elif target_stage == PipelineStage.APPOINTMENT:
+                lead_orm.status = LeadStatus.QUALIFIED_BOOKED.value
+                lead_orm.deal_status = DealStatus.BOOKED.value
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
+                lead_orm.assigned_rep_id = assigned_rep_id
+                # Create or update appointment
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if existing_appt:
+                    existing_appt.assigned_rep_id = assigned_rep_id
+                    if scheduled_start:
+                        existing_appt.scheduled_start = scheduled_start
+                    if scheduled_end:
+                        existing_appt.scheduled_end = scheduled_end
+                    if location_address:
+                        existing_appt.location_address = location_address
+                    appointment_updated = True
+                else:
+                    new_appt = AppointmentORM(
+                        id=uuid4(),
+                        company_id=lead_orm.company_id,
+                        lead_id=lead_id,
+                        contact_card_id=lead_orm.contact_card_id,
+                        scheduled_start=scheduled_start,
+                        scheduled_end=scheduled_end,
+                        location_address=location_address,
+                        assigned_rep_id=assigned_rep_id,
+                        outcome=AppointmentOutcome.PENDING.value,
+                    )
+                    self.session.add(new_appt)
+                    appointment_created = True
+
+            elif target_stage == PipelineStage.APPOINTMENT_RAN:
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
+
+            elif target_stage == PipelineStage.WON:
+                lead_orm.status = LeadStatus.CLOSED_WON.value
+                lead_orm.deal_status = DealStatus.WON.value
+                lead_orm.pipeline_stage = PipelineStage.WON.value
+                lead_orm.deal_size = deal_size
+                lead_orm.closed_at = datetime.now(timezone.utc)
+                # Update appointment outcome if exists
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if existing_appt:
+                    existing_appt.outcome = AppointmentOutcome.WON.value
+                    appointment_updated = True
+
+            elif target_stage == PipelineStage.LOST:
+                lead_orm.status = LeadStatus.CLOSED_LOST.value
+                lead_orm.deal_status = DealStatus.LOST.value
+                lead_orm.pipeline_stage = PipelineStage.LOST.value
+                lead_orm.closed_at = datetime.now(timezone.utc)
+                # Update appointment outcome if exists
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if existing_appt:
+                    existing_appt.outcome = AppointmentOutcome.LOST.value
+                    appointment_updated = True
+
+            # Always log audit trail
+            audit = LeadStatusChangeORM(
+                lead_id=lead_id,
+                company_id=lead_orm.company_id,
+                changed_by_user_id=changed_by_user_id,
+                old_status=old_status,
+                new_status=lead_orm.status,
+                old_deal_status=old_deal_status,
+                new_deal_status=lead_orm.deal_status,
+                reason=reason or f"Pipeline stage moved to {target_stage.value}",
+            )
+            self.session.add(audit)
+
+            await self.session.commit()
+
+            # Reload lead with relationships
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
+                .where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            lead_domain = self._to_domain(lead_orm) if lead_orm else None
+
+            return {
+                "lead": lead_domain,
+                "previous_stage": previous_stage,
+                "new_stage": target_stage.value,
+                "appointment_created": appointment_created,
+                "appointment_updated": appointment_updated,
+            }
+        except Exception as e:
+            logger.error(f"Error moving lead pipeline stage: {e}")
             import traceback
             traceback.print_exc()
             raise e

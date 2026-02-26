@@ -913,8 +913,8 @@ class GHLService:
                 appointment = Appointment(**appointment_data)
                 await appt_repo.create(appointment)
 
-            # Update lead pipeline_stage based on appointment status
-            if appt_status == "completed" and lead:
+            # Update lead pipeline_stage based on rep assignment and appointment status
+            if lead:
                 from sqlalchemy import select
                 from app.infrastructure.database.models.lead import LeadORM
                 result = await db_session.execute(
@@ -922,13 +922,30 @@ class GHLService:
                 )
                 lead_orm = result.scalar_one_or_none()
                 if lead_orm:
-                    lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
+                    # Transition booked -> appointment when a rep is assigned via GHL
+                    if assigned_rep_id and lead_orm.pipeline_stage == PipelineStage.BOOKED.value:
+                        lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
+                        if not lead_orm.assigned_rep_id:
+                            lead_orm.assigned_rep_id = assigned_rep_id
+                        logger.info(
+                            f"Updated lead pipeline_stage to appointment (rep assigned via GHL)",
+                            lead_id=str(lead.id),
+                            assigned_rep_id=str(assigned_rep_id),
+                        )
+
+                    # Transition booked/appointment -> appointment_ran when completed
+                    if appt_status == "completed" and lead_orm.pipeline_stage in (
+                        PipelineStage.BOOKED.value,
+                        PipelineStage.APPOINTMENT.value,
+                    ):
+                        lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
+                        logger.info(
+                            f"Updated lead pipeline_stage to appointment_ran",
+                            lead_id=str(lead.id),
+                            ghl_appointment_id=appointment_id,
+                        )
+
                     await db_session.flush()
-                    logger.info(
-                        f"Updated lead pipeline_stage to appointment_ran",
-                        lead_id=str(lead.id),
-                        ghl_appointment_id=appointment_id,
-                    )
 
             # Trigger background geocoding if location_address is set
             if appointment_data.get("location_address"):

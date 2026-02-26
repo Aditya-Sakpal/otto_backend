@@ -249,10 +249,17 @@ async def shoonya_job_complete_webhook(
                         complete_summary_data = analysis_data
 
                 if not complete_summary_data:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to fetch summary from Shunya API and no fallback data available: {str(e)}",
+                    # Return 200 so Shunya stops retrying — the call will remain unanalyzed
+                    logger.error(
+                        f"Shunya summary unavailable for call {call_id} and no fallback data in payload. "
+                        f"Call will remain unanalyzed. Shunya error: {e}",
+                        call_id=str(call_id),
                     )
+                    return {
+                        "status": "acknowledged",
+                        "call_id": str(call_id),
+                        "warning": "Summary unavailable from Shunya — call stored without analysis",
+                    }
         else:
             # Shunya not configured - try to use webhook payload data
             logger.warning("Shunya client not available, attempting to use webhook payload data")

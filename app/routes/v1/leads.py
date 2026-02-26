@@ -140,6 +140,7 @@ async def list_leads(
 async def get_pipeline_view(
     company_id: UUID,
     db: DbSession,
+    limit: int = Query(20, ge=1, le=500, description="Max leads per pipeline stage"),
     user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
 ) -> Dict[str, List[Lead]]:
     """
@@ -147,13 +148,13 @@ async def get_pipeline_view(
 
     Returns a dictionary with all pipeline stages as keys
     (qualified, unqualified, service_not_offered, booked, appointment_ran, won, lost, review),
-    each containing an array of leads in that stage.
+    each containing an array of leads in that stage (capped by `limit`).
 
     Access: EXECUTIVE, CSR
     """
     try:
         service = LeadService(db)
-        return await service.get_pipeline_view(company_id=company_id)
+        return await service.get_pipeline_view(company_id=company_id, limit=limit)
     except Exception as e:
         logger.error(f"Error getting pipeline view: {e}")
         traceback.print_exc()

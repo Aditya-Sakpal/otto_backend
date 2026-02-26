@@ -151,12 +151,13 @@ class LeadService:
     async def get_pipeline_view(
         self,
         company_id: UUID,
+        limit: int = 20,
     ) -> dict:
         """
         Get leads grouped by pipeline stage.
 
         Returns a dictionary with all pipeline stages as keys,
-        each containing an array of leads in that stage.
+        each containing an array of leads in that stage (capped by limit).
         """
         from app.domain.enums import PipelineStage
 
@@ -170,7 +171,8 @@ class LeadService:
             ps = lead.pipeline_stage
             stage_value = ps.value if hasattr(ps, "value") else ps
             if stage_value and stage_value in pipeline:
-                pipeline[stage_value].append(lead)
+                if len(pipeline[stage_value]) < limit:
+                    pipeline[stage_value].append(lead)
 
         return pipeline
 

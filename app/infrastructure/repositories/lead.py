@@ -792,7 +792,6 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
 
             lead_tab = PipelineLeadTab(
                 id=lead_orm.id,
-                pipeline_stage=lead_orm.pipeline_stage,
                 status=lead_orm.status,
                 overall_engagement=PipelineEngagement(
                     last_touched=last_touched,
@@ -919,6 +918,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     )
 
             return PipelineLeadDetail(
+                pipeline_stage=lead_orm.pipeline_stage,
                 lead=lead_tab,
                 appointment=appointment_tab,
                 result=result_tab,

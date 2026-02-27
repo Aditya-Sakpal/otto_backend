@@ -77,8 +77,12 @@ async def list_tasks(
             skip=skip,
             limit=limit,
         )
+        summary = result["summary"]
+        total_tasks = summary.total_tasks
+        completion_rate = round((summary.completed / total_tasks) * 100, 2) if total_tasks > 0 else 0.0
         return TaskListResponse(
-            summary=result["summary"],
+            completion_rate=completion_rate,
+            summary=summary,
             tasks=result["tasks"],
             total=result["total"],
             skip=result["skip"],

@@ -283,6 +283,14 @@ async def shoonya_job_complete_webhook(
         # Process analysis with complete data from Summary API
         logger.info(f"Processing analysis for call {call_id} with complete summary data")
 
+        # Ensure company_id is available in metadata for NEW FLOW (call record creation)
+        # Shunya summary has company_id at root level, but process_analysis looks under metadata
+        if company_id and complete_summary_data:
+            if "metadata" not in complete_summary_data:
+                complete_summary_data["metadata"] = {}
+            if isinstance(complete_summary_data.get("metadata"), dict):
+                complete_summary_data["metadata"]["company_id"] = str(company_id)
+
         analysis = await service.process_analysis(
             call_id=call_id,
             analysis_data=complete_summary_data,

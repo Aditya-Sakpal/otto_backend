@@ -319,7 +319,7 @@ class MoveLeadStageRequest(BaseModel):
     | appointment     | `assigned_rep_id`; also `scheduled_start` if no appointment exists   |
     | appointment_ran | *(none)*                                                             |
     | won             | `deal_size`                                                          |
-    | lost            | *(none)* — `reason` is optional                                      |
+    | lost            | `reason`                                                             |
     """
     target_stage: str = Field(
         ...,

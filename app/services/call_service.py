@@ -422,7 +422,7 @@ class CallService:
 
                 # Get call details from metadata or qualification
                 phone_number = metadata.get("phone_number", "unknown")
-                company_id_str = metadata.get("company_id")
+                company_id_str = metadata.get("company_id") or analysis_data.get("company_id")
                 if not company_id_str:
                     raise ValueError("company_id required in metadata to create call record")
 

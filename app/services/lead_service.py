@@ -572,6 +572,10 @@ class LeadService:
             if deal_size is None:
                 raise ValueError("deal_size is required when moving to 'won'")
 
+        elif target == PipelineStage.LOST:
+            if not reason or not reason.strip():
+                raise ValueError("reason is required when moving to 'lost'")
+
         # Delegate to repository
         return await self.lead_repo.move_pipeline_stage(
             lead_id=lead_id,

@@ -112,7 +112,6 @@ class ResultTab(_SlimModel):
 class PipelineLeadTab(_SlimModel):
     """Lead tab — CSR stage data."""
     id: UUID
-    pipeline_stage: Optional[str] = None
     status: str
     overall_engagement: PipelineEngagement
     conversations: List[PipelineConversation] = Field(default_factory=list)
@@ -126,6 +125,7 @@ class PipelineLeadDetail(_SlimModel):
     - appointment: present when lead has a linked appointment
     - result: present when the appointment has been conducted (has outcome or analysis)
     """
+    pipeline_stage: Optional[str] = None
     lead: PipelineLeadTab
     appointment: Optional[AppointmentTab] = None
     result: Optional[ResultTab] = None

@@ -52,6 +52,7 @@ def _build_call_log_entry(
     qualification_status = getattr(analysis, 'qualification_status', None) if analysis else None
     booking_status = getattr(analysis, 'booking_status', None) if analysis else None
     summary = getattr(analysis, 'summary', None) if analysis else None
+    key_points = list(getattr(analysis, 'key_points', None) or []) if analysis else []
 
     return {
         "call_id": call_id or "unknown",
@@ -66,6 +67,7 @@ def _build_call_log_entry(
         "booking_status": booking_status,
         "transcript": transcript,
         "summary": summary,
+        "key_points": key_points,
     }
 
 

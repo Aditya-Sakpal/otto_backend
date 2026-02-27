@@ -60,6 +60,7 @@ class TaskListSummary(BaseModel):
 
 class TaskListResponse(BaseModel):
     """Response for GET /tasks (list + summary)."""
+    completion_rate: float = Field(0.0, description="Percentage of completed tasks (0-100)")
     summary: TaskListSummary
     tasks: List[TaskListItem]
     total: int

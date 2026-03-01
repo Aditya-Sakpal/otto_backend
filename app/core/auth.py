@@ -163,4 +163,3 @@ async def get_current_user_optional(
         return await get_current_user(request, credentials, db)
     except HTTPException:
         return None
-

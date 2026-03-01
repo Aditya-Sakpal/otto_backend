@@ -234,6 +234,27 @@ async def shoonya_job_complete_webhook(
                 # Extract transcript from summary if available
                 transcript = complete_summary_data.get("transcript")
 
+                # If no transcript in summary, fetch from call detail endpoint
+                if not transcript:
+                    try:
+                        logger.info(f"Fetching transcript from Shunya Call Detail API for call {call_id}")
+                        call_detail = await shoonya.get_call_detail(
+                            call_id=str(call_id),
+                            company_id=company_id,
+                            include_transcript=True,
+                            include_segments=False,
+                        )
+                        transcript = call_detail.get("transcript")
+                        if transcript:
+                            logger.info(f"Successfully fetched transcript from Call Detail API for call {call_id}")
+                        else:
+                            logger.warning(f"No transcript available from Call Detail API for call {call_id}")
+                    except Exception as detail_err:
+                        logger.warning(
+                            f"Failed to fetch transcript from Call Detail API: {detail_err}",
+                            call_id=str(call_id),
+                        )
+
             except Exception as e:
                 logger.error(
                     f"Failed to fetch complete summary from Shunya Summary API: {e}",

@@ -20,9 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.core.encryption import decrypt_api_key
 from app.domain.models.call import Call
+from app.domain.models.lead import Lead
+from app.domain.enums import LeadStatus
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.contact import ContactRepository
 from app.infrastructure.repositories.appointment import AppointmentRepository
+from app.infrastructure.repositories.lead import LeadRepository
 from app.domain.users.repository import UserRepository
 from app.core.s3 import get_s3_service
 from app.services.call_service import CallService
@@ -427,6 +430,30 @@ class CTMService:
                 )
                 call = await self.call_repo.create(call)
                 logger.info("Call created", call_id=str(call.id), ctm_call_id=call_id_ctm)
+
+            # Find or create lead for this contact card
+            if contact_card:
+                try:
+                    lead_repo = LeadRepository(self.session)
+                    existing_leads = await lead_repo.get_all(
+                        filters={"contact_card_id": contact_card.id, "company_id": company_id}
+                    )
+                    lead = existing_leads[0] if existing_leads else None
+
+                    if not lead:
+                        lead = Lead(
+                            company_id=company_id,
+                            contact_card_id=contact_card.id,
+                            status=LeadStatus.NEW,
+                        )
+                        lead = await lead_repo.create(lead)
+                        logger.info("Lead created", lead_id=str(lead.id), contact_card_id=str(contact_card.id))
+
+                    if lead and not call.lead_id:
+                        call.lead_id = lead.id
+                        call = await self.call_repo.update(call.id, call)
+                except Exception as e:
+                    logger.error(f"Failed to find or create lead for contact {contact_card.id}: {e}")
 
             # Update contact card with last call metadata (for inbound calls)
             if direction == "inbound" and contact_card:

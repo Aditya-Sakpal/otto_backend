@@ -1316,23 +1316,9 @@ class CallService:
             results = await self.session.execute(query)
             rows = results.all()
 
-            # Calculate summary statistics (from all calls, excluding existing customers and service_not_offered)
+            # Calculate summary statistics from all calls for this company
             # Qualified statuses: hot, cold, warm, qualified
-            summary_base = and_(
-                CallORM.company_id == company_id,
-                or_(
-                    CallAnalysisORM.is_existing_customer == False,
-                    CallAnalysisORM.is_existing_customer.is_(None)
-                ),
-                or_(
-                    CallAnalysisORM.booking_status.is_(None),
-                    func.lower(CallAnalysisORM.booking_status) != "service_not_offered"
-                ),
-                or_(
-                    CallAnalysisORM.service_not_offered_reason.is_(None),
-                    CallAnalysisORM.service_not_offered_reason == ""
-                ),
-            )
+            summary_base = CallORM.company_id == company_id
             summary_query = select(
                 func.count(CallORM.id).label('total_calls'),
                 func.sum(

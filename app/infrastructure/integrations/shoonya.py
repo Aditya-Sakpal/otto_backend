@@ -475,6 +475,58 @@ class ShoonyaClient:
             traceback.print_exc()
             raise
 
+    async def get_call_detail(
+        self,
+        call_id: str,
+        company_id: Optional[str] = None,
+        include_transcript: bool = True,
+        include_segments: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Get call detail including transcript and diarized segments.
+
+        Args:
+            call_id: Call UUID
+            company_id: Optional company ID
+            include_transcript: Whether to include full transcript (default: True)
+            include_segments: Whether to include diarized segments (default: False)
+
+        Returns:
+            Call detail with transcript, segments, metadata, etc.
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        params = {
+            "include_transcript": str(include_transcript).lower(),
+            "include_segments": str(include_segments).lower(),
+        }
+
+        url = f"{self.base_url}/api/v1/call-processing/calls/{call_id}/detail"
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    params=params,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya call detail API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting call detail: {e}")
+            traceback.print_exc()
+            raise
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),

@@ -774,11 +774,109 @@ class CallService:
             # Update dependent entities based on analysis
             await self._update_dependent_entities(call, analysis)
 
+            # Extract coaching data into dedicated tables
+            await self._extract_coaching_data(call, analysis, analysis_data)
+
             return analysis
 
         except Exception as e:
             logger.error(f"Error processing analysis: {e}", call_id=str(call_id))
             raise e
+
+    async def _extract_coaching_data(
+        self,
+        call,
+        analysis,
+        analysis_data: dict,
+    ) -> None:
+        """Extract coaching issues, strengths, and objection details into dedicated tables."""
+        try:
+            from app.infrastructure.database.models.coaching import (
+                CoachingIssueORM,
+                CoachingStrengthORM,
+                CallObjectionDetailORM,
+            )
+
+            company_id = call.company_id
+            user_id = call.handled_by_user_id
+            call_id = call.id
+            analysis_id = analysis.id
+
+            # Extract coaching issues from compliance.sop_compliance.coaching_issues
+            compliance = analysis_data.get("compliance", {})
+            sop_compliance = compliance.get("sop_compliance", {})
+
+            coaching_issues = sop_compliance.get("coaching_issues", [])
+            for issue_data in coaching_issues:
+                if not isinstance(issue_data, dict):
+                    continue
+                issue_obj = CoachingIssueORM(
+                    call_analysis_id=analysis_id,
+                    call_id=call_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    issue=issue_data.get("issue", ""),
+                    severity=issue_data.get("severity", "medium"),
+                    why_it_matters=issue_data.get("why_it_matters"),
+                    how_to_fix=issue_data.get("how_to_fix"),
+                    example_language=issue_data.get("example_language"),
+                    transcript_evidence=issue_data.get("transcript_evidence"),
+                    related_sop_metric=issue_data.get("related_sop_metric"),
+                )
+                self.session.add(issue_obj)
+
+            # Extract coaching strengths from compliance.sop_compliance.coaching_strengths
+            coaching_strengths = sop_compliance.get("coaching_strengths", [])
+            for strength_data in coaching_strengths:
+                if not isinstance(strength_data, dict):
+                    continue
+                strength_obj = CoachingStrengthORM(
+                    call_analysis_id=analysis_id,
+                    call_id=call_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    behavior=strength_data.get("behavior", ""),
+                    why_effective=strength_data.get("why_effective"),
+                    transcript_evidence=strength_data.get("transcript_evidence"),
+                    related_sop_metric=strength_data.get("related_sop_metric"),
+                )
+                self.session.add(strength_obj)
+
+            # Extract objection details from objections.objections
+            objections_section = analysis_data.get("objections", {})
+            objections_list = []
+            if isinstance(objections_section, dict):
+                objections_list = objections_section.get("objections", [])
+            elif isinstance(objections_section, list):
+                objections_list = objections_section
+
+            for obj_data in objections_list:
+                if not isinstance(obj_data, dict):
+                    continue
+                obj_detail = CallObjectionDetailORM(
+                    call_analysis_id=analysis_id,
+                    call_id=call_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    category_id=obj_data.get("category_id"),
+                    category_text=obj_data.get("category_text", "Other"),
+                    objection_text=obj_data.get("objection_text"),
+                    overcome=obj_data.get("overcome", False),
+                    severity=obj_data.get("severity"),
+                    confidence_score=obj_data.get("confidence_score"),
+                )
+                self.session.add(obj_detail)
+
+            await self.session.flush()
+            logger.info(
+                "Extracted coaching data",
+                call_id=str(call_id),
+                issues=len(coaching_issues),
+                strengths=len(coaching_strengths),
+                objections=len(objections_list),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to extract coaching data (non-fatal): {e}")
 
     def _map_to_lead_status(
         self,

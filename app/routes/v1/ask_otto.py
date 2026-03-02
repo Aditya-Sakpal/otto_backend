@@ -28,6 +28,23 @@ router = APIRouter(prefix="/ask-otto", tags=["ask-otto"])
 logger = get_logger(__name__)
 
 
+def _build_user_context(user: User) -> dict:
+    """Build user identity context dict to send to Shunya for personalized responses."""
+    ctx = {
+        "user_id": str(user.id),
+        "user_role": user.role.value if hasattr(user.role, "value") else str(user.role),
+    }
+    name_parts = [user.first_name, user.last_name]
+    full_name = " ".join(p for p in name_parts if p)
+    if full_name:
+        ctx["user_name"] = full_name
+    if user.email:
+        ctx["user_email"] = user.email
+    if user.company_id:
+        ctx["company_id"] = str(user.company_id)
+    return ctx
+
+
 # ──────────────────────────── Request Models ────────────────────────────
 
 class CreateConversationRequest(BaseModel):
@@ -355,11 +372,14 @@ async def create_conversation(
         is_dummy_user = current_user and current_user.email in ["open_access@system.local", "open_access@otto.ai"]
         user_id_for_db = None if is_dummy_user else (current_user.id if current_user else None)
         user_id_for_shunya = None if is_dummy_user else (str(current_user.id) if current_user else None)
-        
+
+        # Build user context for Shunya (so it knows who is asking)
+        user_context = None if is_dummy_user else _build_user_context(current_user)
+
         shoonya = get_shoonya_client()
         shunya_conversation_id = None
         shunya_result = {}
-        
+
         # Try to create conversation in Shunya if available
         if shoonya.is_available():
             try:
@@ -367,6 +387,7 @@ async def create_conversation(
                     company_id=body.company_id,
                     user_id=user_id_for_shunya,
                     metadata=body.context,  # Use context as metadata
+                    user_context=user_context,
                 )
                 shunya_conversation_id = shunya_result.get("conversation_id") or shunya_result.get("id")
             except Exception as e:
@@ -447,7 +468,12 @@ async def send_message(
         shoonya = get_shoonya_client()
         response_text = ""
         result = {}
-        
+
+        # Build user identity for personalized responses
+        is_dummy_user = current_user and current_user.email in ["open_access@system.local", "open_access@otto.ai"]
+        user_id_for_shunya = None if is_dummy_user else (str(current_user.id) if current_user else None)
+        user_context = None if is_dummy_user else _build_user_context(current_user)
+
         # Try to send message to Shunya if available
         if shoonya.is_available() and conversation.shunya_conversation_id:
             try:
@@ -456,6 +482,8 @@ async def send_message(
                     conversation_id=shunya_conv_id,
                     message=body.message,
                     company_id=str(conversation.company_id),
+                    user_id=user_id_for_shunya,
+                    user_context=user_context,
                 )
                 response_text = result.get("answer") or result.get("message") or ""
             except Exception as e:

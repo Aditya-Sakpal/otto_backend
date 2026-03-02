@@ -50,7 +50,7 @@ class ShoonyaClient:
             self._enabled = True
             logger.info(f"Shoonya client initialized with base URL: {self.base_url}")
 
-    def _get_headers(self, company_id: Optional[str] = None) -> Dict[str, str]:
+    def _get_headers(self, company_id: Optional[str] = None, user_id: Optional[str] = None) -> Dict[str, str]:
         """Get standard headers for Shunya API requests."""
         headers = {
             "X-API-Key": self.api_key,
@@ -58,6 +58,8 @@ class ShoonyaClient:
         }
         if company_id:
             headers["X-Company-Id"] = company_id
+        if user_id:
+            headers["X-User-Id"] = user_id
         return headers
 
     def is_available(self) -> bool:
@@ -144,6 +146,8 @@ class ShoonyaClient:
         query: str,
         target_role: str = "customer_rep",
         context: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None,
+        user_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Query Ask Otto (RAG).
@@ -153,6 +157,8 @@ class ShoonyaClient:
             query: User query
             target_role: Target role for context
             context: Additional context
+            user_id: Optional user ID for personalized responses
+            user_context: Optional user identity (name, role, email)
 
         Returns:
             RAG query result
@@ -160,17 +166,23 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
 
+        payload = {
+            "company_id": company_id,
+            "query": query,
+            "target_role": target_role,
+            "context": context or {},
+        }
+        if user_id:
+            payload["user_id"] = user_id
+        if user_context:
+            payload["user_context"] = user_context
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 f"{self.base_url}/api/v1/rag/ask-otto",
-                json={
-                    "company_id": company_id,
-                    "query": query,
-                    "target_role": target_role,
-                    "context": context or {},
-                },
+                json=payload,
                 headers={
-                    **self._get_headers(company_id),
+                    **self._get_headers(company_id, user_id=user_id),
                     "X-Target-Role": target_role,
                 },
             )
@@ -632,6 +644,7 @@ class ShoonyaClient:
         company_id: str,
         user_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        user_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Create a new Ask Otto conversation.
@@ -640,6 +653,7 @@ class ShoonyaClient:
             company_id: Company UUID
             user_id: Optional user ID (defaults to "anonymous" if not provided)
             metadata: Optional metadata (source, user_role, etc.)
+            user_context: Optional user identity context (name, role, email)
 
         Returns:
             Conversation data with conversation_id
@@ -648,12 +662,17 @@ class ShoonyaClient:
             raise RuntimeError("Shoonya not configured")
 
         # user_id is required by Shunya API - use "anonymous" as default
+        effective_user_id = user_id or "anonymous"
         payload = {
             "company_id": company_id,
-            "user_id": user_id or "anonymous",
+            "user_id": effective_user_id,
         }
-        if metadata:
-            payload["metadata"] = metadata
+        # Merge user_context into metadata so Shunya knows who is asking
+        merged_metadata = dict(metadata or {})
+        if user_context:
+            merged_metadata["user_context"] = user_context
+        if merged_metadata:
+            payload["metadata"] = merged_metadata
 
         url = f"{self.base_url}/api/v1/ask-otto/conversations"
         logger.info(f"Calling Shunya API: {url}")
@@ -663,7 +682,7 @@ class ShoonyaClient:
                 response = await client.post(
                     url,
                     json=payload,
-                    headers=self._get_headers(company_id),
+                    headers=self._get_headers(company_id, user_id=effective_user_id),
                 )
                 response.raise_for_status()
                 return response.json()
@@ -689,6 +708,8 @@ class ShoonyaClient:
         conversation_id: str,
         message: str,
         company_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        user_context: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
         options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -699,6 +720,8 @@ class ShoonyaClient:
             conversation_id: Conversation UUID
             message: User message
             company_id: Optional company ID
+            user_id: Optional user ID for personalized responses
+            user_context: Optional user identity (name, role, email) for personalized responses
             context: Optional context (include_customer_context, include_call_history, max_rag_results, search_filters)
             options: Optional options (stream, include_sources, suggest_follow_ups)
 
@@ -709,6 +732,11 @@ class ShoonyaClient:
             raise RuntimeError("Shoonya not configured")
 
         payload = {"message": message}
+        # Include user identity so Shunya can personalize responses
+        if user_id:
+            payload["user_id"] = user_id
+        if user_context:
+            payload["user_context"] = user_context
         if context:
             payload["context"] = context
         if options:
@@ -722,7 +750,7 @@ class ShoonyaClient:
                 response = await client.post(
                     url,
                     json=payload,
-                    headers=self._get_headers(company_id),
+                    headers=self._get_headers(company_id, user_id=user_id),
                 )
                 response.raise_for_status()
                 return response.json()

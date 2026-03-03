@@ -27,6 +27,7 @@ from app.infrastructure.repositories.company_integration import CompanyIntegrati
 from app.services.call_service import CallService, transform_summary_to_analysis_data
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
+from app.services.servicetitan_service import ServiceTitanService
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -336,7 +337,7 @@ async def ghl_message(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     event = GHLService.extract_event_payload(body)
-    
+
     logger.info("GHL message webhook received", payload=body, extracted_event=event)
 
     # Normalize outbound webhook format to standard GHL format
@@ -363,7 +364,9 @@ async def ghl_message(
     is_call_event = (
         message_type == "CALL" or
         webhook_type in ("INBOUNDMESSAGE", "OUTBOUNDMESSAGE") or
-        (has_call_fields and event.get("status", "").lower() in ("completed", "answered"))
+        (has_call_fields and event.get("status", "").lower() in (
+            "completed", "answered", "no-answer", "no answer", "busy", "voicemail", "failed", "missed"
+        ))
     )
 
     if is_call_event:
@@ -675,3 +678,108 @@ async def ctm_call_webhook(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
+
+
+def _verify_worker_secret(x_worker_secret: str | None) -> None:
+    """Validate the shared secret sent by the ST poller worker."""
+    expected = settings.ST_WORKER_SECRET
+    if expected and x_worker_secret != expected:
+        raise HTTPException(status_code=401, detail="Invalid worker secret")
+
+
+@router.post("/servicetitan/calls")
+async def servicetitan_calls_webhook(
+    request: Request,
+    db: DbSession,
+    x_worker_secret: Optional[str] = Header(default=None),
+):
+    """
+    Receive batched ServiceTitan call records from the ST poller worker.
+
+    Payload: { "tenant_id": "...", "calls": [...], "poll_timestamp": "..." }
+    """
+    _verify_worker_secret(x_worker_secret)
+
+    try:
+        payload = await request.json()
+        logger.info("ST calls payload received", payload=payload)
+        logger.info("ST calls webhook received", tenant_id=payload.get("tenant_id"))
+
+        tenant_id = payload.get("tenant_id")
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="tenant_id required")
+
+        integration_repo = CompanyIntegrationRepository(db)
+        company_id = await integration_repo.get_company_id_by_st_tenant_id(str(tenant_id))
+        if not company_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No company found for ST tenant_id {tenant_id}",
+            )
+
+        if not isinstance(company_id, UUID):
+            company_id = UUID(str(company_id))
+
+        service = ServiceTitanService(db)
+        result = await service.process_calls_webhook(payload, company_id)
+        await db.commit()
+
+        return {"status": "success", **result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing ST calls webhook: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/servicetitan/crm")
+async def servicetitan_crm_webhook(
+    request: Request,
+    db: DbSession,
+    x_worker_secret: Optional[str] = Header(default=None),
+):
+    """
+    Receive batched ServiceTitan CRM records from the ST poller worker.
+
+    Payload: {
+        "tenant_id": "...",
+        "customers": [...],
+        "customer_contacts": [...],
+        "leads": [...],
+        "bookings": [...]
+    }
+    """
+    _verify_worker_secret(x_worker_secret)
+
+    try:
+        payload = await request.json()
+        logger.info("ST CRM payload received", payload=payload)
+        logger.info("ST CRM webhook received", tenant_id=payload.get("tenant_id"))
+
+        tenant_id = payload.get("tenant_id")
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="tenant_id required")
+
+        integration_repo = CompanyIntegrationRepository(db)
+        company_id = await integration_repo.get_company_id_by_st_tenant_id(str(tenant_id))
+        if not company_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No company found for ST tenant_id {tenant_id}",
+            )
+
+        if not isinstance(company_id, UUID):
+            company_id = UUID(str(company_id))
+
+        service = ServiceTitanService(db)
+        result = await service.process_crm_webhook(payload, company_id)
+        await db.commit()
+
+        return {"status": "success", **result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing ST CRM webhook: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

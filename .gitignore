@@ -240,4 +240,3 @@ memory
 service_titan_docs
 seed_realistic_test_data.sql
 test_shunya.py
-test_st_ingestion.py

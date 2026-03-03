@@ -25,6 +25,9 @@ from app.infrastructure.repositories.contact import ContactRepository
 from app.domain.users.repository import UserRepository
 from app.core.s3 import get_s3_service
 from app.services.call_service import CallService
+from app.infrastructure.repositories.pending_action import PendingActionRepository
+from app.domain.models.pending_action import PendingAction
+from app.domain.enums import PendingActionStatus, CallType
 
 logger = get_logger(__name__)
 
@@ -43,6 +46,7 @@ class CTMService:
         self.call_repo = CallRepository(session)
         self.contact_repo = ContactRepository(session)
         self.user_repo = UserRepository(session)
+        self.pending_action_repo = PendingActionRepository(session)
 
     @staticmethod
     def verify_ctm_signature(
@@ -391,6 +395,8 @@ class CTMService:
                 existing_call.transcript = transcript or existing_call.transcript
                 existing_call.handled_by_user_id = handled_by_user_id or existing_call.handled_by_user_id
                 existing_call.missed_call = is_missed
+                if is_missed:
+                    existing_call.call_type = CallType.MISSED_CALL.value
                 if contact_card:
                     existing_call.contact_card_id = contact_card.id
                 existing_call.extra_metadata = {**(existing_call.extra_metadata or {}), **extra_metadata}
@@ -407,13 +413,33 @@ class CTMService:
                     duration_seconds=duration,
                     transcript=transcript,
                     handled_by_user_id=handled_by_user_id,
-                    call_type=None,  # CTM doesn't provide call_type
+                    call_type=CallType.MISSED_CALL if is_missed else None,
                     missed_call=is_missed,
                     interaction_type="call",
                     extra_metadata=extra_metadata,
                 )
                 call = await self.call_repo.create(call)
                 logger.info("Call created", call_id=str(call.id), ctm_call_id=call_id_ctm)
+
+            # Create pending action for missed calls
+            if is_missed:
+                try:
+                    pending_action = PendingAction(
+                        company_id=company_id,
+                        call_id=call.id,
+                        action_type="call_back",
+                        raw_text=f"Give {contact_phone} a call_back",
+                        status=PendingActionStatus.PENDING,
+                        source="manual",
+                    )
+                    await self.pending_action_repo.create(pending_action)
+                    logger.info(
+                        "Created pending action for missed call",
+                        call_id=str(call.id),
+                        phone=contact_phone,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create pending action for missed call {call.id}: {e}")
 
             # Update contact card with last call metadata (for inbound calls)
             if direction == "inbound" and contact_card:

@@ -165,75 +165,142 @@ class CoachingService:
                 members=[],
             )
 
+        user_ids = [u.id for u in users]
+
+        # Batch query 1: call analysis stats for ALL users in one query (vs N separate queries before)
+        analyses_result = await self.session.execute(
+            select(
+                CallORM.handled_by_user_id,
+                func.avg(CallAnalysisORM.sop_compliance_score).label("avg_compliance"),
+                func.count(CallORM.id).label("total_calls"),
+                func.count(
+                    case((func.lower(CallAnalysisORM.booking_status) == "booked", 1))
+                ).label("booked_count"),
+                func.count(
+                    case(
+                        (
+                            CallAnalysisORM.qualification_status.in_(
+                                ["hot", "warm", "cold", "qualified"]
+                            ),
+                            1,
+                        )
+                    )
+                ).label("qualified_count"),
+            )
+            .select_from(CallORM)
+            .outerjoin(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+            .where(
+                CallORM.handled_by_user_id.in_(user_ids),
+                CallORM.company_id == company_id,
+                CallORM.created_at >= start_dt,
+                CallORM.created_at <= end_dt,
+            )
+            .group_by(CallORM.handled_by_user_id)
+        )
+        analyses_by_user = {row.handled_by_user_id: row for row in analyses_result}
+
+        # Batch query 2: issues counts for ALL users in one query
+        issues_result = await self.session.execute(
+            select(
+                CoachingIssueORM.user_id,
+                func.count(CoachingIssueORM.id).label("count"),
+            )
+            .where(
+                CoachingIssueORM.user_id.in_(user_ids),
+                CoachingIssueORM.company_id == company_id,
+                CoachingIssueORM.created_at >= start_dt,
+                CoachingIssueORM.created_at <= end_dt,
+            )
+            .group_by(CoachingIssueORM.user_id)
+        )
+        issues_by_user = {row.user_id: row.count for row in issues_result}
+
+        # Batch query 3: strengths counts for ALL users in one query
+        strengths_result = await self.session.execute(
+            select(
+                CoachingStrengthORM.user_id,
+                func.count(CoachingStrengthORM.id).label("count"),
+            )
+            .where(
+                CoachingStrengthORM.user_id.in_(user_ids),
+                CoachingStrengthORM.company_id == company_id,
+                CoachingStrengthORM.created_at >= start_dt,
+                CoachingStrengthORM.created_at <= end_dt,
+            )
+            .group_by(CoachingStrengthORM.user_id)
+        )
+        strengths_by_user = {row.user_id: row.count for row in strengths_result}
+
+        # Batch queries 4 & 5: trend data for ALL users (first half vs second half compliance)
+        mid_dt = start_dt + (end_dt - start_dt) / 2
+
+        first_half_result = await self.session.execute(
+            select(
+                CallORM.handled_by_user_id,
+                func.avg(CallAnalysisORM.sop_compliance_score).label("avg"),
+            )
+            .select_from(CallORM)
+            .outerjoin(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+            .where(
+                CallORM.handled_by_user_id.in_(user_ids),
+                CallORM.company_id == company_id,
+                CallORM.created_at >= start_dt,
+                CallORM.created_at < mid_dt,
+                CallAnalysisORM.sop_compliance_score.isnot(None),
+            )
+            .group_by(CallORM.handled_by_user_id)
+        )
+        first_half_by_user = {row.handled_by_user_id: row.avg for row in first_half_result}
+
+        second_half_result = await self.session.execute(
+            select(
+                CallORM.handled_by_user_id,
+                func.avg(CallAnalysisORM.sop_compliance_score).label("avg"),
+            )
+            .select_from(CallORM)
+            .outerjoin(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+            .where(
+                CallORM.handled_by_user_id.in_(user_ids),
+                CallORM.company_id == company_id,
+                CallORM.created_at >= mid_dt,
+                CallORM.created_at <= end_dt,
+                CallAnalysisORM.sop_compliance_score.isnot(None),
+            )
+            .group_by(CallORM.handled_by_user_id)
+        )
+        second_half_by_user = {row.handled_by_user_id: row.avg for row in second_half_result}
+
+        # Build members list entirely from the batched data — no per-user DB calls
         members = []
         all_compliance = []
         all_booking_rates = []
         total_open_issues = 0
 
         for user in users:
-            # Get call analyses for this user in date range
-            analyses_query = (
-                select(
-                    func.avg(CallAnalysisORM.sop_compliance_score).label("avg_compliance"),
-                    func.count(CallORM.id).label("total_calls"),
-                    func.count(
-                        case(
-                            (func.lower(CallAnalysisORM.booking_status) == "booked", 1),
-                        )
-                    ).label("booked_count"),
-                    func.count(
-                        case(
-                            (
-                                CallAnalysisORM.qualification_status.in_(
-                                    ["hot", "warm", "cold", "qualified"]
-                                ),
-                                1,
-                            ),
-                        )
-                    ).label("qualified_count"),
-                )
-                .select_from(CallORM)
-                .outerjoin(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
-                .where(
-                    CallORM.handled_by_user_id == user.id,
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= start_dt,
-                    CallORM.created_at <= end_dt,
-                )
-            )
-            result = await self.session.execute(analyses_query)
-            row = result.one()
+            row = analyses_by_user.get(user.id)
+            avg_compliance = float(row.avg_compliance or 0) if row else 0.0
+            total_calls = int(row.total_calls or 0) if row else 0
+            booked = int(row.booked_count or 0) if row else 0
+            qualified = int(row.qualified_count or 0) if row else 0
 
-            avg_compliance = float(row.avg_compliance or 0)
-            total_calls = int(row.total_calls or 0)
-            booked = int(row.booked_count or 0)
-            qualified = int(row.qualified_count or 0)
             booking_rate = (booked / qualified * 100) if qualified > 0 else 0.0
             compliance_pct = round(avg_compliance * 100, 1) if avg_compliance else 0.0
 
-            # Count issues and strengths
-            issues_count_result = await self.session.execute(
-                select(func.count(CoachingIssueORM.id)).where(
-                    CoachingIssueORM.user_id == user.id,
-                    CoachingIssueORM.company_id == company_id,
-                    CoachingIssueORM.created_at >= start_dt,
-                    CoachingIssueORM.created_at <= end_dt,
-                )
-            )
-            issues_count = issues_count_result.scalar() or 0
+            issues_count = issues_by_user.get(user.id, 0)
+            strengths_count = strengths_by_user.get(user.id, 0)
 
-            strengths_count_result = await self.session.execute(
-                select(func.count(CoachingStrengthORM.id)).where(
-                    CoachingStrengthORM.user_id == user.id,
-                    CoachingStrengthORM.company_id == company_id,
-                    CoachingStrengthORM.created_at >= start_dt,
-                    CoachingStrengthORM.created_at <= end_dt,
-                )
-            )
-            strengths_count = strengths_count_result.scalar() or 0
-
-            # Compute trend by comparing first half vs second half compliance
-            trend = await self._compute_trend(user.id, company_id, start_dt, end_dt)
+            first_avg = first_half_by_user.get(user.id)
+            second_avg = second_half_by_user.get(user.id)
+            if first_avg is None or second_avg is None:
+                trend = "stable"
+            else:
+                change = (second_avg - first_avg) / first_avg if first_avg > 0 else 0
+                if change >= 0.05:
+                    trend = "improving"
+                elif change <= -0.05:
+                    trend = "declining"
+                else:
+                    trend = "stable"
 
             if compliance_pct > 0:
                 all_compliance.append(compliance_pct)
@@ -518,7 +585,7 @@ class CoachingService:
             "script_adherence",
         ]
 
-        # Fetch all 5 metrics in parallel
+        # Fetch all 5 Shunya metrics AND the user record in parallel
         tasks = [
             self.shoonya.get_agent_peer_comparison(
                 rep_id=rep_id,
@@ -529,7 +596,9 @@ class CoachingService:
             for metric in metrics_to_fetch
         ]
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        all_results = await asyncio.gather(*tasks, self.session.get(UserORM, user_id), return_exceptions=True)
+        results = all_results[: len(metrics_to_fetch)]
+        user = all_results[-1]
 
         benchmark_metrics = []
         for i, result in enumerate(results):
@@ -558,8 +627,7 @@ class CoachingService:
                 )
             )
 
-        user = await self.session.get(UserORM, user_id)
-        rep_name = f"{user.first_name or ''} {user.last_name or ''}".strip() if user else None
+        rep_name = f"{user.first_name or ''} {user.last_name or ''}".strip() if user and not isinstance(user, Exception) else None
 
         return RepPeerBenchmarkResponse(
             rep_id=rep_id,
@@ -733,12 +801,12 @@ class CoachingService:
         if not end_date:
             end_date = date.today()
 
-        user = await self.session.get(UserORM, user_id)
-        rep_name = f"{user.first_name or ''} {user.last_name or ''}".strip() if user else "Unknown"
-
-        # Get issues, strengths, and objections data to generate nudges
-        issues_resp = await self.get_rep_issues(user_id, company_id, start_date, end_date)
-        objections_resp = await self.get_rep_objections(user_id, company_id, start_date, end_date)
+        # Fetch issues and objections in parallel — they are independent
+        issues_resp, objections_resp = await asyncio.gather(
+            self.get_rep_issues(user_id, company_id, start_date, end_date),
+            self.get_rep_objections(user_id, company_id, start_date, end_date),
+        )
+        rep_name = issues_resp.rep_name
 
         nudges: List[SmartNudge] = []
 

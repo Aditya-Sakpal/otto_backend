@@ -50,6 +50,13 @@ class ShoonyaClient:
             self._enabled = True
             logger.info(f"Shoonya client initialized with base URL: {self.base_url}")
 
+        # Persistent HTTP client shared across all calls — avoids a new TCP/TLS
+        # handshake on every request (critical for parallel coaching dashboard calls).
+        self._http_client = httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+
     def _get_headers(self, company_id: Optional[str] = None, user_id: Optional[str] = None) -> Dict[str, str]:
         """Get standard headers for Shunya API requests."""
         headers = {
@@ -1648,14 +1655,13 @@ class ShoonyaClient:
         logger.info(f"Calling Shunya API: {url}")
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    url,
-                    headers=self._get_headers(company_id),
-                    params=params,
-                )
-                response.raise_for_status()
-                return response.json()
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
@@ -1704,14 +1710,13 @@ class ShoonyaClient:
         logger.info(f"Calling Shunya API: {url}")
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    url,
-                    headers=self._get_headers(company_id),
-                    params=params,
-                )
-                response.raise_for_status()
-                return response.json()
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",

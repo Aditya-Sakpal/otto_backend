@@ -6,9 +6,14 @@ Comprehensive lead details for the lead details page.
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from pydantic import Field
+from pydantic import BaseModel as PydanticBaseModel, ConfigDict, Field
 
 from app.domain.models.base import BaseModel
+
+
+class _SlimModel(PydanticBaseModel):
+    """Lightweight Pydantic model (no auto id/created_at/updated_at) for sub-objects."""
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 
 class ContactInfo(BaseModel):
@@ -58,6 +63,74 @@ class Conversation(BaseModel):
     booking_status: Optional[str] = None
 
 
+class PipelineEngagement(_SlimModel):
+    """Overall engagement section for the pipeline lead detail view."""
+    last_touched: Optional[datetime] = Field(None, description="Most recent call/interaction date")
+    next_move: Optional[str] = Field(None, description="Next recommended action from latest call analysis")
+    summary: Optional[str] = Field(None, description="Aggregated summary from all call analyses")
+    key_points: List[str] = Field(default_factory=list)
+
+
+class PipelineConversation(_SlimModel):
+    """A single call with analysis data for the pipeline lead detail view."""
+    id: UUID
+    call_type: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    created_at: datetime
+    booking_status: Optional[str] = None
+    qualification_status: Optional[str] = None
+    summary: Optional[str] = None
+    key_points: List[str] = Field(default_factory=list)
+    objections: List[str] = Field(default_factory=list)
+    call_recording_url: Optional[str] = None
+
+
+class SalesRepInfo(_SlimModel):
+    """Sales rep assigned to an appointment."""
+    id: UUID
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+
+class AppointmentTab(_SlimModel):
+    """Appointment tab data — shown when lead is in booked/appointment_ran/won/lost stage."""
+    id: UUID
+    contact_name: str
+    sales_rep: Optional[SalesRepInfo] = None
+    status: str = Field(description="Appointment status: scheduled, completed, cancelled, etc.")
+    location_address: Optional[str] = None
+    scheduled_start: datetime
+    meeting_url: Optional[str] = None
+
+
+class ResultTab(_SlimModel):
+    """Result tab data — shown when appointment has been conducted and has an outcome/analysis."""
+    overall_engagement: PipelineEngagement
+    conversations: List[PipelineConversation] = Field(default_factory=list)
+
+
+class PipelineLeadTab(_SlimModel):
+    """Lead tab — CSR stage data."""
+    id: UUID
+    status: str
+    overall_engagement: PipelineEngagement
+    conversations: List[PipelineConversation] = Field(default_factory=list)
+
+
+class PipelineLeadDetail(_SlimModel):
+    """
+    3-tab pipeline lead detail response.
+
+    - lead: always present (CSR stage view — calls & overall engagement)
+    - appointment: present when lead has a linked appointment
+    - result: present when the appointment has been conducted (has outcome or analysis)
+    """
+    pipeline_stage: Optional[str] = None
+    lead: PipelineLeadTab
+    appointment: Optional[AppointmentTab] = None
+    result: Optional[ResultTab] = None
+
+
 class LeadDetail(BaseModel):
     """Detailed lead information for lead details page."""
     # Basic info
@@ -65,6 +138,7 @@ class LeadDetail(BaseModel):
     company_id: UUID
     status: str
     deal_status: Optional[str] = None
+    pipeline_stage: Optional[str] = None
     deal_size: Optional[float] = None
     created_at: datetime
     updated_at: Optional[datetime] = None

@@ -1,0 +1,28 @@
+﻿{
+    "status":  "completed",
+    "company_id":  "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+    "call_id":  "2c989fd8-e8ac-492c-8f90-d1bbbc5d38ef",
+    "job_id":  "49237c9f-5955-450c-929c-8f4e3b1f6542",
+    "result":  {
+                   "analysis":  {
+                                    "summary":  {
+                                                    "summary":  "Test summary outbound",
+                                                    "sentiment_score":  0.2,
+                                                    "key_points":  [
+                                                                       "kpA"
+                                                                   ]
+                                                },
+                                    "qualification":  {
+                                                          "qualification_status":  "warm",
+                                                          "appointment_date":  "2026-02-18T16:12:26.3859185+05:30",
+                                                          "booking_status":  "booked"
+                                                      },
+                                    "metadata":  {
+                                                     "duration":  90,
+                                                     "company_id":  "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+                                                     "phone_number":  "+15550000002",
+                                                     "audio_url":  "https://example.com/audio2.mp3"
+                                                 }
+                                }
+               }
+}

@@ -24,6 +24,7 @@ from app.routes.v1 import (
     posts,
     leaderboards,
     ghost_mode,
+    coaching,
 )
 
 router = APIRouter()
@@ -51,3 +52,4 @@ router.include_router(sales_rep.router, prefix="/sales_rep", tags=["sales_rep"])
 router.include_router(posts.router, prefix="/posts/sales_rep", tags=["posts"])
 router.include_router(leaderboards.router, prefix="/leaderboards", tags=["leaderboards"])
 router.include_router(ghost_mode.router, prefix="/ghost-mode", tags=["ghost-mode"])
+router.include_router(coaching.router, prefix="/coaching", tags=["coaching"])

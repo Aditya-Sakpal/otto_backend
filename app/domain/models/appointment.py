@@ -29,5 +29,6 @@ class Appointment(BaseModel):
     outcome: Optional[AppointmentOutcome] = Field(None, description="Appointment outcome")
     assigned_rep_id: Optional[UUID] = Field(None, description="Assigned sales rep")
     interaction_id: Optional[UUID] = Field(None, description="Associated call/interaction ID")
+    audio_url: Optional[str] = Field(None, description="Audio recording URL")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
 

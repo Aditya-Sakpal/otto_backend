@@ -222,20 +222,27 @@ async def get_booking_rate_improvement(
 ):
     """
     Get booking rate improvement metrics within date range.
-    
+
     - **company_id**: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
     - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.
     - **start_date**: Start of the current period (defaults to 30 days ago)
     - **end_date**: End of the current period (defaults to today)
-    
-    Compares booking rate between current period and previous period of same length.
+
+    **Dual-period mode (for charts):**
+    - **start_a, end_a**: Period A date range
+    - **start_b, end_b**: Period B date range
+    - Returns per-day booking rate percentage: (booked leads / qualified leads) × 100
+    - series[].y = booking rate % (0-100), y_axis = percentage ticks
+    - period summary includes average_booking_rate (avg of daily rates)
+
+    **Legacy mode:** Compares booking rate between current period and previous period of same length.
     Returns current rate, previous rate, improvement percentage, and totals.
-    
+
     Resolution Rules:
     - If user_id is provided: prefer user_id (even if company_id is also provided)
     - Else if company_id is provided: use company_id
     - Else: return 400 error "Either company_id or user_id is required"
-    
+
     Required role: Any authenticated user
     """
     # Resolution rules:
@@ -288,10 +295,7 @@ async def get_close_rate_trends(
     end_b: Optional[date] = Query(None, description="Period B end date (YYYY-MM-DD)"),
 ):
     """
-    Get close rate trends (closed/won deals) within date range.
-
-    Similar to booking rate improvement but tracks appointments with outcome='won'
-    and leads with status='closed_won'.
+    Get close rate trends within date range.
 
     - **company_id**: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
     - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user.
@@ -301,9 +305,12 @@ async def get_close_rate_trends(
     **Dual-period mode (for charts):**
     - **start_a, end_a**: Period A date range
     - **start_b, end_b**: Period B date range
-    - Returns per-day closed counts for both periods with x_axis and y_axis for plotting
+    - Returns per-day close rate percentage: (won appointments / total appointments) × 100
+    - series[].y = close rate % (0-100), y_axis = percentage ticks
+    - period summary includes average_close_rate (avg of daily rates)
 
-    Compares close rate between current period and previous period of same length.
+    **Legacy mode:** Compares close rate between current period and previous period of same length.
+    Tracks appointments with outcome='won' and leads with status='closed_won'.
     Returns current rate, previous rate, improvement percentage, and totals.
     """
     # Validate that at least one of company_id or user_id is provided
@@ -374,23 +381,25 @@ async def get_top_objections(
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
     limit: Optional[int] = Query(None, ge=1, le=20, description="Number of top objections to return (optional, returns all if not specified)"),
+    unbooked_only: bool = Query(False, description="If true, only include objections from calls where the lead was NOT booked (booking_status = 'not_booked')"),
 ):
     """
     Get top objections aggregated by company or user.
-    
+
     **When called by company_id:** Returns objections with objection_type, count, affected_leads_count;
     plus booking_rate, booked, unbooked, booking_rate_trend (start to end date);
     most_coaching_needs (user_id, user details, unbooked count for that objection, call_logs per user);
     and call_logs (all call details where that objection occurred for the company).
-    
+
     **When called by user_id:** Returns objections with objection_type, count, affected_leads_count;
     plus call_logs (call details where that objection occurred for that user only).
-    
+
     - **company_id**: Company UUID (optional if user_id is provided)
     - **user_id**: User UUID (optional). If provided, objections are scoped to that user. If both provided, user_id is used.
     - **start_date**, **end_date**: Filter objections by call date range.
     - **limit**: Optional limit on number of top objections returned.
-    
+    - **unbooked_only**: If true, only include objections from unbooked calls (booking_status = 'not_booked').
+
     Required role: CSR, SALES_REP, or EXECUTIVE
     """
     if not company_id and not user_id:
@@ -409,6 +418,7 @@ async def get_top_objections(
         user_id=user_id,
         start_date=start_date,
         end_date=end_date,
+        unbooked_only=unbooked_only,
     )
     
     if limit is not None:

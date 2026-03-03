@@ -41,6 +41,32 @@ class DealStatus(str, Enum):
     LOST = "lost"
 
 
+class PipelineStage(str, Enum):
+    """Pipeline stage - tracks where the lead is in the sales pipeline."""
+    QUALIFIED = "qualified"
+    UNQUALIFIED = "unqualified"
+    SERVICE_NOT_OFFERED = "service_not_offered"
+    BOOKED = "booked"
+    APPOINTMENT = "appointment"
+    APPOINTMENT_RAN = "appointment_ran"
+    WON = "won"
+    LOST = "lost"
+    REVIEW = "review"
+
+
+PIPELINE_STAGE_ORDER: dict[str, int] = {
+    PipelineStage.UNQUALIFIED.value: 0,
+    PipelineStage.SERVICE_NOT_OFFERED.value: 0,
+    PipelineStage.REVIEW.value: 0,
+    PipelineStage.QUALIFIED.value: 1,
+    PipelineStage.BOOKED.value: 2,
+    PipelineStage.APPOINTMENT.value: 3,
+    PipelineStage.APPOINTMENT_RAN.value: 4,
+    PipelineStage.WON.value: 5,
+    PipelineStage.LOST.value: 5,
+}
+
+
 class AppointmentOutcome(str, Enum):
     """Appointment outcome."""
     PENDING = "pending"

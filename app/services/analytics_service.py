@@ -9,7 +9,7 @@ from uuid import UUID
 from datetime import datetime, timedelta, date
 from collections import defaultdict
 
-from sqlalchemy import select, func, text, bindparam
+from sqlalchemy import select, func, text, bindparam, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -22,8 +22,8 @@ logger = get_logger(__name__)
 
 
 def _build_call_log_entry(
-    call: CallORM,
-    analysis: CallAnalysisORM,
+    call: Any,  # Can be CallORM or synthetic call object
+    analysis: Any,  # Can be CallAnalysisORM or synthetic analysis object
     contact_card: Optional[ContactCardORM],
 ) -> Dict[str, Any]:
     """Build a single call log entry for objection call lists."""
@@ -38,19 +38,36 @@ def _build_call_log_entry(
         else:
             contact_name = contact_card.primary_phone or "Unknown"
 
+    # Handle both real CallORM and synthetic call objects
+    call_id = str(call.id) if hasattr(call, 'id') else None
+    lead_id = str(call.lead_id) if hasattr(call, 'lead_id') and call.lead_id else None
+    phone_number = getattr(call, 'phone_number', None)
+    audio_url = getattr(call, 'audio_url', None)
+    call_type = getattr(call, 'call_type', None)
+    duration_seconds = getattr(call, 'duration_seconds', None)
+    created_at = call.created_at.isoformat() if hasattr(call, 'created_at') and call.created_at else None
+    transcript = getattr(call, 'transcript', None)
+    
+    # Handle both real CallAnalysisORM and synthetic analysis objects
+    qualification_status = getattr(analysis, 'qualification_status', None) if analysis else None
+    booking_status = getattr(analysis, 'booking_status', None) if analysis else None
+    summary = getattr(analysis, 'summary', None) if analysis else None
+    key_points = list(getattr(analysis, 'key_points', None) or []) if analysis else []
+
     return {
-        "call_id": str(call.id),
-        "lead_id": str(call.lead_id) if call.lead_id else None,
+        "call_id": call_id or "unknown",
+        "lead_id": lead_id,
         "contact_name": contact_name or "Unknown",
-        "phone_number": call.phone_number,
-        "audio_url": call.audio_url,
-        "call_type": call.call_type,
-        "duration_seconds": call.duration_seconds,
-        "created_at": call.created_at.isoformat() if call.created_at else None,
-        "qualification_status": analysis.qualification_status if analysis else None,
-        "booking_status": analysis.booking_status if analysis else None,
-        "transcript": getattr(call, "transcript", None),
-        "summary": analysis.summary if analysis else None,
+        "phone_number": phone_number or "",
+        "audio_url": audio_url,
+        "call_type": call_type,
+        "duration_seconds": duration_seconds,
+        "created_at": created_at,
+        "qualification_status": qualification_status,
+        "booking_status": booking_status,
+        "transcript": transcript,
+        "summary": summary,
+        "key_points": key_points,
     }
 
 
@@ -199,6 +216,7 @@ class AnalyticsService:
         user_id: Optional[UUID] = None,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        unbooked_only: bool = False,
     ) -> Dict[str, Any]:
         """
         Get top objections aggregated by company or user.
@@ -238,7 +256,11 @@ class AnalyticsService:
                 end_dt = datetime.combine(end_date, datetime.max.time())
 
             # Get analyses with objections, joined with calls and contact_card (exclude existing customer & service not offered)
-            query = (
+            # Also include appointments with objections for Sales Reps
+            from app.infrastructure.database.models.appointment import AppointmentORM
+            
+            # Query 1: Calls with call_analyses (existing logic)
+            calls_query = (
                 select(CallAnalysisORM, CallORM, ContactCardORM)
                 .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
                 .outerjoin(ContactCardORM, CallORM.contact_card_id == ContactCardORM.id)
@@ -250,14 +272,104 @@ class AnalyticsService:
                 )
             )
             if user_id:
-                query = query.where(CallORM.handled_by_user_id == user_id)
+                calls_query = calls_query.where(CallORM.handled_by_user_id == user_id)
             if start_dt is not None:
-                query = query.where(CallORM.created_at >= start_dt)
+                calls_query = calls_query.where(CallORM.created_at >= start_dt)
             if end_dt is not None:
-                query = query.where(CallORM.created_at <= end_dt)
+                calls_query = calls_query.where(CallORM.created_at <= end_dt)
+            if unbooked_only:
+                calls_query = calls_query.where(CallAnalysisORM.booking_status == "not_booked")
 
-            results = await self.session.execute(query)
-            rows = results.all()
+            calls_results = await self.session.execute(calls_query)
+            calls_rows = calls_results.all()
+            
+            # Query 2: Appointments with objections (for Sales Reps)
+            # Appointments can have objections stored directly or via call_analyses
+            appointments_query = (
+                select(AppointmentORM, CallORM, CallAnalysisORM, ContactCardORM)
+                .outerjoin(CallORM, AppointmentORM.interaction_id == CallORM.id)
+                .outerjoin(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+                .outerjoin(ContactCardORM, AppointmentORM.contact_card_id == ContactCardORM.id)
+                .where(
+                    AppointmentORM.company_id == company_id,
+                    # Check if objections exist in either appointments or call_analyses
+                    (
+                        (AppointmentORM.objections.isnot(None)) & 
+                        (func.coalesce(func.array_length(AppointmentORM.objections, 1), 0) > 0)
+                    ) | (
+                        (CallAnalysisORM.objections.isnot(None)) & 
+                        (func.coalesce(func.array_length(CallAnalysisORM.objections, 1), 0) > 0)
+                    ),
+                    # Only apply exclusion filter if call_analyses exists
+                    or_(
+                        CallAnalysisORM.id.is_(None),
+                        _metrics_exclude_existing_and_service_not_offered(),
+                    ),
+                )
+            )
+            if user_id:
+                # Filter by assigned_rep_id for Sales Reps
+                appointments_query = appointments_query.where(AppointmentORM.assigned_rep_id == user_id)
+            if start_dt is not None:
+                appointments_query = appointments_query.where(AppointmentORM.created_at >= start_dt)
+            if end_dt is not None:
+                appointments_query = appointments_query.where(AppointmentORM.created_at <= end_dt)
+            
+            appointments_results = await self.session.execute(appointments_query)
+            appointments_rows = appointments_results.all()
+            
+            # Combine results: convert appointment rows to (analysis, call, contact_card) format
+            # For appointments, we'll use appointment objections if call_analyses doesn't exist
+            rows = list(calls_rows)
+            seen_call_ids = {call.id for _, call, _ in calls_rows if call}
+            
+            for row in appointments_rows:
+                appointment, call, analysis, contact_card = row
+                if not appointment:
+                    continue
+                
+                # Skip if we already have this call from calls_rows
+                if call and call.id in seen_call_ids:
+                    continue
+                
+                # If appointment has objections directly and no call_analysis, use appointment data
+                if appointment.objections and len(appointment.objections) > 0:
+                    if not analysis:
+                        # Create a synthetic CallAnalysisORM-like object from appointment
+                        from types import SimpleNamespace
+                        synthetic_analysis = SimpleNamespace(
+                            objections=appointment.objections,
+                            objection_texts=getattr(appointment, 'objection_texts', appointment.objections),
+                            qualification_status=getattr(appointment, 'qualification_status', None),
+                            booking_status=getattr(appointment, 'booking_status', None),
+                            summary=getattr(appointment, 'summary', None),
+                            is_existing_customer=getattr(appointment, 'is_existing_customer', None),
+                            service_not_offered_reason=getattr(appointment, 'service_not_offered_reason', None),
+                        )
+                        # Use call if available, otherwise create a synthetic call from appointment
+                        if not call and appointment:
+                            synthetic_call = SimpleNamespace(
+                                id=appointment.id,  # Use appointment id as call id
+                                lead_id=appointment.lead_id,
+                                contact_card_id=appointment.contact_card_id,
+                                phone_number=None,
+                                audio_url=appointment.audio_url,
+                                call_type="meeting",
+                                duration_seconds=appointment.duration_seconds,
+                                created_at=appointment.created_at,
+                                transcript=appointment.transcript,
+                                handled_by_user_id=appointment.assigned_rep_id,
+                            )
+                            rows.append((synthetic_analysis, synthetic_call, contact_card))
+                        elif call:
+                            # Use the real call but synthetic analysis from appointment
+                            rows.append((synthetic_analysis, call, contact_card))
+                            seen_call_ids.add(call.id)
+                    else:
+                        # Use existing call_analysis
+                        if call:
+                            rows.append((analysis, call, contact_card))
+                            seen_call_ids.add(call.id)
 
             # Per objection: list of (analysis, call, contact_card) for building counts and call_logs
             objection_rows: Dict[str, List[Tuple[Any, Any, Any]]] = defaultdict(list)
@@ -347,6 +459,8 @@ class AnalyticsService:
                 response["start_date"] = start_date.isoformat()
             if end_date is not None:
                 response["end_date"] = end_date.isoformat()
+            if unbooked_only:
+                response["unbooked_only"] = True
 
             return response
 
@@ -454,6 +568,7 @@ class AnalyticsService:
         company_id: UUID,
         objection: str,
         user_id: Optional[UUID] = None,
+        user_role: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get comprehensive objection details data for the objection details page.
@@ -461,55 +576,113 @@ class AnalyticsService:
         Returns data for three tabs:
         1. Calls: List of calls with that objection (with contact name and recording URL)
         2. Unbooked leads: Leads that are unbooked and have that objection
-        3. Most coaching need: CSRs with unbooked calls for that objection
+        3. Most coaching need: CSRs/Sales Reps with unbooked calls for that objection
         
         Args:
             company_id: Company UUID
             objection: Objection type (e.g., 'authority', 'price', 'timing')
             user_id: Optional user ID to filter by (for /self endpoint)
+            user_role: Optional user role to determine query strategy ('sales_rep' queries appointments, others query calls)
         
         Returns:
             Dictionary with:
             - calls: List of calls with objection details
             - unbooked_leads: List of unbooked leads with that objection
-            - most_coaching_need: List of CSRs with unbooked calls count
+            - most_coaching_need: List of CSRs/Sales Reps with unbooked calls count
         """
         try:
             from app.infrastructure.database.models.lead import LeadORM
             from app.infrastructure.database.models.user import UserORM
+            from app.infrastructure.database.models.appointment import AppointmentORM
             from app.domain.objection_classifier import ObjectionClassifier
 
             # Expand objection filter to include new categories
             target_categories = ObjectionClassifier.expand_objection_filter(objection)
 
-            # 1. Get calls with objections (will filter by classification in Python)
-            calls_query = select(
-                CallORM,
-                CallAnalysisORM,
-                ContactCardORM
-            ).join(
-                CallORM, CallAnalysisORM.call_id == CallORM.id
-            ).outerjoin(
-                ContactCardORM, CallORM.contact_card_id == ContactCardORM.id
-            ).where(
-                CallAnalysisORM.company_id == company_id,
-                CallAnalysisORM.objections.isnot(None),
-                func.array_length(CallAnalysisORM.objections, 1) > 0,
-                _metrics_exclude_existing_and_service_not_offered(),
-            )
+            # 1. Get calls with objections
+            # For Sales Reps: query appointments -> get calls via interaction_id
+            # For CSRs/Others: query calls directly via handled_by_user_id
+            if user_role == 'sales_rep' and user_id:
+                # Query appointments assigned to this sales rep
+                # Check objections in both appointments.objections (direct) and call_analyses.objections (via call)
+                appointments_query = select(
+                    AppointmentORM,
+                    CallORM,
+                    CallAnalysisORM,
+                    ContactCardORM
+                ).outerjoin(
+                    CallORM, AppointmentORM.interaction_id == CallORM.id
+                ).outerjoin(
+                    CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
+                ).outerjoin(
+                    ContactCardORM, AppointmentORM.contact_card_id == ContactCardORM.id
+                ).where(
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.assigned_rep_id == user_id,
+                    # Check if objections exist in either appointments or call_analyses
+                    (
+                        (AppointmentORM.objections.isnot(None)) & 
+                        (func.array_length(AppointmentORM.objections, 1) > 0)
+                    ) | (
+                        (CallAnalysisORM.objections.isnot(None)) & 
+                        (func.array_length(CallAnalysisORM.objections, 1) > 0)
+                    ),
+                    # Only apply exclusion filter if call_analyses exists (for appointments without interaction_id, skip this filter)
+                    or_(
+                        CallAnalysisORM.id.is_(None),  # No call_analysis (appointment-only)
+                        _metrics_exclude_existing_and_service_not_offered(),  # Has call_analysis, apply filter
+                    ),
+                ).order_by(AppointmentORM.created_at.desc())
+                
+                calls_results = await self.session.execute(appointments_query)
+                calls_rows = calls_results.all()
+            else:
+                # Default: query calls directly (for CSR or company-wide)
+                calls_query = select(
+                    CallORM,
+                    CallAnalysisORM,
+                    ContactCardORM
+                ).join(
+                    CallORM, CallAnalysisORM.call_id == CallORM.id
+                ).outerjoin(
+                    ContactCardORM, CallORM.contact_card_id == ContactCardORM.id
+                ).where(
+                    CallAnalysisORM.company_id == company_id,
+                    CallAnalysisORM.objections.isnot(None),
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+                
+                if user_id:
+                    calls_query = calls_query.where(CallORM.handled_by_user_id == user_id)
+                
+                calls_query = calls_query.order_by(CallORM.created_at.desc())
+                calls_results = await self.session.execute(calls_query)
+                calls_rows = calls_results.all()
             
-            if user_id:
-                calls_query = calls_query.where(CallORM.handled_by_user_id == user_id)
-            
-            calls_query = calls_query.order_by(CallORM.created_at.desc())
-            
-            calls_results = await self.session.execute(calls_query)
-            calls_rows = calls_results.all()
             
             calls_data = []
-            for call, analysis, contact_card in calls_rows:
-                # Classify objections and filter by target categories
-                classified_objections = self._classify_objections_in_analysis(analysis)
+            # Handle different row structures: (appointment, call, analysis, contact_card) vs (call, analysis, contact_card)
+            for row in calls_rows:
+                if len(row) == 4:  # (appointment, call, analysis, contact_card) - Sales Rep query
+                    appointment, call, analysis, contact_card = row
+                    # For Sales Reps: check objections in appointment first, then call_analyses
+                    if appointment and appointment.objections:
+                        # Use appointments.objections directly
+                        from app.domain.objection_classifier import ObjectionClassifier
+                        appointment_objections = ObjectionClassifier.classify_and_deduplicate(appointment.objections)
+                        classified_objections = appointment_objections
+                    elif analysis:
+                        # Fall back to call_analyses.objections
+                        classified_objections = self._classify_objections_in_analysis(analysis)
+                    else:
+                        classified_objections = []
+                else:  # (call, analysis, contact_card) - CSR/Default query
+                    call, analysis, contact_card = row
+                    # Classify objections from call_analyses
+                    classified_objections = self._classify_objections_in_analysis(analysis)
+                
+                # Filter by target categories
                 if not any(obj in target_categories for obj in classified_objections):
                     continue
 
@@ -525,16 +698,53 @@ class AnalyticsService:
                     else:
                         contact_name = contact_card.primary_phone
 
+                # Use appointment audio_url if available (for Sales Reps), otherwise use call audio_url
+                audio_url = None
+                call_id = None
+                phone_number = None
+                call_type = None
+                duration_seconds = None
+                created_at = None
+                transcript = None
+                summary = None
+                
+                if len(row) == 4:  # Sales Rep query with appointment
+                    appointment = row[0]
+                    call = row[1] if len(row) > 1 else None
+                    analysis = row[2] if len(row) > 2 else None
+                    
+                    # Use appointment fields first, fall back to call fields
+                    audio_url = appointment.audio_url or (call.audio_url if call else None)
+                    call_id = str(call.id) if call else str(appointment.id)  # Use appointment id if no call
+                    phone_number = call.phone_number if call else None
+                    call_type = call.call_type if call else "meeting"
+                    duration_seconds = appointment.duration_seconds or (call.duration_seconds if call else None)
+                    created_at = appointment.created_at.isoformat() if appointment.created_at else (call.created_at.isoformat() if call and call.created_at else None)
+                    transcript = appointment.transcript or (call.transcript if call else None)
+                    summary = appointment.summary or (analysis.summary if analysis else None)
+                else:
+                    # CSR/Default query
+                    call = row[0]
+                    analysis = row[1] if len(row) > 1 else None
+                    audio_url = call.audio_url
+                    call_id = str(call.id)
+                    phone_number = call.phone_number
+                    call_type = call.call_type
+                    duration_seconds = call.duration_seconds
+                    created_at = call.created_at.isoformat() if call.created_at else None
+                    transcript = call.transcript
+                    summary = analysis.summary if analysis else None
+
                 calls_data.append({
-                    "id": str(call.id),
+                    "id": call_id,
                     "contact_name": contact_name or "Unknown",
-                    "call_recording_url": call.audio_url,
-                    "phone_number": call.phone_number,
-                    "call_type": call.call_type,
-                    "duration_seconds": call.duration_seconds,
-                    "created_at": call.created_at.isoformat() if call.created_at else None,
-                    "transcript": call.transcript,
-                    "summary": analysis.summary if analysis else None,
+                    "call_recording_url": audio_url,  # Use audio_url (from appointment or call)
+                    "phone_number": phone_number,
+                    "call_type": call_type,
+                    "duration_seconds": duration_seconds,
+                    "created_at": created_at,
+                    "transcript": transcript,
+                    "summary": summary,
                 })
             
             # 2. Get unbooked leads with that objection
@@ -596,53 +806,169 @@ class AnalyticsService:
                     "created_at": lead.created_at.isoformat() if lead.created_at else None,
                 })
             
-            # 3. Get CSRs with unbooked calls for that objection (most coaching need)
-            # Get all CSR-call-analysis combinations for filtering
-            csr_unbooked_query = select(
-                UserORM.id,
-                UserORM.first_name,
-                UserORM.last_name,
-                CallORM.id.label('call_id'),
-                CallAnalysisORM
-            ).join(
-                CallORM, CallORM.handled_by_user_id == UserORM.id
-            ).join(
-                CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
-            ).join(
-                LeadORM, CallORM.lead_id == LeadORM.id
-            ).where(
-                UserORM.company_id == company_id,
-                UserORM.role == 'csr',
-                UserORM.is_active == True,
-                LeadORM.status.in_(unbooked_statuses),
-                CallAnalysisORM.objections.isnot(None),
-                func.array_length(CallAnalysisORM.objections, 1) > 0,
-                _metrics_exclude_existing_and_service_not_offered(),
-            )
+            # 3. Get CSRs/Sales Reps with unbooked calls/appointments for that objection (most coaching need)
+            # Show only the same role type as the requesting user (Sales Reps see Sales Reps, CSRs see CSRs)
+            if user_role == 'sales_rep':
+                # For Sales Reps: query appointments assigned to Sales Reps
+                # Check objections in both appointments.objections and call_analyses.objections
+                from app.infrastructure.database.models.appointment import AppointmentORM
+                rep_unbooked_query = select(
+                    UserORM.id,
+                    UserORM.first_name,
+                    UserORM.last_name,
+                    AppointmentORM.id.label('appointment_id'),
+                    AppointmentORM,
+                    CallAnalysisORM
+                ).join(
+                    AppointmentORM, AppointmentORM.assigned_rep_id == UserORM.id
+                ).outerjoin(
+                    CallORM, AppointmentORM.interaction_id == CallORM.id
+                ).outerjoin(
+                    CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
+                ).join(
+                    LeadORM, AppointmentORM.lead_id == LeadORM.id
+                ).where(
+                    UserORM.company_id == company_id,
+                    UserORM.role == 'sales_rep',  # Only show Sales Reps
+                    UserORM.is_active == True,
+                    LeadORM.status.in_(unbooked_statuses),
+                    # Check if objections exist in either appointments or call_analyses
+                    (
+                        (AppointmentORM.objections.isnot(None)) & 
+                        (func.array_length(AppointmentORM.objections, 1) > 0)
+                    ) | (
+                        (CallAnalysisORM.objections.isnot(None)) & 
+                        (func.array_length(CallAnalysisORM.objections, 1) > 0)
+                    ),
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+                # Execute the query
+                rep_results = await self.session.execute(rep_unbooked_query)
+                rep_rows = rep_results.all()
+            elif user_role == 'csr':
+                # For CSRs: query calls handled by CSRs
+                rep_unbooked_query = select(
+                    UserORM.id,
+                    UserORM.first_name,
+                    UserORM.last_name,
+                    CallORM.id.label('call_id'),
+                    CallAnalysisORM
+                ).join(
+                    CallORM, CallORM.handled_by_user_id == UserORM.id
+                ).join(
+                    CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
+                ).join(
+                    LeadORM, CallORM.lead_id == LeadORM.id
+                ).where(
+                    UserORM.company_id == company_id,
+                    UserORM.role == 'csr',  # Only show CSRs
+                    UserORM.is_active == True,
+                    LeadORM.status.in_(unbooked_statuses),
+                    CallAnalysisORM.objections.isnot(None),
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+                # Execute the query
+                rep_results = await self.session.execute(rep_unbooked_query)
+                rep_rows = rep_results.all()
+            else:
+                # For Executives/company-wide: show both CSRs and Sales Reps
+                # Query CSRs via calls
+                csr_query = select(
+                    UserORM.id,
+                    UserORM.first_name,
+                    UserORM.last_name,
+                    CallORM.id.label('call_id'),
+                    CallAnalysisORM
+                ).join(
+                    CallORM, CallORM.handled_by_user_id == UserORM.id
+                ).join(
+                    CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
+                ).join(
+                    LeadORM, CallORM.lead_id == LeadORM.id
+                ).where(
+                    UserORM.company_id == company_id,
+                    UserORM.role == 'csr',
+                    UserORM.is_active == True,
+                    LeadORM.status.in_(unbooked_statuses),
+                    CallAnalysisORM.objections.isnot(None),
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+                
+                # Query Sales Reps via appointments
+                from app.infrastructure.database.models.appointment import AppointmentORM
+                sales_rep_query = select(
+                    UserORM.id,
+                    UserORM.first_name,
+                    UserORM.last_name,
+                    AppointmentORM.id.label('appointment_id'),
+                    CallAnalysisORM
+                ).join(
+                    AppointmentORM, AppointmentORM.assigned_rep_id == UserORM.id
+                ).join(
+                    CallORM, AppointmentORM.interaction_id == CallORM.id
+                ).join(
+                    CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id
+                ).join(
+                    LeadORM, AppointmentORM.lead_id == LeadORM.id
+                ).where(
+                    UserORM.company_id == company_id,
+                    UserORM.role == 'sales_rep',
+                    UserORM.is_active == True,
+                    AppointmentORM.interaction_id.isnot(None),
+                    LeadORM.status.in_(unbooked_statuses),
+                    CallAnalysisORM.objections.isnot(None),
+                    func.array_length(CallAnalysisORM.objections, 1) > 0,
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+                
+                # Execute both queries and combine results
+                csr_results = await self.session.execute(csr_query)
+                sales_rep_results = await self.session.execute(sales_rep_query)
+                rep_rows = list(csr_results.all()) + list(sales_rep_results.all())
 
-            csr_results = await self.session.execute(csr_unbooked_query)
-            csr_rows = csr_results.all()
-
-            # Count unbooked calls per CSR after classification
-            csr_counts = {}
-            for user_id_val, first_name, last_name, call_id, analysis in csr_rows:
-                # Classify objections and check if any match target categories
-                classified_objections = self._classify_objections_in_analysis(analysis)
+            # Count unbooked calls/appointments per rep after classification
+            rep_counts = {}
+            for row in rep_rows:
+                user_id_val = row[0]
+                first_name = row[1]
+                last_name = row[2]
+                
+                # Handle different row structures based on query type
+                if user_role == 'sales_rep':
+                    # Row structure: (user_id, first_name, last_name, appointment_id, AppointmentORM, CallAnalysisORM)
+                    appointment = row[4] if len(row) > 4 else None
+                    analysis = row[5] if len(row) > 5 else None
+                    
+                    # Check objections in appointment first, then call_analyses
+                    classified_objections = []
+                    if appointment and appointment.objections:
+                        from app.domain.objection_classifier import ObjectionClassifier
+                        classified_objections = ObjectionClassifier.classify_and_deduplicate(appointment.objections)
+                    elif analysis:
+                        classified_objections = self._classify_objections_in_analysis(analysis)
+                else:
+                    # Row structure: (user_id, first_name, last_name, call_id, CallAnalysisORM)
+                    analysis = row[-1]  # CallAnalysisORM is the last element
+                    classified_objections = self._classify_objections_in_analysis(analysis)
+                
+                # Check if any objections match target categories
                 if not any(obj in target_categories for obj in classified_objections):
                     continue
 
-                # Count this call for the CSR
-                if user_id_val not in csr_counts:
-                    csr_counts[user_id_val] = {
+                # Count this call/appointment for the rep
+                if user_id_val not in rep_counts:
+                    rep_counts[user_id_val] = {
                         'first_name': first_name,
                         'last_name': last_name,
                         'count': 0
                     }
-                csr_counts[user_id_val]['count'] += 1
+                rep_counts[user_id_val]['count'] += 1
 
             # Sort by count descending and build response
             most_coaching_need_data = []
-            for user_id_val, data in sorted(csr_counts.items(), key=lambda x: x[1]['count'], reverse=True):
+            for user_id_val, data in sorted(rep_counts.items(), key=lambda x: x[1]['count'], reverse=True):
                 first_name = data['first_name']
                 last_name = data['last_name']
                 unbooked_count = data['count']
@@ -657,8 +983,8 @@ class AnalyticsService:
                     name = "Unknown"
                 
                 most_coaching_need_data.append({
-                    "csr_id": str(user_id_val),
-                    "csr_name": name,
+                    "csr_id": str(user_id_val),  # Keep field name for backward compatibility
+                    "csr_name": name,  # Keep field name for backward compatibility
                     "unbooked_calls": unbooked_count,
                 })
             

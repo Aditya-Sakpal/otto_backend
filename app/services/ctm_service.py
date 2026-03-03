@@ -20,8 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.core.encryption import decrypt_api_key
 from app.domain.models.call import Call
+from app.domain.models.lead import Lead
+from app.domain.enums import LeadStatus
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.contact import ContactRepository
+from app.infrastructure.repositories.appointment import AppointmentRepository
+from app.infrastructure.repositories.lead import LeadRepository
 from app.domain.users.repository import UserRepository
 from app.core.s3 import get_s3_service
 from app.services.call_service import CallService
@@ -46,7 +50,7 @@ class CTMService:
         self.call_repo = CallRepository(session)
         self.contact_repo = ContactRepository(session)
         self.user_repo = UserRepository(session)
-        self.pending_action_repo = PendingActionRepository(session)
+        self.appointment_repo = AppointmentRepository(session)
 
     @staticmethod
     def verify_ctm_signature(
@@ -403,6 +407,17 @@ class CTMService:
 
                 call = await self.call_repo.update(existing_call.id, existing_call)
                 logger.info("Call updated", call_id=str(call.id), ctm_call_id=call_id_ctm)
+
+                # Also update appointment's audio_url if this call is linked to an appointment
+                if s3_audio_url and call.audio_url:
+                    appointment = await self.appointment_repo.get_by_interaction_id(call.id)
+                    if appointment:
+                        appointment.audio_url = call.audio_url
+                        appointment.mark_updated()
+                        await self.appointment_repo.update(appointment.id, appointment)
+                        logger.info(
+                            f"Updated appointment {appointment.id} with audio_url from CTM call {call.id}"
+                        )
             else:
                 # Create new call
                 call = Call(
@@ -421,25 +436,29 @@ class CTMService:
                 call = await self.call_repo.create(call)
                 logger.info("Call created", call_id=str(call.id), ctm_call_id=call_id_ctm)
 
-            # Create pending action for missed calls
-            if is_missed:
+            # Find or create lead for this contact card
+            if contact_card:
                 try:
-                    pending_action = PendingAction(
-                        company_id=company_id,
-                        call_id=call.id,
-                        action_type="call_back",
-                        raw_text=f"Give {contact_phone} a call_back",
-                        status=PendingActionStatus.PENDING,
-                        source="manual",
+                    lead_repo = LeadRepository(self.session)
+                    existing_leads = await lead_repo.get_all(
+                        filters={"contact_card_id": contact_card.id, "company_id": company_id}
                     )
-                    await self.pending_action_repo.create(pending_action)
-                    logger.info(
-                        "Created pending action for missed call",
-                        call_id=str(call.id),
-                        phone=contact_phone,
-                    )
+                    lead = existing_leads[0] if existing_leads else None
+
+                    if not lead:
+                        lead = Lead(
+                            company_id=company_id,
+                            contact_card_id=contact_card.id,
+                            status=LeadStatus.NEW,
+                        )
+                        lead = await lead_repo.create(lead)
+                        logger.info("Lead created", lead_id=str(lead.id), contact_card_id=str(contact_card.id))
+
+                    if lead and not call.lead_id:
+                        call.lead_id = lead.id
+                        call = await self.call_repo.update(call.id, call)
                 except Exception as e:
-                    logger.error(f"Failed to create pending action for missed call {call.id}: {e}")
+                    logger.error(f"Failed to find or create lead for contact {contact_card.id}: {e}")
 
             # Update contact card with last call metadata (for inbound calls)
             if direction == "inbound" and contact_card:

@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.domain.models.base import BaseModel
-from app.domain.enums import LeadStatus, DealStatus
+from app.domain.enums import LeadStatus, DealStatus, PipelineStage
 
 
 class Lead(BaseModel):
@@ -22,6 +22,7 @@ class Lead(BaseModel):
     contact_card_id: UUID = Field(..., description="Associated contact")
     status: LeadStatus = Field(default=LeadStatus.NEW, description="Lead status")
     deal_status: Optional[DealStatus] = Field(None, description="Deal status (operational)")
+    pipeline_stage: Optional[PipelineStage] = Field(None, description="Pipeline stage tracking lead progression")
     assigned_rep_id: Optional[UUID] = Field(None, description="Assigned sales rep")
     deal_size: Optional[float] = Field(None, description="Deal size in dollars")
     closed_at: Optional[datetime] = Field(None, description="When deal was closed")

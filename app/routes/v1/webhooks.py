@@ -235,6 +235,27 @@ async def shoonya_job_complete_webhook(
                 # Extract transcript from summary if available
                 transcript = complete_summary_data.get("transcript")
 
+                # If no transcript in summary, fetch from call detail endpoint
+                if not transcript:
+                    try:
+                        logger.info(f"Fetching transcript from Shunya Call Detail API for call {call_id}")
+                        call_detail = await shoonya.get_call_detail(
+                            call_id=str(call_id),
+                            company_id=company_id,
+                            include_transcript=True,
+                            include_segments=False,
+                        )
+                        transcript = call_detail.get("transcript")
+                        if transcript:
+                            logger.info(f"Successfully fetched transcript from Call Detail API for call {call_id}")
+                        else:
+                            logger.warning(f"No transcript available from Call Detail API for call {call_id}")
+                    except Exception as detail_err:
+                        logger.warning(
+                            f"Failed to fetch transcript from Call Detail API: {detail_err}",
+                            call_id=str(call_id),
+                        )
+
             except Exception as e:
                 logger.error(
                     f"Failed to fetch complete summary from Shunya Summary API: {e}",
@@ -250,10 +271,17 @@ async def shoonya_job_complete_webhook(
                         complete_summary_data = analysis_data
 
                 if not complete_summary_data:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to fetch summary from Shunya API and no fallback data available: {str(e)}",
+                    # Return 200 so Shunya stops retrying — the call will remain unanalyzed
+                    logger.error(
+                        f"Shunya summary unavailable for call {call_id} and no fallback data in payload. "
+                        f"Call will remain unanalyzed. Shunya error: {e}",
+                        call_id=str(call_id),
                     )
+                    return {
+                        "status": "acknowledged",
+                        "call_id": str(call_id),
+                        "warning": "Summary unavailable from Shunya — call stored without analysis",
+                    }
         else:
             # Shunya not configured - try to use webhook payload data
             logger.warning("Shunya client not available, attempting to use webhook payload data")
@@ -276,6 +304,14 @@ async def shoonya_job_complete_webhook(
 
         # Process analysis with complete data from Summary API
         logger.info(f"Processing analysis for call {call_id} with complete summary data")
+
+        # Ensure company_id is available in metadata for NEW FLOW (call record creation)
+        # Shunya summary has company_id at root level, but process_analysis looks under metadata
+        if company_id and complete_summary_data:
+            if "metadata" not in complete_summary_data:
+                complete_summary_data["metadata"] = {}
+            if isinstance(complete_summary_data.get("metadata"), dict):
+                complete_summary_data["metadata"]["company_id"] = str(company_id)
 
         analysis = await service.process_analysis(
             call_id=call_id,

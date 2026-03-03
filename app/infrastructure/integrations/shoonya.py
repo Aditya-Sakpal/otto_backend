@@ -50,7 +50,14 @@ class ShoonyaClient:
             self._enabled = True
             logger.info(f"Shoonya client initialized with base URL: {self.base_url}")
 
-    def _get_headers(self, company_id: Optional[str] = None) -> Dict[str, str]:
+        # Persistent HTTP client shared across all calls — avoids a new TCP/TLS
+        # handshake on every request (critical for parallel coaching dashboard calls).
+        self._http_client = httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+
+    def _get_headers(self, company_id: Optional[str] = None, user_id: Optional[str] = None) -> Dict[str, str]:
         """Get standard headers for Shunya API requests."""
         headers = {
             "X-API-Key": self.api_key,
@@ -58,6 +65,8 @@ class ShoonyaClient:
         }
         if company_id:
             headers["X-Company-Id"] = company_id
+        if user_id:
+            headers["X-User-Id"] = user_id
         return headers
 
     def is_available(self) -> bool:
@@ -144,6 +153,8 @@ class ShoonyaClient:
         query: str,
         target_role: str = "customer_rep",
         context: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None,
+        user_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Query Ask Otto (RAG).
@@ -153,6 +164,8 @@ class ShoonyaClient:
             query: User query
             target_role: Target role for context
             context: Additional context
+            user_id: Optional user ID for personalized responses
+            user_context: Optional user identity (name, role, email)
 
         Returns:
             RAG query result
@@ -160,17 +173,23 @@ class ShoonyaClient:
         if not self.is_available():
             raise RuntimeError("Shoonya not configured")
 
+        payload = {
+            "company_id": company_id,
+            "query": query,
+            "target_role": target_role,
+            "context": context or {},
+        }
+        if user_id:
+            payload["user_id"] = user_id
+        if user_context:
+            payload["user_context"] = user_context
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 f"{self.base_url}/api/v1/rag/ask-otto",
-                json={
-                    "company_id": company_id,
-                    "query": query,
-                    "target_role": target_role,
-                    "context": context or {},
-                },
+                json=payload,
                 headers={
-                    **self._get_headers(company_id),
+                    **self._get_headers(company_id, user_id=user_id),
                     "X-Target-Role": target_role,
                 },
             )
@@ -475,6 +494,58 @@ class ShoonyaClient:
             traceback.print_exc()
             raise
 
+    async def get_call_detail(
+        self,
+        call_id: str,
+        company_id: Optional[str] = None,
+        include_transcript: bool = True,
+        include_segments: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Get call detail including transcript and diarized segments.
+
+        Args:
+            call_id: Call UUID
+            company_id: Optional company ID
+            include_transcript: Whether to include full transcript (default: True)
+            include_segments: Whether to include diarized segments (default: False)
+
+        Returns:
+            Call detail with transcript, segments, metadata, etc.
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        params = {
+            "include_transcript": str(include_transcript).lower(),
+            "include_segments": str(include_segments).lower(),
+        }
+
+        url = f"{self.base_url}/api/v1/call-processing/calls/{call_id}/detail"
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    params=params,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya call detail API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting call detail: {e}")
+            traceback.print_exc()
+            raise
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -580,6 +651,7 @@ class ShoonyaClient:
         company_id: str,
         user_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        user_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Create a new Ask Otto conversation.
@@ -588,6 +660,7 @@ class ShoonyaClient:
             company_id: Company UUID
             user_id: Optional user ID (defaults to "anonymous" if not provided)
             metadata: Optional metadata (source, user_role, etc.)
+            user_context: Optional user identity context (name, role, email)
 
         Returns:
             Conversation data with conversation_id
@@ -596,12 +669,17 @@ class ShoonyaClient:
             raise RuntimeError("Shoonya not configured")
 
         # user_id is required by Shunya API - use "anonymous" as default
+        effective_user_id = user_id or "anonymous"
         payload = {
             "company_id": company_id,
-            "user_id": user_id or "anonymous",
+            "user_id": effective_user_id,
         }
-        if metadata:
-            payload["metadata"] = metadata
+        # Merge user_context into metadata so Shunya knows who is asking
+        merged_metadata = dict(metadata or {})
+        if user_context:
+            merged_metadata["user_context"] = user_context
+        if merged_metadata:
+            payload["metadata"] = merged_metadata
 
         url = f"{self.base_url}/api/v1/ask-otto/conversations"
         logger.info(f"Calling Shunya API: {url}")
@@ -611,7 +689,7 @@ class ShoonyaClient:
                 response = await client.post(
                     url,
                     json=payload,
-                    headers=self._get_headers(company_id),
+                    headers=self._get_headers(company_id, user_id=effective_user_id),
                 )
                 response.raise_for_status()
                 return response.json()
@@ -637,6 +715,8 @@ class ShoonyaClient:
         conversation_id: str,
         message: str,
         company_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        user_context: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
         options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -647,6 +727,8 @@ class ShoonyaClient:
             conversation_id: Conversation UUID
             message: User message
             company_id: Optional company ID
+            user_id: Optional user ID for personalized responses
+            user_context: Optional user identity (name, role, email) for personalized responses
             context: Optional context (include_customer_context, include_call_history, max_rag_results, search_filters)
             options: Optional options (stream, include_sources, suggest_follow_ups)
 
@@ -657,6 +739,11 @@ class ShoonyaClient:
             raise RuntimeError("Shoonya not configured")
 
         payload = {"message": message}
+        # Include user identity so Shunya can personalize responses
+        if user_id:
+            payload["user_id"] = user_id
+        if user_context:
+            payload["user_context"] = user_context
         if context:
             payload["context"] = context
         if options:
@@ -670,7 +757,7 @@ class ShoonyaClient:
                 response = await client.post(
                     url,
                     json=payload,
-                    headers=self._get_headers(company_id),
+                    headers=self._get_headers(company_id, user_id=user_id),
                 )
                 response.raise_for_status()
                 return response.json()
@@ -1526,6 +1613,244 @@ class ShoonyaClient:
             raise
         except Exception as e:
             logger.error(f"Error deleting SOP document: {e}")
+            traceback.print_exc()
+            raise
+
+    # ============================================================================
+    # Coaching & Progression APIs
+    # ============================================================================
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_agent_progression(
+        self,
+        rep_id: str,
+        company_id: str,
+        metrics: str = "compliance_score,booking_rate",
+        weeks: int = 8,
+    ) -> Dict[str, Any]:
+        """
+        Get agent progression tracking data.
+
+        Args:
+            rep_id: Representative/agent ID
+            company_id: Company UUID
+            metrics: Comma-separated metric names
+            weeks: Number of weeks to analyze (default 8)
+
+        Returns:
+            Agent progression data with weekly metrics, trends, and anomalies
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/insights/agents/{rep_id}/progression"
+        params = {
+            "company_id": company_id,
+            "metrics": metrics,
+            "weeks": weeks,
+        }
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting agent progression: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_agent_peer_comparison(
+        self,
+        rep_id: str,
+        company_id: str,
+        metric: str,
+        days: int = 30,
+    ) -> Dict[str, Any]:
+        """
+        Get on-demand peer comparison for a specific metric.
+
+        Args:
+            rep_id: Representative/agent ID
+            company_id: Company UUID
+            metric: Metric name to compare
+            days: Analysis period in days
+
+        Returns:
+            Peer comparison data with rank, percentile, averages
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/insights/agents/{rep_id}/peer-comparison"
+        params = {
+            "company_id": company_id,
+            "metric": metric,
+            "days": days,
+        }
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting agent peer comparison: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_agents_summary(
+        self,
+        company_id: str,
+        weeks: int = 4,
+    ) -> Dict[str, Any]:
+        """
+        Get manager dashboard summary of all agents.
+
+        Args:
+            company_id: Company UUID
+            weeks: Analysis period in weeks
+
+        Returns:
+            Summary data for all agents in the company
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/insights/agents/summary"
+        params = {
+            "company_id": company_id,
+            "weeks": weeks,
+        }
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self._get_headers(company_id),
+                    params=params,
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting agents summary: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_call_summaries(
+        self,
+        company_id: str,
+        rep_id: Optional[str] = None,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+    ) -> Dict[str, Any]:
+        """
+        List call summaries from Shunya with filters.
+
+        Args:
+            company_id: Company UUID
+            rep_id: Optional rep ID filter
+            from_date: Optional start date filter (ISO format)
+            to_date: Optional end date filter (ISO format)
+            limit: Results per page
+            offset: Pagination offset
+            sort_by: Sort field
+            sort_order: Sort direction
+
+        Returns:
+            Paginated list of call summaries
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/call-processing/summaries"
+        params = {
+            "company_id": company_id,
+            "limit": limit,
+            "offset": offset,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
+        }
+        if rep_id:
+            params["rep_id"] = rep_id
+        if from_date:
+            params["from_date"] = from_date
+        if to_date:
+            params["to_date"] = to_date
+
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    url,
+                    headers=self._get_headers(company_id),
+                    params=params,
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error calling Shunya API: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting call summaries: {e}")
             traceback.print_exc()
             raise
 

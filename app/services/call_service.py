@@ -1,4 +1,4 @@
-"""
+﻿"""
 Call service.
 
 Orchestrates call-related business logic:
@@ -20,6 +20,7 @@ from app.domain.models.call import Call
 from app.domain.models.analysis import CallAnalysis
 from app.domain.models.pending_action import PendingAction
 from app.domain.enums import AnalysisStatus, PendingActionStatus
+from app.core.datetime_utils import isoformat_utc
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.analysis import CallAnalysisRepository
 from app.infrastructure.repositories.pending_action import PendingActionRepository
@@ -33,7 +34,7 @@ from app.domain.users.repository import UserRepository
 from app.domain.users.models import User
 from app.domain.models.lead import Lead
 from app.domain.models.appointment import Appointment
-from app.domain.enums import LeadStatus, DealStatus, AppointmentOutcome
+from app.domain.enums import LeadStatus, DealStatus, AppointmentOutcome, PipelineStage
 from app.services.ghost_mode_service import GhostModeService
 from app.domain.schemas.calls import (
     RecordingAnalysisResponse,
@@ -140,9 +141,6 @@ class CallService:
             audio_url: Optional audio recording URL
             call_type: Type of call
             missed_call: Whether call was missed
-
-        Returns:
-            Created call
         """
         try:
             # Find or create contact card for this phone number
@@ -272,7 +270,7 @@ class CallService:
         """
         Trigger AI analysis directly without creating a call record first.
 
-        This is the new flow: CRM → Shunya → call_analyses → appointment
+        This is the new flow: CRM ╬ô├Ñ├å Shunya ╬ô├Ñ├å call_analyses ╬ô├Ñ├å appointment
 
         Args:
             company_id: Company UUID
@@ -424,7 +422,7 @@ class CallService:
 
                 # Get call details from metadata or qualification
                 phone_number = metadata.get("phone_number", "unknown")
-                company_id_str = metadata.get("company_id")
+                company_id_str = metadata.get("company_id") or analysis_data.get("company_id")
                 if not company_id_str:
                     raise ValueError("company_id required in metadata to create call record")
 
@@ -776,11 +774,109 @@ class CallService:
             # Update dependent entities based on analysis
             await self._update_dependent_entities(call, analysis)
 
+            # Extract coaching data into dedicated tables
+            await self._extract_coaching_data(call, analysis, analysis_data)
+
             return analysis
 
         except Exception as e:
             logger.error(f"Error processing analysis: {e}", call_id=str(call_id))
             raise e
+
+    async def _extract_coaching_data(
+        self,
+        call,
+        analysis,
+        analysis_data: dict,
+    ) -> None:
+        """Extract coaching issues, strengths, and objection details into dedicated tables."""
+        try:
+            from app.infrastructure.database.models.coaching import (
+                CoachingIssueORM,
+                CoachingStrengthORM,
+                CallObjectionDetailORM,
+            )
+
+            company_id = call.company_id
+            user_id = call.handled_by_user_id
+            call_id = call.id
+            analysis_id = analysis.id
+
+            # Extract coaching issues from compliance.sop_compliance.coaching_issues
+            compliance = analysis_data.get("compliance", {})
+            sop_compliance = compliance.get("sop_compliance", {})
+
+            coaching_issues = sop_compliance.get("coaching_issues", [])
+            for issue_data in coaching_issues:
+                if not isinstance(issue_data, dict):
+                    continue
+                issue_obj = CoachingIssueORM(
+                    call_analysis_id=analysis_id,
+                    call_id=call_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    issue=issue_data.get("issue", ""),
+                    severity=issue_data.get("severity", "medium"),
+                    why_it_matters=issue_data.get("why_it_matters"),
+                    how_to_fix=issue_data.get("how_to_fix"),
+                    example_language=issue_data.get("example_language"),
+                    transcript_evidence=issue_data.get("transcript_evidence"),
+                    related_sop_metric=issue_data.get("related_sop_metric"),
+                )
+                self.session.add(issue_obj)
+
+            # Extract coaching strengths from compliance.sop_compliance.coaching_strengths
+            coaching_strengths = sop_compliance.get("coaching_strengths", [])
+            for strength_data in coaching_strengths:
+                if not isinstance(strength_data, dict):
+                    continue
+                strength_obj = CoachingStrengthORM(
+                    call_analysis_id=analysis_id,
+                    call_id=call_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    behavior=strength_data.get("behavior", ""),
+                    why_effective=strength_data.get("why_effective"),
+                    transcript_evidence=strength_data.get("transcript_evidence"),
+                    related_sop_metric=strength_data.get("related_sop_metric"),
+                )
+                self.session.add(strength_obj)
+
+            # Extract objection details from objections.objections
+            objections_section = analysis_data.get("objections", {})
+            objections_list = []
+            if isinstance(objections_section, dict):
+                objections_list = objections_section.get("objections", [])
+            elif isinstance(objections_section, list):
+                objections_list = objections_section
+
+            for obj_data in objections_list:
+                if not isinstance(obj_data, dict):
+                    continue
+                obj_detail = CallObjectionDetailORM(
+                    call_analysis_id=analysis_id,
+                    call_id=call_id,
+                    company_id=company_id,
+                    user_id=user_id,
+                    category_id=obj_data.get("category_id"),
+                    category_text=obj_data.get("category_text", "Other"),
+                    objection_text=obj_data.get("objection_text"),
+                    overcome=obj_data.get("overcome", False),
+                    severity=obj_data.get("severity"),
+                    confidence_score=obj_data.get("confidence_score"),
+                )
+                self.session.add(obj_detail)
+
+            await self.session.flush()
+            logger.info(
+                "Extracted coaching data",
+                call_id=str(call_id),
+                issues=len(coaching_issues),
+                strengths=len(coaching_strengths),
+                objections=len(objections_list),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to extract coaching data (non-fatal): {e}")
 
     def _map_to_lead_status(
         self,
@@ -854,7 +950,30 @@ class CallService:
             return DealStatus.NEW
         
         return None
-    
+
+    def _map_to_pipeline_stage(
+        self,
+        lead_status: LeadStatus,
+    ) -> Optional[PipelineStage]:
+        """
+        Map LeadStatus to PipelineStage.
+
+        Args:
+            lead_status: The lead status after call analysis
+
+        Returns:
+            Appropriate PipelineStage enum value or None
+        """
+        mapping = {
+            LeadStatus.QUALIFIED_UNBOOKED: PipelineStage.QUALIFIED,
+            LeadStatus.QUALIFIED_BOOKED: PipelineStage.BOOKED,
+            LeadStatus.QUALIFIED_SERVICE_NOT_OFFERED: PipelineStage.SERVICE_NOT_OFFERED,
+            LeadStatus.ABANDONED: PipelineStage.UNQUALIFIED,
+            LeadStatus.CLOSED_WON: PipelineStage.WON,
+            LeadStatus.CLOSED_LOST: PipelineStage.LOST,
+        }
+        return mapping.get(lead_status)
+
     async def _find_existing_lead(
         self,
         contact_card_id: UUID,
@@ -999,311 +1118,128 @@ class CallService:
         """
         Update dependent entities based on call analysis.
 
-        Updates:
-        - Lead status based on qualification_status and booking_status
-        - Creates lead if it doesn't exist and call has contact_card_id
-        - Updates call.lead_id after creating/updating lead
-        - Appointment status based on booking_status
-        - Contact card metadata
+        Updates lead status, deal_status, and pipeline_stage based on
+        qualification_status and booking_status from the analysis.
+        Also creates/updates appointments when booking_status is 'booked'.
         """
         try:
-            # Skip if no contact_card_id (can't create/update lead without contact)
-            if not call.contact_card_id:
-                logger.debug(
-                    "Skipping lead creation/update - no contact_card_id",
-                    call_id=str(call.id),
-                )
+            if not call.lead_id and not call.contact_card_id:
+                logger.debug("No lead_id or contact_card_id on call, skipping dependent entity updates")
                 return
-            
-            # Skip if qualification_status is missing (analysis not complete)
-            if not analysis.qualification_status:
-                logger.debug(
-                    "Skipping lead creation/update - no qualification_status",
-                    call_id=str(call.id),
-                )
-                return
-            
-            # Map to lead status and deal status
-            new_lead_status = self._map_to_lead_status(
-                analysis.qualification_status,
-                analysis.booking_status,
-            )
-            new_deal_status = self._map_to_deal_status(analysis.booking_status)
-            
-            # Find existing lead or create new one
-            existing_lead = None
-            if call.lead_id:
-                # Try to get existing lead by lead_id first
-                existing_lead = await self.lead_repo.get_by_id(call.lead_id)
-            
-            # If not found by lead_id, try to find by contact_card_id and company_id
-            if not existing_lead:
-                existing_lead = await self._find_existing_lead(
-                    call.contact_card_id,
-                    call.company_id,
-                )
-            
-            if existing_lead:
-                # Update existing lead - always update with latest status (even if worse)
-                logger.info(
-                    "Updating existing lead",
-                    lead_id=str(existing_lead.id),
-                    old_status=existing_lead.status,
-                    new_status=new_lead_status,
-                    old_deal_status=existing_lead.deal_status,
-                    new_deal_status=new_deal_status,
-                )
-                
-                # Update lead fields
-                existing_lead.status = new_lead_status
-                existing_lead.deal_status = new_deal_status
-                
-                # Update extra_metadata with call analysis info
-                if existing_lead.extra_metadata is None:
-                    existing_lead.extra_metadata = {}
-                
-                # Store latest call analysis info
-                existing_lead.extra_metadata['last_call_analysis'] = {
-                    'call_id': str(call.id),
-                    'qualification_status': analysis.qualification_status,
-                    'booking_status': analysis.booking_status,
-                    'updated_at': datetime.now(timezone.utc).isoformat(),
-                }
-                
-                # Update lead
-                updated_lead = await self.lead_repo.update(existing_lead.id, existing_lead)
-                
-                # Update call.lead_id if it wasn't set
-                if not call.lead_id:
-                    call.lead_id = updated_lead.id
-                    await self.call_repo.update(call.id, call)
-                    logger.info(
-                        "Linked call to existing lead",
-                        call_id=str(call.id),
-                        lead_id=str(updated_lead.id),
-                    )
-            else:
-                # Create new lead
-                logger.info(
-                    "Creating new lead from call analysis",
-                    call_id=str(call.id),
-                    contact_card_id=str(call.contact_card_id),
-                    qualification_status=analysis.qualification_status,
-                    booking_status=analysis.booking_status,
-                )
-                
-                new_lead = Lead(
-                    company_id=call.company_id,
-                    
-                    contact_card_id=call.contact_card_id,
-                    status=new_lead_status,
-                    deal_status=new_deal_status,
-                    extra_metadata={
-                        'created_from_call': str(call.id),
-                        'last_call_analysis': {
-                            'call_id': str(call.id),
-                            'qualification_status': analysis.qualification_status,
-                            'booking_status': analysis.booking_status,
-                            'created_at': datetime.now(timezone.utc).isoformat(),
-                        },
-                    },
-                )
-                
-                created_lead = await self.lead_repo.create(new_lead)
-                
-                # Update call.lead_id
-                call.lead_id = created_lead.id
-                await self.call_repo.update(call.id, call)
-                
-                logger.info(
-                    "Created new lead and linked to call",
-                    call_id=str(call.id),
-                    lead_id=str(created_lead.id),
-                )
 
-            # Create or update appointment when booking_status is booked (for companies without GHL)
-            if analysis.booking_status and str(analysis.booking_status).lower() in ["booked", "confirmed"]:
+            # Find the lead
+            lead = None
+            if call.lead_id:
+                lead = await self.lead_repo.get_by_id(call.lead_id)
+            if not lead and call.contact_card_id and call.company_id:
+                lead = await self._find_existing_lead(call.contact_card_id, call.company_id)
+
+            if not lead:
+                logger.debug("No lead found for call, skipping dependent entity updates", call_id=str(call.id))
+                return
+
+            # Map to lead status and pipeline stage
+            qualification_status = getattr(analysis, "qualification_status", None)
+            booking_status = getattr(analysis, "booking_status", None)
+
+            new_lead_status = self._map_to_lead_status(qualification_status, booking_status)
+            new_deal_status = self._map_to_deal_status(booking_status)
+            new_pipeline_stage = self._map_to_pipeline_stage(new_lead_status)
+
+            # Update lead fields
+            from sqlalchemy import select
+            from app.infrastructure.database.models.lead import LeadORM
+
+            result = await self.session.execute(
+                select(LeadORM).where(LeadORM.id == lead.id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if not lead_orm:
+                return
+
+            lead_orm.status = new_lead_status.value
+            if new_deal_status:
+                lead_orm.deal_status = new_deal_status.value
+            if new_pipeline_stage:
+                lead_orm.pipeline_stage = new_pipeline_stage.value
+
+            await self.session.flush()
+
+            logger.info(
+                "Updated lead from call analysis",
+                lead_id=str(lead.id),
+                call_id=str(call.id),
+                status=new_lead_status.value,
+                pipeline_stage=new_pipeline_stage.value if new_pipeline_stage else None,
+            )
+
+            # Create/update appointment if booked
+            if booking_status and booking_status.lower() == "booked":
                 await self._upsert_appointment_from_call(call, analysis)
 
-            # Update contact card metadata with analysis insights
-            if call.contact_card_id:
-                # TODO: Implement ContactCardRepository and update metadata
-                # Store key insights, sentiment, objections in extra_metadata
-                logger.info(
-                    "Contact card update needed",
-                    contact_card_id=str(call.contact_card_id),
-                )
-
-            logger.info("Dependent entities update completed", call_id=str(call.id))
-
         except Exception as e:
-            logger.error(
-                f"Error updating dependent entities: {e}",
-                call_id=str(call.id),
-            )
+            logger.error(f"Error updating dependent entities: {e}", call_id=str(call.id))
             traceback.print_exc()
-            # Don't raise - this is non-critical
+            # Non-critical: do not re-raise
 
     async def _process_pending_actions(
         self,
-        call: Call,
+        call: Any,
         analysis_data: Dict[str, Any],
-        analysis: CallAnalysis,
+        analysis: Any,
     ) -> None:
         """
-        Process pending actions from analysis data and insert into pending_actions table.
+        Create ActionItem rows from AI-generated next_steps and action_items
+        extracted from the Shunya analysis payload.
 
-        Args:
-            call: The call record
-            analysis_data: Raw analysis data from Shunya (can be top-level or nested in summary/compliance/qualification)
-            analysis: The created/updated analysis
+        Reads from:
+          analysis_data["summary"]["next_steps"]   – recommended next actions
+          analysis_data["summary"]["action_items"] – explicit action items
+          analysis_data["summary"]["pending_actions"] – pending tasks
+
+        Each string is stored as a separate ActionItemORM row with source="ai_analysis".
         """
         try:
-            # Extract pending_actions from analysis_data
-            # Shunya Summary API structure: {summary: {pending_actions: [...]}, ...}
-            # Also check top-level for backward compatibility
-            pending_actions_data = None
+            from app.infrastructure.database.models.action_item import ActionItemORM
 
-            # Check in summary section first (Shunya Summary API format)
             summary_section = analysis_data.get("summary", {})
-            if isinstance(summary_section, dict):
-                pending_actions_data = summary_section.get("pending_actions", [])
-                if pending_actions_data:
-                    logger.debug(f"Found {len(pending_actions_data)} pending actions in summary section", call_id=str(call.id))
-
-            # Fallback to top-level (legacy format)
-            if not pending_actions_data:
-                pending_actions_data = analysis_data.get("pending_actions", [])
-                if pending_actions_data:
-                    logger.debug(f"Found {len(pending_actions_data)} pending actions at top level", call_id=str(call.id))
-
-            # If still not found, check if analysis_data itself is the summary section
-            if not pending_actions_data and isinstance(analysis_data, dict) and "pending_actions" in analysis_data:
-                pending_actions_data = analysis_data.get("pending_actions", [])
-                if pending_actions_data:
-                    logger.debug(f"Found {len(pending_actions_data)} pending actions in analysis_data", call_id=str(call.id))
-
-            if not pending_actions_data:
-                logger.debug("No pending actions found in analysis data", call_id=str(call.id))
+            if not isinstance(summary_section, dict):
                 return
 
-            for action_data in pending_actions_data:
-                try:
-                    # Initialize variables
-                    owner = None
-                    confidence = None
-                    contact_method = None
-                    due_at = None
-                    priority = None
+            # Collect all action texts from the three possible fields
+            action_texts: List[str] = []
+            for field in ("next_steps", "action_items", "pending_actions"):
+                items = summary_section.get(field) or []
+                if isinstance(items, list):
+                    action_texts.extend(str(i).strip() for i in items if i and str(i).strip())
 
-                    # Handle both dict and string formats
-                    if isinstance(action_data, str):
-                        # Legacy format: simple string
-                        action_type = action_data
-                        raw_text = action_data
-                    else:
-                        # New format: dict with fields (Shunya format)
-                        action_type = action_data.get("action_type") or action_data.get("action") or action_data.get("type") or "unknown"
-                        raw_text = action_data.get("raw_text") or action_data.get("action") or action_type
-                        due_at_str = action_data.get("due_at")
-                        priority = action_data.get("priority")
+            if not action_texts:
+                return
 
-                        # Extract additional fields from Shunya payload
-                        owner = action_data.get("owner")  # "company" or user ID
-                        confidence = action_data.get("confidence")
-                        contact_method = action_data.get("contact_method")
+            lead_id = getattr(call, "lead_id", None)
+            company_id = getattr(call, "company_id", None)
 
-                        # Parse due_at if provided (should be UTC)
-                        if due_at_str:
-                            if isinstance(due_at_str, datetime):
-                                due_at = due_at_str
-                            elif isinstance(due_at_str, str):
-                                try:
-                                    # Try ISO format first
-                                    due_at = datetime.fromisoformat(due_at_str.replace('Z', '+00:00'))
-                                except ValueError:
-                                    try:
-                                        # Try other common formats
-                                        due_at = datetime.strptime(due_at_str, "%Y-%m-%d %H:%M:%S%z")
-                                    except ValueError:
-                                        logger.warning(f"Could not parse due_at: {due_at_str}")
-                                        due_at = None
+            for text in action_texts:
+                action_item = ActionItemORM(
+                    company_id=company_id,
+                    lead_id=lead_id,
+                    call_id=call.id,
+                    action_type="follow_up",
+                    raw_text=text,
+                    status="pending",
+                    source="ai_analysis",
+                )
+                self.session.add(action_item)
 
-                        # Convert priority string to int if needed
-                        if isinstance(priority, str):
-                            priority_map = {"high": 3, "medium": 2, "low": 1}
-                            priority = priority_map.get(priority.lower(), 2)
-                        elif priority is None:
-                            priority = 2  # Default to medium
-
-                    # Determine owner_id
-                    # Shunya sends "owner": "company" or a user ID
-                    # If owner is "company", use call.handled_by_user_id or leave as None
-                    owner_id = None
-                    if owner and owner != "company":
-                        try:
-                            owner_id = UUID(owner) if isinstance(owner, str) else owner
-                        except (ValueError, TypeError):
-                            logger.warning(f"Invalid owner ID format: {owner}, using call owner")
-                            owner_id = call.handled_by_user_id
-                    else:
-                        # Use call owner if available, otherwise leave as None (will be assigned based on action type)
-                        owner_id = call.handled_by_user_id
-
-                    # Create PendingAction domain model
-                    pending_action = PendingAction(
-                        company_id=call.company_id,
-                        lead_id=call.lead_id,
-                        call_id=call.id,
-                        appointment_id=None,  # Only for appointment recordings
-                        action_type=action_type,
-                        raw_text=raw_text,
-                        status=PendingActionStatus.PENDING,
-                        due_at=due_at,
-                        priority=priority,
-                        owner_id=owner_id,  # May be None if call wasn't handled by a user
-                        source="shunya",
-                        extra_metadata={
-                            "from_analysis": str(analysis.id),
-                            "shunya_owner": owner,  # Store original owner value from Shunya
-                            "confidence": confidence,
-                            "contact_method": contact_method,
-                            "analysis_data": action_data if isinstance(action_data, dict) else None,
-                        },
-                    )
-
-                    # Insert into database
-                    await self.pending_action_repo.create(pending_action)
-                    logger.debug(
-                        "Pending action created",
-                        call_id=str(call.id),
-                        action_type=action_type,
-                        due_at=due_at.isoformat() if due_at else None,
-                    )
-
-                except Exception as e:
-                    logger.error(
-                        f"Error processing pending action: {e}",
-                        call_id=str(call.id),
-                        action_data=action_data,
-                    )
-                    traceback.print_exc()
-                    # Continue processing other actions
-                    continue
-
+            await self.session.flush()
             logger.info(
-                "Pending actions processed",
+                f"Created {len(action_texts)} action items from analysis",
                 call_id=str(call.id),
-                count=len(pending_actions_data) if pending_actions_data else 0,
             )
 
         except Exception as e:
-            logger.error(
-                f"Error processing pending actions: {e}",
-                call_id=str(call.id),
-            )
-            traceback.print_exc()
-            # Don't raise - pending actions are non-critical
+            logger.error(f"Error processing pending actions: {e}", call_id=str(call.id))
+            # Non-critical: do not re-raise
 
     async def get_call_logs(
         self,
@@ -1478,23 +1414,9 @@ class CallService:
             results = await self.session.execute(query)
             rows = results.all()
 
-            # Calculate summary statistics (from all calls, excluding existing customers and service_not_offered)
+            # Calculate summary statistics from all calls for this company
             # Qualified statuses: hot, cold, warm, qualified
-            summary_base = and_(
-                CallORM.company_id == company_id,
-                or_(
-                    CallAnalysisORM.is_existing_customer == False,
-                    CallAnalysisORM.is_existing_customer.is_(None)
-                ),
-                or_(
-                    CallAnalysisORM.booking_status.is_(None),
-                    func.lower(CallAnalysisORM.booking_status) != "service_not_offered"
-                ),
-                or_(
-                    CallAnalysisORM.service_not_offered_reason.is_(None),
-                    CallAnalysisORM.service_not_offered_reason == ""
-                ),
-            )
+            summary_base = CallORM.company_id == company_id
             summary_query = select(
                 func.count(CallORM.id).label('total_calls'),
                 func.sum(
@@ -1707,142 +1629,3 @@ class CallService:
             traceback.print_exc()
             raise
 
-    async def get_recording_analysis(self, call_id: UUID) -> Optional[RecordingAnalysisResponse]:
-        """
-        Get comprehensive recording analysis for post-meeting insights.
-
-        Returns structured analysis with summary, objections, compliance,
-        qualification, and lead scoring.
-
-        Args:
-            call_id: Call UUID
-
-        Returns:
-            RecordingAnalysisResponse or None if analysis not found
-        """
-        try:
-            # Get call analysis
-            analysis = await self.analysis_repo.get_by_call_id(call_id)
-            if not analysis:
-                return None
-
-            # 1. Summary section
-            pending_actions_structured = []
-            if analysis.pending_actions:
-                for action in analysis.pending_actions:
-                    if isinstance(action, dict):
-                        pending_actions_structured.append(PendingActionDetail(
-                            type=action.get("type", "unknown"),
-                            owner=action.get("owner", "unknown"),
-                            raw_text=action.get("raw_text", ""),
-                            due_at=action.get("due_at"),
-                            confidence=action.get("confidence"),
-                            contact_method=action.get("contact_method"),
-                        ))
-
-            summary = RecordingSummary(
-                summary=analysis.summary or "",
-                key_points=analysis.key_points or [],
-                pending_actions=pending_actions_structured,
-                sentiment_score=analysis.sentiment_score,
-            )
-
-            # 2. Objections section
-            objection_details = []
-            if analysis.objections and analysis.objection_texts:
-                for idx, objection in enumerate(analysis.objections):
-                    objection_text = analysis.objection_texts[idx] if idx < len(analysis.objection_texts) else ""
-
-                    # Parse objection string to extract category
-                    objection_str = objection.value if hasattr(objection, 'value') else str(objection)
-
-                    objection_details.append(ObjectionDetail(
-                        category_id=idx + 1,
-                        category_text=objection_str,
-                        objection_text=objection_text or objection_str,
-                        overcome=True,  # Default to True if not specified
-                        severity="medium",  # Default severity
-                        confidence_score=0.85,  # Default confidence
-                        response_suggestions=[],  # Can be enhanced later
-                    ))
-
-            objections = RecordingObjections(
-                objections=objection_details,
-                total_count=analysis.objections_total_count or len(objection_details),
-            )
-
-            # 3. Compliance section
-            stages_detail = {}
-
-            # Create stage details from completed and missed stages
-            completed_stages = analysis.sop_stages_completed or []
-            missed_stages = analysis.sop_stages_missed or []
-
-            for stage in completed_stages:
-                stages_detail[stage.lower().replace(" ", "_")] = ComplianceStageDetail(
-                    score=0.95,  # High score for completed stages
-                    issues=[],
-                )
-
-            for stage in missed_stages:
-                stage_key = stage.lower().replace(" ", "_")
-                stages_detail[stage_key] = ComplianceStageDetail(
-                    score=0.0,  # Low score for missed stages
-                    issues=[f"Missed: {stage}"],
-                )
-
-            compliance = RecordingCompliance(
-                score=analysis.sop_compliance_score or 0.0,
-                stages=stages_detail,
-                positive_behaviors=analysis.sop_compliance_positive_behaviors or [],
-                issues=analysis.sop_compliance_issues or [],
-            )
-
-            # 4. Qualification section
-            bant_scores = {
-                "need": analysis.bant_need_score or 0.0,
-                "budget": analysis.bant_budget_score or 0.0,
-                "authority": analysis.bant_authority_score or 0.0,
-                "timeline": analysis.bant_timeline_score or 0.0,
-            }
-
-            qualification = RecordingQualification(
-                overall_score=analysis.qualification_overall_score or 0.0,
-                bant_scores=bant_scores,
-                qualification_status=analysis.qualification_status or "unqualified",
-            )
-
-            # 5. Lead score section
-            # Calculate lead score based on qualification score (0-1 -> 0-100)
-            total_score = int((analysis.qualification_overall_score or 0.0) * 100)
-
-            # Determine lead band based on score
-            if total_score >= 80:
-                lead_band = "hot"
-            elif total_score >= 60:
-                lead_band = "warm"
-            elif total_score >= 40:
-                lead_band = "cold"
-            else:
-                lead_band = "unqualified"
-
-            lead_score = RecordingLeadScore(
-                total_score=total_score,
-                lead_band=lead_band,
-            )
-
-            # Build complete response
-            return RecordingAnalysisResponse(
-                call_id=str(call_id),
-                status=analysis.status.value if hasattr(analysis.status, 'value') else str(analysis.status),
-                summary=summary,
-                objections=objections,
-                compliance=compliance,
-                qualification=qualification,
-                lead_score=lead_score,
-            )
-
-        except Exception as e:
-            logger.error(f"Error getting recording analysis: {e}")
-            traceback.print_exc()
-            return None

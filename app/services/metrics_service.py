@@ -29,6 +29,27 @@ def _metrics_exclude_existing_and_service_not_offered():
             CallAnalysisORM.service_not_offered_reason == "",
         ),
     )
+def _compute_percentage_ticks(values: List[float], max_ticks: int = 6) -> List[float]:
+    """Compute y-axis ticks for percentage data (0-100 range)."""
+    if not values or max(values) <= 0:
+        return [0.0]
+    max_v = max(values)
+    nice_steps = [1, 2, 5, 10, 20, 25, 50]
+    best_step = 20  # default
+    for step in nice_steps:
+        n_ticks = int(max_v // step) + 2
+        if 3 <= n_ticks <= max_ticks + 1:
+            best_step = step
+            break
+    high = min(((int(max_v) // best_step) + 1) * best_step, 100)
+    ticks: List[float] = []
+    v = 0.0
+    while v <= high:
+        ticks.append(v)
+        v += best_step
+    return ticks
+
+
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.appointment import AppointmentORM
@@ -81,15 +102,15 @@ class MetricsService:
         If not provided, defaults to last 30 days.
         """
         if end_date:
-            end_dt = datetime.combine(end_date, datetime.max.time())
+            end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
         else:
-            end_dt = datetime.utcnow()
-        
+            end_dt = datetime.now(timezone.utc)
+
         if start_date:
-            start_dt = datetime.combine(start_date, datetime.min.time())
+            start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
         else:
             start_dt = end_dt - timedelta(days=30)
-        
+
         return start_dt, end_dt
     
     async def get_company_overview(
@@ -152,13 +173,9 @@ class MetricsService:
             active_leads_count = active_leads.scalar() or 0
             
             # Qualified leads in date range
-            # Count leads with deal_status = "qualified" OR status in qualified statuses
-            # This handles both the deal_status field and the status field for qualification
+            # Count leads whose status is one of the qualified statuses
             qualified_leads_filters = lead_filters + [
-                or_(
-                    LeadORM.deal_status == "qualified",
-                    LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
-                )
+                LeadORM.status.in_(["qualified_booked", "qualified_unbooked"])
             ]
             qualified_leads = await self.session.execute(
                 select(func.count(LeadORM.id)).where(*qualified_leads_filters)
@@ -183,10 +200,27 @@ class MetricsService:
                 select(func.count(AppointmentORM.id)).where(*appointment_filters)
             )
             total_appointments_count = total_appointments.scalar() or 0
-            
-            # Conversion rate: booked leads (in period) / total leads created in period.
-            # "Booked" = status qualified_booked (case-insensitive) OR deal_status booked (trim + lower).
-            # Include leads that became booked *during* the period: created_at in range OR updated_at in range.
+
+            # Booked appointments (lead-count): number of leads with status == 'qualified_booked'
+            booked_leads_filters = lead_filters + [
+                LeadORM.status == "qualified_booked"
+            ]
+            if user_id:
+                booked_leads_filters.append(LeadORM.assigned_rep_id == user_id)
+            booked_leads_result = await self.session.execute(
+                select(func.count(LeadORM.id)).where(*booked_leads_filters)
+            )
+            booked_leads_value = booked_leads_result.scalar() or 0
+
+            # Booking rate: (booked_leads / qualified_leads) * 100
+            if qualified_leads_count > 0:
+                booking_rate = (booked_leads_value / qualified_leads_count) * 100
+            else:
+                booking_rate = 0.0
+            # Keep 'conversion_rate' field name for backward compatibility but populate with booking_rate.
+            conversion_rate = booking_rate
+
+            # Total revenue: sum deal_size for leads that are booked (lead-based) and in period.
             is_booked = or_(
                 func.lower(LeadORM.status) == "qualified_booked",
                 and_(
@@ -194,8 +228,7 @@ class MetricsService:
                     func.lower(func.trim(LeadORM.deal_status)) == "booked",
                 ),
             )
-            # Booked in period = currently booked AND (created in range OR updated in range)
-            booked_in_period_filters = [
+            lead_booked_in_period_filters = [
                 LeadORM.company_id == company_id,
                 is_booked,
                 or_(
@@ -211,17 +244,9 @@ class MetricsService:
                 ),
             ]
             if user_id:
-                booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
-            booked_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(*booked_in_period_filters)
-            )
-            booked_count = booked_leads.scalar() or 0
-            conversion_rate = (booked_count / total_leads_count * 100) if total_leads_count > 0 else 0.0
-
-            # Total revenue: sum deal_size for leads that are booked (same is_booked def) and in period
-            revenue_filters = booked_in_period_filters
+                lead_booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
             total_revenue = await self.session.execute(
-                select(func.sum(LeadORM.deal_size)).where(*revenue_filters)
+                select(func.sum(LeadORM.deal_size)).where(*lead_booked_in_period_filters)
             )
             revenue = total_revenue.scalar() or 0.0
 
@@ -231,9 +256,11 @@ class MetricsService:
                 "qualified_leads": qualified_leads_count,
                 "total_calls": total_calls_count,
                 "missed_calls": missed_calls_count,
-                "total_appointments": total_appointments_count,
+                "total_appointments": booked_leads_value,
+                # "total_appointments": total_appointments_count,
                 "conversion_rate": round(conversion_rate, 2),
-                "booked_leads": booked_count,
+                # booked_leads = qualified leads with >= 1 appointment (ensures <= qualified_leads, avoids rate > 100%)
+                "booked_leads": booked_leads_value,
                 "total_revenue": round(revenue, 2),
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),
@@ -456,15 +483,21 @@ class MetricsService:
 
                 from datetime import timedelta as _td, time as _time
 
-                async def counts_by_day(s: date, e: date) -> Dict[str, int]:
-                    counts: Dict[str, int] = {}
+                async def rates_by_day(s: date, e: date) -> Dict[str, float]:
+                    """Compute booking rate percentage per day: (booked / qualified) * 100."""
+                    rates: Dict[str, float] = {}
                     current = s
                     while current <= e:
                         day_start = datetime.combine(current, _time.min).replace(tzinfo=timezone.utc)
                         day_end = datetime.combine(current, _time.max).replace(tzinfo=timezone.utc)
-                        q = select(func.count(LeadORM.id)).where(
+
+                        # Single query: count all qualified leads and conditionally count booked ones
+                        q = select(
+                            func.count(LeadORM.id).label("total_qualified"),
+                            func.count(case((is_booked, LeadORM.id))).label("total_booked"),
+                        ).where(
                             LeadORM.company_id == company_id,
-                            is_booked,
+                            LeadORM.status.in_(["qualified_booked", "qualified_unbooked"]),
                             or_(
                                 and_(LeadORM.created_at >= day_start, LeadORM.created_at <= day_end),
                                 and_(LeadORM.updated_at >= day_start, LeadORM.updated_at <= day_end),
@@ -472,33 +505,17 @@ class MetricsService:
                         )
                         if user_id:
                             q = q.where(LeadORM.assigned_rep_id == user_id)
-                        res = await self.session.execute(q)
-                        cnt = res.scalar() or 0
-                        counts[current.isoformat()] = int(cnt)
+
+                        row = (await self.session.execute(q)).one()
+                        qualified = row.total_qualified or 0
+                        booked = row.total_booked or 0
+                        rate = round((booked / qualified) * 100, 2) if qualified > 0 else 0.0
+                        rates[current.isoformat()] = rate
                         current = current + _td(days=1)
-                    return counts
+                    return rates
 
-                a_counts = await counts_by_day(start_a, end_a)
-                b_counts = await counts_by_day(start_b, end_b)
-
-                # Convert counts dicts to ordered daily lists for each period
-                def dict_to_ordered_list(counts_dict: Dict[str, int], start: date, end: date) -> List[int]:
-                    lst: List[int] = []
-                    cur = start
-                    from datetime import timedelta as __td
-                    while cur <= end:
-                        lst.append(counts_dict.get(cur.isoformat(), 0))
-                        cur = cur + __td(days=1)
-                    return lst
-
-                a_daily = dict_to_ordered_list(a_counts, start_a, end_a)
-                b_daily = dict_to_ordered_list(b_counts, start_b, end_b)
-
-                len_a = len(a_daily)
-                len_b = len(b_daily)
-                max_len = max(len_a, len_b, 1)
-                # Limit to at most 10 points
-                K = min(max_len, 10)
+                a_rates = await rates_by_day(start_a, end_a)
+                b_rates = await rates_by_day(start_b, end_b)
 
                 # Prepare date lists for each day in the periods
                 def dates_list(start: date, end: date) -> List[str]:
@@ -513,84 +530,36 @@ class MetricsService:
                 a_dates = dates_list(start_a, end_a)
                 b_dates = dates_list(start_b, end_b)
 
-                # Build per-day ordered lists (no bucketing, no 10-point limit)
-                a_vals = [a_counts.get(d, 0) for d in a_dates]
-                b_vals = [b_counts.get(d, 0) for d in b_dates]
+                # Build per-day ordered lists of rate percentages
+                a_vals = [a_rates.get(d, 0.0) for d in a_dates]
+                b_vals = [b_rates.get(d, 0.0) for d in b_dates]
 
                 len_a = len(a_vals)
                 len_b = len(b_vals)
                 K = max(len_a, len_b, 1)
 
-                # series: x = actual ISO date (or empty), y = value (0 if missing)
-                series_a = [{"x": a_dates[i] if i < len_a else "", "y": a_vals[i] if i < len_a else 0} for i in range(K)]
-                series_b = [{"x": b_dates[i] if i < len_b else "", "y": b_vals[i] if i < len_b else 0} for i in range(K)]
+                # series: x = actual ISO date (or empty), y = booking rate percentage
+                series_a = [{"x": a_dates[i] if i < len_a else "", "y": a_vals[i] if i < len_a else 0.0} for i in range(K)]
+                series_b = [{"x": b_dates[i] if i < len_b else "", "y": b_vals[i] if i < len_b else 0.0} for i in range(K)]
 
                 # x_axis: "periodA_date/periodB_date"
                 x_axis = [f"{(a_dates[i] if i < len_a else '')}/{(b_dates[i] if i < len_b else '')}" for i in range(K)]
 
-                # Compute smart y-axis ticks (nice round numbers) with no hard cap on ticks;
-                # allow ticks up to max(10, number of distinct combined points)
-                def compute_ticks(values: List[int], max_ticks: int = None) -> List[int]:
-                    import math
-
-                    if not values:
-                        return [0]
-                    max_v = max(values)
-                    min_v = min([v for v in values if v is not None] or [0])
-                    if max_v <= 0:
-                        return [0]
-
-                    if max_ticks is None:
-                        # allow more ticks as data size increases; base on unique values count
-                        max_ticks = max(10, len(set(values)))
-
-                    # search for "nice" step sizes (1,2,5 * 10^exp) that give tick count between 2 and max_ticks
-                    exp_min = int(math.floor(math.log10(max_v))) - 3
-                    exp_max = int(math.floor(math.log10(max_v))) + 1
-                    candidates = []
-                    for exp in range(exp_min, exp_max + 1):
-                        for m in [1, 2, 5, 10]:
-                            step_f = m * (10 ** exp)
-                            step = max(1, int(round(step_f)))
-                            low_tick = (min_v // step) * step
-                            high_tick = int(math.ceil(max_v / step)) * step
-                            n_ticks = ((high_tick - low_tick) // step) + 1 if step > 0 else float("inf")
-                            candidates.append((int(n_ticks), int(low_tick), int(high_tick), int(step)))
-
-                    # filter candidates with acceptable number of ticks
-                    valid = [c for c in candidates if 2 <= c[0] <= max_ticks]
-                    preferred_target = min(6, max_ticks)
-                    chosen = None
-                    if valid:
-                        valid.sort(key=lambda x: (abs(x[0] - preferred_target), x[3]))
-                        chosen = valid[0]
-                    else:
-                        if not candidates:
-                            return [0]
-                        candidates.sort(key=lambda x: (abs(x[0] - max_ticks), x[3]))
-                        chosen = candidates[0]
-
-                    n_ticks, low_tick, high_tick, step = chosen
-                    if low_tick < 0:
-                        low_tick = 0
-                    step = max(1, int(step))
-                    ticks = list(range(int(low_tick), int(high_tick) + 1, int(step)))
-                    return ticks
-
+                # Compute percentage y-axis ticks
                 combined_vals = a_vals + b_vals
-                ticks = compute_ticks([int(v) for v in combined_vals], max_ticks=None)
+                ticks = _compute_percentage_ticks(combined_vals)
 
                 return {
                     "period_a": {
                         "start": start_a.isoformat(),
                         "end": end_a.isoformat(),
-                        "total_booked": sum(a_vals),
+                        "average_booking_rate": round(sum(a_vals) / len(a_vals), 2) if a_vals else 0.0,
                         "series": series_a,
                     },
                     "period_b": {
                         "start": start_b.isoformat(),
                         "end": end_b.isoformat(),
-                        "total_booked": sum(b_vals),
+                        "average_booking_rate": round(sum(b_vals) / len(b_vals), 2) if b_vals else 0.0,
                         "series": series_b,
                     },
                     "x_axis": x_axis,
@@ -764,79 +733,42 @@ class MetricsService:
                 if not company_id:
                     raise ValueError("company_id or user_id (with company) is required for dual-period mode")
 
-                # Define closed/won condition for leads and appointments
-                is_closed_won_lead = or_(
-                    func.lower(LeadORM.status) == "closed_won",
-                    and_(
-                        LeadORM.deal_status.isnot(None),
-                        func.lower(func.trim(LeadORM.deal_status)) == "won",
-                    ),
-                )
-
-                is_won_appointment = func.lower(AppointmentORM.outcome) == "won"
-
                 from datetime import timedelta as _td, time as _time
 
-                async def counts_by_day(s: date, e: date) -> Dict[str, int]:
-                    """Count closed/won deals per day in the given date range."""
-                    counts: Dict[str, int] = {}
+                async def rates_by_day(s: date, e: date) -> Dict[str, float]:
+                    """Compute close rate percentage per day: (won appointments / total appointments) * 100."""
+                    rates: Dict[str, float] = {}
                     current = s
                     while current <= e:
                         day_start = datetime.combine(current, _time.min).replace(tzinfo=timezone.utc)
                         day_end = datetime.combine(current, _time.max).replace(tzinfo=timezone.utc)
 
-                        # Count closed won leads
-                        q_leads = select(func.count(LeadORM.id)).where(
-                            LeadORM.company_id == company_id,
-                            is_closed_won_lead,
-                            or_(
-                                and_(LeadORM.created_at >= day_start, LeadORM.created_at <= day_end),
-                                and_(LeadORM.updated_at >= day_start, LeadORM.updated_at <= day_end),
-                                and_(LeadORM.closed_at >= day_start, LeadORM.closed_at <= day_end),
-                            )
-                        )
-                        if user_id:
-                            q_leads = q_leads.where(LeadORM.assigned_rep_id == user_id)
-
-                        # Count won appointments
-                        q_appts = select(func.count(AppointmentORM.id)).where(
+                        # Single query: count all appointments and conditionally count won ones
+                        q = select(
+                            func.count(AppointmentORM.id).label("total_appointments"),
+                            func.count(case(
+                                (func.lower(AppointmentORM.outcome) == "won", AppointmentORM.id)
+                            )).label("won_appointments"),
+                        ).where(
                             AppointmentORM.company_id == company_id,
-                            is_won_appointment,
                             or_(
                                 and_(AppointmentORM.created_at >= day_start, AppointmentORM.created_at <= day_end),
                                 and_(AppointmentORM.updated_at >= day_start, AppointmentORM.updated_at <= day_end),
                             )
                         )
                         if user_id:
-                            q_appts = q_appts.where(AppointmentORM.assigned_rep_id == user_id)
+                            q = q.where(AppointmentORM.assigned_rep_id == user_id)
 
-                        res_leads = await self.session.execute(q_leads)
-                        cnt_leads = res_leads.scalar() or 0
-
-                        res_appts = await self.session.execute(q_appts)
-                        cnt_appts = res_appts.scalar() or 0
-
-                        # Total closed = leads + appointments
-                        total_closed = int(cnt_leads) + int(cnt_appts)
-                        counts[current.isoformat()] = total_closed
+                        row = (await self.session.execute(q)).one()
+                        total = row.total_appointments or 0
+                        won = row.won_appointments or 0
+                        rate = round((won / total) * 100, 2) if total > 0 else 0.0
+                        rates[current.isoformat()] = rate
                         current = current + _td(days=1)
-                    return counts
+                    return rates
 
-                a_counts = await counts_by_day(start_a, end_a)
-                b_counts = await counts_by_day(start_b, end_b)
-
-                # Convert counts dicts to ordered daily lists for each period
-                def dict_to_ordered_list(counts_dict: Dict[str, int], start: date, end: date) -> List[int]:
-                    lst: List[int] = []
-                    cur = start
-                    from datetime import timedelta as __td
-                    while cur <= end:
-                        lst.append(counts_dict.get(cur.isoformat(), 0))
-                        cur = cur + __td(days=1)
-                    return lst
-
-                a_daily = dict_to_ordered_list(a_counts, start_a, end_a)
-                b_daily = dict_to_ordered_list(b_counts, start_b, end_b)
+                a_rates = await rates_by_day(start_a, end_a)
+                b_rates = await rates_by_day(start_b, end_b)
 
                 # Prepare date lists for each day in the periods
                 def dates_list(start: date, end: date) -> List[str]:
@@ -851,80 +783,36 @@ class MetricsService:
                 a_dates = dates_list(start_a, end_a)
                 b_dates = dates_list(start_b, end_b)
 
-                # Build per-day ordered lists
-                a_vals = [a_counts.get(d, 0) for d in a_dates]
-                b_vals = [b_counts.get(d, 0) for d in b_dates]
+                # Build per-day ordered lists of rate percentages
+                a_vals = [a_rates.get(d, 0.0) for d in a_dates]
+                b_vals = [b_rates.get(d, 0.0) for d in b_dates]
 
                 len_a = len(a_vals)
                 len_b = len(b_vals)
                 K = max(len_a, len_b, 1)
 
-                # series: x = actual ISO date (or empty), y = value (0 if missing)
-                series_a = [{"x": a_dates[i] if i < len_a else "", "y": a_vals[i] if i < len_a else 0} for i in range(K)]
-                series_b = [{"x": b_dates[i] if i < len_b else "", "y": b_vals[i] if i < len_b else 0} for i in range(K)]
+                # series: x = actual ISO date (or empty), y = close rate percentage
+                series_a = [{"x": a_dates[i] if i < len_a else "", "y": a_vals[i] if i < len_a else 0.0} for i in range(K)]
+                series_b = [{"x": b_dates[i] if i < len_b else "", "y": b_vals[i] if i < len_b else 0.0} for i in range(K)]
 
                 # x_axis: "periodA_date/periodB_date"
                 x_axis = [f"{(a_dates[i] if i < len_a else '')}/{(b_dates[i] if i < len_b else '')}" for i in range(K)]
 
-                # Compute smart y-axis ticks (same logic as booking rate improvement)
-                def compute_ticks(values: List[int], max_ticks: int = None) -> List[int]:
-                    import math
-
-                    if not values:
-                        return [0]
-                    max_v = max(values)
-                    min_v = min([v for v in values if v is not None] or [0])
-                    if max_v <= 0:
-                        return [0]
-
-                    if max_ticks is None:
-                        max_ticks = max(10, len(set(values)))
-
-                    exp_min = int(math.floor(math.log10(max_v))) - 3
-                    exp_max = int(math.floor(math.log10(max_v))) + 1
-                    candidates = []
-                    for exp in range(exp_min, exp_max + 1):
-                        for m in [1, 2, 5, 10]:
-                            step_f = m * (10 ** exp)
-                            step = max(1, int(round(step_f)))
-                            low_tick = (min_v // step) * step
-                            high_tick = int(math.ceil(max_v / step)) * step
-                            n_ticks = ((high_tick - low_tick) // step) + 1 if step > 0 else float("inf")
-                            candidates.append((int(n_ticks), int(low_tick), int(high_tick), int(step)))
-
-                    valid = [c for c in candidates if 2 <= c[0] <= max_ticks]
-                    preferred_target = min(6, max_ticks)
-                    chosen = None
-                    if valid:
-                        valid.sort(key=lambda x: (abs(x[0] - preferred_target), x[3]))
-                        chosen = valid[0]
-                    else:
-                        if not candidates:
-                            return [0]
-                        candidates.sort(key=lambda x: (abs(x[0] - max_ticks), x[3]))
-                        chosen = candidates[0]
-
-                    n_ticks, low_tick, high_tick, step = chosen
-                    if low_tick < 0:
-                        low_tick = 0
-                    step = max(1, int(step))
-                    ticks = list(range(int(low_tick), int(high_tick) + 1, int(step)))
-                    return ticks
-
+                # Compute percentage y-axis ticks
                 combined_vals = a_vals + b_vals
-                ticks = compute_ticks([int(v) for v in combined_vals], max_ticks=None)
+                ticks = _compute_percentage_ticks(combined_vals)
 
                 return {
                     "period_a": {
                         "start": start_a.isoformat(),
                         "end": end_a.isoformat(),
-                        "total_closed": sum(a_vals),
+                        "average_close_rate": round(sum(a_vals) / len(a_vals), 2) if a_vals else 0.0,
                         "series": series_a,
                     },
                     "period_b": {
                         "start": start_b.isoformat(),
                         "end": end_b.isoformat(),
-                        "total_closed": sum(b_vals),
+                        "average_close_rate": round(sum(b_vals) / len(b_vals), 2) if b_vals else 0.0,
                         "series": series_b,
                     },
                     "x_axis": x_axis,

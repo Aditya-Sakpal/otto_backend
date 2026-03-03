@@ -10,9 +10,11 @@ from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
+
 # Load environment variables from .env file
 load_dotenv()
 
+print("ENV DATABASE_URL =", os.getenv("DATABASE_URL"))
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -33,7 +35,7 @@ class Settings(BaseSettings):
 
     # Database (optional for development - can use SQLite)
     DATABASE_URL: str = Field(
-        default=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./otto.db"),
+        default=os.getenv("DATABASE_URL"),
         description="Database connection string (PostgreSQL with asyncpg or SQLite with aiosqlite)"
     )
 

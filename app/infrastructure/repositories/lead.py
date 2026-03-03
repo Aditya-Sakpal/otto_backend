@@ -12,8 +12,12 @@ from sqlalchemy.inspection import inspect
 
 from app.core.logging import get_logger
 from app.domain.models.lead import Lead
-from app.domain.models.lead_detail import LeadDetail, ContactInfo, AgentInfo, OverallEngagement, Conversation
-from app.domain.enums import DealStatus
+from app.domain.models.lead_detail import (
+    LeadDetail, ContactInfo, AgentInfo, OverallEngagement, Conversation,
+    PipelineLeadDetail, PipelineLeadTab, PipelineEngagement, PipelineConversation,
+    AppointmentTab, SalesRepInfo, ResultTab,
+)
+from app.domain.enums import DealStatus, PipelineStage
 from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.lead_status_change import LeadStatusChangeORM
 from app.infrastructure.database.models.contact import ContactCardORM
@@ -174,6 +178,18 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 )
                 deal_status = None
 
+        # Validate and convert pipeline_stage
+        pipeline_stage = None
+        if orm_obj.pipeline_stage:
+            try:
+                pipeline_stage = PipelineStage(orm_obj.pipeline_stage)
+            except ValueError:
+                logger.warning(
+                    f"Invalid pipeline_stage value: {orm_obj.pipeline_stage} for lead {orm_obj.id}, "
+                    "setting to None"
+                )
+                pipeline_stage = None
+
         # Convert to domain model
         lead_data = {
             "id": orm_obj.id,
@@ -181,6 +197,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "contact_card_id": orm_obj.contact_card_id,
             "status": orm_obj.status,
             "deal_status": deal_status,
+            "pipeline_stage": pipeline_stage,
             "assigned_rep_id": orm_obj.assigned_rep_id,
             "deal_size": orm_obj.deal_size,
             "closed_at": orm_obj.closed_at,
@@ -247,17 +264,44 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             if statuses:
                 query = query.where(LeadORM.status.in_(statuses))
             if search and search.strip():
+                # Build subquery to get lead IDs matching contact search to avoid DISTINCT over JSON columns
                 search_term = f"%{search.strip().lower()}%"
-                query = query.outerjoin(ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id).where(
-                    or_(
-                        func.lower(ContactCardORM.first_name).like(search_term),
-                        func.lower(ContactCardORM.last_name).like(search_term),
-                        func.lower(ContactCardORM.primary_phone).like(search_term),
+                subq = (
+                    select(LeadORM.id)
+                    .outerjoin(ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id)
+                    .where(
+                        LeadORM.company_id == company_id,
+                        or_(
+                            func.lower(ContactCardORM.first_name).like(search_term),
+                            func.lower(ContactCardORM.last_name).like(search_term),
+                            func.lower(ContactCardORM.primary_phone).like(search_term),
+                        ),
                     )
-                ).distinct()
-            result = await self.session.execute(
-                query.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit)
-            )
+                    .distinct()
+                    .subquery()
+                )
+
+                # Final query selects leads by id in subquery (avoids DISTINCT on whole row)
+                final_q = (
+                    select(LeadORM)
+                    .options(
+                        selectinload(LeadORM.contact_card),
+                        selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                    )
+                    .where(LeadORM.company_id == company_id, LeadORM.id.in_(select(subq.c.id)))
+                )
+                if start_date is not None:
+                    final_q = final_q.where(LeadORM.created_at >= datetime.combine(start_date, datetime.min.time()))
+                if end_date is not None:
+                    final_q = final_q.where(LeadORM.created_at <= datetime.combine(end_date, datetime.max.time()))
+                if statuses:
+                    final_q = final_q.where(LeadORM.status.in_(statuses))
+
+                result = await self.session.execute(final_q.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit))
+            else:
+                result = await self.session.execute(
+                    query.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit)
+                )
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:
@@ -500,6 +544,30 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             logger.error(f"Error counting leads by statuses: {e}")
             raise e
 
+    async def get_by_pipeline_stages(
+        self,
+        company_id: UUID,
+    ) -> List[Lead]:
+        """Get all leads for a company that have a pipeline_stage set, with relationships loaded."""
+        try:
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                )
+                .where(
+                    LeadORM.company_id == company_id,
+                    LeadORM.pipeline_stage.isnot(None),
+                )
+                .order_by(LeadORM.created_at.desc())
+            )
+            orm_objs = result.scalars().all()
+            return [self._to_domain(obj) for obj in orm_objs]
+        except Exception as e:
+            logger.error(f"Error getting leads by pipeline stages: {e}")
+            raise e
+
     async def get_detail_by_id(self, lead_id: UUID) -> Optional[LeadDetail]:
         """Get detailed lead information for lead details page."""
         try:
@@ -642,6 +710,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 company_id=lead_orm.company_id,
                 status=lead_orm.status,
                 deal_status=lead_orm.deal_status,
+                pipeline_stage=lead_orm.pipeline_stage,
                 deal_size=lead_orm.deal_size,
                 created_at=lead_orm.created_at,
                 updated_at=lead_orm.updated_at,
@@ -652,6 +721,211 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             )
         except Exception as e:
             logger.error(f"Error getting lead detail: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
+
+    async def get_pipeline_detail_by_id(self, lead_id: UUID) -> Optional[PipelineLeadDetail]:
+        """
+        Get 3-tab pipeline lead detail:
+          - lead tab:        CSR stage — all inbound calls + their analyses
+          - appointment tab: appointment details (if any)
+          - result tab:      appointment outcome + its call analysis (if conducted)
+        """
+        try:
+            # ── 1. Load lead with contact_card and calls (with analysis) ─────────
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                )
+                .where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if not lead_orm:
+                return None
+
+            # ── 2. Calls — sort most recent first ────────────────────────────────
+            try:
+                mapper = inspect(lead_orm)
+                calls_attr = mapper.attrs.get("calls")
+                raw_calls = (calls_attr.loaded_value or []) if calls_attr else []
+            except Exception:
+                raw_calls = []
+            sorted_calls = sorted(raw_calls, key=lambda c: c.created_at, reverse=True)
+
+            # ── 3. Build Lead tab ─────────────────────────────────────────────────
+            lead_conversations: List[PipelineConversation] = []
+            summaries: List[str] = []
+            all_key_points: List[str] = []
+            last_touched = None
+            next_move = None
+
+            for call in sorted_calls:
+                analysis = getattr(call, "analysis", None)
+                if call.created_at and (last_touched is None or call.created_at > last_touched):
+                    last_touched = call.created_at
+                # Take next_move from the most recent call that has next_steps
+                if next_move is None and analysis and analysis.next_steps:
+                    next_move = analysis.next_steps[0] if isinstance(analysis.next_steps, list) else str(analysis.next_steps)
+
+                if analysis and analysis.summary:
+                    summaries.append(analysis.summary)
+                if analysis and analysis.key_points:
+                    all_key_points.extend(analysis.key_points)
+
+                lead_conversations.append(
+                    PipelineConversation(
+                        id=call.id,
+                        call_type=call.call_type,
+                        duration_seconds=call.duration_seconds,
+                        created_at=call.created_at,
+                        booking_status=analysis.booking_status if analysis else None,
+                        qualification_status=analysis.qualification_status if analysis else None,
+                        summary=analysis.summary if analysis else None,
+                        key_points=list(analysis.key_points) if analysis and analysis.key_points else [],
+                        objections=list(analysis.objections) if analysis and analysis.objections else [],
+                        call_recording_url=call.audio_url,
+                    )
+                )
+
+            lead_tab = PipelineLeadTab(
+                id=lead_orm.id,
+                status=lead_orm.status,
+                overall_engagement=PipelineEngagement(
+                    last_touched=last_touched,
+                    next_move=next_move,
+                    summary=" ".join(summaries) if summaries else None,
+                    key_points=list(dict.fromkeys(all_key_points)),  # dedupe, preserve order
+                ),
+                conversations=lead_conversations,
+            )
+
+            # ── 4. Load most recent appointment for this lead ─────────────────────
+            appt_result = await self.session.execute(
+                select(AppointmentORM)
+                .where(AppointmentORM.lead_id == lead_id)
+                .order_by(AppointmentORM.scheduled_start.desc())
+                .limit(1)
+            )
+            appt_orm = appt_result.scalar_one_or_none()
+
+            appointment_tab: Optional[AppointmentTab] = None
+            result_tab: Optional[ResultTab] = None
+
+            if appt_orm:
+                # Contact name from contact_card
+                contact_name = "Unknown"
+                if lead_orm.contact_card:
+                    first = lead_orm.contact_card.first_name or ""
+                    last = lead_orm.contact_card.last_name or ""
+                    contact_name = f"{first} {last}".strip() or "Unknown"
+
+                # Sales rep info
+                sales_rep_info: Optional[SalesRepInfo] = None
+                if appt_orm.assigned_rep_id:
+                    rep_result = await self.session.execute(
+                        select(UserORM).where(UserORM.id == appt_orm.assigned_rep_id)
+                    )
+                    rep_orm = rep_result.scalar_one_or_none()
+                    if rep_orm:
+                        sales_rep_info = SalesRepInfo(
+                            id=rep_orm.id,
+                            first_name=rep_orm.first_name,
+                            last_name=rep_orm.last_name,
+                        )
+
+                # Appointment status
+                appt_status = appt_orm.outcome or "scheduled"
+
+                # Meeting URL from extra_metadata if present
+                meeting_url = None
+                if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                    meeting_url = appt_orm.extra_metadata.get("meeting_url") or appt_orm.extra_metadata.get("join_url")
+
+                appointment_tab = AppointmentTab(
+                    id=appt_orm.id,
+                    contact_name=contact_name,
+                    sales_rep=sales_rep_info,
+                    status=appt_status,
+                    location_address=appt_orm.location_address,
+                    scheduled_start=appt_orm.scheduled_start,
+                    meeting_url=meeting_url,
+                )
+
+                # ── 5. Result tab — only if appointment has been conducted ─────────
+                has_result = bool(
+                    appt_orm.summary
+                    or appt_orm.outcome
+                    or appt_orm.audio_url
+                    or appt_orm.qualification_status
+                )
+                if has_result:
+                    # Build result conversation from appointment interaction call (if any)
+                    result_conversations: List[PipelineConversation] = []
+                    result_last_touched = None
+                    result_next_move = None
+                    result_summaries: List[str] = []
+                    result_key_points: List[str] = []
+
+                    if appt_orm.interaction_id:
+                        interaction_result = await self.session.execute(
+                            select(CallORM)
+                            .options(selectinload(CallORM.analysis))
+                            .where(CallORM.id == appt_orm.interaction_id)
+                        )
+                        interaction_call = interaction_result.scalar_one_or_none()
+                        if interaction_call:
+                            ia = getattr(interaction_call, "analysis", None)
+                            result_last_touched = interaction_call.created_at
+                            if ia and ia.next_steps:
+                                result_next_move = ia.next_steps[0] if isinstance(ia.next_steps, list) else str(ia.next_steps)
+                            if ia and ia.summary:
+                                result_summaries.append(ia.summary)
+                            if ia and ia.key_points:
+                                result_key_points.extend(ia.key_points)
+                            result_conversations.append(
+                                PipelineConversation(
+                                    id=interaction_call.id,
+                                    call_type=interaction_call.call_type,
+                                    duration_seconds=interaction_call.duration_seconds,
+                                    created_at=interaction_call.created_at,
+                                    booking_status=ia.booking_status if ia else appt_orm.booking_status,
+                                    qualification_status=ia.qualification_status if ia else appt_orm.qualification_status,
+                                    summary=ia.summary if ia else appt_orm.summary,
+                                    key_points=list(ia.key_points) if ia and ia.key_points else [],
+                                    objections=list(ia.objections) if ia and ia.objections else (list(appt_orm.objections) if appt_orm.objections else []),
+                                    call_recording_url=interaction_call.audio_url or appt_orm.audio_url,
+                                )
+                            )
+
+                    # If no interaction call, use appointment's own analysis fields
+                    if not result_conversations and (appt_orm.summary or appt_orm.qualification_status):
+                        from uuid import uuid4
+                        result_last_touched = appt_orm.updated_at or appt_orm.created_at
+                        if appt_orm.summary:
+                            result_summaries.append(appt_orm.summary)
+
+                    result_tab = ResultTab(
+                        overall_engagement=PipelineEngagement(
+                            last_touched=result_last_touched,
+                            next_move=result_next_move,
+                            summary=" ".join(result_summaries) if result_summaries else None,
+                            key_points=list(dict.fromkeys(result_key_points)),
+                        ),
+                        conversations=result_conversations,
+                    )
+
+            return PipelineLeadDetail(
+                pipeline_stage=lead_orm.pipeline_stage,
+                lead=lead_tab,
+                appointment=appointment_tab,
+                result=result_tab,
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting pipeline lead detail: {e}")
             import traceback
             traceback.print_exc()
             raise e
@@ -679,15 +953,26 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             # Update assignment
             lead_orm.assigned_rep_id = sales_rep_id
 
+            # Transition pipeline_stage: booked -> appointment when rep is assigned
+            from app.domain.enums import PipelineStage
+            if lead_orm.pipeline_stage == PipelineStage.BOOKED.value:
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
+                logger.info(
+                    f"Transitioned lead pipeline_stage from booked to appointment",
+                    lead_id=str(lead_id),
+                    assigned_rep_id=str(sales_rep_id),
+                )
+
             # Update extra_metadata to track assignment history
             if lead_orm.extra_metadata is None:
                 lead_orm.extra_metadata = {}
 
             # Store assignment info
             from datetime import datetime, timezone
+            from app.core.datetime_utils import isoformat_utc
             assignment_info = {
                 "assigned_by": str(assigned_by_user_id),
-                "assigned_at": datetime.now(timezone.utc).isoformat(),
+                "assigned_at": isoformat_utc(datetime.now(timezone.utc)),
                 "previous_rep_id": str(previous_rep_id) if previous_rep_id else None,
             }
 
@@ -697,6 +982,19 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
 
             lead_orm.extra_metadata["assignment_history"].append(assignment_info)
             lead_orm.extra_metadata["last_assignment"] = assignment_info
+
+            # Update any existing appointments for this lead so their assigned_rep_id matches
+            try:
+                from app.infrastructure.database.models.appointment import AppointmentORM
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                appts = appt_result.scalars().all()
+                for ap in appts:
+                    ap.assigned_rep_id = sales_rep_id
+            except Exception:
+                # Non-fatal: log and continue; assignment of lead is primary
+                logger.debug(f"Failed to update appointments for lead {lead_id} when assigning to {sales_rep_id}")
 
             await self.session.commit()
 
@@ -727,8 +1025,9 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         status: str,
         changed_by_user_id: Optional[UUID] = None,
         reason: Optional[str] = None,
+        pipeline_stage: Optional[str] = None,
     ) -> Optional[Lead]:
-        """Update lead status and optionally log to lead_status_changes audit table."""
+        """Update lead status, pipeline_stage, and optionally log to lead_status_changes audit table."""
         try:
             result = await self.session.execute(
                 select(LeadORM).where(LeadORM.id == lead_id)
@@ -743,6 +1042,8 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             company_id = lead_orm.company_id
 
             lead_orm.status = status
+            if pipeline_stage is not None:
+                lead_orm.pipeline_stage = pipeline_stage
             new_deal_status = lead_orm.deal_status
 
             if changed_by_user_id is not None:
@@ -776,6 +1077,177 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             return self._to_domain(lead_orm)
         except Exception as e:
             logger.error(f"Error updating lead status: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
+
+    async def move_pipeline_stage(
+        self,
+        lead_id: UUID,
+        target_stage: "PipelineStage",
+        changed_by_user_id: UUID,
+        scheduled_start=None,
+        scheduled_end=None,
+        location_address: str = None,
+        assigned_rep_id: UUID = None,
+        deal_size: float = None,
+        reason: str = None,
+    ) -> dict:
+        """
+        Move lead to a new pipeline stage, update related fields,
+        handle appointment side effects, and log an audit trail.
+        """
+        from app.domain.enums import LeadStatus, AppointmentOutcome
+        from uuid import uuid4
+        from datetime import timezone
+
+        try:
+            result = await self.session.execute(
+                select(LeadORM).where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if not lead_orm:
+                raise ValueError("Lead not found")
+
+            # Capture old values for audit
+            old_status = lead_orm.status
+            old_deal_status = lead_orm.deal_status
+            previous_stage = lead_orm.pipeline_stage
+
+            appointment_created = False
+            appointment_updated = False
+
+            # --- Apply changes per target stage ---
+            if target_stage == PipelineStage.QUALIFIED:
+                lead_orm.status = LeadStatus.QUALIFIED_UNBOOKED.value
+                lead_orm.deal_status = DealStatus.NURTURING.value
+                lead_orm.pipeline_stage = PipelineStage.QUALIFIED.value
+
+            elif target_stage == PipelineStage.BOOKED:
+                lead_orm.status = LeadStatus.QUALIFIED_BOOKED.value
+                lead_orm.deal_status = DealStatus.BOOKED.value
+                lead_orm.pipeline_stage = PipelineStage.BOOKED.value
+                # Create appointment if none exists
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if not existing_appt:
+                    new_appt = AppointmentORM(
+                        id=uuid4(),
+                        company_id=lead_orm.company_id,
+                        lead_id=lead_id,
+                        contact_card_id=lead_orm.contact_card_id,
+                        scheduled_start=scheduled_start,
+                        scheduled_end=scheduled_end,
+                        location_address=location_address,
+                        outcome=AppointmentOutcome.PENDING.value,
+                    )
+                    self.session.add(new_appt)
+                    appointment_created = True
+
+            elif target_stage == PipelineStage.APPOINTMENT:
+                lead_orm.status = LeadStatus.QUALIFIED_BOOKED.value
+                lead_orm.deal_status = DealStatus.BOOKED.value
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
+                lead_orm.assigned_rep_id = assigned_rep_id
+                # Create or update appointment
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if existing_appt:
+                    existing_appt.assigned_rep_id = assigned_rep_id
+                    if scheduled_start:
+                        existing_appt.scheduled_start = scheduled_start
+                    if scheduled_end:
+                        existing_appt.scheduled_end = scheduled_end
+                    if location_address:
+                        existing_appt.location_address = location_address
+                    appointment_updated = True
+                else:
+                    new_appt = AppointmentORM(
+                        id=uuid4(),
+                        company_id=lead_orm.company_id,
+                        lead_id=lead_id,
+                        contact_card_id=lead_orm.contact_card_id,
+                        scheduled_start=scheduled_start,
+                        scheduled_end=scheduled_end,
+                        location_address=location_address,
+                        assigned_rep_id=assigned_rep_id,
+                        outcome=AppointmentOutcome.PENDING.value,
+                    )
+                    self.session.add(new_appt)
+                    appointment_created = True
+
+            elif target_stage == PipelineStage.APPOINTMENT_RAN:
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
+
+            elif target_stage == PipelineStage.WON:
+                lead_orm.status = LeadStatus.CLOSED_WON.value
+                lead_orm.deal_status = DealStatus.WON.value
+                lead_orm.pipeline_stage = PipelineStage.WON.value
+                lead_orm.deal_size = deal_size
+                lead_orm.closed_at = datetime.now(timezone.utc)
+                # Update appointment outcome if exists
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if existing_appt:
+                    existing_appt.outcome = AppointmentOutcome.WON.value
+                    appointment_updated = True
+
+            elif target_stage == PipelineStage.LOST:
+                lead_orm.status = LeadStatus.CLOSED_LOST.value
+                lead_orm.deal_status = DealStatus.LOST.value
+                lead_orm.pipeline_stage = PipelineStage.LOST.value
+                lead_orm.closed_at = datetime.now(timezone.utc)
+                # Update appointment outcome if exists
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if existing_appt:
+                    existing_appt.outcome = AppointmentOutcome.LOST.value
+                    appointment_updated = True
+
+            # Always log audit trail
+            audit = LeadStatusChangeORM(
+                lead_id=lead_id,
+                company_id=lead_orm.company_id,
+                changed_by_user_id=changed_by_user_id,
+                old_status=old_status,
+                new_status=lead_orm.status,
+                old_deal_status=old_deal_status,
+                new_deal_status=lead_orm.deal_status,
+                reason=reason or f"Pipeline stage moved to {target_stage.value}",
+            )
+            self.session.add(audit)
+
+            await self.session.commit()
+
+            # Reload lead with relationships
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
+                .where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            lead_domain = self._to_domain(lead_orm) if lead_orm else None
+
+            return {
+                "lead": lead_domain,
+                "previous_stage": previous_stage,
+                "new_stage": target_stage.value,
+                "appointment_created": appointment_created,
+                "appointment_updated": appointment_updated,
+            }
+        except Exception as e:
+            logger.error(f"Error moving lead pipeline stage: {e}")
             import traceback
             traceback.print_exc()
             raise e

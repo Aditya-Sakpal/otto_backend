@@ -43,6 +43,7 @@ from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.lead import LeadRepository
 from app.infrastructure.repositories.pending_action import PendingActionRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
+from app.core.datetime_utils import isoformat_utc
 
 logger = get_logger(__name__)
 
@@ -642,7 +643,7 @@ class AppointmentService:
                     "handled_by_user_id": str(call.handled_by_user_id) if call.handled_by_user_id else None,
                 }
                 if getattr(call, "created_at", None):
-                    booking_data["date"] = call.created_at.isoformat() if hasattr(call.created_at, "isoformat") else str(call.created_at)
+                    booking_data["date"] = isoformat_utc(call.created_at) if hasattr(call.created_at, "isoformat") else str(call.created_at)
                 if analysis_booking and analysis_booking.summary:
                     booking_data["summary"] = analysis_booking.summary
                 appointment_booking = booking_data

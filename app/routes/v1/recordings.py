@@ -228,6 +228,18 @@ async def complete_recording(
         # Update call with audio_url
         call.audio_url = audio_url
         await call_repo.update(request.call_id, call)
+        
+        # Also update appointment's audio_url if this call is linked to an appointment
+        appointment_repo = AppointmentRepository(db)
+        appointment = await appointment_repo.get_by_interaction_id(request.call_id)
+        if appointment:
+            appointment.audio_url = audio_url
+            appointment.mark_updated()
+            await appointment_repo.update(appointment.id, appointment)
+            logger.info(
+                f"Updated appointment {appointment.id} with audio_url from call {request.call_id}"
+            )
+        
         await db.commit()
 
         logger.info(

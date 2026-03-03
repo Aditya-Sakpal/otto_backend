@@ -1165,8 +1165,12 @@ class GHLService:
         from app.domain.users.repository import UserRepository
         from app.domain.models.call import Call
         from app.domain.models.lead import Lead
-        from app.domain.enums import CallType, LeadStatus
+        from app.domain.enums import CallType, LeadStatus, PendingActionStatus
+        from app.domain.models.pending_action import PendingAction
+        from app.infrastructure.repositories.pending_action import PendingActionRepository
         from app.core.s3 import get_s3_service
+
+        MISSED_CALL_STATUSES = {"no-answer", "no answer", "busy", "voicemail", "failed", "missed"}
 
         try:
             # Extract call event data
@@ -1181,15 +1185,17 @@ class GHLService:
             call_to: Optional[str] = event.get("to")  # For outbound webhooks
             call_duration: Optional[int] = event.get("callDuration") or event.get("duration")
 
-            # Filter for completed calls only
-            # Accept both "completed" and "answered" statuses
-            if status and status.lower() not in ("completed", "answered"):
-                logger.info(f"Skipping call with status {status}, only processing completed/answered calls")
+            # Detect missed calls vs completed calls
+            is_missed_call = bool(status and status.lower() in MISSED_CALL_STATUSES)
+
+            # Skip non-terminal statuses (not completed, answered, or missed)
+            if status and status.lower() not in ("completed", "answered") and not is_missed_call:
+                logger.info(f"Skipping call with status {status}, not a terminal call status")
                 return {
                     "ok": True,
                     "isCall": True,
                     "skipped": True,
-                    "reason": f"Status is {status}, not completed or answered",
+                    "reason": f"Status is {status}, not a terminal call status",
                 }
 
             logger.info(
@@ -1247,103 +1253,104 @@ class GHLService:
                     "error": "No phone number found for contact",
                 }
 
-            # Fetch recording and upload to S3
+            # Fetch recording and upload to S3 (skip for missed calls)
             recording_s3_url = None
             recording_filename = None
             recording_content_type = None
             recording_num_bytes = None
 
-            # Check for recording in attachments first (e.g., Twilio URLs)
-            attachments = event.get("attachments", [])
-            recording_url = None
-            rec = None
-            
-            if attachments and isinstance(attachments, list) and len(attachments) > 0:
-                # Use first attachment as recording URL
-                recording_url = attachments[0] if isinstance(attachments[0], str) else None
+            if not is_missed_call:
+                # Check for recording in attachments first (e.g., Twilio URLs)
+                attachments = event.get("attachments", [])
+                recording_url = None
+                rec = None
+
+                if attachments and isinstance(attachments, list) and len(attachments) > 0:
+                    # Use first attachment as recording URL
+                    recording_url = attachments[0] if isinstance(attachments[0], str) else None
+                    if recording_url:
+                        logger.info(f"Found recording URL in attachments: {recording_url}")
+
                 if recording_url:
-                    logger.info(f"Found recording URL in attachments: {recording_url}")
-
-            if recording_url:
-                # Download recording from direct URL (e.g., Twilio)
-                try:
-                    rec = await self.download_recording_from_url(recording_url)
-                    recording_filename = rec.filename
-                    recording_content_type = rec.content_type
-                    recording_num_bytes = len(rec.audio_bytes)
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to download recording from attachment URL {recording_url}: {e}. "
-                        f"Falling back to GHL API."
-                    )
-                    rec = None  # Fall back to GHL API
-
-            # Fall back to GHL API if no attachment URL or download failed
-            if not rec and location_id and message_id:
-                try:
-                    rec = await self.get_message_recording(
-                        location_id=location_id,
-                        message_id=message_id,
-                    )
-                    recording_filename = rec.filename
-                    recording_content_type = rec.content_type
-                    recording_num_bytes = len(rec.audio_bytes)
-                except Exception:
-                    logger.exception(
-                        f"Failed to fetch recording for locationId={location_id} messageId={message_id}"
-                    )
-
-            # Upload to S3 if we have a recording
-            if rec and recording_num_bytes:
-                s3_service = get_s3_service()
-                if s3_service:
+                    # Download recording from direct URL (e.g., Twilio)
                     try:
-                        # Generate S3 key with company_id prefix
-                        prefix = f"ghl-recordings/{company_id or 'unknown'}"
-                        extension = "wav"
-                        if recording_filename:
-                            # Extract extension from filename
-                            if "." in recording_filename:
-                                extension = recording_filename.split(".")[-1]
-
-                        s3_key = s3_service.generate_s3_key(
-                            prefix=prefix,
-                            filename=f"{message_id or 'recording'}",
-                            extension=extension
+                        rec = await self.download_recording_from_url(recording_url)
+                        recording_filename = rec.filename
+                        recording_content_type = rec.content_type
+                        recording_num_bytes = len(rec.audio_bytes)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to download recording from attachment URL {recording_url}: {e}. "
+                            f"Falling back to GHL API."
                         )
+                        rec = None  # Fall back to GHL API
 
-                        # Upload to S3 (audio bucket)
-                        recording_s3_url = await s3_service.upload_file(
-                            file_bytes=rec.audio_bytes,
-                            s3_key=s3_key,
-                            content_type=recording_content_type,
-                            bucket_type="audio",
-                            metadata={
-                                "location_id": location_id or "",
-                                "message_id": message_id or "",
-                                "contact_id": contact_id or "",
-                                "direction": direction or "",
-                                "date_added": date_added or "",
-                                "recording_source": "attachment_url" if recording_url else "ghl_api",
-                            }
-                        )
-
-                        logger.info(
-                            f"Uploaded recording to S3: {s3_key}",
+                # Fall back to GHL API if no attachment URL or download failed
+                if not rec and location_id and message_id:
+                    try:
+                        rec = await self.get_message_recording(
                             location_id=location_id,
                             message_id=message_id,
-                            s3_url=recording_s3_url,
-                            recording_source="attachment_url" if recording_url else "ghl_api"
                         )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to upload recording to S3: {e}",
-                            exc_info=True,
-                            location_id=location_id,
-                            message_id=message_id
+                        recording_filename = rec.filename
+                        recording_content_type = rec.content_type
+                        recording_num_bytes = len(rec.audio_bytes)
+                    except Exception:
+                        logger.exception(
+                            f"Failed to fetch recording for locationId={location_id} messageId={message_id}"
                         )
-                else:
-                    logger.warning("S3 service not available, skipping upload")
+
+                # Upload to S3 if we have a recording
+                if rec and recording_num_bytes:
+                    s3_service = get_s3_service()
+                    if s3_service:
+                        try:
+                            # Generate S3 key with company_id prefix
+                            prefix = f"ghl-recordings/{company_id or 'unknown'}"
+                            extension = "wav"
+                            if recording_filename:
+                                # Extract extension from filename
+                                if "." in recording_filename:
+                                    extension = recording_filename.split(".")[-1]
+
+                            s3_key = s3_service.generate_s3_key(
+                                prefix=prefix,
+                                filename=f"{message_id or 'recording'}",
+                                extension=extension
+                            )
+
+                            # Upload to S3 (audio bucket)
+                            recording_s3_url = await s3_service.upload_file(
+                                file_bytes=rec.audio_bytes,
+                                s3_key=s3_key,
+                                content_type=recording_content_type,
+                                bucket_type="audio",
+                                metadata={
+                                    "location_id": location_id or "",
+                                    "message_id": message_id or "",
+                                    "contact_id": contact_id or "",
+                                    "direction": direction or "",
+                                    "date_added": date_added or "",
+                                    "recording_source": "attachment_url" if recording_url else "ghl_api",
+                                }
+                            )
+
+                            logger.info(
+                                f"Uploaded recording to S3: {s3_key}",
+                                location_id=location_id,
+                                message_id=message_id,
+                                s3_url=recording_s3_url,
+                                recording_source="attachment_url" if recording_url else "ghl_api"
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to upload recording to S3: {e}",
+                                exc_info=True,
+                                location_id=location_id,
+                                message_id=message_id
+                            )
+                    else:
+                        logger.warning("S3 service not available, skipping upload")
 
             # Validate company_id is present before creating contact
             if not company_id:
@@ -1431,14 +1438,19 @@ class GHLService:
                 except Exception as e:
                     logger.warning(f"Failed to fetch user {user_id}: {e}")
 
-            # Determine call_type from direction
-            call_type = None
-            if direction:
+            # Determine call_type from direction (override for missed calls)
+            if is_missed_call:
+                call_type = CallType.MISSED_CALL
+            elif direction:
                 direction_lower = direction.lower()
                 if direction_lower in ("inbound", "incoming"):
                     call_type = CallType.CSR_CALL
                 elif direction_lower in ("outbound", "outgoing"):
                     call_type = CallType.SALES_CALL
+                else:
+                    call_type = None
+            else:
+                call_type = None
 
             # Prepare extra_metadata with GHL-specific data
             extra_metadata = {
@@ -1469,10 +1481,56 @@ class GHLService:
                 except Exception as e:
                     logger.exception(f"Failed to update lead status: {e}")
 
-            # Send directly to Shunya for analysis (NEW FLOW)
+            # Handle missed calls: create call record + pending action
             shunya_job_id = None
             temp_call_id = None
-            if recording_s3_url:
+
+            if is_missed_call:
+                try:
+                    call_repo = CallRepository(db_session)
+                    missed_call_obj = Call(
+                        company_id=company_id,
+                        contact_card_id=contact_card.id if contact_card else None,
+                        lead_id=lead.id if lead else None,
+                        phone_number=contact_phone,
+                        call_type=CallType.MISSED_CALL,
+                        missed_call=True,
+                        duration_seconds=call_duration,
+                        handled_by_user_id=handled_by_user_id,
+                        interaction_type="call",
+                        extra_metadata=extra_metadata,
+                    )
+                    missed_call_obj = await call_repo.create(missed_call_obj)
+                    temp_call_id = str(missed_call_obj.id)
+                    logger.info(
+                        f"Created missed call record",
+                        call_id=temp_call_id,
+                        phone=contact_phone,
+                        status=status,
+                    )
+
+                    # Create callback pending action
+                    pending_action_repo = PendingActionRepository(db_session)
+                    pending_action = PendingAction(
+                        company_id=company_id,
+                        lead_id=lead.id if lead else None,
+                        call_id=missed_call_obj.id,
+                        action_type="call_back",
+                        raw_text=f"Give {contact_phone} a call_back",
+                        status=PendingActionStatus.PENDING,
+                        source="manual",
+                    )
+                    await pending_action_repo.create(pending_action)
+                    logger.info(
+                        f"Created pending action for missed call",
+                        call_id=temp_call_id,
+                        phone=contact_phone,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create missed call record/action: {e}", exc_info=True)
+
+            # Send directly to Shunya for analysis (only for non-missed calls with audio)
+            elif recording_s3_url:
                 try:
                     from app.services.call_service import CallService
                     call_service = CallService(db_session)
@@ -1507,11 +1565,12 @@ class GHLService:
             return {
                 "ok": True,
                 "isCall": True,
+                "isMissedCall": is_missed_call,
                 "locationId": location_id,
                 "contactId": contact_id,
                 "companyId": str(company_id) if company_id else None,
-                "tempCallId": temp_call_id,  # Temporary ID for tracking
-                "shunyaJobId": shunya_job_id,  # Shunya job ID for tracking
+                "tempCallId": temp_call_id,
+                "shunyaJobId": shunya_job_id,
                 "leadId": str(lead.id) if lead else None,
                 "dateAdded": date_added,
                 "direction": direction,

@@ -13,4 +13,7 @@ class CompanyIntegration(BaseModel):
     voip_api_encrypted_key: str = Field(..., description="Encrypted VoIP API key")
     voip_provider: str = Field(..., description="VoIP provider")
     voip_company_id: Optional[str] = Field(None, description="VoIP company ID")
+    st_tenant_id: Optional[str] = Field(None, description="ServiceTitan tenant ID")
+    st_client_id: Optional[str] = Field(None, description="ServiceTitan client ID")
+    st_client_secret_encrypted: Optional[str] = Field(None, description="Encrypted ST client secret")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")

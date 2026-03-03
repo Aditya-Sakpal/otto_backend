@@ -130,6 +130,21 @@ class Settings(BaseSettings):
 
     # GoHighLevel Configuration
     GHL_PUBLIC_KEY: str = Field(default=os.getenv("GHL_PUBLIC_KEY", ""), description="GoHighLevel public key")
+
+    # ServiceTitan
+    ST_APP_KEY: str = Field(
+        default=os.getenv("ST_APP_KEY", ""),
+        description="ServiceTitan platform app key (shared across all tenants)",
+    )
+    ST_ENV: str = Field(
+        default=os.getenv("ST_ENV", "production"),
+        description="ServiceTitan environment: production or integration (shared across all tenants)",
+    )
+    ST_WORKER_SECRET: str = Field(
+        default=os.getenv("ST_WORKER_SECRET", ""),
+        description="Shared secret for ST worker → webhook auth",
+    )
+
     # Feature Flags
     ENABLE_CELERY: bool = Field(default=os.getenv("ENABLE_CELERY", "False").lower() == "true", description="Enable Celery for background jobs")
     ENABLE_VECTOR_DB: bool = Field(default=os.getenv("ENABLE_VECTOR_DB", "True").lower() == "true", description="Enable vector DB for RAG")

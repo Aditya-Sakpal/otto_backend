@@ -17,6 +17,7 @@ from app.domain.schemas.appointment import (
     AppointmentCreate,
     AppointmentUpdate,
     AppointmentLocationUpdate,
+    AppointmentReschedule,
     AppointmentResponse,
     AppointmentInsightSummary,
     AppointmentContextResponse,
@@ -444,6 +445,54 @@ async def create_appointment(
         return AppointmentResponse.model_validate(appointment)
     except Exception as e:
         logger.error(f"Error creating appointment: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.put("/reschedule", response_model=AppointmentResponse, responses=RESPONSES)
+async def reschedule_appointment(
+    payload: AppointmentReschedule,
+    db: DbSession,
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+) -> AppointmentResponse:
+    """
+    Reschedule an appointment by updating its start and end times.
+
+    Identify the appointment by providing either `appointment_id` or `lead_id`
+    in the request body (exactly one required).
+
+    Access: Any authenticated user
+    """
+    try:
+        service = AppointmentService(db)
+
+        if payload.appointment_id:
+            existing = await service.get_by_id(payload.appointment_id)
+            not_found_msg = "Appointment not found"
+        else:
+            existing = await service.get_by_lead(payload.lead_id)
+            not_found_msg = "No appointment found for this lead"
+
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=not_found_msg,
+            )
+
+        existing.scheduled_start = payload.scheduled_start
+        existing.scheduled_end = payload.scheduled_end
+        existing.mark_updated()
+
+        updated = await service.appointment_repo.update(existing.id, existing)
+
+        return AppointmentResponse.model_validate(updated)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rescheduling appointment: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

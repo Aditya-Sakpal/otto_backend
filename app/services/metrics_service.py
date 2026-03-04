@@ -2485,7 +2485,7 @@ class MetricsService:
                 )
             )
             resolved_count = resolved.scalar() or 0
-            win_rate = (won_appts / resolved_count * 100) if resolved_count > 0 else 0.0
+            win_rate = (won_appts / resolved_count) if resolved_count > 0 else 0.0
 
             # First-touch vs follow-up win rates: join appointments -> calls -> call_analyses
             from sqlalchemy import join
@@ -2521,7 +2521,7 @@ class MetricsService:
             first_touch_total = await self.session.execute(first_touch_base)
             first_touch_total_count = first_touch_total.scalar() or 0
             first_touch_win_rate = (
-                (first_touch_won_count / first_touch_total_count * 100)
+                (first_touch_won_count / first_touch_total_count)
                 if first_touch_total_count > 0
                 else 0.0
             )
@@ -2547,7 +2547,7 @@ class MetricsService:
             follow_up_total = await self.session.execute(follow_up_base)
             follow_up_total_count = follow_up_total.scalar() or 0
             follow_up_win_rate = (
-                (follow_up_won_count / follow_up_total_count * 100)
+                (follow_up_won_count / follow_up_total_count)
                 if follow_up_total_count > 0
                 else 0.0
             )
@@ -2560,7 +2560,7 @@ class MetricsService:
             )
             no_show_count = no_show_count_result.scalar() or 0
             attendance = (
-                ((total_appts - no_show_count) / total_appts * 100) if total_appts > 0 else 0.0
+                ((total_appts - no_show_count) / total_appts) if total_appts > 0 else 0.0
             )
 
             # Average deal size: closed_won leads
@@ -2601,10 +2601,10 @@ class MetricsService:
                 )
 
             return {
-                "win_rate": round(win_rate, 2),
-                "first_touch_win_rate": round(first_touch_win_rate, 2),
-                "follow_up_win_rate": round(follow_up_win_rate, 2),
-                "attendance": round(attendance, 2),
+                "win_rate": round(win_rate, 4),
+                "first_touch_win_rate": round(first_touch_win_rate, 4),
+                "follow_up_win_rate": round(follow_up_win_rate, 4),
+                "attendance": round(attendance, 4),
                 "average_deal_size": round(average_deal_size, 2),
                 "average_follow_up_per_deal": round(average_follow_up_per_deal, 2),
                 "start_date": start_dt.isoformat(),

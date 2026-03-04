@@ -406,6 +406,35 @@ class MetricsService:
             )
             total_count = total_calls.scalar() or 0
             
+            # Picked up: missed calls that were followed up (have a lead)
+            picked_up_result = await self.session.execute(
+                select(func.count(CallORM.id)).where(
+                    CallORM.company_id == company_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == True,
+                    CallORM.lead_id.isnot(None),
+                )
+            )
+            picked_up_count = picked_up_result.scalar() or 0
+
+            # Booked: missed calls linked to a qualified_booked lead
+            from sqlalchemy import join as sa_join
+            booked_result = await self.session.execute(
+                select(func.count(CallORM.id))
+                .select_from(
+                    sa_join(CallORM, LeadORM, CallORM.lead_id == LeadORM.id)
+                )
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == True,
+                    LeadORM.status == "qualified_booked",
+                )
+            )
+            booked_count = booked_result.scalar() or 0
+
             # Recent missed calls in date range
             recent_missed = await self.session.execute(
                 select(CallORM).where(
@@ -416,18 +445,23 @@ class MetricsService:
                 ).order_by(CallORM.created_at.desc()).limit(10)
             )
             recent_missed_list = recent_missed.scalars().all()
-            
+
             miss_rate = (missed_count / total_count * 100) if total_count > 0 else 0.0
-            
+            booking_percentage = round((booked_count / missed_count * 100), 2) if missed_count > 0 else 0.0
+
             return {
                 "missed_calls": missed_count,
                 "total_calls": total_count,
                 "miss_rate": round(miss_rate, 2),
+                "picked_up": picked_up_count,
+                "booked": booked_count,
+                "booking_percentage": booking_percentage,
                 "recent_missed": [
                     {
                         "id": str(call.id),
                         "phone_number": call.phone_number,
                         "created_at": call.created_at.isoformat() if call.created_at else None,
+                        "lead_id": str(call.lead_id) if call.lead_id else None,
                     }
                     for call in recent_missed_list
                 ],

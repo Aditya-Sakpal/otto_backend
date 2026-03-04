@@ -97,6 +97,9 @@ class MissedCallsResponse(BaseModel):
     missed_calls: int
     total_calls: int
     miss_rate: float
+    picked_up: int = 0
+    booked: int = 0
+    booking_percentage: float = 0.0
     recent_missed: List[Dict[str, Any]] = Field(default_factory=list)
     start_date: Optional[str] = None
     end_date: Optional[str] = None

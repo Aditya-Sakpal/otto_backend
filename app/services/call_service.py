@@ -1629,3 +1629,114 @@ class CallService:
             traceback.print_exc()
             raise
 
+    async def get_recording_analysis(self, call_id: UUID) -> Optional[RecordingAnalysisResponse]:
+        """Get comprehensive recording analysis for post-meeting insights."""
+        try:
+            from sqlalchemy import select as sa_select
+            from app.infrastructure.database.models.analysis import CallAnalysisORM as AnalysisORM
+
+            # Use direct ORM query (same pattern as get_call_logs) to avoid domain conversion issues
+            result = await self.session.execute(
+                sa_select(AnalysisORM).where(AnalysisORM.call_id == call_id)
+            )
+            a = result.scalar_one_or_none()
+            if not a:
+                return None
+
+            # 1. Summary section — use pending_actions JSON first, fall back to action_items array
+            pending_actions_structured = []
+            if a.pending_actions:
+                actions_list = a.pending_actions if isinstance(a.pending_actions, list) else []
+                for action in actions_list:
+                    if isinstance(action, dict):
+                        pending_actions_structured.append(PendingActionDetail(
+                            type=action.get("type", "unknown"),
+                            owner=action.get("owner", "unknown"),
+                            raw_text=action.get("raw_text", ""),
+                            due_at=action.get("due_at"),
+                            confidence=action.get("confidence"),
+                            contact_method=action.get("contact_method"),
+                        ))
+            if not pending_actions_structured and a.action_items:
+                for item_text in (a.action_items or []):
+                    pending_actions_structured.append(PendingActionDetail(
+                        type="follow_up",
+                        owner="customer_rep",
+                        raw_text=str(item_text),
+                    ))
+
+            summary = RecordingSummary(
+                summary=a.summary or "",
+                key_points=list(a.key_points) if a.key_points else [],
+                pending_actions=pending_actions_structured,
+                sentiment_score=a.sentiment_score,
+            )
+
+            # 2. Objections section
+            objection_details = []
+            if a.objections and a.objection_texts:
+                for idx, objection in enumerate(a.objections):
+                    obj_text = a.objection_texts[idx] if idx < len(a.objection_texts) else ""
+                    obj_str = str(objection)
+                    objection_details.append(ObjectionDetail(
+                        category_id=idx + 1,
+                        category_text=obj_str,
+                        objection_text=obj_text or obj_str,
+                        overcome=True,
+                        severity="medium",
+                        confidence_score=0.85,
+                        response_suggestions=[],
+                    ))
+
+            objections = RecordingObjections(
+                objections=objection_details,
+                total_count=a.objections_total_count or len(objection_details),
+            )
+
+            # 3. Compliance section
+            stages_detail = {}
+            for stage in (a.sop_stages_completed or []):
+                stages_detail[stage.lower().replace(" ", "_")] = ComplianceStageDetail(score=0.95, issues=[])
+            for stage in (a.sop_stages_missed or []):
+                stages_detail[stage.lower().replace(" ", "_")] = ComplianceStageDetail(
+                    score=0.0, issues=[f"Missed: {stage}"]
+                )
+
+            compliance = RecordingCompliance(
+                score=a.sop_compliance_score or 0.0,
+                stages=stages_detail,
+                positive_behaviors=list(a.sop_compliance_positive_behaviors) if a.sop_compliance_positive_behaviors else [],
+                issues=list(a.sop_compliance_issues) if a.sop_compliance_issues else [],
+            )
+
+            # 4. Qualification section
+            qualification = RecordingQualification(
+                overall_score=a.qualification_overall_score or 0.0,
+                bant_scores={
+                    "need": a.bant_need_score or 0.0,
+                    "budget": a.bant_budget_score or 0.0,
+                    "authority": a.bant_authority_score or 0.0,
+                    "timeline": a.bant_timeline_score or 0.0,
+                },
+                qualification_status=a.qualification_status or "unqualified",
+            )
+
+            # 5. Lead score
+            total_score = int((a.qualification_overall_score or 0.0) * 100)
+            lead_band = "hot" if total_score >= 80 else "warm" if total_score >= 60 else "cold" if total_score >= 40 else "unqualified"
+
+            return RecordingAnalysisResponse(
+                call_id=str(call_id),
+                status=str(a.status) if a.status else "completed",
+                summary=summary,
+                objections=objections,
+                compliance=compliance,
+                qualification=qualification,
+                lead_score=RecordingLeadScore(total_score=total_score, lead_band=lead_band),
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting recording analysis: {e}")
+            traceback.print_exc()
+            return None
+

@@ -389,9 +389,9 @@ class SalesRepDashboardService:
             total_sec = duration_map.get(rep_id, 0) or 0
             total_hours = round(total_sec / 3600.0, 2)
 
-            # Win rate = won / total assigned appointments
+            # Win rate = won / total assigned appointments (returned as 0-1 fraction; frontend multiplies by 100)
             total_appts, won = appt_stats_map.get(rep_id, (0, 0))
-            win_rate = round((won / total_appts * 100.0) if total_appts > 0 else 0.0, 2)
+            win_rate = round((won / total_appts) if total_appts > 0 else 0.0, 4)
 
             avg_sop = process_map.get(rep_id)
             process_score = round(float(avg_sop * 10), 2) if avg_sop is not None else 0.0
@@ -772,89 +772,44 @@ class SalesRepDashboardService:
                 follow_up_growth_percent=follow_up_growth_percent,
             )
 
-            # --- Close rate series: daily close rate chart points ---
-            daily_stats_result = await self.session.execute(
-                select(
-                    func.date(AppointmentORM.scheduled_start).label("day"),
-                    func.count(AppointmentORM.id).label("total"),
-                    func.count(case(
-                        (AppointmentORM.outcome == "won", AppointmentORM.id)
-                    )).label("won"),
-                )
-                .where(
-                    AppointmentORM.company_id == company_id,
-                    AppointmentORM.outcome.in_(["won", "lost", "no_show"]),
-                    AppointmentORM.scheduled_start >= _start_dt,
-                    AppointmentORM.scheduled_start <= _end_dt,
-                )
-                .group_by(func.date(AppointmentORM.scheduled_start))
-                .order_by(func.date(AppointmentORM.scheduled_start))
-            )
-            daily_rows = daily_stats_result.all()
-
+            # --- Close rate series and sales increase (isolated — failures here don't kill core_kpis) ---
             close_rate_series = []
-            for row in daily_rows:
-                day_label = row.day
-                if hasattr(day_label, 'strftime'):
-                    try:
-                        day_str = day_label.strftime("%-d %b")
-                    except ValueError:
-                        day_str = f"{day_label.day} {day_label.strftime('%b')}"
-                else:
-                    day_str = str(row.day)
-                rate = round((row.won / row.total * 100), 2) if row.total > 0 else 0.0
-                close_rate_series.append(CloseRatePoint(date=day_str, value=rate))
-
-            # --- Sales increase: revenue comparison current vs previous period ---
-            current_rev_result = await self.session.execute(
-                select(func.coalesce(func.sum(LeadORM.deal_size), 0.0)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.deal_size.isnot(None),
-                    LeadORM.deal_size > 0,
-                    or_(
-                        LeadORM.status == "closed_won",
-                        func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
-                    ),
-                    or_(
-                        LeadORM.closed_at.between(_start_dt, _end_dt),
-                        LeadORM.updated_at.between(_start_dt, _end_dt),
-                    ),
-                )
-            )
-            current_period_revenue = float(current_rev_result.scalar() or 0.0)
-
-            prev_rev_result = await self.session.execute(
-                select(func.coalesce(func.sum(LeadORM.deal_size), 0.0)).where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.deal_size.isnot(None),
-                    LeadORM.deal_size > 0,
-                    or_(
-                        LeadORM.status == "closed_won",
-                        func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
-                    ),
-                    or_(
-                        LeadORM.closed_at.between(prev_start, prev_end),
-                        LeadORM.updated_at.between(prev_start, prev_end),
-                    ),
-                )
-            )
-            prev_period_revenue = float(prev_rev_result.scalar() or 0.0)
-
             sales_increase = None
-            if current_period_revenue > 0 or prev_period_revenue > 0:
-                value_increase = round(current_period_revenue - prev_period_revenue, 2)
-                percentage_increase = round(
-                    ((current_period_revenue - prev_period_revenue) / prev_period_revenue * 100)
-                    if prev_period_revenue > 0 else 0.0,
-                    2,
-                )
-
-                weekly_data_result = await self.session.execute(
+            try:
+                daily_stats_result = await self.session.execute(
                     select(
-                        func.date_trunc('week', LeadORM.closed_at).label("week"),
-                        func.coalesce(func.sum(LeadORM.deal_size), 0.0).label("revenue"),
+                        func.date_trunc('day', AppointmentORM.scheduled_start).label("day"),
+                        func.count(AppointmentORM.id).label("total"),
+                        func.count(case(
+                            (AppointmentORM.outcome == "won", AppointmentORM.id)
+                        )).label("won"),
                     )
                     .where(
+                        AppointmentORM.company_id == company_id,
+                        AppointmentORM.outcome.in_(["won", "lost", "no_show"]),
+                        AppointmentORM.scheduled_start >= _start_dt,
+                        AppointmentORM.scheduled_start <= _end_dt,
+                    )
+                    .group_by(func.date_trunc('day', AppointmentORM.scheduled_start))
+                    .order_by(func.date_trunc('day', AppointmentORM.scheduled_start))
+                )
+                daily_rows = daily_stats_result.all()
+
+                for row in daily_rows:
+                    day_label = row.day
+                    try:
+                        if hasattr(day_label, 'strftime'):
+                            day_str = day_label.strftime("%d %b").lstrip("0") or day_label.strftime("%d %b")
+                        else:
+                            day_str = str(day_label)[:10]
+                    except Exception:
+                        day_str = str(day_label)[:10]
+                    rate = round((row.won / row.total * 100), 2) if row.total > 0 else 0.0
+                    close_rate_series.append(CloseRatePoint(date=day_str, value=rate))
+
+                # Sales increase: revenue comparison current vs previous period
+                current_rev_result = await self.session.execute(
+                    select(func.coalesce(func.sum(LeadORM.deal_size), 0.0)).where(
                         LeadORM.company_id == company_id,
                         LeadORM.deal_size.isnot(None),
                         LeadORM.deal_size > 0,
@@ -862,19 +817,67 @@ class SalesRepDashboardService:
                             LeadORM.status == "closed_won",
                             func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
                         ),
-                        LeadORM.closed_at >= _start_dt,
-                        LeadORM.closed_at <= _end_dt,
+                        or_(
+                            LeadORM.closed_at.between(_start_dt, _end_dt),
+                            LeadORM.updated_at.between(_start_dt, _end_dt),
+                        ),
                     )
-                    .group_by(func.date_trunc('week', LeadORM.closed_at))
-                    .order_by(func.date_trunc('week', LeadORM.closed_at))
                 )
-                weekly_data = [float(r.revenue) for r in weekly_data_result.all()]
+                current_period_revenue = float(current_rev_result.scalar() or 0.0)
 
-                sales_increase = SalesIncrease(
-                    percentage=percentage_increase,
-                    value_increase=value_increase,
-                    weekly_data=weekly_data,
+                prev_rev_result = await self.session.execute(
+                    select(func.coalesce(func.sum(LeadORM.deal_size), 0.0)).where(
+                        LeadORM.company_id == company_id,
+                        LeadORM.deal_size.isnot(None),
+                        LeadORM.deal_size > 0,
+                        or_(
+                            LeadORM.status == "closed_won",
+                            func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
+                        ),
+                        or_(
+                            LeadORM.closed_at.between(prev_start, prev_end),
+                            LeadORM.updated_at.between(prev_start, prev_end),
+                        ),
+                    )
                 )
+                prev_period_revenue = float(prev_rev_result.scalar() or 0.0)
+
+                if current_period_revenue > 0 or prev_period_revenue > 0:
+                    value_increase = round(current_period_revenue - prev_period_revenue, 2)
+                    percentage_increase = round(
+                        ((current_period_revenue - prev_period_revenue) / prev_period_revenue * 100)
+                        if prev_period_revenue > 0 else 0.0,
+                        2,
+                    )
+
+                    weekly_data_result = await self.session.execute(
+                        select(
+                            func.date_trunc('week', LeadORM.closed_at).label("week"),
+                            func.coalesce(func.sum(LeadORM.deal_size), 0.0).label("revenue"),
+                        )
+                        .where(
+                            LeadORM.company_id == company_id,
+                            LeadORM.deal_size.isnot(None),
+                            LeadORM.deal_size > 0,
+                            or_(
+                                LeadORM.status == "closed_won",
+                                func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
+                            ),
+                            LeadORM.closed_at >= _start_dt,
+                            LeadORM.closed_at <= _end_dt,
+                        )
+                        .group_by(func.date_trunc('week', LeadORM.closed_at))
+                        .order_by(func.date_trunc('week', LeadORM.closed_at))
+                    )
+                    weekly_data = [float(r.revenue) for r in weekly_data_result.all()]
+
+                    sales_increase = SalesIncrease(
+                        percentage=percentage_increase,
+                        value_increase=value_increase,
+                        weekly_data=weekly_data,
+                    )
+            except Exception as trend_err:
+                logger.warning(f"Could not load trends (close_rate_series/sales_increase): {trend_err}")
 
             trends = Trends(
                 close_rate_series=close_rate_series,
@@ -898,11 +901,10 @@ class SalesRepDashboardService:
             # Calculate common_objection_peak from objections count
             common_objection_peak = 0.0
             if objections:
-                # Get the objection with the highest count
-                max_count = max((o.count for o in objections), default=0)
+                # objections is a List[dict] with "count" key
+                max_count = max((o.get("count", 0) for o in objections), default=0)
                 if max_count > 0:
-                    # Calculate percentage (simplified - could be improved with total)
-                    total_count = sum(o.count for o in objections)
+                    total_count = sum(o.get("count", 0) for o in objections)
                     if total_count > 0:
                         common_objection_peak = round((max_count / total_count) * 100, 2)
 
@@ -915,7 +917,7 @@ class SalesRepDashboardService:
             )
             sop_val = avg_sop.scalar()
             if sop_val is not None:
-                script_adherence = round(float(sop_val) * 10, 2)
+                script_adherence = round(float(sop_val) * 100, 2)
                 if script_adherence > 100:
                     script_adherence = 100.0
 

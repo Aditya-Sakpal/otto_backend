@@ -619,8 +619,25 @@ class AppointmentService:
         appointment_summary: List[str] = []
         sop_stages_completed: List[str] = []
         sop_stages_missed: List[str] = []
-        if appointment.interaction_id:
-            analysis = await self.analysis_repo.get_by_call_id(appointment.interaction_id)
+
+        # Resolve which call to use for analysis
+        analysis_call_id = appointment.interaction_id
+        if not analysis_call_id and appointment.lead_id:
+            # Fallback: find the most recent call linked to this lead
+            from sqlalchemy import select as sa_select, desc
+            from app.infrastructure.database.models.call import CallORM
+            call_result = await self.session.execute(
+                sa_select(CallORM.id)
+                .where(CallORM.lead_id == appointment.lead_id)
+                .order_by(desc(CallORM.created_at))
+                .limit(1)
+            )
+            fallback_call_id = call_result.scalar_one_or_none()
+            if fallback_call_id:
+                analysis_call_id = fallback_call_id
+
+        if analysis_call_id:
+            analysis = await self.analysis_repo.get_by_call_id(analysis_call_id)
             if analysis:
                 sop_stages_completed = list(analysis.sop_stages_completed or [])
                 sop_stages_missed = list(analysis.sop_stages_missed or [])

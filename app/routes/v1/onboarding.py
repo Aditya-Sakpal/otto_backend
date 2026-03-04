@@ -17,10 +17,13 @@ from app.domain.schemas.onboarding import (
     ValidateGHLResponse,
     ValidateCTMRequest,
     ValidateCTMResponse,
+    ValidateServiceTitanRequest,
+    ValidateServiceTitanResponse,
 )
 from app.services.company_service import CompanyService
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
+from app.infrastructure.integrations.servicetitan import ServiceTitanClient
 from app.domain.users.repository import UserRepository
 from app.infrastructure.database.models.user import UserORM
 from app.domain.enums import UserRole
@@ -114,6 +117,41 @@ async def validate_ctm(
             detail=f"Error validating CTM credentials: {str(e)}"
         )
 
+@router.post("/validate-servicetitan", response_model=ValidateServiceTitanResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
+async def validate_servicetitan(
+    body: ValidateServiceTitanRequest,
+) -> ValidateServiceTitanResponse:
+    """
+    Verify ServiceTitan credentials before final submission.
+
+    Args:
+        body: Validation request with tenant_id, client_id, client_secret, env
+
+    Returns:
+        Tenant info if valid
+
+    Raises:
+        HTTPException: 401 if credentials are invalid
+    """
+    try:
+        client = ServiceTitanClient(
+            tenant_id=body.tenant_id,
+            client_id=body.client_id,
+            client_secret=body.client_secret,
+        )
+        result = await client.verify_credentials()
+        return ValidateServiceTitanResponse(
+            tenant_id=result["tenant_id"],
+            status=result["status"],
+        )
+    except Exception as e:
+        logger.error(f"Error validating ServiceTitan credentials: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid ServiceTitan credentials: {str(e)}",
+        )
+
+
 @router.post("/complete", response_model=OnboardingCompleteResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def complete_onboarding(
     background_tasks: BackgroundTasks,
@@ -138,6 +176,10 @@ async def complete_onboarding(
     voip_provider: str | None = Form(None),
     voip_api_key: str | None = Form(None),
     voip_company_id: str | None = Form(None),
+    # Optional ServiceTitan integration fields
+    st_tenant_id: str | None = Form(None),
+    st_client_id: str | None = Form(None),
+    st_client_secret: str | None = Form(None),
     # Ghost mode setting
     ghost_mode_enabled: bool = Form(False),
 ) -> OnboardingCompleteResponse:
@@ -347,7 +389,10 @@ async def complete_onboarding(
                 crm_company_id=crm_company_id,
                 voip_provider=voip_provider,
                 voip_api_key=voip_api_key,
-                voip_company_id=voip_company_id
+                voip_company_id=voip_company_id,
+                st_tenant_id=st_tenant_id,
+                st_client_id=st_client_id,
+                st_client_secret=st_client_secret,
             )
 
             # Hash password

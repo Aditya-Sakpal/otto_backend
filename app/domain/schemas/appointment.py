@@ -98,6 +98,26 @@ class AppointmentLocationUpdate(BaseModel):
         return self
 
 
+class AppointmentReschedule(BaseModel):
+    """Schema for rescheduling an appointment's start/end time.
+
+    Provide either appointment_id or lead_id (not both) to identify the appointment.
+    """
+
+    appointment_id: Optional[UUID] = Field(None, description="Appointment ID")
+    lead_id: Optional[UUID] = Field(None, description="Lead ID whose appointment to reschedule")
+    scheduled_start: datetime = Field(..., description="New scheduled start time (UTC)")
+    scheduled_end: Optional[datetime] = Field(None, description="New scheduled end time (UTC)")
+
+    @model_validator(mode="after")
+    def check_one_id_provided(self):
+        if self.appointment_id and self.lead_id:
+            raise ValueError("Provide either appointment_id or lead_id, not both")
+        if not self.appointment_id and not self.lead_id:
+            raise ValueError("Either appointment_id or lead_id is required")
+        return self
+
+
 class PendingActionDetail(BaseModel):
     """Structured pending action extracted from recording."""
     type: str = Field(..., description="Action type (e.g., send_info, follow_up_call)")

@@ -29,6 +29,19 @@ class ValidateCTMResponse(BaseModel):
     company_id: int = Field(..., description="CTM company/account ID")
 
 
+class ValidateServiceTitanRequest(BaseModel):
+    """Request schema for ServiceTitan validation."""
+    tenant_id: str = Field(..., description="ServiceTitan tenant ID")
+    client_id: str = Field(..., description="ServiceTitan client ID")
+    client_secret: str = Field(..., description="ServiceTitan client secret")
+
+
+class ValidateServiceTitanResponse(BaseModel):
+    """Response schema for ServiceTitan validation."""
+    tenant_id: str = Field(..., description="ServiceTitan tenant ID")
+    status: str = Field(..., description="Validation status")
+
+
 class OnboardingCompleteResponse(BaseModel):
     """Response schema for onboarding completion."""
     id: UUID

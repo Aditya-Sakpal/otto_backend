@@ -28,6 +28,11 @@ class CompanyIntegrationORM(Base):
     voip_provider: Mapped[str | None] = mapped_column(String, nullable=True)
     voip_company_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # ServiceTitan integration fields (all optional; app_key and env are global in settings)
+    st_tenant_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    st_client_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    st_client_secret_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
+
     # Additional metadata
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 

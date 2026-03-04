@@ -29,6 +29,9 @@ from app.infrastructure.repositories.lead import LeadRepository
 from app.domain.users.repository import UserRepository
 from app.core.s3 import get_s3_service
 from app.services.call_service import CallService
+from app.infrastructure.repositories.pending_action import PendingActionRepository
+from app.domain.models.pending_action import PendingAction
+from app.domain.enums import PendingActionStatus, CallType
 
 logger = get_logger(__name__)
 
@@ -396,13 +399,15 @@ class CTMService:
                 existing_call.transcript = transcript or existing_call.transcript
                 existing_call.handled_by_user_id = handled_by_user_id or existing_call.handled_by_user_id
                 existing_call.missed_call = is_missed
+                if is_missed:
+                    existing_call.call_type = CallType.MISSED_CALL.value
                 if contact_card:
                     existing_call.contact_card_id = contact_card.id
                 existing_call.extra_metadata = {**(existing_call.extra_metadata or {}), **extra_metadata}
 
                 call = await self.call_repo.update(existing_call.id, existing_call)
                 logger.info("Call updated", call_id=str(call.id), ctm_call_id=call_id_ctm)
-                
+
                 # Also update appointment's audio_url if this call is linked to an appointment
                 if s3_audio_url and call.audio_url:
                     appointment = await self.appointment_repo.get_by_interaction_id(call.id)
@@ -423,7 +428,7 @@ class CTMService:
                     duration_seconds=duration,
                     transcript=transcript,
                     handled_by_user_id=handled_by_user_id,
-                    call_type=None,  # CTM doesn't provide call_type
+                    call_type=CallType.MISSED_CALL if is_missed else None,
                     missed_call=is_missed,
                     interaction_type="call",
                     extra_metadata=extra_metadata,

@@ -50,6 +50,8 @@ from app.domain.schemas.coaching import (
     CoachingSessionResponse,
     CoachingSessionListResponse,
     CoachingDashboardResponse,
+    TeamDashboardResponse,
+    IndividualDashboardResponse,
 )
 
 logger = get_logger(__name__)
@@ -108,6 +110,79 @@ class CoachingService:
 
         return CoachingDashboardResponse(
             team=team,
+            issues=issues,
+            strengths=strengths,
+            progression=progression,
+            peer_benchmark=peer_benchmark,
+            impact=impact,
+            objections=objections,
+            nudges=nudges,
+        )
+
+    # =========================================================================
+    # Split Dashboard Endpoints
+    # =========================================================================
+
+    async def get_team_dashboard(
+        self,
+        company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        role_filter: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> TeamDashboardResponse:
+        """Fetch team-level coaching overview only."""
+
+        async def _safe(coro, label: str):
+            try:
+                return await coro
+            except Exception as e:
+                logger.warning(f"Team dashboard section '{label}' failed: {e}")
+                return None
+
+        team = await _safe(
+            self.get_team_overview(company_id, role_filter, search, start_date, end_date),
+            "team",
+        )
+        return TeamDashboardResponse(team=team)
+
+    async def get_individual_dashboard(
+        self,
+        user_id: UUID,
+        company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        weeks: int = 8,
+        days: int = 30,
+    ) -> IndividualDashboardResponse:
+        """Fetch all 7 individual rep coaching sections in parallel."""
+
+        async def _safe(coro, label: str):
+            try:
+                return await coro
+            except Exception as e:
+                logger.warning(f"Individual dashboard section '{label}' failed: {e}")
+                return None
+
+        (
+            issues,
+            strengths,
+            progression,
+            peer_benchmark,
+            impact,
+            objections,
+            nudges,
+        ) = await asyncio.gather(
+            _safe(self.get_rep_issues(user_id, company_id, start_date, end_date), "issues"),
+            _safe(self.get_rep_strengths(user_id, company_id, start_date, end_date), "strengths"),
+            _safe(self.get_rep_progression(user_id, company_id, weeks), "progression"),
+            _safe(self.get_rep_peer_benchmark(user_id, company_id, days), "peer_benchmark"),
+            _safe(self.get_rep_impact(user_id, company_id), "impact"),
+            _safe(self.get_rep_objections(user_id, company_id, start_date, end_date), "objections"),
+            _safe(self.get_rep_nudges(user_id, company_id, start_date, end_date), "nudges"),
+        )
+
+        return IndividualDashboardResponse(
             issues=issues,
             strengths=strengths,
             progression=progression,

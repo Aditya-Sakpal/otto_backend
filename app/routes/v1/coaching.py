@@ -19,6 +19,8 @@ from app.core.permissions import require_executive
 from app.domain.users.models import User
 from app.domain.schemas.coaching import (
     CoachingDashboardResponse,
+    TeamDashboardResponse,
+    IndividualDashboardResponse,
     CreateCoachingSessionRequest,
     CoachingSessionResponse,
     CoachingSessionListResponse,
@@ -119,6 +121,135 @@ async def get_coaching_dashboard(
         raise
     except Exception as e:
         logger.error(f"Error getting coaching dashboard: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Split Dashboard Endpoints
+# ============================================================================
+
+
+@router.get(
+    "/team-dashboard",
+    response_model=TeamDashboardResponse,
+    responses=RESPONSES,
+    summary="Get team coaching overview",
+    response_description="High-level team overview with aggregate stats and per-member summaries.",
+)
+async def get_team_dashboard(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID. Required for all data scoping"),
+    current_user: User = Depends(require_executive),
+    start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD). Defaults to 30 days ago"),
+    end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD). Defaults to today"),
+    role_filter: Optional[str] = Query(None, description="Filter team members by role (e.g. 'sales_rep', 'csr')"),
+    search: Optional[str] = Query(None, description="Search team members by name or email (partial match)"),
+):
+    """
+    Get a high-level team coaching overview.
+
+    Use this endpoint when the user first lands on the coaching page to display
+    team-level stats and a per-member breakdown. No specific rep user_id is needed.
+
+    When a manager clicks on a team member, call the
+    `/individual-dashboard/{user_id}` endpoint for their detailed coaching data.
+
+    **Query Parameters:**
+    - **company_id** (required): Company UUID for data scoping
+    - **start_date**: Start date for filtering (defaults to 30 days ago)
+    - **end_date**: End date for filtering (defaults to today)
+    - **role_filter**: Filter by role (e.g. 'sales_rep', 'csr')
+    - **search**: Search by name or email
+
+    **Response:**
+    - **team**: Aggregate `TeamStats` (avg compliance, avg booking rate, open issues, team size) and a list of `TeamMemberSummary` per member
+
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingService(db)
+        return await service.get_team_dashboard(
+            company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+            role_filter=role_filter,
+            search=search,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting team dashboard: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/individual-dashboard/{user_id}",
+    response_model=IndividualDashboardResponse,
+    responses=RESPONSES,
+    summary="Get individual rep coaching dashboard",
+    response_description="Detailed coaching data for a specific rep with all 7 sections. Sections that fail return null.",
+)
+async def get_individual_dashboard(
+    user_id: UUID,
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID. Required for all data scoping"),
+    current_user: User = Depends(require_executive),
+    start_date: Optional[date] = Query(None, description="Start date for filtering issues, strengths, objections, and nudges (YYYY-MM-DD). Defaults to 30 days ago"),
+    end_date: Optional[date] = Query(None, description="End date for filtering issues, strengths, objections, and nudges (YYYY-MM-DD). Defaults to today"),
+    weeks: int = Query(8, ge=1, le=52, description="Number of weeks for the progression chart (1-52). Only affects the 'progression' section"),
+    days: int = Query(30, ge=7, le=365, description="Analysis period in days for peer benchmark comparison (7-365). Only affects the 'peer_benchmark' section"),
+):
+    """
+    Get detailed coaching data for a specific rep.
+
+    Use this endpoint when a manager clicks on a team member from the team overview
+    to see their full coaching details. Returns all 7 rep-specific sections fetched
+    in parallel.
+
+    **Path Parameters:**
+    - **user_id**: UUID of the rep to get coaching data for
+
+    **Query Parameters:**
+    - **company_id** (required): Company UUID for data scoping
+    - **start_date**: Start date for date-filtered sections (defaults to 30 days ago)
+    - **end_date**: End date for date-filtered sections (defaults to today)
+    - **weeks**: Number of weeks for the progression chart (default 8, range 1-52)
+    - **days**: Analysis period for peer benchmark (default 30, range 7-365)
+
+    **Response Sections:**
+
+    | Section | Source | Date-Filtered | Description |
+    |---------|--------|:---:|-------------|
+    | `issues` | Local DB | Yes | Coaching issues grouped by type, sorted by frequency |
+    | `strengths` | Local DB | Yes | Coaching strengths grouped by behavior, sorted by frequency |
+    | `progression` | Shunya API | No (uses `weeks`) | Weekly metric trends with anomaly detection |
+    | `peer_benchmark` | Shunya API | No (uses `days`) | Rep vs team on 5 metrics |
+    | `impact` | Local DB | No | Coaching sessions with baseline vs post-coaching scores |
+    | `objections` | Local DB | Yes | Objection categories with rep overcome rate vs team average |
+    | `nudges` | Computed | Yes | AI-generated coaching recommendations |
+
+    **Notes:**
+    - `progression` and `peer_benchmark` are proxied from the Shunya analytics API and may be null if Shunya is unavailable
+    - Each section is independent – if one fails, it returns null while the rest succeed
+
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingService(db)
+        return await service.get_individual_dashboard(
+            user_id=user_id,
+            company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+            weeks=weeks,
+            days=days,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting individual dashboard: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 

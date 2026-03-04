@@ -260,6 +260,46 @@ class CoachingDashboardResponse(BaseModel):
     nudges: Optional[RepSmartNudgesResponse] = Field(None, description="AI-generated coaching nudges based on issues, objections, and compliance trends. Filtered by start_date/end_date")
 
 
+# --- Split Dashboard Responses ---
+
+
+class TeamDashboardResponse(BaseModel):
+    """
+    Team-level coaching overview response.
+
+    Used when the user first lands on the coaching page to show a high-level
+    team summary. Does not require a specific rep user_id.
+    """
+    team: Optional[TeamOverviewResponse] = Field(None, description="Team overview: aggregate stats and per-member summaries. Uses role_filter and search query params")
+
+
+class IndividualDashboardResponse(BaseModel):
+    """
+    Individual rep coaching dashboard response.
+
+    Contains all 7 rep-specific sections fetched in parallel. Used when a
+    manager clicks on a specific team member to see their detailed coaching data.
+    If any section fails (e.g. Shunya API is down), that section returns null
+    while the rest still return data.
+
+    **Sections:**
+    - **issues**: Coaching issues grouped by type, sorted by frequency
+    - **strengths**: Coaching strengths grouped by behavior, sorted by frequency
+    - **progression**: Weekly metric trends from Shunya API
+    - **peer_benchmark**: Rep vs team on 5 metrics from Shunya API
+    - **impact**: Coaching sessions with baseline vs post-coaching scores
+    - **objections**: Objection categories with rep overcome rate vs team average
+    - **nudges**: AI-generated coaching recommendations
+    """
+    issues: Optional[RepIssuesResponse] = Field(None, description="Rep's coaching issues grouped by type. Filtered by start_date/end_date")
+    strengths: Optional[RepStrengthsResponse] = Field(None, description="Rep's coaching strengths grouped by behavior. Filtered by start_date/end_date")
+    progression: Optional[Dict[str, Any]] = Field(None, description="Weekly metric progression from Shunya API. Uses 'weeks' query param. May be null if Shunya is unavailable")
+    peer_benchmark: Optional[RepPeerBenchmarkResponse] = Field(None, description="Rep vs team benchmark on 5 metrics from Shunya API. Uses 'days' query param. May be null if Shunya is unavailable")
+    impact: Optional[RepImpactResponse] = Field(None, description="Coaching session impact: baseline vs post-coaching scores")
+    objections: Optional[RepObjectionsResponse] = Field(None, description="Objection handling stats by category with rep vs team overcome rates. Filtered by start_date/end_date")
+    nudges: Optional[RepSmartNudgesResponse] = Field(None, description="AI-generated coaching nudges based on issues, objections, and compliance trends. Filtered by start_date/end_date")
+
+
 # --- Coaching Session CRUD ---
 
 

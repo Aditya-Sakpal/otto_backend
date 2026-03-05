@@ -13,6 +13,7 @@ class RidealongEntry(BaseModel):
     """Single ridealong (appointment) entry for dashboard."""
 
     appointment_id: UUID = Field(..., description="Appointment UUID")
+    lead_id: Optional[UUID] = Field(None, description="Lead UUID associated with this appointment")
     customer_name: str = Field(..., description="Contact/customer name")
     sales_rep: str = Field(..., description="Assigned sales rep name")
     service_type: str = Field(..., description="Service type (e.g. Roof replacement estimate)")

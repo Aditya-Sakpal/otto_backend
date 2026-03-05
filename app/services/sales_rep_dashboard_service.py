@@ -120,8 +120,10 @@ class SalesRepDashboardService:
         service_type = extra.get("service_type") or extra.get("service_type_description") or "Appointment"
 
         appointment_id = getattr(appointment, "id", None)
+        lead_id = getattr(appointment, "lead_id", None)
         return RidealongEntry(
             appointment_id=appointment_id,
+            lead_id=lead_id,
             customer_name=contact_name,
             sales_rep=rep_name,
             service_type=str(service_type),

@@ -168,6 +168,30 @@ class AppointmentService:
             logger.error(f"Error deleting appointment: {e}")
             raise
 
+    async def get_appointment_counts(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+    ) -> Dict[str, int]:
+        """
+        Get appointment counts: total today, pending, and closed.
+
+        Args:
+            company_id: Company UUID
+            assigned_rep_id: Optional filter by assigned sales rep
+
+        Returns:
+            Dictionary with total_today, pending, and closed counts
+        """
+        total_today = await self.appointment_repo.count_today(company_id, assigned_rep_id)
+        pending = await self.appointment_repo.count_pending(company_id, assigned_rep_id)
+        closed = await self.appointment_repo.count_closed(company_id, assigned_rep_id)
+        return {
+            "total_today": total_today,
+            "pending": pending,
+            "closed": closed,
+        }
+
     async def _build_appointment_insights(self, interaction_id: UUID) -> Optional[AppointmentInsightSummary]:
         """
         Build comprehensive appointment insights from call analysis.
@@ -489,7 +513,9 @@ class AppointmentService:
         """
         Get insights for an appointment.
 
-        Returns call analysis insights for the appointment's associated call/interaction.
+        First checks appointment's own analysis fields (new flow where analysis is saved
+        directly to the appointments table). Falls back to interaction_id → CallAnalysisORM
+        (old flow) if no direct analysis is found.
 
         Args:
             appointment_id: Appointment UUID
@@ -505,7 +531,35 @@ class AppointmentService:
                 "insights": None,
             }
 
-        # Check if appointment has an interaction_id
+        # NEW FLOW: Check if analysis is stored directly on the appointment
+        if appointment.summary:
+            extra = appointment.extra_metadata or {}
+            analysis_meta = extra.get("analysis", {}) if isinstance(extra, dict) else {}
+
+            objections = appointment.objections or []
+
+            insights = {
+                "summary": appointment.summary or "",
+                "key_points": analysis_meta.get("key_points") or [],
+                "sop_stages_completed": analysis_meta.get("sop_stages_completed") or [],
+                "sop_stages_missed": analysis_meta.get("sop_stages_missed") or [],
+                "objections": objections,
+                "objections_found": objections,
+                "action_items": [a.get("raw_text", "") for a in (analysis_meta.get("pending_actions") or [])],
+                "tasks": [a.get("raw_text", "") for a in (analysis_meta.get("pending_actions") or [])],
+                "follow_up_required": None,
+                "follow_up_reason": None,
+                "sentiment": analysis_meta.get("sentiment_score"),
+                "sop_score": analysis_meta.get("sop_compliance_score"),
+            }
+
+            return {
+                "appointment_id": str(appointment_id),
+                "status": "completed",
+                "insights": insights,
+            }
+
+        # OLD FLOW: Check interaction_id → CallAnalysisORM
         if not appointment.interaction_id:
             return {
                 "appointment_id": str(appointment_id),
@@ -513,13 +567,10 @@ class AppointmentService:
                 "insights": None,
             }
 
-        # Get call analysis by call_id (interaction_id)
         analysis = await self.analysis_repo.get_by_call_id(appointment.interaction_id)
 
         if not analysis:
-            # Check if call exists and its status
             call = await self.call_repo.get_by_id(appointment.interaction_id)
-
             if call:
                 return {
                     "appointment_id": str(appointment_id),
@@ -533,7 +584,6 @@ class AppointmentService:
                     "insights": None,
                 }
 
-        # Build insights response
         objections = [
             obj.value if hasattr(obj, "value") else str(obj) for obj in analysis.objections
         ] if analysis.objections else []
@@ -544,9 +594,9 @@ class AppointmentService:
             "sop_stages_completed": analysis.sop_stages_completed or [],
             "sop_stages_missed": analysis.sop_stages_missed or [],
             "objections": objections,
-            "objections_found": objections,  # Backwards compatibility
+            "objections_found": objections,
             "action_items": analysis.action_items or [],
-            "tasks": analysis.action_items or [],  # Alias for action_items
+            "tasks": analysis.action_items or [],
             "follow_up_required": analysis.follow_up_required,
             "follow_up_reason": analysis.follow_up_reason,
             "sentiment": analysis.sentiment_score if analysis.sentiment_score is not None else None,

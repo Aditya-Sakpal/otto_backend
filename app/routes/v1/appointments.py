@@ -331,6 +331,41 @@ async def list_upcoming_appointments(
         )
 
 
+@router.get("/counts", responses=RESPONSES)
+async def get_appointment_counts(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company/tenant ID"),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    assigned_rep_id: Optional[UUID] = Query(
+        None,
+        description="Filter by assigned sales rep (user_id)",
+    ),
+):
+    """
+    Get appointment counts: total today, pending, and closed.
+
+    Returns:
+    - total_today: Number of appointments scheduled for today
+    - pending: Number of appointments with pending outcome
+    - closed: Number of appointments with closed outcome (won or lost)
+
+    Access: Any authenticated user
+    """
+    try:
+        service = AppointmentService(db)
+        return await service.get_appointment_counts(
+            company_id=company_id,
+            assigned_rep_id=assigned_rep_id,
+        )
+    except Exception as e:
+        logger.error(f"Error getting appointment counts: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
 @router.get("/{appointment_id}", response_model=AppointmentResponse, responses=RESPONSES)
 async def get_appointment(
     appointment_id: UUID,

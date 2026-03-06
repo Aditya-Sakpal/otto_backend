@@ -79,7 +79,11 @@ class CoachingService:
         role_filter: Optional[str] = None,
         search: Optional[str] = None,
     ) -> CoachingDashboardResponse:
-        """Fetch all coaching dashboard data in parallel."""
+        """Fetch all coaching dashboard data.
+
+        DB-dependent sections run sequentially (AsyncSession is not safe for
+        concurrent use), while external Shunya API calls run in parallel.
+        """
 
         async def _safe(coro, label: str):
             try:
@@ -88,24 +92,18 @@ class CoachingService:
                 logger.warning(f"Dashboard section '{label}' failed: {e}")
                 return None
 
-        (
-            team,
-            issues,
-            strengths,
-            progression,
-            peer_benchmark,
-            impact,
-            objections,
-            nudges,
-        ) = await asyncio.gather(
-            _safe(self.get_team_overview(company_id, role_filter, search, start_date, end_date), "team"),
-            _safe(self.get_rep_issues(user_id, company_id, start_date, end_date), "issues"),
-            _safe(self.get_rep_strengths(user_id, company_id, start_date, end_date), "strengths"),
+        # 1. Run DB-dependent sections sequentially (same session)
+        team = await _safe(self.get_team_overview(company_id, role_filter, search, start_date, end_date), "team")
+        issues = await _safe(self.get_rep_issues(user_id, company_id, start_date, end_date), "issues")
+        strengths = await _safe(self.get_rep_strengths(user_id, company_id, start_date, end_date), "strengths")
+        impact = await _safe(self.get_rep_impact(user_id, company_id), "impact")
+        objections = await _safe(self.get_rep_objections(user_id, company_id, start_date, end_date), "objections")
+        nudges = await _safe(self.get_rep_nudges(user_id, company_id, start_date, end_date), "nudges")
+
+        # 2. Run external Shunya API calls in parallel (no DB session needed)
+        progression, peer_benchmark = await asyncio.gather(
             _safe(self.get_rep_progression(user_id, company_id, weeks), "progression"),
             _safe(self.get_rep_peer_benchmark(user_id, company_id, days), "peer_benchmark"),
-            _safe(self.get_rep_impact(user_id, company_id), "impact"),
-            _safe(self.get_rep_objections(user_id, company_id, start_date, end_date), "objections"),
-            _safe(self.get_rep_nudges(user_id, company_id, start_date, end_date), "nudges"),
         )
 
         return CoachingDashboardResponse(
@@ -155,7 +153,11 @@ class CoachingService:
         weeks: int = 8,
         days: int = 30,
     ) -> IndividualDashboardResponse:
-        """Fetch all 7 individual rep coaching sections in parallel."""
+        """Fetch all 7 individual rep coaching sections.
+
+        DB-dependent sections run sequentially (AsyncSession is not safe for
+        concurrent use), while external Shunya API calls run in parallel.
+        """
 
         async def _safe(coro, label: str):
             try:
@@ -164,22 +166,17 @@ class CoachingService:
                 logger.warning(f"Individual dashboard section '{label}' failed: {e}")
                 return None
 
-        (
-            issues,
-            strengths,
-            progression,
-            peer_benchmark,
-            impact,
-            objections,
-            nudges,
-        ) = await asyncio.gather(
-            _safe(self.get_rep_issues(user_id, company_id, start_date, end_date), "issues"),
-            _safe(self.get_rep_strengths(user_id, company_id, start_date, end_date), "strengths"),
+        # 1. Run DB-dependent sections sequentially (same session)
+        issues = await _safe(self.get_rep_issues(user_id, company_id, start_date, end_date), "issues")
+        strengths = await _safe(self.get_rep_strengths(user_id, company_id, start_date, end_date), "strengths")
+        impact = await _safe(self.get_rep_impact(user_id, company_id), "impact")
+        objections = await _safe(self.get_rep_objections(user_id, company_id, start_date, end_date), "objections")
+        nudges = await _safe(self.get_rep_nudges(user_id, company_id, start_date, end_date), "nudges")
+
+        # 2. Run external Shunya API calls in parallel (no DB session needed)
+        progression, peer_benchmark = await asyncio.gather(
             _safe(self.get_rep_progression(user_id, company_id, weeks), "progression"),
             _safe(self.get_rep_peer_benchmark(user_id, company_id, days), "peer_benchmark"),
-            _safe(self.get_rep_impact(user_id, company_id), "impact"),
-            _safe(self.get_rep_objections(user_id, company_id, start_date, end_date), "objections"),
-            _safe(self.get_rep_nudges(user_id, company_id, start_date, end_date), "nudges"),
         )
 
         return IndividualDashboardResponse(
@@ -660,7 +657,12 @@ class CoachingService:
             "script_adherence",
         ]
 
-        # Fetch all 5 Shunya metrics AND the user record in parallel
+        # Fetch user record first (DB), then Shunya metrics in parallel (HTTP)
+        try:
+            user = await self.session.get(UserORM, user_id)
+        except Exception:
+            user = None
+
         tasks = [
             self.shoonya.get_agent_peer_comparison(
                 rep_id=rep_id,
@@ -671,9 +673,8 @@ class CoachingService:
             for metric in metrics_to_fetch
         ]
 
-        all_results = await asyncio.gather(*tasks, self.session.get(UserORM, user_id), return_exceptions=True)
-        results = all_results[: len(metrics_to_fetch)]
-        user = all_results[-1]
+        all_results = await asyncio.gather(*tasks, return_exceptions=True)
+        results = all_results
 
         benchmark_metrics = []
         for i, result in enumerate(results):

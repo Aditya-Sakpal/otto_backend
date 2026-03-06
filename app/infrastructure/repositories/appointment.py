@@ -92,6 +92,75 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
             logger.error(f"Error counting appointments by outcome: {e}")
             raise e
 
+    async def count_today(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+    ) -> int:
+        """Count appointments scheduled for today."""
+        try:
+            today_start = datetime.combine(date.today(), time.min, tzinfo=timezone.utc)
+            today_end = datetime.combine(date.today(), time.max, tzinfo=timezone.utc)
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= today_start,
+                AppointmentORM.scheduled_start <= today_end,
+            ]
+            if assigned_rep_id:
+                filters.append(AppointmentORM.assigned_rep_id == assigned_rep_id)
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting today's appointments: {e}")
+            raise e
+
+    async def count_pending(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+    ) -> int:
+        """Count appointments with pending outcome (not yet completed)."""
+        try:
+            filters = [
+                AppointmentORM.company_id == company_id,
+                or_(
+                    AppointmentORM.outcome.is_(None),
+                    AppointmentORM.outcome == "pending",
+                ),
+            ]
+            if assigned_rep_id:
+                filters.append(AppointmentORM.assigned_rep_id == assigned_rep_id)
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting pending appointments: {e}")
+            raise e
+
+    async def count_closed(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+    ) -> int:
+        """Count appointments with closed outcome (won or lost)."""
+        try:
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.outcome.in_(["won", "lost"]),
+            ]
+            if assigned_rep_id:
+                filters.append(AppointmentORM.assigned_rep_id == assigned_rep_id)
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting closed appointments: {e}")
+            raise e
+
     async def get_by_assigned_rep(
         self,
         company_id: UUID,
@@ -282,7 +351,6 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
             List of upcoming appointments
         """
         try:
-            print(datetime.now(timezone.utc))
             query = (
                 select(AppointmentORM)
                 .where(AppointmentORM.company_id == company_id)

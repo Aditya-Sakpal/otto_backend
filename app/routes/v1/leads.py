@@ -14,6 +14,7 @@ from app.core.permissions import require_manager_or_csr, require_manager_or_sale
 from app.core.logging import get_logger
 from app.domain.models.lead import Lead
 from app.domain.models.lead_detail import LeadDetail, PipelineLeadDetail
+from app.domain.models.customer_card import CustomerCard
 from app.domain.users.models import User
 from app.services.lead_service import LeadService
 from pydantic import BaseModel, Field
@@ -276,6 +277,61 @@ async def get_pipeline_lead_detail(
         raise
     except Exception as e:
         logger.error(f"Error getting pipeline lead detail: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/{lead_id}/customer-card", response_model=CustomerCard, responses=RESPONSES)
+async def get_customer_card(
+    lead_id: UUID,
+    db: DbSession,
+    user: User = Depends(require_manager_or_csr),
+) -> CustomerCard:
+    """
+    Get the full customer card for a lead.
+
+    Returns comprehensive data for the customer card view including:
+
+    **Header**: contact info (name, phone, initials), pipeline stage progress bar,
+    assigned rep, deal size, status pills.
+
+    **Lead tab** (always present):
+    - Overall engagement (last touched, next move, summary, key points, action items)
+    - Conversations with full analysis (booking status, qualification, SOP checklist,
+      compliance scores, sentiment, objections, call recording URL)
+    - Coaching tips
+
+    **Appointment tab** (when appointment exists):
+    - Appointment details (sales rep, status, outcome, location, schedule)
+    - Recording & transcript
+    - SOP compliance checklist
+    - Comments / posts from team members
+
+    **Result tab** (when appointment has outcome/analysis):
+    - Outcome (deal value, key lesson)
+    - Follow-up tracking (pending/completed tasks, overdue status, next follow-up)
+    - Engagement summary & conversations
+
+    Access: EXECUTIVE, CSR
+    """
+    try:
+        service = LeadService(db)
+        card = await service.get_customer_card(lead_id)
+
+        if not card:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead not found",
+            )
+
+        return card
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting customer card: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1,7 +1,7 @@
 """
 Appointment ORM model.
 """
-from sqlalchemy import String, Text, DateTime, Float, ForeignKey, JSON, ARRAY, Integer
+from sqlalchemy import Boolean, String, Text, DateTime, Float, ForeignKey, JSON, ARRAY, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -38,6 +38,30 @@ class AppointmentORM(Base):
     booking_status: Mapped[str | None] = mapped_column(String, nullable=True)
     handled_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # SOP compliance (populated by call analysis pipeline)
+    sop_stages_completed: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    sop_stages_missed: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    sop_stages_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sop_compliance_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sop_compliance_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sop_compliance_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sop_compliance_issues: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    sop_compliance_positive_behaviors: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    compliance_target_role: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Additional analysis fields
+    sentiment_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    key_points: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    action_items: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    next_steps: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
+    pending_actions_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Recording / analysis status
+    recording_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    analysis_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    shunya_job_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.current_timestamp(),

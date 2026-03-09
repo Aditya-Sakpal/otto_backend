@@ -930,6 +930,503 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             traceback.print_exc()
             raise e
 
+    async def get_customer_card(self, lead_id: UUID):
+        """
+        Build the full customer card payload for a lead.
+
+        Returns a CustomerCard domain model or None if the lead doesn't exist.
+        """
+        from app.domain.models.customer_card import (
+            CustomerCard, CardContact, CardRepInfo, PipelineStageInfo,
+            CardEngagement, CardConversation, SOPChecklistItem,
+            CardLeadTab, CardAppointmentTab, CardResultTab,
+            CardFollowUpTracking, CardFollowUpTask,
+            CardPost, CardPostAuthor,
+        )
+        from app.domain.enums import PipelineStage, PIPELINE_STAGE_ORDER
+        from app.infrastructure.database.models.post import PostORM
+
+        try:
+            # ── 1. Load lead with contact_card and calls (+ analysis) ─────────
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                )
+                .where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if not lead_orm:
+                return None
+
+            # ── 2. Contact info ───────────────────────────────────────────────
+            contact = lead_orm.contact_card
+            first = contact.first_name or "" if contact else ""
+            last = contact.last_name or "" if contact else ""
+            full_name = f"{first} {last}".strip() or None
+            initials = (
+                (first[:1] + last[:1]).upper()
+                if (first or last) else None
+            )
+
+            # Build address string
+            address_parts = []
+            if contact:
+                if contact.address:
+                    address_parts.append(contact.address)
+                loc_parts = ", ".join(filter(None, [
+                    contact.city, contact.state, contact.postal_code
+                ]))
+                if loc_parts:
+                    address_parts.append(loc_parts)
+
+            card_contact = CardContact(
+                id=contact.id if contact else lead_orm.contact_card_id,
+                first_name=first or None,
+                last_name=last or None,
+                full_name=full_name,
+                initials=initials,
+                primary_phone=contact.primary_phone if contact else "",
+                email=contact.email if contact else None,
+                address=contact.address if contact else None,
+                city=contact.city if contact else None,
+                state=contact.state if contact else None,
+                postal_code=contact.postal_code if contact else None,
+            )
+
+            # ── 3. Assigned rep info ──────────────────────────────────────────
+            assigned_rep: CardRepInfo | None = None
+            if lead_orm.assigned_rep_id:
+                rep_result = await self.session.execute(
+                    select(UserORM).where(UserORM.id == lead_orm.assigned_rep_id)
+                )
+                rep_orm = rep_result.scalar_one_or_none()
+                if rep_orm:
+                    rf = rep_orm.first_name or ""
+                    rl = rep_orm.last_name or ""
+                    assigned_rep = CardRepInfo(
+                        id=rep_orm.id,
+                        first_name=rf or None,
+                        last_name=rl or None,
+                        full_name=f"{rf} {rl}".strip() or None,
+                    )
+
+            # ── 4. Pipeline progress bar ──────────────────────────────────────
+            # Display order for the progress bar (separate from PIPELINE_STAGE_ORDER
+            # which is used for move validation). "review" is visually last.
+            display_stages = [
+                ("unqualified", "Unqualified", 0),
+                ("qualified", "Qualified", 1),
+                ("booked", "Booked", 2),
+                ("appointment", "Appt Sched", 3),
+                ("appointment_ran", "Appt Ran", 4),
+                ("won", "Outcome", 5),
+                ("review", "Review", 6),
+            ]
+            current_stage = lead_orm.pipeline_stage
+            # Map current stage to its display order
+            display_order_map = {name: order for name, _, order in display_stages}
+            display_order_map["lost"] = 5  # lost shares the outcome position
+            display_order_map["service_not_offered"] = 0
+            current_display_order = display_order_map.get(current_stage, -1)
+
+            pipeline_stages: list[PipelineStageInfo] = []
+            for idx, (stage_name, stage_label, disp_order) in enumerate(display_stages):
+                if stage_name == current_stage or (
+                    stage_name in ("won", "lost") and current_stage in ("won", "lost")
+                ):
+                    s = "active"
+                elif disp_order < current_display_order:
+                    s = "done"
+                else:
+                    s = "future"
+                pipeline_stages.append(PipelineStageInfo(
+                    name=stage_name, label=stage_label, status=s, order=idx + 1,
+                ))
+
+            # ── 5. Calls — sort most recent first ─────────────────────────────
+            try:
+                mapper = inspect(lead_orm)
+                calls_attr = mapper.attrs.get("calls")
+                raw_calls = (calls_attr.loaded_value or []) if calls_attr else []
+            except Exception:
+                raw_calls = []
+            sorted_calls = sorted(raw_calls, key=lambda c: c.created_at, reverse=True)
+
+            # ── 6. Build Lead tab ─────────────────────────────────────────────
+            lead_conversations: list[CardConversation] = []
+            summaries: list[str] = []
+            all_key_points: list[str] = []
+            all_action_items: list[str] = []
+            last_touched = None
+            next_move = None
+
+            for call in sorted_calls:
+                analysis = getattr(call, "analysis", None)
+                if call.created_at and (last_touched is None or call.created_at > last_touched):
+                    last_touched = call.created_at
+                if next_move is None and analysis and analysis.next_steps:
+                    next_move = analysis.next_steps[0] if isinstance(analysis.next_steps, list) else str(analysis.next_steps)
+
+                if analysis and analysis.summary:
+                    summaries.append(analysis.summary)
+                if analysis and analysis.key_points:
+                    all_key_points.extend(analysis.key_points)
+                if analysis and analysis.action_items:
+                    all_action_items.extend(analysis.action_items)
+
+                # SOP checklist from call analysis
+                sop_checklist: list[SOPChecklistItem] = []
+                if analysis:
+                    for stage_name in (analysis.sop_stages_completed or []):
+                        sop_checklist.append(SOPChecklistItem(stage_name=stage_name, status="completed"))
+                    for stage_name in (analysis.sop_stages_missed or []):
+                        sop_checklist.append(SOPChecklistItem(stage_name=stage_name, status="missed"))
+
+                lead_conversations.append(CardConversation(
+                    id=call.id,
+                    call_type=call.call_type,
+                    phone_number=call.phone_number,
+                    duration_seconds=call.duration_seconds,
+                    missed_call=call.missed_call,
+                    created_at=call.created_at,
+                    answered_at=call.answered_at,
+                    call_recording_url=call.audio_url,
+                    booking_status=analysis.booking_status if analysis else None,
+                    qualification_status=analysis.qualification_status if analysis else None,
+                    summary=analysis.summary if analysis else None,
+                    key_points=list(analysis.key_points) if analysis and analysis.key_points else [],
+                    objections=list(analysis.objections) if analysis and analysis.objections else [],
+                    sentiment_score=analysis.sentiment_score if analysis else None,
+                    sop_compliance_score=analysis.sop_compliance_score if analysis else None,
+                    sop_compliance_rate=analysis.sop_compliance_rate if analysis else None,
+                    sop_checklist=sop_checklist,
+                    sop_compliance_issues=list(analysis.sop_compliance_issues) if analysis and analysis.sop_compliance_issues else [],
+                    sop_compliance_positive_behaviors=list(analysis.sop_compliance_positive_behaviors) if analysis and analysis.sop_compliance_positive_behaviors else [],
+                    compliance_target_role=analysis.compliance_target_role if analysis else None,
+                ))
+
+            lead_tab = CardLeadTab(
+                id=lead_orm.id,
+                status=lead_orm.status,
+                overall_engagement=CardEngagement(
+                    last_touched=last_touched,
+                    next_move=next_move,
+                    summary=" ".join(summaries) if summaries else None,
+                    key_points=list(dict.fromkeys(all_key_points)),
+                    action_items=list(dict.fromkeys(all_action_items)),
+                ),
+                conversations=lead_conversations,
+                coaching_tips=lead_orm.coaching_tips if hasattr(lead_orm, 'coaching_tips') else None,
+            )
+
+            # ── 7. Load appointment ───────────────────────────────────────────
+            appt_result = await self.session.execute(
+                select(AppointmentORM)
+                .where(AppointmentORM.lead_id == lead_id)
+                .order_by(AppointmentORM.scheduled_start.desc())
+                .limit(1)
+            )
+            appt_orm = appt_result.scalar_one_or_none()
+
+            appointment_tab: CardAppointmentTab | None = None
+            result_tab: CardResultTab | None = None
+
+            if appt_orm:
+                # Contact name
+                contact_name = full_name or "Unknown"
+
+                # Sales rep for appointment
+                appt_rep: CardRepInfo | None = None
+                rep_to_check = appt_orm.assigned_rep_id or lead_orm.assigned_rep_id
+                if rep_to_check:
+                    if assigned_rep and rep_to_check == lead_orm.assigned_rep_id:
+                        appt_rep = assigned_rep
+                    else:
+                        rep_r = await self.session.execute(
+                            select(UserORM).where(UserORM.id == rep_to_check)
+                        )
+                        rep_o = rep_r.scalar_one_or_none()
+                        if rep_o:
+                            rf2 = rep_o.first_name or ""
+                            rl2 = rep_o.last_name or ""
+                            appt_rep = CardRepInfo(
+                                id=rep_o.id, first_name=rf2 or None, last_name=rl2 or None,
+                                full_name=f"{rf2} {rl2}".strip() or None,
+                            )
+
+                appt_status = appt_orm.outcome or "scheduled"
+                meeting_url = None
+                if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                    meeting_url = appt_orm.extra_metadata.get("meeting_url") or appt_orm.extra_metadata.get("join_url")
+
+                # SOP checklist for appointment
+                appt_sop_checklist: list[SOPChecklistItem] = []
+
+                # First try: appointment's own SOP columns
+                if appt_orm.sop_stages_completed or appt_orm.sop_stages_missed:
+                    for sn in (appt_orm.sop_stages_completed or []):
+                        appt_sop_checklist.append(SOPChecklistItem(stage_name=sn, status="completed"))
+                    for sn in (appt_orm.sop_stages_missed or []):
+                        appt_sop_checklist.append(SOPChecklistItem(stage_name=sn, status="missed"))
+
+                # Fallback: use interaction call's analysis
+                appt_analysis_summary = appt_orm.summary
+                appt_analysis_key_points = list(appt_orm.key_points or []) if hasattr(appt_orm, 'key_points') and appt_orm.key_points else []
+                appt_sop_score = appt_orm.sop_compliance_score if hasattr(appt_orm, 'sop_compliance_score') else None
+                appt_sop_rate = appt_orm.sop_compliance_rate if hasattr(appt_orm, 'sop_compliance_rate') else None
+                appt_sop_issues = list(appt_orm.sop_compliance_issues or []) if hasattr(appt_orm, 'sop_compliance_issues') and appt_orm.sop_compliance_issues else []
+                appt_sop_positives = list(appt_orm.sop_compliance_positive_behaviors or []) if hasattr(appt_orm, 'sop_compliance_positive_behaviors') and appt_orm.sop_compliance_positive_behaviors else []
+                appt_compliance_role = appt_orm.compliance_target_role if hasattr(appt_orm, 'compliance_target_role') else None
+
+                if appt_orm.interaction_id and not appt_sop_checklist:
+                    interaction_result = await self.session.execute(
+                        select(CallORM)
+                        .options(selectinload(CallORM.analysis))
+                        .where(CallORM.id == appt_orm.interaction_id)
+                    )
+                    interaction_call = interaction_result.scalar_one_or_none()
+                    if interaction_call:
+                        ia = getattr(interaction_call, "analysis", None)
+                        if ia:
+                            for sn in (ia.sop_stages_completed or []):
+                                appt_sop_checklist.append(SOPChecklistItem(stage_name=sn, status="completed"))
+                            for sn in (ia.sop_stages_missed or []):
+                                appt_sop_checklist.append(SOPChecklistItem(stage_name=sn, status="missed"))
+                            if not appt_analysis_summary:
+                                appt_analysis_summary = ia.summary
+                            if not appt_analysis_key_points and ia.key_points:
+                                appt_analysis_key_points = list(ia.key_points)
+                            if appt_sop_score is None:
+                                appt_sop_score = ia.sop_compliance_score
+                            if appt_sop_rate is None:
+                                appt_sop_rate = ia.sop_compliance_rate
+                            if not appt_sop_issues and ia.sop_compliance_issues:
+                                appt_sop_issues = list(ia.sop_compliance_issues)
+                            if not appt_sop_positives and ia.sop_compliance_positive_behaviors:
+                                appt_sop_positives = list(ia.sop_compliance_positive_behaviors)
+                            if not appt_compliance_role:
+                                appt_compliance_role = ia.compliance_target_role
+
+                # Load posts/comments for this appointment
+                posts_result = await self.session.execute(
+                    select(PostORM)
+                    .where(PostORM.appointment_id == appt_orm.id)
+                    .order_by(PostORM.created_at.desc())
+                )
+                posts_orms = posts_result.scalars().all()
+
+                # Batch-load poster users
+                poster_ids = list({p.poster_id for p in posts_orms})
+                poster_map: dict = {}
+                if poster_ids:
+                    poster_result = await self.session.execute(
+                        select(UserORM).where(UserORM.id.in_(poster_ids))
+                    )
+                    for u in poster_result.scalars().all():
+                        pf = u.first_name or ""
+                        pl = u.last_name or ""
+                        poster_map[u.id] = CardPostAuthor(
+                            id=u.id,
+                            first_name=pf or None,
+                            last_name=pl or None,
+                            full_name=f"{pf} {pl}".strip() or None,
+                            initials=(pf[:1] + pl[:1]).upper() if (pf or pl) else None,
+                        )
+
+                card_posts = [
+                    CardPost(
+                        id=p.id,
+                        author=poster_map.get(p.poster_id),
+                        note=p.note,
+                        tags=p.tags.value if p.tags else None,
+                        likes=p.likes or 0,
+                        created_at=p.created_at,
+                    )
+                    for p in posts_orms
+                ]
+
+                appointment_tab = CardAppointmentTab(
+                    id=appt_orm.id,
+                    contact_name=contact_name,
+                    sales_rep=appt_rep,
+                    status=appt_status,
+                    outcome=appt_orm.outcome,
+                    location_address=appt_orm.location_address,
+                    scheduled_start=appt_orm.scheduled_start,
+                    scheduled_end=appt_orm.scheduled_end,
+                    meeting_url=meeting_url,
+                    deal_size=lead_orm.deal_size,
+                    audio_url=appt_orm.audio_url,
+                    transcript=appt_orm.transcript,
+                    duration_seconds=appt_orm.duration_seconds,
+                    summary=appt_analysis_summary,
+                    key_points=appt_analysis_key_points,
+                    objections=list(appt_orm.objections or []),
+                    objection_texts=list(appt_orm.objection_texts or []),
+                    sop_compliance_score=appt_sop_score,
+                    sop_compliance_rate=appt_sop_rate,
+                    sop_checklist=appt_sop_checklist,
+                    sop_compliance_issues=appt_sop_issues,
+                    sop_compliance_positive_behaviors=appt_sop_positives,
+                    compliance_target_role=appt_compliance_role,
+                    posts=card_posts,
+                )
+
+                # ── 8. Result tab ─────────────────────────────────────────────
+                has_result = bool(
+                    appt_orm.summary or appt_orm.outcome or appt_orm.audio_url
+                    or appt_orm.qualification_status
+                )
+                if has_result:
+                    result_convos: list[CardConversation] = []
+                    result_last_touched = None
+                    result_next_move = None
+                    result_summaries: list[str] = []
+                    result_key_points: list[str] = []
+                    result_action_items: list[str] = []
+
+                    if appt_orm.interaction_id:
+                        ir = await self.session.execute(
+                            select(CallORM)
+                            .options(selectinload(CallORM.analysis))
+                            .where(CallORM.id == appt_orm.interaction_id)
+                        )
+                        ic = ir.scalar_one_or_none()
+                        if ic:
+                            ia2 = getattr(ic, "analysis", None)
+                            result_last_touched = ic.created_at
+                            if ia2 and ia2.next_steps:
+                                result_next_move = ia2.next_steps[0] if isinstance(ia2.next_steps, list) else str(ia2.next_steps)
+                            if ia2 and ia2.summary:
+                                result_summaries.append(ia2.summary)
+                            if ia2 and ia2.key_points:
+                                result_key_points.extend(ia2.key_points)
+                            if ia2 and ia2.action_items:
+                                result_action_items.extend(ia2.action_items)
+
+                            sop_ck2: list[SOPChecklistItem] = []
+                            if ia2:
+                                for sn in (ia2.sop_stages_completed or []):
+                                    sop_ck2.append(SOPChecklistItem(stage_name=sn, status="completed"))
+                                for sn in (ia2.sop_stages_missed or []):
+                                    sop_ck2.append(SOPChecklistItem(stage_name=sn, status="missed"))
+
+                            result_convos.append(CardConversation(
+                                id=ic.id,
+                                call_type=ic.call_type,
+                                phone_number=ic.phone_number,
+                                duration_seconds=ic.duration_seconds,
+                                missed_call=ic.missed_call,
+                                created_at=ic.created_at,
+                                answered_at=ic.answered_at,
+                                call_recording_url=ic.audio_url or appt_orm.audio_url,
+                                booking_status=ia2.booking_status if ia2 else appt_orm.booking_status,
+                                qualification_status=ia2.qualification_status if ia2 else appt_orm.qualification_status,
+                                summary=ia2.summary if ia2 else appt_orm.summary,
+                                key_points=list(ia2.key_points) if ia2 and ia2.key_points else [],
+                                objections=list(ia2.objections) if ia2 and ia2.objections else list(appt_orm.objections or []),
+                                sentiment_score=ia2.sentiment_score if ia2 else None,
+                                sop_compliance_score=ia2.sop_compliance_score if ia2 else None,
+                                sop_compliance_rate=ia2.sop_compliance_rate if ia2 else None,
+                                sop_checklist=sop_ck2,
+                                sop_compliance_issues=list(ia2.sop_compliance_issues) if ia2 and ia2.sop_compliance_issues else [],
+                                sop_compliance_positive_behaviors=list(ia2.sop_compliance_positive_behaviors) if ia2 and ia2.sop_compliance_positive_behaviors else [],
+                                compliance_target_role=ia2.compliance_target_role if ia2 else None,
+                            ))
+
+                    if not result_convos and appt_orm.summary:
+                        result_last_touched = appt_orm.updated_at or appt_orm.created_at
+                        result_summaries.append(appt_orm.summary)
+
+                    # Key lesson from coaching_tips on lead or from extra_metadata
+                    key_lesson = None
+                    if hasattr(lead_orm, 'coaching_tips') and lead_orm.coaching_tips:
+                        key_lesson = lead_orm.coaching_tips
+                    elif appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                        key_lesson = appt_orm.extra_metadata.get("key_lesson")
+
+                    # ── Follow-up tracking ────────────────────────────────────
+                    pending_result = await self.session.execute(
+                        select(PendingActionORM)
+                        .where(PendingActionORM.lead_id == lead_id)
+                        .order_by(PendingActionORM.due_at.asc().nullslast())
+                    )
+                    pending_actions = pending_result.scalars().all()
+
+                    from datetime import timezone
+                    now = datetime.now(timezone.utc)
+                    follow_up_tasks = [
+                        CardFollowUpTask(
+                            id=pa.id,
+                            action_type=pa.action_type,
+                            raw_text=pa.raw_text,
+                            status=pa.status,
+                            due_at=pa.due_at,
+                            priority=pa.priority,
+                        )
+                        for pa in pending_actions
+                    ]
+                    pending_count = sum(1 for pa in pending_actions if pa.status == "pending")
+                    completed_count = sum(1 for pa in pending_actions if pa.status == "completed")
+                    overdue = any(
+                        pa.status == "pending" and pa.due_at and pa.due_at < now
+                        for pa in pending_actions
+                    )
+                    next_fu = None
+                    for pa in pending_actions:
+                        if pa.status == "pending" and pa.due_at and pa.due_at >= now:
+                            next_fu = pa.due_at
+                            break
+
+                    fu_last_touched = result_last_touched or lead_orm.updated_at or lead_orm.created_at
+
+                    result_tab = CardResultTab(
+                        outcome=appt_orm.outcome,
+                        outcome_summary=appt_orm.summary,
+                        deal_size=lead_orm.deal_size,
+                        key_lesson=key_lesson,
+                        overall_engagement=CardEngagement(
+                            last_touched=result_last_touched,
+                            next_move=result_next_move,
+                            summary=" ".join(result_summaries) if result_summaries else None,
+                            key_points=list(dict.fromkeys(result_key_points)),
+                            action_items=list(dict.fromkeys(result_action_items)),
+                        ),
+                        conversations=result_convos,
+                        follow_up=CardFollowUpTracking(
+                            follow_up_attempts=completed_count + pending_count,
+                            last_touched=fu_last_touched,
+                            is_overdue=overdue,
+                            next_follow_up=next_fu,
+                            tasks=follow_up_tasks,
+                        ),
+                    )
+
+            return CustomerCard(
+                id=lead_orm.id,
+                company_id=lead_orm.company_id,
+                status=lead_orm.status,
+                deal_status=lead_orm.deal_status,
+                pipeline_stage=lead_orm.pipeline_stage,
+                deal_size=lead_orm.deal_size,
+                created_at=lead_orm.created_at,
+                updated_at=lead_orm.updated_at,
+                contact=card_contact,
+                assigned_rep=assigned_rep,
+                pipeline_stages=pipeline_stages,
+                lead=lead_tab,
+                appointment=appointment_tab,
+                result=result_tab,
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting customer card: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
+
     async def assign_to_rep(
         self,
         lead_id: UUID,

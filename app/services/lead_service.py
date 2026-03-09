@@ -184,6 +184,10 @@ class LeadService:
         """Get 3-tab pipeline lead detail (lead, appointment, result)."""
         return await self.lead_repo.get_pipeline_detail_by_id(lead_id)
 
+    async def get_customer_card(self, lead_id: UUID):
+        """Get full customer card data for the lead detail view."""
+        return await self.lead_repo.get_customer_card(lead_id)
+
     async def get_pending_leads(
         self,
         company_id: UUID,

@@ -15,7 +15,8 @@ from app.domain.models.lead import Lead
 from app.domain.models.lead_detail import (
     LeadDetail, ContactInfo, AgentInfo, OverallEngagement, Conversation,
     PipelineLeadDetail, PipelineLeadTab, PipelineEngagement, PipelineConversation,
-    AppointmentTab, SalesRepInfo, ResultTab,
+    AppointmentTab, AppointmentDetails, SalesRepInfo, ResultTab,
+    FollowUpTask, FollowUpTracking,
 )
 from app.domain.enums import DealStatus, PipelineStage
 from app.infrastructure.database.models.lead import LeadORM
@@ -844,14 +845,102 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
                     meeting_url = appt_orm.extra_metadata.get("meeting_url") or appt_orm.extra_metadata.get("join_url")
 
-                appointment_tab = AppointmentTab(
+                # ── 4b. Load follow-up tasks (pending_actions) for this lead ──────
+                follow_up_result = await self.session.execute(
+                    select(PendingActionORM)
+                    .where(PendingActionORM.lead_id == lead_id)
+                    .order_by(PendingActionORM.due_at.asc().nullslast())
+                )
+                follow_up_actions = list(follow_up_result.scalars().all())
+
+                from datetime import timezone
+                now_utc = datetime.now(timezone.utc)
+                follow_up_tasks = [
+                    FollowUpTask(
+                        id=pa.id,
+                        action_type=pa.action_type,
+                        raw_text=pa.raw_text,
+                        status=pa.status,
+                        due_at=pa.due_at,
+                        priority=pa.priority,
+                    )
+                    for pa in follow_up_actions
+                ]
+                completed_count = sum(1 for pa in follow_up_actions if pa.status == "completed")
+                pending_count = sum(1 for pa in follow_up_actions if pa.status in ("pending", "in_progress"))
+                is_overdue = any(
+                    pa.due_at and pa.due_at < now_utc
+                    for pa in follow_up_actions
+                    if pa.status in ("pending", "in_progress")
+                )
+                pending_with_due = [
+                    pa for pa in follow_up_actions
+                    if pa.status in ("pending", "in_progress") and pa.due_at and pa.due_at >= now_utc
+                ]
+                next_follow_up = min((pa.due_at for pa in pending_with_due), default=None)
+                last_touched_followup = max(
+                    (pa.updated_at or pa.created_at for pa in follow_up_actions),
+                    default=None,
+                )
+
+                follow_up_tracking = FollowUpTracking(
+                    follow_up_attempts=completed_count + pending_count,
+                    last_touched=last_touched_followup,
+                    is_overdue=is_overdue,
+                    next_follow_up=next_follow_up,
+                    tasks=follow_up_tasks,
+                )
+
+                # Build appointment details sub-section
+                appt_details = AppointmentDetails(
                     id=appt_orm.id,
                     contact_name=contact_name,
                     sales_rep=sales_rep_info,
                     status=appt_status,
+                    outcome=appt_orm.outcome,
                     location_address=appt_orm.location_address,
                     scheduled_start=appt_orm.scheduled_start,
+                    scheduled_end=appt_orm.scheduled_end,
                     meeting_url=meeting_url,
+                    deal_size=lead_orm.deal_size,
+                    audio_url=appt_orm.audio_url,
+                    transcript=appt_orm.transcript,
+                    duration_seconds=appt_orm.duration_seconds,
+                    summary=appt_orm.summary,
+                    key_points=list(appt_orm.key_points) if appt_orm.key_points else [],
+                    objections=list(appt_orm.objections) if appt_orm.objections else [],
+                )
+
+                # Build sales rep full name for top-level summary
+                sales_rep_name = None
+                if sales_rep_info:
+                    first = sales_rep_info.first_name or ""
+                    last = sales_rep_info.last_name or ""
+                    sales_rep_name = f"{first} {last}".strip() or None
+
+                # Extract title and arrival_time from extra_metadata if present
+                appt_title = None
+                appt_arrival_time = None
+                if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                    appt_title = appt_orm.extra_metadata.get("title")
+                    appt_arrival_time_str = appt_orm.extra_metadata.get("arrival_time")
+                    if appt_arrival_time_str:
+                        try:
+                            from dateutil.parser import parse as parse_dt
+                            appt_arrival_time = parse_dt(appt_arrival_time_str)
+                        except Exception:
+                            pass
+
+                appointment_tab = AppointmentTab(
+                    title=appt_title,
+                    location_address=appt_orm.location_address,
+                    sales_rep_name=sales_rep_name,
+                    deal_size=lead_orm.deal_size,
+                    status=appt_status,
+                    scheduled_start=appt_orm.scheduled_start,
+                    arrival_time=appt_arrival_time,
+                    details=appt_details,
+                    follow_up=follow_up_tracking,
                 )
 
                 # ── 5. Result tab — only if appointment has been conducted ─────────
@@ -902,12 +991,20 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
 
                     # If no interaction call, use appointment's own analysis fields
                     if not result_conversations and (appt_orm.summary or appt_orm.qualification_status):
-                        from uuid import uuid4
                         result_last_touched = appt_orm.updated_at or appt_orm.created_at
                         if appt_orm.summary:
                             result_summaries.append(appt_orm.summary)
 
+                    # Extract key_lesson from extra_metadata
+                    key_lesson = None
+                    if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                        key_lesson = appt_orm.extra_metadata.get("key_lesson")
+
                     result_tab = ResultTab(
+                        outcome=appt_orm.outcome,
+                        outcome_summary=appt_orm.summary,
+                        deal_size=lead_orm.deal_size,
+                        key_lesson=key_lesson,
                         overall_engagement=PipelineEngagement(
                             last_touched=result_last_touched,
                             next_move=result_next_move,
@@ -915,6 +1012,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                             key_points=list(dict.fromkeys(result_key_points)),
                         ),
                         conversations=result_conversations,
+                        follow_up=follow_up_tracking,
                     )
 
             return PipelineLeadDetail(
@@ -1247,6 +1345,19 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     for p in posts_orms
                 ]
 
+                # Extract title and arrival_time from extra_metadata
+                card_appt_title = None
+                card_appt_arrival_time = None
+                if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                    card_appt_title = appt_orm.extra_metadata.get("title")
+                    card_arrival_str = appt_orm.extra_metadata.get("arrival_time")
+                    if card_arrival_str:
+                        try:
+                            from dateutil.parser import parse as parse_dt
+                            card_appt_arrival_time = parse_dt(card_arrival_str)
+                        except Exception:
+                            pass
+
                 appointment_tab = CardAppointmentTab(
                     id=appt_orm.id,
                     contact_name=contact_name,
@@ -1258,6 +1369,8 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     scheduled_end=appt_orm.scheduled_end,
                     meeting_url=meeting_url,
                     deal_size=lead_orm.deal_size,
+                    title=card_appt_title,
+                    arrival_time=card_appt_arrival_time,
                     audio_url=appt_orm.audio_url,
                     transcript=appt_orm.transcript,
                     duration_seconds=appt_orm.duration_seconds,

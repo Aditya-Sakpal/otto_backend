@@ -92,21 +92,77 @@ class SalesRepInfo(_SlimModel):
     last_name: Optional[str] = None
 
 
-class AppointmentTab(_SlimModel):
-    """Appointment tab data — shown when lead is in booked/appointment_ran/won/lost stage."""
+class AppointmentDetails(_SlimModel):
+    """Details sub-section of appointment tab."""
     id: UUID
     contact_name: str
     sales_rep: Optional[SalesRepInfo] = None
     status: str = Field(description="Appointment status: scheduled, completed, cancelled, etc.")
+    outcome: Optional[str] = None
     location_address: Optional[str] = None
     scheduled_start: datetime
+    scheduled_end: Optional[datetime] = None
     meeting_url: Optional[str] = None
+    deal_size: Optional[float] = None
+
+    # Appointment recording & transcript
+    audio_url: Optional[str] = None
+    transcript: Optional[str] = None
+    duration_seconds: Optional[int] = None
+
+    # Appointment analysis
+    summary: Optional[str] = None
+    key_points: List[str] = Field(default_factory=list)
+    objections: List[str] = Field(default_factory=list)
+
+
+class FollowUpTask(_SlimModel):
+    """A single follow-up / pending action."""
+    id: UUID
+    action_type: str
+    raw_text: Optional[str] = None
+    status: str = "pending"
+    due_at: Optional[datetime] = None
+    priority: Optional[int] = None
+
+
+class FollowUpTracking(_SlimModel):
+    """Follow-up tracking summary."""
+    follow_up_attempts: int = 0
+    last_touched: Optional[datetime] = None
+    is_overdue: bool = False
+    next_follow_up: Optional[datetime] = None
+    tasks: List[FollowUpTask] = Field(default_factory=list)
+
+
+class AppointmentTab(_SlimModel):
+    """Appointment tab data — split into details and follow_up sub-sections."""
+    # Top-level summary fields (shown as appointment header)
+    title: Optional[str] = Field(None, description="Appointment headline, e.g. 'Torn Shingles, Roof Sold'")
+    location_address: Optional[str] = Field(None, description="Full address, e.g. '123 Main St, Phoenix, AZ'")
+    sales_rep_name: Optional[str] = Field(None, description="Assigned sales rep full name")
+    deal_size: Optional[float] = Field(None, description="Deal value in dollars")
+    status: Optional[str] = Field(None, description="Appointment status: scheduled, completed, won, lost, etc.")
+    scheduled_start: Optional[datetime] = Field(None, description="Scheduled appointment date & time")
+    arrival_time: Optional[datetime] = Field(None, description="Actual rep arrival time")
+
+    # Sub-sections
+    details: AppointmentDetails
+    follow_up: FollowUpTracking = Field(default_factory=FollowUpTracking)
 
 
 class ResultTab(_SlimModel):
     """Result tab data — shown when appointment has been conducted and has an outcome/analysis."""
+    outcome: Optional[str] = None
+    outcome_summary: Optional[str] = None
+    deal_size: Optional[float] = None
+    key_lesson: Optional[str] = None
+
     overall_engagement: PipelineEngagement
     conversations: List[PipelineConversation] = Field(default_factory=list)
+
+    # Follow-up tracking
+    follow_up: FollowUpTracking = Field(default_factory=FollowUpTracking)
 
 
 class PipelineLeadTab(_SlimModel):

@@ -25,6 +25,7 @@ from app.infrastructure.database.models import (
     AskOttoConversationORM,
     AskOttoMessageORM,
     InsightJobORM,
+    TenantConfigORM,
 )
 
 logger = get_logger(__name__)

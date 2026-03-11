@@ -4,6 +4,8 @@ Coaching API routes.
 Provides endpoints for the coaching dashboard:
 - Single combined dashboard endpoint returning all 8 coaching sections in one call
 - Coaching session CRUD (create and list)
+- Smart nudge CRUD (list, read, dismiss, unread count)
+- Coaching cycle management (stop, history)
 
 All endpoints require EXECUTIVE role.
 """
@@ -25,7 +27,19 @@ from app.domain.schemas.coaching import (
     CoachingSessionResponse,
     CoachingSessionListResponse,
 )
+from app.domain.schemas.nudges import (
+    SmartNudgeResponse,
+    SmartNudgeListResponse,
+    UnreadCountResponse,
+    MarkReadResponse,
+    MarkAllReadResponse,
+    CoachingSessionCycleResponse,
+    CoachingSessionHistoryResponse,
+    StopCoachingRequest,
+)
 from app.services.coaching_service import CoachingService
+from app.services.smart_nudge_service import SmartNudgeService
+from app.services.coaching_cycle_service import CoachingCycleService
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -376,5 +390,311 @@ async def list_coaching_sessions(
         raise
     except Exception as e:
         logger.error(f"Error listing coaching sessions: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Smart Nudges
+# ============================================================================
+
+
+@router.get(
+    "/nudges",
+    response_model=SmartNudgeListResponse,
+    responses=RESPONSES,
+    summary="List smart nudges",
+    response_description="Paginated list of smart nudges with per-user read status and unread count.",
+)
+async def list_nudges(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID"),
+    current_user: User = Depends(require_executive),
+    status_filter: Optional[str] = Query(
+        None, alias="status",
+        description="Filter by read status: 'unread', 'read', 'dismissed'. Omit for all.",
+    ),
+    priority: Optional[str] = Query(
+        None,
+        description="Filter by priority: 'critical', 'high', 'medium', 'low', 'positive'.",
+    ),
+    rep_user_id: Optional[UUID] = Query(None, description="Filter by rep UUID"),
+    limit: int = Query(50, ge=1, le=200, description="Page size (default 50)"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+):
+    """
+    List smart nudges for the current user's company.
+
+    The frontend should poll this endpoint periodically to show new notifications.
+    Each nudge has a `read_status` field that is per-user: 'unread', 'read', or 'dismissed'.
+
+    Required role: EXECUTIVE
+    """
+    try:
+        service = SmartNudgeService(db)
+        result = await service.list_nudges(
+            company_id=company_id,
+            current_user_id=current_user.id,
+            status_filter=status_filter,
+            priority_filter=priority,
+            rep_user_id=rep_user_id,
+            limit=limit,
+            offset=offset,
+        )
+        return SmartNudgeListResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing nudges: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/nudges/unread-count",
+    response_model=UnreadCountResponse,
+    responses=RESPONSES,
+    summary="Get unread nudge count",
+    response_description="Lightweight unread count for notification badge.",
+)
+async def get_unread_nudge_count(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID"),
+    current_user: User = Depends(require_executive),
+):
+    """
+    Get the number of unread nudges for the current user.
+
+    Use this lightweight endpoint for notification badge polling (every 30-60s).
+
+    Required role: EXECUTIVE
+    """
+    try:
+        service = SmartNudgeService(db)
+        count = await service.get_unread_count(company_id, current_user.id)
+        return UnreadCountResponse(unread_count=count)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting unread count: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/nudges/{nudge_id}/read",
+    response_model=MarkReadResponse,
+    responses=RESPONSES,
+    summary="Mark nudge as read",
+)
+async def mark_nudge_read(
+    nudge_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_executive),
+):
+    """
+    Mark a specific nudge as read for the current user.
+
+    Required role: EXECUTIVE
+    """
+    try:
+        service = SmartNudgeService(db)
+        await service.mark_read(nudge_id, current_user.id)
+        return MarkReadResponse(nudge_id=nudge_id, status="read")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marking nudge read: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/nudges/{nudge_id}/dismiss",
+    response_model=MarkReadResponse,
+    responses=RESPONSES,
+    summary="Dismiss a nudge",
+)
+async def dismiss_nudge(
+    nudge_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_executive),
+):
+    """
+    Dismiss a specific nudge for the current user.
+
+    Required role: EXECUTIVE
+    """
+    try:
+        service = SmartNudgeService(db)
+        await service.mark_dismissed(nudge_id, current_user.id)
+        return MarkReadResponse(nudge_id=nudge_id, status="dismissed")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error dismissing nudge: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/nudges/mark-all-read",
+    response_model=MarkAllReadResponse,
+    responses=RESPONSES,
+    summary="Mark all nudges as read",
+)
+async def mark_all_nudges_read(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID"),
+    current_user: User = Depends(require_executive),
+):
+    """
+    Mark all unread nudges as read for the current user.
+
+    Required role: EXECUTIVE
+    """
+    try:
+        service = SmartNudgeService(db)
+        count = await service.mark_all_read(company_id, current_user.id)
+        return MarkAllReadResponse(marked_count=count)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marking all nudges read: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Coaching Cycle Management
+# ============================================================================
+
+
+@router.patch(
+    "/sessions/{session_id}/stop",
+    response_model=CoachingSessionCycleResponse,
+    responses=RESPONSES,
+    summary="Stop auto-cycling for a coaching session",
+)
+async def stop_coaching_session(
+    session_id: UUID,
+    db: DbSession,
+    request: StopCoachingRequest = None,
+    current_user: User = Depends(require_executive),
+):
+    """
+    Stop the 7-day auto-cycling for a coaching session.
+
+    This sets the current active cycle to 'stopped' status, preventing the
+    system from auto-creating the next cycle. The session's impact data is
+    preserved.
+
+    Pass the original session_id or any cycle's id — the system will find
+    and stop the currently active cycle in the chain.
+
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingCycleService(db)
+        notes = request.notes if request else None
+        session = await service.stop_coaching(session_id, notes=notes)
+        return CoachingSessionCycleResponse(
+            id=session.id,
+            company_id=session.company_id,
+            rep_user_id=session.rep_user_id,
+            coach_user_id=session.coach_user_id,
+            focus_areas=session.focus_areas or [],
+            targets=session.targets,
+            baseline_scores=session.baseline_scores,
+            status=session.status,
+            follow_up_days=session.follow_up_days,
+            follow_up_end_date=session.follow_up_end_date,
+            impact_scores=session.impact_scores,
+            overall_improved=session.overall_improved,
+            improvement_pct=session.improvement_pct,
+            targets_met=session.targets_met,
+            notes=session.notes,
+            coached_at=session.coached_at,
+            created_at=session.created_at,
+            cycle_number=session.cycle_number,
+            parent_session_id=session.parent_session_id,
+            auto_created=session.auto_created,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error stopping coaching session: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/sessions/{session_id}/history",
+    response_model=CoachingSessionHistoryResponse,
+    responses=RESPONSES,
+    summary="Get coaching session cycle history",
+)
+async def get_session_history(
+    session_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_executive),
+):
+    """
+    Get all 7-day cycles for a coaching session chain.
+
+    Pass any session_id in the chain (original or any cycle) and the system
+    will return the full history of all cycles.
+
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingCycleService(db)
+        history = await service.get_session_history(session_id)
+
+        def _to_cycle_response(s):
+            return CoachingSessionCycleResponse(
+                id=s.id,
+                company_id=s.company_id,
+                rep_user_id=s.rep_user_id,
+                coach_user_id=s.coach_user_id,
+                focus_areas=s.focus_areas or [],
+                targets=s.targets,
+                baseline_scores=s.baseline_scores,
+                status=s.status,
+                follow_up_days=s.follow_up_days,
+                follow_up_end_date=s.follow_up_end_date,
+                impact_scores=s.impact_scores,
+                overall_improved=s.overall_improved,
+                improvement_pct=s.improvement_pct,
+                targets_met=s.targets_met,
+                notes=s.notes,
+                coached_at=s.coached_at,
+                created_at=s.created_at,
+                cycle_number=s.cycle_number,
+                parent_session_id=s.parent_session_id,
+                auto_created=s.auto_created,
+            )
+
+        return CoachingSessionHistoryResponse(
+            original_session_id=history["original_session_id"],
+            rep_user_id=history["rep_user_id"],
+            total_cycles=history["total_cycles"],
+            active_cycle=(
+                _to_cycle_response(history["active_cycle"])
+                if history["active_cycle"]
+                else None
+            ),
+            completed_cycles=[
+                _to_cycle_response(c) for c in history["completed_cycles"]
+            ],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting session history: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

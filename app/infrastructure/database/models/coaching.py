@@ -147,3 +147,10 @@ class CoachingSessionORM(Base):
         nullable=True,
         onupdate=func.current_timestamp(),
     )
+
+    # Cycle tracking for 7-day auto-restarting coaching
+    cycle_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    parent_session_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("coaching_sessions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    auto_created: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

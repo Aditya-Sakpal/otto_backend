@@ -1854,6 +1854,340 @@ class ShoonyaClient:
             traceback.print_exc()
             raise
 
+    # ============================================================================
+    # Shunya Coaching Session APIs (Section 7)
+    # ============================================================================
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def create_shunya_coaching_session(
+        self,
+        company_id: str,
+        rep_id: str,
+        rep_name: str,
+        coach_id: str,
+        coach_name: str,
+        focus_areas: list,
+        targets: dict = None,
+        triggering_call_ids: list = None,
+        follow_up_days: int = 7,
+        notes: str = None,
+    ) -> Dict[str, Any]:
+        """
+        Create a coaching session on Shunya.
+
+        POST /api/v1/coaching/sessions
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/coaching/sessions"
+        payload = {
+            "company_id": company_id,
+            "rep_id": rep_id,
+            "rep_name": rep_name,
+            "coach_id": coach_id,
+            "coach_name": coach_name,
+            "focus_areas": focus_areas,
+            "follow_up_days": follow_up_days,
+        }
+        if targets:
+            payload["targets"] = targets
+        if triggering_call_ids:
+            payload["triggering_call_ids"] = triggering_call_ids
+        if notes:
+            payload["notes"] = notes
+
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.post(
+                url,
+                headers=self._get_headers(company_id),
+                json=payload,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error creating Shunya coaching session: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error creating Shunya coaching session: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_shunya_coaching_session(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get coaching session details from Shunya.
+
+        GET /api/v1/coaching/sessions/{session_id}
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/coaching/sessions/{session_id}"
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error getting Shunya coaching session: {e.response.status_code}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting Shunya coaching session: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_shunya_coaching_impact(self, session_id: str) -> Dict[str, Any]:
+        """
+        Get impact report from Shunya for a coaching session.
+
+        GET /api/v1/coaching/sessions/{session_id}/impact
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/coaching/sessions/{session_id}/impact"
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error getting Shunya coaching impact: {e.response.status_code}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting Shunya coaching impact: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def update_shunya_coaching_session_status(
+        self,
+        session_id: str,
+        status: str,
+        measure_impact: bool = True,
+        extension_days: int = None,
+        notes: str = None,
+    ) -> Dict[str, Any]:
+        """
+        Update coaching session status on Shunya.
+
+        PATCH /api/v1/coaching/sessions/{session_id}/status
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/coaching/sessions/{session_id}/status"
+        payload = {"status": status, "measure_impact": measure_impact}
+        if extension_days is not None:
+            payload["extension_days"] = extension_days
+        if notes:
+            payload["notes"] = notes
+
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.patch(
+                url,
+                headers=self._get_headers(),
+                json=payload,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error updating Shunya coaching session status: {e.response.status_code}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error updating Shunya coaching session status: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_shunya_coach_effectiveness(
+        self,
+        coach_id: str,
+        company_id: str,
+        timeframe_days: int = 90,
+        use_cached: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Get coach effectiveness metrics from Shunya.
+
+        GET /api/v1/coaching/coaches/{coach_id}/effectiveness
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/coaching/coaches/{coach_id}/effectiveness"
+        params = {"company_id": company_id, "timeframe_days": timeframe_days}
+        if use_cached:
+            params["use_cached"] = "true"
+
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error getting coach effectiveness: {e.response.status_code}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting coach effectiveness: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_shunya_coaching_roi(
+        self,
+        company_id: str,
+        timeframe_days: int = 90,
+    ) -> Dict[str, Any]:
+        """
+        Get company-wide coaching ROI from Shunya.
+
+        GET /api/v1/coaching/roi
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/coaching/roi"
+        params = {"company_id": company_id, "timeframe_days": timeframe_days}
+
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error getting coaching ROI: {e.response.status_code}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting coaching ROI: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def list_shunya_coaching_sessions(
+        self,
+        company_id: str,
+        rep_id: str = None,
+        coach_id: str = None,
+        status: str = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        List coaching sessions from Shunya.
+
+        GET /api/v1/coaching/sessions
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/coaching/sessions"
+        params = {"company_id": company_id, "limit": limit, "offset": offset}
+        if rep_id:
+            params["rep_id"] = rep_id
+        if coach_id:
+            params["coach_id"] = coach_id
+        if status:
+            params["status"] = status
+
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error listing Shunya coaching sessions: {e.response.status_code}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error listing Shunya coaching sessions: {e}")
+            traceback.print_exc()
+            raise
+
 
 # Global client instance
 _shoonya_client: Optional[ShoonyaClient] = None

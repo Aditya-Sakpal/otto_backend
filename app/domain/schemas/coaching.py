@@ -308,15 +308,16 @@ class CreateCoachingSessionRequest(BaseModel):
     Request body to create a new coaching session.
 
     When a session is created, the system automatically computes baseline_scores
-    from the rep's last 5 completed call analyses. The follow-up period starts
-    immediately and runs for follow_up_days (default 14).
+    from the rep's last 5 completed call analyses. The coaching cycle starts
+    immediately and runs for follow_up_days (default 7). After each cycle,
+    the system auto-restarts a new cycle with updated baselines.
     """
     company_id: UUID = Field(..., description="Company UUID")
     rep_user_id: UUID = Field(..., description="User UUID of the rep being coached")
     coach_user_id: UUID = Field(..., description="User UUID of the coach/manager")
     focus_areas: List[str] = Field(..., description="Metrics to focus on (e.g. ['compliance_score', 'booking_rate', 'objection_handling'])")
     targets: Dict[str, float] = Field(default_factory=dict, description="Target scores to achieve. Keys: metric name, values: target score (0-1 scale). e.g. {'compliance_score': 0.85}")
-    follow_up_days: int = Field(14, description="Number of days for the follow-up measurement period (default 14)")
+    follow_up_days: int = Field(7, description="Number of days per coaching cycle (default 7). System auto-restarts a new cycle after each period.")
     notes: Optional[str] = Field(None, description="Free-text coaching notes")
 
     model_config = {
@@ -327,7 +328,7 @@ class CreateCoachingSessionRequest(BaseModel):
                 "coach_user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                 "focus_areas": ["compliance_score", "booking_rate"],
                 "targets": {"compliance_score": 0.85, "booking_rate": 0.5},
-                "follow_up_days": 14,
+                "follow_up_days": 7,
                 "notes": "Focus on discovery questions and closing technique",
             }]
         }

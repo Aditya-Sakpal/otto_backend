@@ -968,7 +968,7 @@ class CoachingService:
         coach_user_id: UUID,
         focus_areas: List[str],
         targets: Dict[str, float],
-        follow_up_days: int = 14,
+        follow_up_days: int = 7,
         notes: Optional[str] = None,
     ) -> CoachingSessionORM:
         now = datetime.now(timezone.utc)

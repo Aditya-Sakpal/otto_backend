@@ -25,6 +25,7 @@ from app.routes.v1 import (
     leaderboards,
     ghost_mode,
     coaching,
+    tenant_config,
 )
 
 router = APIRouter()
@@ -53,3 +54,4 @@ router.include_router(posts.router, prefix="/posts/sales_rep", tags=["posts"])
 router.include_router(leaderboards.router, prefix="/leaderboards", tags=["leaderboards"])
 router.include_router(ghost_mode.router, prefix="/ghost-mode", tags=["ghost-mode"])
 router.include_router(coaching.router, prefix="/coaching", tags=["coaching"])
+router.include_router(tenant_config.router, prefix="/tenant-config", tags=["tenant-config"])

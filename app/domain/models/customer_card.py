@@ -117,6 +117,8 @@ class CardAppointmentTab(_Slim):
     scheduled_end: Optional[datetime] = None
     meeting_url: Optional[str] = None
     deal_size: Optional[float] = None
+    title: Optional[str] = Field(None, description="Appointment headline, e.g. 'Torn Shingles, Roof Sold'")
+    arrival_time: Optional[datetime] = Field(None, description="Actual rep arrival time")
 
     # Appointment recording & transcript
     audio_url: Optional[str] = None

@@ -15,6 +15,7 @@ from app.infrastructure.database.models.ask_otto_conversation import AskOttoConv
 from app.infrastructure.database.models.insight_job import InsightJobORM
 from app.infrastructure.database.models.post import PostORM
 from app.infrastructure.database.models.leaderboard_stats import LeaderboardStatsORM
+from app.infrastructure.database.models.tenant_config import TenantConfigORM
 
 __all__ = [
     "CompanyORM",
@@ -33,4 +34,5 @@ __all__ = [
     "InsightJobORM",
     "PostORM",
     "LeaderboardStatsORM",
+    "TenantConfigORM",
 ]

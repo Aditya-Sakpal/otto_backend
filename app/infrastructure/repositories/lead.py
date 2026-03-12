@@ -1761,19 +1761,20 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 lead_orm.deal_status = DealStatus.BOOKED.value
                 lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
                 lead_orm.assigned_rep_id = assigned_rep_id
-                # Create or update appointment
+                # Create or update appointment(s)
                 appt_result = await self.session.execute(
                     select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
                 )
-                existing_appt = appt_result.scalar_one_or_none()
-                if existing_appt:
-                    existing_appt.assigned_rep_id = assigned_rep_id
-                    if scheduled_start:
-                        existing_appt.scheduled_start = scheduled_start
-                    if scheduled_end:
-                        existing_appt.scheduled_end = scheduled_end
-                    if location_address:
-                        existing_appt.location_address = location_address
+                existing_appts = appt_result.scalars().all()
+                if existing_appts:
+                    for existing_appt in existing_appts:
+                        existing_appt.assigned_rep_id = assigned_rep_id
+                        if scheduled_start:
+                            existing_appt.scheduled_start = scheduled_start
+                        if scheduled_end:
+                            existing_appt.scheduled_end = scheduled_end
+                        if location_address:
+                            existing_appt.location_address = location_address
                     appointment_updated = True
                 else:
                     new_appt = AppointmentORM(

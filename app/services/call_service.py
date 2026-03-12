@@ -1206,12 +1206,11 @@ class CallService:
             if not isinstance(summary_section, dict):
                 return
 
-            # Collect all action texts from the three possible fields
+            # Only store action_items from Shunya analysis (pending_actions have their own table; next_steps are excluded)
             action_texts: List[str] = []
-            for field in ("next_steps", "action_items", "pending_actions"):
-                items = summary_section.get(field) or []
-                if isinstance(items, list):
-                    action_texts.extend(str(i).strip() for i in items if i and str(i).strip())
+            items = summary_section.get("action_items") or []
+            if isinstance(items, list):
+                action_texts.extend(str(i).strip() for i in items if i and str(i).strip())
 
             if not action_texts:
                 return
@@ -1344,7 +1343,7 @@ class CallService:
             if quick_filter:
                 quick_filter_lower = quick_filter.lower()
                 if quick_filter_lower == "hot_lead":
-                    query = query.where(LeadORM.status == "hot")
+                    query = query.where(func.lower(CallAnalysisORM.qualification_status) == "hot")
                 elif quick_filter_lower == "qualified_unbooked":
                     query = query.where(
                         and_(

@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -370,6 +370,32 @@ class PendingActionService:
             cancelled=counts.get(PendingActionStatus.CANCELLED.value, 0),
         )
         # Use action_items listing for task list
+        # Build base filter conditions
+        filters = [ActionItemORM.company_id == company_id]
+
+        if status:
+            filters.append(ActionItemORM.status == status)
+        if priority is not None:
+            filters.append(ActionItemORM.priority == priority)
+        if assignee_id:
+            filters.append(ActionItemORM.owner_id == assignee_id)
+        if start_date:
+            filters.append(ActionItemORM.created_at >= start_date)
+        if end_date:
+            filters.append(ActionItemORM.created_at <= end_date)
+        if due_date_from:
+            filters.append(ActionItemORM.due_at >= due_date_from)
+        if due_date_to:
+            filters.append(ActionItemORM.due_at <= due_date_to)
+        if search:
+            search_term = f"%{search.lower()}%"
+            filters.append(
+                or_(
+                    func.lower(ActionItemORM.raw_text).like(search_term),
+                    func.lower(ActionItemORM.action_type).like(search_term),
+                )
+            )
+
         query = (
             select(ActionItemORM)
             .options(
@@ -377,15 +403,15 @@ class PendingActionService:
                 selectinload(ActionItemORM.owner),
                 selectinload(ActionItemORM.assigned_by),
             )
-            .where(ActionItemORM.company_id == company_id)
+            .where(*filters)
             .order_by(ActionItemORM.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
         result = await self.session.execute(query)
         orm_list = result.scalars().all()
-        # total count
-        total_res = await self.session.execute(select(func.count(ActionItemORM.id)).where(ActionItemORM.company_id == company_id))
+        # total count (with same filters applied)
+        total_res = await self.session.execute(select(func.count(ActionItemORM.id)).where(*filters))
         total = total_res.scalar() or 0
         tasks = []
         for row in orm_list:

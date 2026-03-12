@@ -447,12 +447,12 @@ class PendingActionService:
     async def get_task_detail(self, task_id: UUID) -> Optional[Dict[str, Any]]:
         """Get single task with full details (owner, assigned_by, source call)."""
         query = (
-            select(PendingActionORM)
-            .where(PendingActionORM.id == task_id)
+            select(ActionItemORM)
+            .where(ActionItemORM.id == task_id)
             .options(
-                selectinload(PendingActionORM.owner),
-                selectinload(PendingActionORM.assigned_by),
-                selectinload(PendingActionORM.call).selectinload(CallORM.contact_card),
+                selectinload(ActionItemORM.owner),
+                selectinload(ActionItemORM.assigned_by),
+                selectinload(ActionItemORM.call).selectinload(CallORM.contact_card),
             )
         )
         result = await self.session.execute(query)
@@ -492,34 +492,55 @@ class PendingActionService:
         assigned_by_id: Optional[UUID] = None,
     ) -> Optional[PendingAction]:
         """Update task (reassign, status, priority, due_at, raw_text)."""
-        # Keep assignment behavior simple: respect provided owner_id (may be None).
-        # Do not auto-assign on CSR actions — UI should pass owner_id when CSR assigns.
-        # Update the pending action fields first
-        updated = await self.pending_action_repo.update_fields(
-            task_id,
-            owner_id=owner_id,
-            status=status,
-            priority=priority,
-            due_at=due_at,
-            raw_text=raw_text,
-            assigned_by_id=assigned_by_id,
+        # Update the action_item fields directly
+        orm_obj = await self.session.get(ActionItemORM, task_id)
+        if not orm_obj:
+            return None
+        if owner_id is not None:
+            orm_obj.owner_id = owner_id
+        if status is not None:
+            orm_obj.status = status
+        if priority is not None:
+            orm_obj.priority = priority
+        if due_at is not None:
+            orm_obj.due_at = due_at
+        if raw_text is not None:
+            orm_obj.raw_text = raw_text
+        if assigned_by_id is not None:
+            orm_obj.assigned_by_id = assigned_by_id
+        await self.session.flush()
+        await self.session.refresh(orm_obj)
+
+        updated = PendingAction(
+            id=orm_obj.id,
+            company_id=orm_obj.company_id,
+            lead_id=orm_obj.lead_id,
+            call_id=orm_obj.call_id,
+            appointment_id=orm_obj.appointment_id,
+            action_type=orm_obj.action_type,
+            raw_text=orm_obj.raw_text,
+            status=orm_obj.status,
+            priority=orm_obj.priority,
+            due_at=orm_obj.due_at,
+            owner_id=orm_obj.owner_id,
+            assigned_by_id=orm_obj.assigned_by_id,
+            source=orm_obj.source,
+            created_at=orm_obj.created_at,
+            updated_at=orm_obj.updated_at,
         )
 
-        # If an owner (sales rep) was provided and the pending action is linked to a lead,
+        # If an owner (sales rep) was provided and the action item is linked to a lead,
         # ensure the lead is assigned to that rep and create an appointment record if the lead
         # is already booked (or deal_status indicates 'booked').
         try:
             if owner_id is not None:
-                # Reload pending action to inspect lead_id/company
-                pending = await self.pending_action_repo.get_by_id(task_id)
-                lead_id = getattr(pending, "lead_id", None)
-                company_id = getattr(pending, "company_id", None)
+                lead_id = orm_obj.lead_id
+                company_id = orm_obj.company_id
                 if lead_id and company_id:
-                    # Assign lead to rep (updates lead.assigned_rep_id and audit)
                     from app.infrastructure.repositories.lead import LeadRepository
                     from app.infrastructure.repositories.appointment import AppointmentRepository
                     from app.domain.models.appointment import Appointment as AppointmentDomain
-                    from datetime import datetime, timezone
+                    from datetime import datetime as dt_cls, timezone
 
                     lead_repo = LeadRepository(self.session)
                     appointment_repo = AppointmentRepository(self.session)
@@ -533,7 +554,6 @@ class PendingActionService:
                     lead_status = getattr(lead, "status", None)
                     contact_card_id = getattr(lead, "contact_card_id", None)
 
-                    # Consider booked if lead status indicates qualified_booked or deal_status == 'booked'
                     is_booked = False
                     if lead_status and str(lead_status).lower() == "qualified_booked":
                         is_booked = True
@@ -541,14 +561,13 @@ class PendingActionService:
                         is_booked = True
 
                     if is_booked and contact_card_id:
-                        # Ensure we don't create duplicate appointment for this lead
                         existing_appt = await appointment_repo.get_by_lead_id(lead_id)
                         if not existing_appt:
                             appt = AppointmentDomain(
                                 company_id=company_id,
                                 lead_id=lead_id,
                                 contact_card_id=contact_card_id,
-                                scheduled_start=datetime.now(timezone.utc),
+                                scheduled_start=dt_cls.now(timezone.utc),
                                 scheduled_end=None,
                                 location_address=None,
                                 latitude=None,
@@ -564,7 +583,6 @@ class PendingActionService:
             logger.warning(f"Could not create appointment on assignment: {e}")
 
         return updated
-        # Note: this function no longer contains auto-assignment logic.
 
     async def create_task_manual(
         self,

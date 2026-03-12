@@ -292,11 +292,10 @@ async def create_coaching_session(
     When a session is created:
     1. **Baseline scores** are auto-computed by averaging the rep's last 5 completed call analyses
        (metrics: compliance_score, booking_rate, rapport_score)
-    2. A **follow-up end date** is set to `now + follow_up_days` (default 14 days)
+    2. A **follow-up end date** is set to `now + follow_up_days` (default 7 days)
     3. Status is set to `in_progress`
-
-    The impact can later be measured by comparing baseline_scores against
-    call analyses that occur during the follow-up period.
+    4. After each 7-day cycle completes, the system **auto-restarts** a new cycle with updated baselines
+    5. Use `PATCH /sessions/{session_id}/stop` to halt auto-cycling
 
     **Request Body Fields:**
     - **company_id**: Company UUID
@@ -304,8 +303,17 @@ async def create_coaching_session(
     - **coach_user_id**: UUID of the manager/coach
     - **focus_areas**: List of metric names to focus on (e.g. `["compliance_score", "booking_rate"]`)
     - **targets**: Target scores to achieve as `{metric: score}` (0-1 scale, e.g. `{"compliance_score": 0.85}`)
-    - **follow_up_days**: Days to measure impact (default 14)
+    - **follow_up_days**: Days per coaching cycle (default 7). System auto-restarts after each cycle.
     - **notes**: Optional free-text coaching notes
+
+    **Available focus_areas / target metrics:**
+    - `compliance_score` — SOP compliance (0-1)
+    - `booking_rate` — Appointment booking rate (0-1)
+    - `rapport_score` — Customer rapport / sentiment (0-1)
+    - `qualification_accuracy` — Lead qualification accuracy (0-1)
+    - `budget_qualification` — BANT budget qualification (0-1)
+    - `timeline_qualification` — BANT timeline qualification (0-1)
+    - `objection_handling` — Objection overcome rate (0-1)
 
     Required role: EXECUTIVE
     """
@@ -369,11 +377,20 @@ async def list_coaching_sessions(
     **Query Parameters:**
     - **company_id** (required): Company UUID
     - **rep_user_id**: Filter by rep (omit for all reps)
-    - **status**: Filter by status: 'in_progress' or 'completed' (omit for all)
+    - **status**: Filter by status — `in_progress`, `completed`, or `stopped` (omit for all)
     - **limit**: Page size (default 50, max 200)
     - **offset**: Skip N records for pagination (default 0)
 
-    Sessions are sorted by coached_at descending (most recent first).
+    **Session Statuses:**
+    - `in_progress` — Active coaching cycle, auto-restarts every 7 days
+    - `completed` — Cycle ended and a new one was auto-created
+    - `stopped` — Auto-cycling was manually stopped via `PATCH /sessions/{id}/stop`
+
+    Sessions are sorted by `coached_at` descending (most recent first).
+
+    **Note:** Each 7-day cycle creates a separate session record linked by
+    `parent_session_id`. Use `GET /sessions/{id}/history` to see all cycles
+    in a coaching chain.
 
     Required role: EXECUTIVE
     """
@@ -425,8 +442,48 @@ async def list_nudges(
     """
     List smart nudges for the current user's company.
 
-    The frontend should poll this endpoint periodically to show new notifications.
-    Each nudge has a `read_status` field that is per-user: 'unread', 'read', or 'dismissed'.
+    Smart nudges are AI-generated notifications about rep performance changes,
+    generated automatically by the daily cron job (2:00 AM UTC) and coaching cycle
+    completions.
+
+    **Per-user read tracking:** Each nudge has a `read_status` field that is
+    specific to the currently authenticated user. Multiple executives can see the
+    same nudge, but each has independent read/dismissed state.
+
+    **Query Parameters:**
+    - **company_id** (required): Company UUID for data scoping
+    - **status**: Filter by read status — `unread`, `read`, or `dismissed`. Omit to get all.
+    - **priority**: Filter by priority — `critical`, `high`, `medium`, `low`, or `positive`. Omit to get all.
+    - **rep_user_id**: Filter nudges about a specific rep. Omit to get nudges for all reps.
+    - **limit**: Page size (default 50, max 200)
+    - **offset**: Pagination offset (default 0)
+
+    **Nudge Types:**
+    | Type | Description |
+    |------|-------------|
+    | `metric_improvement` | A rep's metric improved ≥10% vs coaching baseline |
+    | `metric_decline` | A rep's metric declined ≥10% vs coaching baseline |
+    | `critical_decline` | A rep's metric declined ≥20% (urgent) |
+    | `recurring_issue` | Same coaching issue appeared 3+ times in recent calls |
+    | `objection_weakness` | Rep overcomes <30% of objections in a category |
+    | `objection_improvement` | Rep's objection overcome rate improved significantly |
+    | `coaching_target_met` | Rep hit a target set in the coaching session |
+    | `coaching_target_missed` | Rep is far from a coaching target |
+    | `new_strength` | A new positive behavior detected consistently |
+    | `cycle_summary` | End-of-cycle summary when a 7-day coaching cycle completes |
+
+    **Priority Levels:**
+    - `critical` — Needs immediate attention (e.g. ≥20% decline)
+    - `high` — Important change requiring action
+    - `medium` — Informational, review recommended
+    - `low` — Minor observation
+    - `positive` — Good news (improvement, target met)
+
+    **Polling:** The frontend should poll this endpoint every 30-60 seconds, or use
+    the lightweight `GET /nudges/unread-count` for badge-only updates.
+
+    **Response:** Returns `total` (matching filter count), `unread_count` (unread for
+    current user), and paginated `nudges` list sorted by `created_at` descending.
 
     Required role: EXECUTIVE
     """
@@ -465,7 +522,15 @@ async def get_unread_nudge_count(
     """
     Get the number of unread nudges for the current user.
 
-    Use this lightweight endpoint for notification badge polling (every 30-60s).
+    Use this lightweight endpoint for the notification bell/badge icon.
+    Poll every 30-60 seconds. When `unread_count > 0`, show a badge.
+    When the user opens the notification panel, call `GET /nudges` for full details.
+
+    **Query Parameters:**
+    - **company_id** (required): Company UUID
+
+    **Response:**
+    - `unread_count`: Number of nudges the current user has NOT read or dismissed
 
     Required role: EXECUTIVE
     """
@@ -486,6 +551,7 @@ async def get_unread_nudge_count(
     response_model=MarkReadResponse,
     responses=RESPONSES,
     summary="Mark nudge as read",
+    response_description="Confirmation with nudge ID and new status 'read'.",
 )
 async def mark_nudge_read(
     nudge_id: UUID,
@@ -494,6 +560,17 @@ async def mark_nudge_read(
 ):
     """
     Mark a specific nudge as read for the current user.
+
+    Call this when the user opens/views a nudge notification. The read status
+    is per-user — marking it read for one executive does not affect others.
+
+    **Path Parameters:**
+    - **nudge_id**: UUID of the nudge to mark as read
+
+    **Response:**
+    - `success`: true
+    - `nudge_id`: The nudge UUID
+    - `status`: `"read"`
 
     Required role: EXECUTIVE
     """
@@ -514,6 +591,7 @@ async def mark_nudge_read(
     response_model=MarkReadResponse,
     responses=RESPONSES,
     summary="Dismiss a nudge",
+    response_description="Confirmation with nudge ID and new status 'dismissed'.",
 )
 async def dismiss_nudge(
     nudge_id: UUID,
@@ -522,6 +600,17 @@ async def dismiss_nudge(
 ):
     """
     Dismiss a specific nudge for the current user.
+
+    Dismissed nudges are hidden from the default nudge list. The user can still
+    retrieve them by filtering with `status=dismissed` on `GET /nudges`.
+
+    **Path Parameters:**
+    - **nudge_id**: UUID of the nudge to dismiss
+
+    **Response:**
+    - `success`: true
+    - `nudge_id`: The nudge UUID
+    - `status`: `"dismissed"`
 
     Required role: EXECUTIVE
     """
@@ -542,6 +631,7 @@ async def dismiss_nudge(
     response_model=MarkAllReadResponse,
     responses=RESPONSES,
     summary="Mark all nudges as read",
+    response_description="Confirmation with count of nudges newly marked as read.",
 )
 async def mark_all_nudges_read(
     db: DbSession,
@@ -550,6 +640,17 @@ async def mark_all_nudges_read(
 ):
     """
     Mark all unread nudges as read for the current user.
+
+    Use this for a "Mark all as read" button in the notification panel.
+    Only affects nudges scoped to the given `company_id` that the current user
+    has not already read or dismissed.
+
+    **Query Parameters:**
+    - **company_id** (required): Company UUID
+
+    **Response:**
+    - `success`: true
+    - `marked_count`: Number of nudges that were newly marked as read
 
     Required role: EXECUTIVE
     """
@@ -575,6 +676,7 @@ async def mark_all_nudges_read(
     response_model=CoachingSessionCycleResponse,
     responses=RESPONSES,
     summary="Stop auto-cycling for a coaching session",
+    response_description="The stopped coaching session cycle with full details.",
 )
 async def stop_coaching_session(
     session_id: UUID,
@@ -585,12 +687,25 @@ async def stop_coaching_session(
     """
     Stop the 7-day auto-cycling for a coaching session.
 
-    This sets the current active cycle to 'stopped' status, preventing the
+    This sets the current active cycle to `stopped` status, preventing the
     system from auto-creating the next cycle. The session's impact data is
     preserved.
 
-    Pass the original session_id or any cycle's id — the system will find
-    and stop the currently active cycle in the chain.
+    **Path Parameters:**
+    - **session_id**: UUID of any session in the coaching chain (original or any cycle).
+      The system automatically finds and stops the currently active cycle.
+
+    **Request Body (optional):**
+    - **notes**: Optional reason for stopping (e.g. "Rep promoted to new role")
+
+    **How it works:**
+    1. If `session_id` points to the original session and it's already completed,
+       the system finds the latest `in_progress` child cycle and stops it.
+    2. If `session_id` points to an active cycle directly, that cycle is stopped.
+    3. Returns 404 if no active cycle is found in the chain.
+
+    **Response:** The stopped coaching session with full cycle details including
+    `cycle_number`, `parent_session_id`, baseline/impact scores, and targets.
 
     Required role: EXECUTIVE
     """
@@ -635,6 +750,7 @@ async def stop_coaching_session(
     response_model=CoachingSessionHistoryResponse,
     responses=RESPONSES,
     summary="Get coaching session cycle history",
+    response_description="Full cycle history including active and all completed cycles with impact data.",
 )
 async def get_session_history(
     session_id: UUID,
@@ -644,8 +760,26 @@ async def get_session_history(
     """
     Get all 7-day cycles for a coaching session chain.
 
-    Pass any session_id in the chain (original or any cycle) and the system
-    will return the full history of all cycles.
+    **Path Parameters:**
+    - **session_id**: UUID of any session in the chain (original or any child cycle).
+      The system resolves the full chain automatically.
+
+    **How it works:**
+    - Pass the original `session_id` or any auto-created cycle's `id`
+    - The system finds the root session via `parent_session_id` and returns
+      ALL cycles (completed + active) in the chain
+
+    **Response:**
+    - `original_session_id`: The first session that started the chain
+    - `rep_user_id`: The rep being coached
+    - `total_cycles`: Total number of cycles (completed + active)
+    - `active_cycle`: The currently running cycle (null if stopped)
+    - `completed_cycles`: List of completed cycles, newest first. Each includes:
+      - `cycle_number`: Which cycle (1, 2, 3, ...)
+      - `baseline_scores`: Scores at the start of this cycle
+      - `impact_scores`: Scores at the end of this cycle
+      - `improvement_pct`: Overall improvement percentage
+      - `targets_met`: Which target metrics were achieved
 
     Required role: EXECUTIVE
     """

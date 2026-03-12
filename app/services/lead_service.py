@@ -564,7 +564,7 @@ class LeadService:
 
             # If no appointment exists yet, scheduled_start is required
             existing_appt = await self.session.execute(
-                select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                select(AppointmentORM).where(AppointmentORM.lead_id == lead_id).limit(1)
             )
             if not existing_appt.scalar_one_or_none() and not scheduled_start:
                 raise ValueError(

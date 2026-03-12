@@ -685,6 +685,14 @@ async def ctm_call_webhook(
             )
 
         company_id = await integration_repo.get_company_id_by_voip_company_id(voip_company_id)
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No company integration found for CTM account_id {voip_company_id}",
+            )
+
+        if not isinstance(company_id, UUID):
+            company_id = UUID(str(company_id))
 
         # Process CTM webhook
         service = CTMService(db)

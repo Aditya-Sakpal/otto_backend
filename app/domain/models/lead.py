@@ -36,4 +36,5 @@ class Lead(BaseModel):
     objection: Optional[str] = Field(None, description="Objection raised by the lead")
     response: Optional[str] = Field(None, description="Response to the objection")
     lead_source: Optional[str] = Field(None, description="Lead source from most recent call")
+    appointment_id: Optional[UUID] = Field(None, description="Associated appointment ID (for booked+ stages)")
 

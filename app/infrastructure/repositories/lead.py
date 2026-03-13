@@ -74,7 +74,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             logger.error(f"Error getting lead by ID: {e}")
             raise e
 
-    def _to_domain(self, orm_obj: LeadORM) -> Lead:
+    def _to_domain(self, orm_obj: LeadORM, appointment_id: UUID = None) -> Lead:
         """Convert ORM model to domain model with call audio URLs."""
         # Extract audio URLs from associated calls
         # Check if the relationship is loaded to avoid lazy loading issues in async context
@@ -225,6 +225,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "objection": objection,
             "response": response,
             "lead_source": lead_source,
+            "appointment_id": appointment_id,
         }
         return Lead(**lead_data)
 
@@ -578,7 +579,27 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 .order_by(LeadORM.created_at.desc())
             )
             orm_objs = result.scalars().all()
-            return [self._to_domain(obj) for obj in orm_objs]
+
+            # Fetch appointment IDs for leads in stages that have appointments
+            appointment_stages = {"booked", "appointment", "appointment_ran", "won", "lost", "review"}
+            lead_ids_needing_appt = [
+                obj.id for obj in orm_objs
+                if obj.pipeline_stage in appointment_stages
+            ]
+
+            lead_appointment_map: dict[UUID, UUID] = {}
+            if lead_ids_needing_appt:
+                appt_result = await self.session.execute(
+                    select(AppointmentORM.lead_id, AppointmentORM.id)
+                    .where(AppointmentORM.lead_id.in_(lead_ids_needing_appt))
+                    .order_by(AppointmentORM.scheduled_start.desc())
+                )
+                for lead_id, appt_id in appt_result.all():
+                    # Keep only the most recent appointment per lead
+                    if lead_id not in lead_appointment_map:
+                        lead_appointment_map[lead_id] = appt_id
+
+            return [self._to_domain(obj, appointment_id=lead_appointment_map.get(obj.id)) for obj in orm_objs]
         except Exception as e:
             logger.error(f"Error getting leads by pipeline stages: {e}")
             raise e
@@ -1778,19 +1799,20 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 lead_orm.deal_status = DealStatus.BOOKED.value
                 lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
                 lead_orm.assigned_rep_id = assigned_rep_id
-                # Create or update appointment
+                # Create or update appointment(s)
                 appt_result = await self.session.execute(
                     select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
                 )
-                existing_appt = appt_result.scalar_one_or_none()
-                if existing_appt:
-                    existing_appt.assigned_rep_id = assigned_rep_id
-                    if scheduled_start:
-                        existing_appt.scheduled_start = scheduled_start
-                    if scheduled_end:
-                        existing_appt.scheduled_end = scheduled_end
-                    if location_address:
-                        existing_appt.location_address = location_address
+                existing_appts = appt_result.scalars().all()
+                if existing_appts:
+                    for existing_appt in existing_appts:
+                        existing_appt.assigned_rep_id = assigned_rep_id
+                        if scheduled_start:
+                            existing_appt.scheduled_start = scheduled_start
+                        if scheduled_end:
+                            existing_appt.scheduled_end = scheduled_end
+                        if location_address:
+                            existing_appt.location_address = location_address
                     appointment_updated = True
                 else:
                     new_appt = AppointmentORM(

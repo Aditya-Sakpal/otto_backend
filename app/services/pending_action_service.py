@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +28,6 @@ from app.domain.schemas.tasks import (
 )
 from app.infrastructure.repositories.pending_action import PendingActionRepository
 from app.infrastructure.database.models.pending_action import PendingActionORM
-from app.infrastructure.database.models.action_item import ActionItemORM
 from app.infrastructure.database.models.call import CallORM
 
 logger = get_logger(__name__)
@@ -351,17 +350,16 @@ class PendingActionService:
         limit: int = 100,
     ) -> Dict[str, Any]:
         """List tasks with filters and summary counts for Task Management page (CSR 'My Tasks' uses assignee_id=current user)."""
-        # Query action_items for task management summaries instead of pending_actions
-        # This keeps tasks view in sync with action_items table
+        # Query pending_actions for task management summaries
         counts_query = (
-            select(ActionItemORM.status, func.count(ActionItemORM.id).label("count"))
-            .where(ActionItemORM.company_id == company_id)
-            .group_by(ActionItemORM.status)
+            select(PendingActionORM.status, func.count(PendingActionORM.id).label("count"))
+            .where(PendingActionORM.company_id == company_id)
+            .group_by(PendingActionORM.status)
         )
         res = await self.session.execute(counts_query)
         counts_rows = res.fetchall()
         counts = {row[0]: row[1] for row in counts_rows}
-        # If caller provided filters, we will still compute summary from action_items but omit complex filters for now.
+        # Build summary from pending_actions counts
         summary = TaskListSummary(
             total_tasks=sum(counts.values()),
             pending=counts.get(PendingActionStatus.PENDING.value, 0),
@@ -369,23 +367,48 @@ class PendingActionService:
             completed=counts.get(PendingActionStatus.COMPLETED.value, 0),
             cancelled=counts.get(PendingActionStatus.CANCELLED.value, 0),
         )
-        # Use action_items listing for task list
-        query = (
-            select(ActionItemORM)
-            .options(
-                selectinload(ActionItemORM.call).selectinload(CallORM.contact_card),
-                selectinload(ActionItemORM.owner),
-                selectinload(ActionItemORM.assigned_by),
+        # Build base filter conditions
+        filters = [PendingActionORM.company_id == company_id]
+
+        if status:
+            filters.append(PendingActionORM.status == status)
+        if priority is not None:
+            filters.append(PendingActionORM.priority == priority)
+        if assignee_id:
+            filters.append(PendingActionORM.owner_id == assignee_id)
+        if start_date:
+            filters.append(PendingActionORM.created_at >= start_date)
+        if end_date:
+            filters.append(PendingActionORM.created_at <= end_date)
+        if due_date_from:
+            filters.append(PendingActionORM.due_at >= due_date_from)
+        if due_date_to:
+            filters.append(PendingActionORM.due_at <= due_date_to)
+        if search:
+            search_term = f"%{search.lower()}%"
+            filters.append(
+                or_(
+                    func.lower(PendingActionORM.raw_text).like(search_term),
+                    func.lower(PendingActionORM.action_type).like(search_term),
+                )
             )
-            .where(ActionItemORM.company_id == company_id)
-            .order_by(ActionItemORM.created_at.desc())
+
+        query = (
+            select(PendingActionORM)
+            .options(
+                selectinload(PendingActionORM.call).selectinload(CallORM.contact_card),
+                selectinload(PendingActionORM.owner),
+                selectinload(PendingActionORM.assigned_by),
+            )
+            .where(*filters)
+            .order_by(PendingActionORM.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
         result = await self.session.execute(query)
         orm_list = result.scalars().all()
-        # total count
-        total_res = await self.session.execute(select(func.count(ActionItemORM.id)).where(ActionItemORM.company_id == company_id))
+        # total count (with same filters applied)
+        total_res = await self.session.execute(select(func.count(PendingActionORM.id)).where(*filters))
         total = total_res.scalar() or 0
         tasks = []
         for row in orm_list:
@@ -466,34 +489,55 @@ class PendingActionService:
         assigned_by_id: Optional[UUID] = None,
     ) -> Optional[PendingAction]:
         """Update task (reassign, status, priority, due_at, raw_text)."""
-        # Keep assignment behavior simple: respect provided owner_id (may be None).
-        # Do not auto-assign on CSR actions — UI should pass owner_id when CSR assigns.
-        # Update the pending action fields first
-        updated = await self.pending_action_repo.update_fields(
-            task_id,
-            owner_id=owner_id,
-            status=status,
-            priority=priority,
-            due_at=due_at,
-            raw_text=raw_text,
-            assigned_by_id=assigned_by_id,
+        # Update the pending_action fields directly
+        orm_obj = await self.session.get(PendingActionORM, task_id)
+        if not orm_obj:
+            return None
+        if owner_id is not None:
+            orm_obj.owner_id = owner_id
+        if status is not None:
+            orm_obj.status = status
+        if priority is not None:
+            orm_obj.priority = priority
+        if due_at is not None:
+            orm_obj.due_at = due_at
+        if raw_text is not None:
+            orm_obj.raw_text = raw_text
+        if assigned_by_id is not None:
+            orm_obj.assigned_by_id = assigned_by_id
+        await self.session.flush()
+        await self.session.refresh(orm_obj)
+
+        updated = PendingAction(
+            id=orm_obj.id,
+            company_id=orm_obj.company_id,
+            lead_id=orm_obj.lead_id,
+            call_id=orm_obj.call_id,
+            appointment_id=orm_obj.appointment_id,
+            action_type=orm_obj.action_type,
+            raw_text=orm_obj.raw_text,
+            status=orm_obj.status,
+            priority=orm_obj.priority,
+            due_at=orm_obj.due_at,
+            owner_id=orm_obj.owner_id,
+            assigned_by_id=orm_obj.assigned_by_id,
+            source=orm_obj.source,
+            created_at=orm_obj.created_at,
+            updated_at=orm_obj.updated_at,
         )
 
-        # If an owner (sales rep) was provided and the pending action is linked to a lead,
+        # If an owner (sales rep) was provided and the action item is linked to a lead,
         # ensure the lead is assigned to that rep and create an appointment record if the lead
         # is already booked (or deal_status indicates 'booked').
         try:
             if owner_id is not None:
-                # Reload pending action to inspect lead_id/company
-                pending = await self.pending_action_repo.get_by_id(task_id)
-                lead_id = getattr(pending, "lead_id", None)
-                company_id = getattr(pending, "company_id", None)
+                lead_id = orm_obj.lead_id
+                company_id = orm_obj.company_id
                 if lead_id and company_id:
-                    # Assign lead to rep (updates lead.assigned_rep_id and audit)
                     from app.infrastructure.repositories.lead import LeadRepository
                     from app.infrastructure.repositories.appointment import AppointmentRepository
                     from app.domain.models.appointment import Appointment as AppointmentDomain
-                    from datetime import datetime, timezone
+                    from datetime import datetime as dt_cls, timezone
 
                     lead_repo = LeadRepository(self.session)
                     appointment_repo = AppointmentRepository(self.session)
@@ -507,7 +551,6 @@ class PendingActionService:
                     lead_status = getattr(lead, "status", None)
                     contact_card_id = getattr(lead, "contact_card_id", None)
 
-                    # Consider booked if lead status indicates qualified_booked or deal_status == 'booked'
                     is_booked = False
                     if lead_status and str(lead_status).lower() == "qualified_booked":
                         is_booked = True
@@ -515,14 +558,13 @@ class PendingActionService:
                         is_booked = True
 
                     if is_booked and contact_card_id:
-                        # Ensure we don't create duplicate appointment for this lead
                         existing_appt = await appointment_repo.get_by_lead_id(lead_id)
                         if not existing_appt:
                             appt = AppointmentDomain(
                                 company_id=company_id,
                                 lead_id=lead_id,
                                 contact_card_id=contact_card_id,
-                                scheduled_start=datetime.now(timezone.utc),
+                                scheduled_start=dt_cls.now(timezone.utc),
                                 scheduled_end=None,
                                 location_address=None,
                                 latitude=None,
@@ -538,7 +580,6 @@ class PendingActionService:
             logger.warning(f"Could not create appointment on assignment: {e}")
 
         return updated
-        # Note: this function no longer contains auto-assignment logic.
 
     async def create_task_manual(
         self,

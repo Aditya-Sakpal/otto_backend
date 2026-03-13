@@ -121,6 +121,19 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         except (AttributeError, KeyError, TypeError) as e:
             logger.debug(f"Could not access contact_card relationship for lead {orm_obj.id}: {e}")
 
+        # Get lead_source: prefer persisted ORM value, fall back to most recent call
+        lead_source = getattr(orm_obj, "lead_source", None)
+        if not lead_source:
+            try:
+                if calls:
+                    sorted_calls_for_source = sorted(calls, key=lambda c: c.created_at if c.created_at else datetime.min, reverse=True)
+                    for call in sorted_calls_for_source:
+                        if getattr(call, "lead_source", None):
+                            lead_source = call.lead_source
+                            break
+            except (AttributeError, KeyError, TypeError) as e:
+                logger.debug(f"Could not access lead_source for lead {orm_obj.id}: {e}")
+
         # Extract reason_not_booked, objection, and response from call analyses
         reason_not_booked = None
         objection = None
@@ -211,6 +224,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "reason_not_booked": reason_not_booked,
             "objection": objection,
             "response": response,
+            "lead_source": lead_source,
         }
         return Lead(**lead_data)
 
@@ -689,6 +703,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     conversation = Conversation(
                         id=call.id,
                         call_type=call.call_type,
+                        lead_source=getattr(call, "lead_source", None),
                         phone_number=call.phone_number,
                         duration_seconds=call.duration_seconds,
                         missed_call=call.missed_call,
@@ -780,6 +795,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     PipelineConversation(
                         id=call.id,
                         call_type=call.call_type,
+                        lead_source=getattr(call, "lead_source", None),
                         duration_seconds=call.duration_seconds,
                         created_at=call.created_at,
                         booking_status=analysis.booking_status if analysis else None,
@@ -978,6 +994,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                                 PipelineConversation(
                                     id=interaction_call.id,
                                     call_type=interaction_call.call_type,
+                                    lead_source=getattr(interaction_call, "lead_source", None),
                                     duration_seconds=interaction_call.duration_seconds,
                                     created_at=interaction_call.created_at,
                                     booking_status=ia.booking_status if ia else appt_orm.booking_status,

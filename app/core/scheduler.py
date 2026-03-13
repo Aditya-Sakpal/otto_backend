@@ -46,7 +46,7 @@ async def _coaching_cycle_manager_job():
     Daily job (1:00 AM UTC): Auto-complete expired 7-day coaching cycles
     and create next cycles with updated baselines.
     """
-    logger.info("Running coaching cycle manager job")
+    logger.debug("Running coaching cycle manager job")
 
     try:
         from app.services.coaching_cycle_service import CoachingCycleService
@@ -68,7 +68,7 @@ async def _daily_nudge_evaluation_job():
     Daily job (2:00 AM UTC): Evaluate all reps with active coaching sessions
     and generate smart nudges for managers.
     """
-    logger.info("Running daily nudge evaluation job")
+    logger.debug("Running daily nudge evaluation job")
 
     try:
         from app.services.smart_nudge_service import SmartNudgeService
@@ -88,7 +88,7 @@ async def _nudge_cleanup_job():
     """
     Daily job (4:00 AM UTC): Delete expired nudges and their read records.
     """
-    logger.info("Running nudge cleanup job")
+    logger.debug("Running nudge cleanup job")
 
     try:
         from app.services.smart_nudge_service import SmartNudgeService

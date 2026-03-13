@@ -396,6 +396,8 @@ class CTMService:
                     existing_call = call
                     break
 
+            is_new_call = False
+
             if existing_call:
                 # Update existing call
                 existing_call.audio_url = s3_audio_url or existing_call.audio_url
@@ -441,6 +443,7 @@ class CTMService:
                     extra_metadata=extra_metadata,
                 )
                 call = await self.call_repo.create(call)
+                is_new_call = True
                 logger.info("Call created", call_id=str(call.id), ctm_call_id=call_id_ctm)
 
             # Find or create lead for this contact card
@@ -488,8 +491,8 @@ class CTMService:
                 except Exception as e:
                     logger.exception(f"Failed to update contact card metadata: {e}")
 
-            # Trigger analysis if audio URL is available
-            if s3_audio_url and not call.missed_call:
+            # Trigger analysis only for NEW calls (skip re-fired webhooks to avoid 409 from Shunya)
+            if is_new_call and s3_audio_url and not call.missed_call:
                 try:
                     call_service = CallService(self.session)
                     await call_service.trigger_analysis(call.id)

@@ -323,6 +323,13 @@ class AppointmentService:
                 last_name = contact_card.last_name or ""
                 response_data["appointment_name"] = f"{first_name} {last_name}".strip() or None
 
+                # Fall back to contact card address if appointment location is missing
+                if not response_data.get("location_address"):
+                    parts = [contact_card.address, contact_card.city, contact_card.state, contact_card.postal_code]
+                    fallback = ", ".join(p for p in parts if p)
+                    if fallback:
+                        response_data["location_address"] = fallback
+
                 if include_full_details:
                     response_data["contact_details"] = {
                         "id": str(contact_card.id),

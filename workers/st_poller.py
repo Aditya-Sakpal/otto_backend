@@ -67,7 +67,8 @@ async def run_poll_cycle() -> None:
     async with AsyncSessionLocal() as session:
         repo = CompanyIntegrationRepository(session)
         integrations = await repo.get_all_servicetitan_integrations()
-        logger.info(f"Found {len(integrations)} ST integration(s)")
+        if integrations:
+            logger.debug(f"Found {len(integrations)} ST integration(s)")
 
         async with httpx.AsyncClient(timeout=60) as http:
             for integration in integrations:
@@ -96,7 +97,7 @@ async def _safe_post(http_client, url, payload, headers, label, tenant_id):
     try:
         resp = await http_client.post(url, json=payload, headers=headers)
         resp.raise_for_status()
-        logger.info(f"Tenant {tenant_id}: {label} webhook → {resp.json()}")
+        logger.debug(f"Tenant {tenant_id}: {label} webhook → {resp.status_code}")
     except Exception as e:
         logger.error(f"Tenant {tenant_id}: error posting {label} webhook: {e}", exc_info=True)
 
@@ -104,7 +105,7 @@ async def _safe_post(http_client, url, payload, headers, label, tenant_id):
 async def poll_tenant(integration, http_client: httpx.AsyncClient, session) -> None:
     """Poll one tenant via Export APIs, POST results to webhook endpoints."""
     tenant_id = integration.st_tenant_id
-    logger.info(f"Polling ST tenant {tenant_id}")
+    logger.debug(f"Polling ST tenant {tenant_id}")
 
     # 1. Decrypt credentials
     client_secret = (
@@ -165,11 +166,13 @@ async def poll_tenant(integration, http_client: httpx.AsyncClient, session) -> N
     leads, new_leads_token = leads_result
     bookings, new_bookings_token = bookings_result
 
-    logger.info(
-        f"Tenant {tenant_id}: exported {len(calls)} call(s), "
-        f"{len(customers)} customer(s), {len(customer_contacts)} contact(s), "
-        f"{len(leads)} lead(s), {len(bookings)} booking(s)"
-    )
+    total = len(calls) + len(customers) + len(customer_contacts) + len(leads) + len(bookings)
+    if total > 0:
+        logger.info(
+            f"Tenant {tenant_id}: exported {len(calls)} call(s), "
+            f"{len(customers)} customer(s), {len(customer_contacts)} contact(s), "
+            f"{len(leads)} lead(s), {len(bookings)} booking(s)"
+        )
 
     # 6. POST results to webhook endpoints in parallel (skip if seeding)
     webhook_tasks = []

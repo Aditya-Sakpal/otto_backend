@@ -6,7 +6,7 @@ Data access layer for User entities.
 from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -126,6 +126,31 @@ class UserRepository(BaseRepository[UserORM, User]):
         except Exception as e:
             logger.error(f"Error getting users by role: {e}")
             raise e
+
+    async def find_by_name(
+        self,
+        company_id: UUID,
+        first_name: str,
+        last_name: str,
+    ) -> Optional[UserORM]:
+        """
+        Find a user by first/last name within a company (case-insensitive).
+
+        Returns the first matching UserORM or None.
+        """
+        try:
+            query = (
+                select(UserORM)
+                .where(UserORM.company_id == company_id)
+                .where(func.lower(UserORM.first_name) == first_name.lower())
+                .where(func.lower(UserORM.last_name) == last_name.lower())
+                .limit(1)
+            )
+            result = await self.session.execute(query)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error finding user by name: {e}")
+            return None
 
     def _to_domain(self, orm_obj: UserORM) -> User:
         """

@@ -125,12 +125,14 @@ class MetricsService:
             # Resolution rules:
             # - If user_id is provided: prefer user_id and derive company_id from user
             # - Else: company_id must be provided
+            user_role = None
             if user_id:
                 user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
                 user = user_result.scalar_one_or_none()
                 if not user or not user.company_id:
                     raise ValueError("Either provide company_id, or provide user_id that belongs to a user with a company_id")
                 company_id = user.company_id
+                user_role = user.role
             elif not company_id:
                 raise ValueError("Either company_id or user_id is required")
 
@@ -212,43 +214,85 @@ class MetricsService:
             )
             booked_leads_value = booked_leads_result.scalar() or 0
 
-            # Booking rate: (booked_leads / qualified_leads) * 100
-            if qualified_leads_count > 0:
-                booking_rate = (booked_leads_value / qualified_leads_count) * 100
-            else:
-                booking_rate = 0.0
-            # Keep 'conversion_rate' field name for backward compatibility but populate with booking_rate.
-            conversion_rate = booking_rate
+            # For sales reps: show close rate (won appointments / total appointments)
+            # For CSRs/company-wide: show booking rate (booked_leads / qualified_leads)
+            is_sales_rep = user_role == "sales_rep"
 
-            # Total revenue: sum deal_size for leads that are booked (lead-based) and in period.
-            is_booked = or_(
-                func.lower(LeadORM.status) == "qualified_booked",
-                and_(
-                    LeadORM.deal_status.isnot(None),
-                    func.lower(func.trim(LeadORM.deal_status)) == "booked",
-                ),
-            )
-            lead_booked_in_period_filters = [
-                LeadORM.company_id == company_id,
-                is_booked,
-                or_(
-                    and_(
-                        LeadORM.created_at >= start_dt,
-                        LeadORM.created_at <= end_dt,
+            if is_sales_rep:
+                # Close rate: won appointments / total appointments
+                won_appts_result = await self.session.execute(
+                    select(func.count(AppointmentORM.id)).where(
+                        *appointment_filters,
+                        AppointmentORM.outcome == "won",
+                    )
+                )
+                won_appts_count = won_appts_result.scalar() or 0
+                conversion_rate = (won_appts_count / total_appointments_count * 100) if total_appointments_count > 0 else 0.0
+            else:
+                # Booking rate: (booked_leads / qualified_leads) * 100
+                if qualified_leads_count > 0:
+                    booking_rate = (booked_leads_value / qualified_leads_count) * 100
+                else:
+                    booking_rate = 0.0
+                conversion_rate = booking_rate
+
+            # Total revenue: for sales reps use won deals, for others use booked deals.
+            if is_sales_rep:
+                won_revenue_filters = [
+                    LeadORM.company_id == company_id,
+                    LeadORM.assigned_rep_id == user_id,
+                    LeadORM.deal_size.isnot(None),
+                    LeadORM.deal_size > 0,
+                    or_(
+                        LeadORM.status == "closed_won",
+                        func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
                     ),
-                    and_(
-                        LeadORM.updated_at.isnot(None),
-                        LeadORM.updated_at >= start_dt,
-                        LeadORM.updated_at <= end_dt,
+                    or_(
+                        and_(
+                            LeadORM.closed_at.isnot(None),
+                            LeadORM.closed_at >= start_dt,
+                            LeadORM.closed_at <= end_dt,
+                        ),
+                        and_(
+                            LeadORM.updated_at.isnot(None),
+                            LeadORM.updated_at >= start_dt,
+                            LeadORM.updated_at <= end_dt,
+                        ),
                     ),
-                ),
-            ]
-            if user_id:
-                lead_booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
-            total_revenue = await self.session.execute(
-                select(func.sum(LeadORM.deal_size)).where(*lead_booked_in_period_filters)
-            )
-            revenue = total_revenue.scalar() or 0.0
+                ]
+                total_revenue = await self.session.execute(
+                    select(func.coalesce(func.sum(LeadORM.deal_size), 0.0)).where(*won_revenue_filters)
+                )
+                revenue = float(total_revenue.scalar() or 0.0)
+            else:
+                is_booked = or_(
+                    func.lower(LeadORM.status) == "qualified_booked",
+                    and_(
+                        LeadORM.deal_status.isnot(None),
+                        func.lower(func.trim(LeadORM.deal_status)) == "booked",
+                    ),
+                )
+                lead_booked_in_period_filters = [
+                    LeadORM.company_id == company_id,
+                    is_booked,
+                    or_(
+                        and_(
+                            LeadORM.created_at >= start_dt,
+                            LeadORM.created_at <= end_dt,
+                        ),
+                        and_(
+                            LeadORM.updated_at.isnot(None),
+                            LeadORM.updated_at >= start_dt,
+                            LeadORM.updated_at <= end_dt,
+                        ),
+                    ),
+                ]
+                if user_id:
+                    lead_booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
+                total_revenue = await self.session.execute(
+                    select(func.sum(LeadORM.deal_size)).where(*lead_booked_in_period_filters)
+                )
+                revenue = total_revenue.scalar() or 0.0
 
             return {
                 "total_leads": total_leads_count,
@@ -256,10 +300,8 @@ class MetricsService:
                 "qualified_leads": qualified_leads_count,
                 "total_calls": total_calls_count,
                 "missed_calls": missed_calls_count,
-                "total_appointments": booked_leads_value,
-                # "total_appointments": total_appointments_count,
+                "total_appointments": total_appointments_count if is_sales_rep else booked_leads_value,
                 "conversion_rate": round(conversion_rate, 2),
-                # booked_leads = qualified leads with >= 1 appointment (ensures <= qualified_leads, avoids rate > 100%)
                 "booked_leads": booked_leads_value,
                 "total_revenue": round(revenue, 2),
                 "start_date": start_dt.isoformat(),

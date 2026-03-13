@@ -28,7 +28,6 @@ from app.domain.schemas.tasks import (
 )
 from app.infrastructure.repositories.pending_action import PendingActionRepository
 from app.infrastructure.database.models.pending_action import PendingActionORM
-from app.infrastructure.database.models.action_item import ActionItemORM
 from app.infrastructure.database.models.call import CallORM
 
 logger = get_logger(__name__)
@@ -351,17 +350,16 @@ class PendingActionService:
         limit: int = 100,
     ) -> Dict[str, Any]:
         """List tasks with filters and summary counts for Task Management page (CSR 'My Tasks' uses assignee_id=current user)."""
-        # Query action_items for task management summaries instead of pending_actions
-        # This keeps tasks view in sync with action_items table
+        # Query pending_actions for task management summaries
         counts_query = (
-            select(ActionItemORM.status, func.count(ActionItemORM.id).label("count"))
-            .where(ActionItemORM.company_id == company_id)
-            .group_by(ActionItemORM.status)
+            select(PendingActionORM.status, func.count(PendingActionORM.id).label("count"))
+            .where(PendingActionORM.company_id == company_id)
+            .group_by(PendingActionORM.status)
         )
         res = await self.session.execute(counts_query)
         counts_rows = res.fetchall()
         counts = {row[0]: row[1] for row in counts_rows}
-        # If caller provided filters, we will still compute summary from action_items but omit complex filters for now.
+        # Build summary from pending_actions counts
         summary = TaskListSummary(
             total_tasks=sum(counts.values()),
             pending=counts.get(PendingActionStatus.PENDING.value, 0),
@@ -369,49 +367,48 @@ class PendingActionService:
             completed=counts.get(PendingActionStatus.COMPLETED.value, 0),
             cancelled=counts.get(PendingActionStatus.CANCELLED.value, 0),
         )
-        # Use action_items listing for task list
         # Build base filter conditions
-        filters = [ActionItemORM.company_id == company_id]
+        filters = [PendingActionORM.company_id == company_id]
 
         if status:
-            filters.append(ActionItemORM.status == status)
+            filters.append(PendingActionORM.status == status)
         if priority is not None:
-            filters.append(ActionItemORM.priority == priority)
+            filters.append(PendingActionORM.priority == priority)
         if assignee_id:
-            filters.append(ActionItemORM.owner_id == assignee_id)
+            filters.append(PendingActionORM.owner_id == assignee_id)
         if start_date:
-            filters.append(ActionItemORM.created_at >= start_date)
+            filters.append(PendingActionORM.created_at >= start_date)
         if end_date:
-            filters.append(ActionItemORM.created_at <= end_date)
+            filters.append(PendingActionORM.created_at <= end_date)
         if due_date_from:
-            filters.append(ActionItemORM.due_at >= due_date_from)
+            filters.append(PendingActionORM.due_at >= due_date_from)
         if due_date_to:
-            filters.append(ActionItemORM.due_at <= due_date_to)
+            filters.append(PendingActionORM.due_at <= due_date_to)
         if search:
             search_term = f"%{search.lower()}%"
             filters.append(
                 or_(
-                    func.lower(ActionItemORM.raw_text).like(search_term),
-                    func.lower(ActionItemORM.action_type).like(search_term),
+                    func.lower(PendingActionORM.raw_text).like(search_term),
+                    func.lower(PendingActionORM.action_type).like(search_term),
                 )
             )
 
         query = (
-            select(ActionItemORM)
+            select(PendingActionORM)
             .options(
-                selectinload(ActionItemORM.call).selectinload(CallORM.contact_card),
-                selectinload(ActionItemORM.owner),
-                selectinload(ActionItemORM.assigned_by),
+                selectinload(PendingActionORM.call).selectinload(CallORM.contact_card),
+                selectinload(PendingActionORM.owner),
+                selectinload(PendingActionORM.assigned_by),
             )
             .where(*filters)
-            .order_by(ActionItemORM.created_at.desc())
+            .order_by(PendingActionORM.created_at.desc())
             .offset(skip)
             .limit(limit)
         )
         result = await self.session.execute(query)
         orm_list = result.scalars().all()
         # total count (with same filters applied)
-        total_res = await self.session.execute(select(func.count(ActionItemORM.id)).where(*filters))
+        total_res = await self.session.execute(select(func.count(PendingActionORM.id)).where(*filters))
         total = total_res.scalar() or 0
         tasks = []
         for row in orm_list:
@@ -447,12 +444,12 @@ class PendingActionService:
     async def get_task_detail(self, task_id: UUID) -> Optional[Dict[str, Any]]:
         """Get single task with full details (owner, assigned_by, source call)."""
         query = (
-            select(ActionItemORM)
-            .where(ActionItemORM.id == task_id)
+            select(PendingActionORM)
+            .where(PendingActionORM.id == task_id)
             .options(
-                selectinload(ActionItemORM.owner),
-                selectinload(ActionItemORM.assigned_by),
-                selectinload(ActionItemORM.call).selectinload(CallORM.contact_card),
+                selectinload(PendingActionORM.owner),
+                selectinload(PendingActionORM.assigned_by),
+                selectinload(PendingActionORM.call).selectinload(CallORM.contact_card),
             )
         )
         result = await self.session.execute(query)
@@ -492,8 +489,8 @@ class PendingActionService:
         assigned_by_id: Optional[UUID] = None,
     ) -> Optional[PendingAction]:
         """Update task (reassign, status, priority, due_at, raw_text)."""
-        # Update the action_item fields directly
-        orm_obj = await self.session.get(ActionItemORM, task_id)
+        # Update the pending_action fields directly
+        orm_obj = await self.session.get(PendingActionORM, task_id)
         if not orm_obj:
             return None
         if owner_id is not None:

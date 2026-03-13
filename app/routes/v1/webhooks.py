@@ -305,6 +305,95 @@ async def shoonya_job_complete_webhook(
         # Process analysis with complete data from Summary API
         logger.info(f"Processing analysis for call {call_id} with complete summary data")
 
+        # Check if this is an appointment recording (not a call)
+        metadata = complete_summary_data.get("metadata", {}) if complete_summary_data else {}
+        is_appointment = metadata.get("is_appointment", False)
+
+        if is_appointment:
+            # APPOINTMENT FLOW: Write analysis directly to appointments table
+            appointment_id_str = metadata.get("appointment_id") or str(call_id)
+            from app.infrastructure.repositories.appointment import AppointmentRepository
+            appointment_repo = AppointmentRepository(db)
+            appointment = await appointment_repo.get_by_id(UUID(appointment_id_str))
+
+            if not appointment:
+                logger.error(f"Appointment {appointment_id_str} not found for Shunya analysis")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Appointment {appointment_id_str} not found",
+                )
+
+            # Extract analysis fields from Shunya summary
+            summary_section = complete_summary_data.get("summary", {})
+            qualification = complete_summary_data.get("qualification", {})
+            compliance = complete_summary_data.get("compliance", {})
+            objection_section = complete_summary_data.get("objections", {})
+
+            # Summary fields
+            if isinstance(summary_section, dict):
+                appointment.summary = summary_section.get("summary")
+                appointment.key_points = summary_section.get("key_points", [])
+                appointment.action_items = summary_section.get("action_items", [])
+                appointment.next_steps = summary_section.get("next_steps", [])
+                appointment.pending_actions_data = summary_section.get("pending_actions")
+                appointment.sentiment_score = summary_section.get("sentiment_score")
+
+            # Objections
+            if isinstance(objection_section, dict):
+                raw_objections = objection_section.get("objections", [])
+                appointment.objection_texts = [
+                    o.get("text", "") if isinstance(o, dict) else str(o)
+                    for o in raw_objections
+                ]
+                appointment.objections = [
+                    o.get("category_text", "") if isinstance(o, dict) else str(o)
+                    for o in raw_objections
+                ]
+                appointment.objections_total_count = objection_section.get("total_count", len(raw_objections))
+            elif isinstance(objection_section, list):
+                appointment.objections = [
+                    o.get("category_text", "") if isinstance(o, dict) else str(o)
+                    for o in objection_section
+                ]
+                appointment.objections_total_count = len(objection_section)
+
+            # SOP Compliance
+            if isinstance(compliance, dict):
+                appointment.sop_stages_completed = compliance.get("stages_completed", [])
+                appointment.sop_stages_missed = compliance.get("stages_missed", [])
+                appointment.sop_stages_total = compliance.get("stages_total")
+                appointment.sop_compliance_score = compliance.get("compliance_score")
+                appointment.sop_compliance_rate = compliance.get("compliance_rate")
+                appointment.sop_compliance_confidence = compliance.get("confidence")
+                appointment.sop_compliance_issues = compliance.get("issues", [])
+                appointment.sop_compliance_positive_behaviors = compliance.get("positive_behaviors", [])
+                appointment.compliance_target_role = compliance.get("target_role")
+
+            # Qualification / status
+            if isinstance(qualification, dict):
+                appointment.qualification_status = qualification.get("qualification_status")
+                appointment.booking_status = qualification.get("booking_status")
+
+            # Transcript and recording metadata
+            if transcript:
+                appointment.transcript = transcript
+            appointment.analysis_status = "completed"
+
+            appointment.mark_updated()
+            await appointment_repo.update(appointment.id, appointment)
+            await db.commit()
+
+            logger.info(
+                "Shunya webhook processed for appointment",
+                appointment_id=appointment_id_str,
+                job_id=payload.get("job_id") or payload.get("shunya_job_id"),
+            )
+            return {
+                "status": "success",
+                "appointment_id": appointment_id_str,
+            }
+
+        # CALL FLOW: Existing call analysis path
         # Ensure company_id is available in metadata for NEW FLOW (call record creation)
         # Shunya summary has company_id at root level, but process_analysis looks under metadata
         if company_id and complete_summary_data:

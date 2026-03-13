@@ -792,9 +792,6 @@ class CallService:
             # Update dependent entities based on analysis
             await self._update_dependent_entities(call, analysis)
 
-            # Propagate analysis fields to appointment (for meeting recordings)
-            await self._propagate_analysis_to_appointment(call, analysis)
-
             # Extract coaching data into dedicated tables
             await self._extract_coaching_data(call, analysis, analysis_data)
 
@@ -1212,80 +1209,6 @@ class CallService:
 
         except Exception as e:
             logger.error(f"Error updating dependent entities: {e}", call_id=str(call.id))
-            traceback.print_exc()
-            # Non-critical: do not re-raise
-
-    async def _propagate_analysis_to_appointment(
-        self,
-        call,
-        analysis,
-    ) -> None:
-        """
-        Copy analysis fields from CallAnalysis to the linked AppointmentORM.
-
-        Only runs for meeting recordings (interaction_type="meeting") where the
-        call is linked to an appointment via interaction_id.
-        """
-        try:
-            # Only propagate for meeting recordings
-            if getattr(call, "interaction_type", None) != "meeting":
-                return
-
-            from sqlalchemy import select
-            from app.infrastructure.database.models.appointment import AppointmentORM
-
-            result = await self.session.execute(
-                select(AppointmentORM).where(AppointmentORM.interaction_id == call.id)
-            )
-            appt = result.scalar_one_or_none()
-            if not appt:
-                return
-
-            # Summary fields
-            appt.summary = getattr(analysis, "summary", None)
-            appt.key_points = getattr(analysis, "key_points", None) or []
-            appt.action_items = getattr(analysis, "action_items", None) or []
-            appt.next_steps = getattr(analysis, "next_steps", None) or []
-            appt.pending_actions_data = getattr(analysis, "pending_actions", None)
-
-            # Objections
-            appt.objections = getattr(analysis, "objections", None) or []
-            appt.objection_texts = getattr(analysis, "objection_texts", None) or []
-            appt.objections_total_count = getattr(analysis, "objections_total_count", 0)
-
-            # SOP Compliance
-            appt.sop_stages_completed = getattr(analysis, "sop_stages_completed", None) or []
-            appt.sop_stages_missed = getattr(analysis, "sop_stages_missed", None) or []
-            appt.sop_stages_total = getattr(analysis, "sop_stages_total", None)
-            appt.sop_compliance_score = getattr(analysis, "sop_compliance_score", None)
-            appt.sop_compliance_rate = getattr(analysis, "sop_compliance_rate", None)
-            appt.sop_compliance_confidence = getattr(analysis, "sop_compliance_confidence", None)
-            appt.sop_compliance_issues = getattr(analysis, "sop_compliance_issues", None) or []
-            appt.sop_compliance_positive_behaviors = (
-                getattr(analysis, "sop_compliance_positive_behaviors", None) or []
-            )
-            appt.compliance_target_role = getattr(analysis, "compliance_target_role", None)
-
-            # Status fields
-            appt.qualification_status = getattr(analysis, "qualification_status", None)
-            appt.booking_status = getattr(analysis, "booking_status", None)
-            appt.sentiment_score = getattr(analysis, "sentiment_score", None)
-
-            # Recording metadata from the call itself
-            appt.transcript = getattr(call, "transcript", None)
-            appt.duration_seconds = getattr(call, "duration_seconds", None)
-            appt.analysis_status = "completed"
-
-            await self.session.flush()
-
-            logger.info(
-                "Propagated analysis to appointment",
-                call_id=str(call.id),
-                appointment_id=str(appt.id),
-            )
-
-        except Exception as e:
-            logger.error(f"Error propagating analysis to appointment: {e}", call_id=str(call.id))
             traceback.print_exc()
             # Non-critical: do not re-raise
 

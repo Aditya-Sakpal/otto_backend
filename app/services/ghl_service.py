@@ -25,6 +25,7 @@ class ContactInfo:
     contact_id: str
     full_name: Optional[str]
     phone: Optional[str]
+    source: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -199,8 +200,9 @@ class GHLService:
                 full_name = None
 
             phone = (contact.get("phone") or "").strip() or None
+            source = (contact.get("source") or "").strip() or None
 
-            return ContactInfo(contact_id=contact_id, full_name=full_name, phone=phone)
+            return ContactInfo(contact_id=contact_id, full_name=full_name, phone=phone, source=source)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
                 logger.warning(f"GHL API returned 401 Unauthorized for contact {contact_id}. Bearer token may be invalid or expired.")
@@ -610,6 +612,7 @@ class GHLService:
                 "deal_status": deal_status.value if deal_status else None,
                 "pipeline_stage": pipeline_stage.value if pipeline_stage else None,
                 "deal_size": opp_data.get("monetaryValue"),
+                "lead_source": opp_data.get("source") or None,
                 "extra_metadata": {
                     "ghl_opportunity_id": opportunity_id,
                     "ghl_contact_id": contact_id,
@@ -892,7 +895,7 @@ class GHLService:
                 "contact_card_id": contact_card.id,
                 "scheduled_start": start_time or datetime.now(),
                 "scheduled_end": end_time,
-                "location_address": full_appt_data.get("address"),
+                "location_address": full_appt_data.get("address") or self._build_contact_address(contact_card),
                 "outcome": outcome,
                 "assigned_rep_id": assigned_rep_id,
                 "extra_metadata": {
@@ -1206,6 +1209,7 @@ class GHLService:
             # Get contact info from GHL or extract from webhook payload
             contact_full_name = None
             contact_phone = None
+            ghl_lead_source = None
 
             # For inbound calls: contact is the caller (from field)
             # For outbound calls: contact is the recipient (to field)
@@ -1218,6 +1222,7 @@ class GHLService:
                     if contact_info:
                         contact_full_name = contact_info.full_name
                         contact_phone = contact_info.phone
+                        ghl_lead_source = contact_info.source
                     else:
                         logger.warning(f"Could not fetch contact info for contactId={contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
             elif direction and direction.lower() in ("outbound", "outgoing"):
@@ -1229,6 +1234,7 @@ class GHLService:
                     if contact_info:
                         contact_full_name = contact_info.full_name
                         contact_phone = contact_info.phone
+                        ghl_lead_source = contact_info.source
                     else:
                         logger.warning(f"Could not fetch contact info for contactId={contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
             else:
@@ -1238,6 +1244,7 @@ class GHLService:
                     if contact_info:
                         contact_full_name = contact_info.full_name
                         contact_phone = contact_info.phone
+                        ghl_lead_source = contact_info.source
                     else:
                         logger.warning(f"Could not fetch contact info for contactId={contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
 
@@ -1252,6 +1259,15 @@ class GHLService:
                     "isCall": True,
                     "error": "No phone number found for contact",
                 }
+
+            # If we have phone from call_from/call_to but still need source, fetch contact info
+            if not ghl_lead_source and contact_id:
+                try:
+                    source_info = await self.get_contact_info(contact_id=contact_id)
+                    if source_info and source_info.source:
+                        ghl_lead_source = source_info.source
+                except Exception:
+                    pass
 
             # Fetch recording and upload to S3 (skip for missed calls)
             recording_s3_url = None
@@ -1408,6 +1424,7 @@ class GHLService:
                         company_id=company_id,
                         contact_card_id=contact_card.id,
                         status=LeadStatus.NEW,
+                        lead_source=ghl_lead_source,
                     )
                     lead = await lead_repo.create(lead)
                     logger.info(f"Created new lead {lead.id} for contact {contact_card.id}")
@@ -1467,6 +1484,7 @@ class GHLService:
                 "recording_filename": recording_filename,
                 "recording_content_type": recording_content_type,
                 "recording_num_bytes": recording_num_bytes,
+                "ghl_lead_source": ghl_lead_source,
             }
 
             # NEW FLOW: Send directly to Shunya without creating call record first
@@ -1498,6 +1516,7 @@ class GHLService:
                         duration_seconds=call_duration,
                         handled_by_user_id=handled_by_user_id,
                         interaction_type="call",
+                        lead_source=ghl_lead_source,
                         extra_metadata=extra_metadata,
                     )
                     missed_call_obj = await call_repo.create(missed_call_obj)
@@ -1588,3 +1607,11 @@ class GHLService:
         except Exception as e:
             logger.error(f"Error processing call webhook: {e}", exc_info=True)
             raise
+
+    @staticmethod
+    def _build_contact_address(contact_card) -> str | None:
+        """Build a location address string from contact card fields."""
+        if not contact_card:
+            return None
+        parts = [contact_card.address, contact_card.city, contact_card.state, contact_card.postal_code]
+        return ", ".join(p for p in parts if p) or None

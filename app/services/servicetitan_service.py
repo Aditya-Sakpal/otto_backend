@@ -12,6 +12,7 @@ Export API response shapes (from ST OpenAPI docs):
   - Leads:    { id, status (Open/Dismissed/Converted), customerId, leadPhone, leadEmail, leadCustomerName, leadStreet/City/State/Zip, bookingId, callId }
   - Bookings: { id, name, start, status (New/Converted/Dismissed/Accepted), address: {street, city, state, zip, country}, jobId }
 """
+import re
 from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
@@ -26,6 +27,7 @@ from app.domain.enums import AppointmentOutcome, CallType, LeadStatus, PendingAc
 from app.domain.models.appointment import Appointment
 from app.domain.models.lead import Lead
 from app.domain.models.pending_action import PendingAction
+from app.domain.users.repository import UserRepository
 from app.infrastructure.integrations.servicetitan import ServiceTitanClient, parse_iso_duration
 from app.infrastructure.repositories.appointment import AppointmentRepository
 from app.infrastructure.repositories.call import CallRepository
@@ -71,7 +73,9 @@ class ServiceTitanService:
         self.appointment_repo = AppointmentRepository(session)
         self.pending_action_repo = PendingActionRepository(session)
         self.integration_repo = CompanyIntegrationRepository(session)
+        self.user_repo = UserRepository(session)
         self._st_client_cache: dict[UUID, ServiceTitanClient] = {}
+        self._agent_user_cache: dict[str, UUID | None] = {}
 
     async def _get_st_client(self, company_id: UUID) -> ServiceTitanClient | None:
         """Get an authenticated ST client for the company, with caching."""
@@ -87,6 +91,89 @@ class ServiceTitanService:
         )
         self._st_client_cache[company_id] = st_client
         return st_client
+
+    # ----------------------------------------------------------------------- #
+    #  Agent → User resolution                                                 #
+    # ----------------------------------------------------------------------- #
+
+    @staticmethod
+    def _normalize_agent_name(name: str) -> tuple[str, str]:
+        """Normalize an ST agent name to (first, last) for fuzzy matching.
+
+        'Jerome (Jerry) Cruz' → ('jerome', 'cruz')
+        'Johnny L Jacobo'     → ('johnny', 'l jacobo')
+        """
+        # Strip parenthetical nicknames
+        name = re.sub(r"\s*\([^)]*\)\s*", " ", name)
+        # Strip double quotes and extra whitespace (preserve apostrophes in names)
+        name = name.replace('"', "").strip()
+        parts = name.split(maxsplit=1)
+        first = parts[0].lower().strip() if parts else ""
+        last = parts[1].lower().strip() if len(parts) > 1 else ""
+        return first, last
+
+    async def _resolve_agent_user(
+        self,
+        agent_data: Any,
+        company_id: UUID,
+    ) -> UUID | None:
+        """Resolve an ST agent dict to an Otto user ID.
+
+        Strategy:
+        1. Try ST Employee API → get email → match by email
+        2. Fallback: fuzzy name match within the company
+        """
+        if not isinstance(agent_data, dict):
+            return None
+
+        agent_name = (agent_data.get("name") or "").strip()
+        if not agent_name:
+            return None
+
+        # Check cache first
+        cache_key = f"{company_id}:{agent_name.lower()}"
+        if cache_key in self._agent_user_cache:
+            return self._agent_user_cache[cache_key]
+
+        user_id: UUID | None = None
+
+        # 1. Try ST Employee API for email
+        agent_id = agent_data.get("id")
+        if agent_id:
+            try:
+                st_client = await self._get_st_client(company_id)
+                if st_client:
+                    employee = await st_client.get_employee(agent_id)
+                    if employee:
+                        email = employee.get("email")
+                        if email:
+                            user_orm = await self.user_repo.get_by_email(
+                                email
+                            )
+                            if user_orm:
+                                user_id = user_orm.id
+            except Exception as e:
+                logger.debug(
+                    f"ST employee API lookup failed for agent "
+                    f"{agent_id}: {e}"
+                )
+
+        # 2. Fallback: fuzzy name match
+        if not user_id:
+            first, last = self._normalize_agent_name(agent_name)
+            if first and last:
+                user_orm = await self.user_repo.find_by_name(
+                    company_id, first, last
+                )
+                if user_orm:
+                    user_id = user_orm.id
+
+        self._agent_user_cache[cache_key] = user_id
+        if user_id:
+            logger.info(
+                f"Resolved ST agent '{agent_name}' → user {user_id}"
+            )
+        return user_id
 
     # ----------------------------------------------------------------------- #
     #  Public: calls webhook                                                   #
@@ -233,6 +320,11 @@ class ServiceTitanService:
                 logger.error(f"Failed to upload ST recording to S3: {e}")
                 s3_audio_url = recording_url
 
+        # 6b. Resolve ST agent to Otto user
+        handled_by_user_id = await self._resolve_agent_user(
+            st_call.get("agent"), company_id
+        )
+
         # 7. Create Call record
         from app.domain.models.call import Call
 
@@ -245,6 +337,8 @@ class ServiceTitanService:
             call_type=CallType.MISSED_CALL if is_missed else CallType.CSR_CALL,
             missed_call=is_missed,
             interaction_type="call",
+            handled_by_user_id=handled_by_user_id,
+            lead_source=st_call.get("campaign") or None,
             extra_metadata={
                 "st_call_id": st_call_id,
                 "st_direction": st_call.get("direction"),
@@ -290,6 +384,7 @@ class ServiceTitanService:
                         company_id=company_id,
                         contact_card_id=contact_card.id,
                         status=LeadStatus.NEW,
+                        lead_source=st_call.get("campaign") or None,
                         extra_metadata={"source": "st_call", "st_call_id": st_call_id},
                     )
                     await self.lead_repo.create(new_lead)
@@ -687,6 +782,8 @@ class ServiceTitanService:
 
         if existing_lead:
             existing_lead.status = otto_status
+            if st_lead.get("campaignId") and not existing_lead.lead_source:
+                existing_lead.lead_source = str(st_lead["campaignId"])
             meta = dict(existing_lead.extra_metadata or {})
             meta["st_lead_id"] = st_lead_id
             if st_lead.get("bookingId"):
@@ -709,6 +806,7 @@ class ServiceTitanService:
                 company_id=company_id,
                 contact_card_id=contact_card.id,
                 status=otto_status,
+                lead_source=str(st_lead["campaignId"]) if st_lead.get("campaignId") else None,
                 extra_metadata=lead_meta,
             )
             await self.lead_repo.create(new_lead)
@@ -794,6 +892,7 @@ class ServiceTitanService:
                 company_id=company_id,
                 contact_card_id=contact_card.id,
                 status=LeadStatus.NEW,
+                lead_source=st_booking.get("source") or (str(st_booking["campaignId"]) if st_booking.get("campaignId") else None),
                 extra_metadata={"source": "st_booking", "st_booking_id": st_booking_id},
             )
             lead = await self.lead_repo.create(new_lead)
@@ -826,6 +925,11 @@ class ServiceTitanService:
             location_address = ", ".join(p for p in parts if p) or None
         else:
             location_address = None
+
+        # Fallback to contact card address if booking has no address
+        if not location_address and contact_card:
+            parts = [contact_card.address, contact_card.city, contact_card.state, contact_card.postal_code]
+            location_address = ", ".join(p for p in parts if p) or None
 
         # 6. Look for existing appointment by st_booking_id
         existing_appt = await self._find_appointment_by_st_booking_id(st_booking_id, company_id)

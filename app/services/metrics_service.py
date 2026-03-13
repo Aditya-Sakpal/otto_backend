@@ -2325,7 +2325,9 @@ class MetricsService:
             # 1. Objection Handling
             # Get objection handling improvement (exclude existing customer & service not offered)
             current_month_objections = await self.session.execute(
-                select(func.count(CallAnalysisORM.id)).where(
+                select(func.count(CallAnalysisORM.id))
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
                     CallAnalysisORM.company_id == company_id,
                     CallORM.handled_by_user_id == user_id,
                     CallAnalysisORM.created_at >= start_dt,
@@ -2333,14 +2335,16 @@ class MetricsService:
                     CallAnalysisORM.objections.isnot(None),
                     func.array_length(CallAnalysisORM.objections, 1) > 0,
                     _metrics_exclude_existing_and_service_not_offered(),
-                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                )
             )
             current_objections = current_month_objections.scalar() or 0
             
             # Compare with previous period
             prev_start_dt = start_dt - (end_dt - start_dt)
             prev_objections_result = await self.session.execute(
-                select(func.count(CallAnalysisORM.id)).where(
+                select(func.count(CallAnalysisORM.id))
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
                     CallAnalysisORM.company_id == company_id,
                     CallORM.handled_by_user_id == user_id,
                     CallAnalysisORM.created_at >= prev_start_dt,
@@ -2348,7 +2352,7 @@ class MetricsService:
                     CallAnalysisORM.objections.isnot(None),
                     func.array_length(CallAnalysisORM.objections, 1) > 0,
                     _metrics_exclude_existing_and_service_not_offered(),
-                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                )
             )
             prev_objections = prev_objections_result.scalar() or 0
             

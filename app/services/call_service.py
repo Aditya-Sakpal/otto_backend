@@ -57,7 +57,7 @@ QUALIFIED_STATUSES = ['hot', 'cold', 'warm', 'qualified']
 def is_qualified_status(qualification_status: Optional[str]) -> bool:
     """
     Check if a qualification_status is considered qualified.
-    
+
     Qualified statuses: 'hot', 'cold', 'warm', 'qualified'
     """
     if not qualification_status:
@@ -451,6 +451,7 @@ class CallService:
                     transcript=transcript,
                     missed_call=False,
                     interaction_type="call",
+                    lead_source=metadata.get("ghl_lead_source") or metadata.get("lead_source"),
                     extra_metadata=metadata,
                 )
 
@@ -688,6 +689,23 @@ class CallService:
             def safe_float(value):
                 return float(value) if value is not None else None
 
+            # Override is_existing_customer from contact card if available
+            # (e.g. Service Titan tenants store authoritative customer data on the contact card)
+            if call.contact_card_id:
+                try:
+                    contact_card = await self.contact_repo.get_by_id(call.contact_card_id)
+                    if contact_card and contact_card.extra_metadata:
+                        cc_is_customer = contact_card.extra_metadata.get("is_customer")
+                        if cc_is_customer is not None:
+                            logger.info(
+                                f"Overriding is_existing_customer from contact card: "
+                                f"Shunya={is_existing_customer}, ContactCard={cc_is_customer}",
+                                call_id=str(call_id),
+                            )
+                            is_existing_customer = cc_is_customer
+                except Exception as e:
+                    logger.debug(f"Could not check contact card for is_customer override: {e}")
+
             # Create CallAnalysis domain model with all fields
             call_analysis = CallAnalysis(
                 call_id=call_id,
@@ -885,32 +903,32 @@ class CallService:
     ) -> LeadStatus:
         """
         Map qualification_status and booking_status to LeadStatus.
-        
+
         Args:
             qualification_status: 'hot', 'warm', 'cold', 'unqualified', or None
             booking_status: 'booked', 'not_booked', 'service_not_offered', or None
-            
+
         Returns:
             Appropriate LeadStatus enum value
         """
         if not qualification_status:
             return LeadStatus.NEW
-        
+
         qual_lower = qualification_status.lower()
         booking_lower = booking_status.lower() if booking_status else None
-        
+
         # If qualified and booked
         if qual_lower in ['hot', 'warm', 'cold'] and booking_lower == 'booked':
             return LeadStatus.QUALIFIED_BOOKED
-        
+
         # If qualified but service not offered
         if qual_lower in ['hot', 'warm', 'cold'] and booking_lower == 'service_not_offered':
             return LeadStatus.QUALIFIED_SERVICE_NOT_OFFERED
-        
+
         # If qualified but not booked
         if qual_lower in ['hot', 'warm', 'cold'] and booking_lower == 'not_booked':
             return LeadStatus.QUALIFIED_UNBOOKED
-        
+
         # Map qualification status directly (when booking_status is None or doesn't match above)
         if qual_lower == 'hot':
             return LeadStatus.HOT
@@ -920,35 +938,35 @@ class CallService:
             return LeadStatus.WARM  # Cold leads are still warm leads
         elif qual_lower == 'unqualified':
             return LeadStatus.ABANDONED
-        
+
         # Default to NEW if status is unknown
         return LeadStatus.NEW
-    
+
     def _map_to_deal_status(
         self,
         booking_status: Optional[str],
     ) -> Optional[DealStatus]:
         """
         Map booking_status to DealStatus.
-        
+
         Args:
             booking_status: 'booked', 'not_booked', 'service_not_offered', or None
-            
+
         Returns:
             Appropriate DealStatus enum value or None
         """
         if not booking_status:
             return None
-        
+
         booking_lower = booking_status.lower()
-        
+
         if booking_lower == 'booked':
             return DealStatus.BOOKED
         elif booking_lower == 'not_booked':
             return DealStatus.NURTURING
         elif booking_lower == 'service_not_offered':
             return DealStatus.NEW
-        
+
         return None
 
     def _map_to_pipeline_stage(
@@ -981,18 +999,18 @@ class CallService:
     ) -> Optional[Lead]:
         """
         Find existing lead by contact_card_id and company_id.
-        
+
         Args:
             contact_card_id: Contact card ID
             company_id: Company ID
-            
+
         Returns:
             Lead if found, None otherwise
         """
         try:
             from sqlalchemy import select
             from app.infrastructure.database.models.lead import LeadORM
-            
+
             result = await self.session.execute(
                 select(LeadORM).where(
                     LeadORM.contact_card_id == contact_card_id,
@@ -1000,7 +1018,7 @@ class CallService:
                 )
             )
             lead_orm = result.scalar_one_or_none()
-            
+
             if lead_orm:
                 return self.lead_repo._to_domain(lead_orm)
             return None
@@ -1053,6 +1071,16 @@ class CallService:
                     ]
                     location_address = ", ".join(p for p in parts if p) or None
 
+            # Fallback: build from contact card if analysis gave no address
+            if not location_address and call.contact_card_id:
+                try:
+                    contact = await self.contact_repo.get_by_id(call.contact_card_id)
+                    if contact:
+                        parts = [contact.address, contact.city, contact.state, contact.postal_code]
+                        location_address = ", ".join(p for p in parts if p) or None
+                except Exception:
+                    pass
+
             # Outcome: pending for call-created appointments
             outcome = AppointmentOutcome.PENDING
 
@@ -1075,6 +1103,8 @@ class CallService:
             existing = await self.appointment_repo.get_by_interaction_id(call.id)
             if existing:
                 for key, value in appointment_data.items():
+                    if key == "assigned_rep_id" and existing.assigned_rep_id is not None:
+                        continue  # Don't overwrite an already-assigned sales rep
                     if hasattr(existing, key):
                         setattr(existing, key, value)
                 await self.appointment_repo.update(existing.id, existing)

@@ -2,6 +2,7 @@
 Recordings API routes.
 
 Handles recording initiation for mobile uploads.
+Recordings are tied directly to appointments (not calls).
 """
 import traceback
 from typing import Optional
@@ -15,14 +16,10 @@ from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role
 from app.core.logging import get_logger
 from app.core.s3 import get_s3_service
-from app.domain.enums import UserRole, CallStatus, CallType
+from app.domain.enums import UserRole
 from app.domain.users.models import User
-from app.domain.models.call import Call
-from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.appointment import AppointmentRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
-from app.services.call_service import CallService
-from app.domain.schemas.calls import RecordingAnalysisResponse
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -42,7 +39,7 @@ class RecordingInitiateRequest(BaseModel):
 
 class RecordingInitiateResponse(BaseModel):
     """Response with pre-signed URL for upload."""
-    call_id: UUID = Field(..., description="Created call ID")
+    appointment_id: UUID = Field(..., description="Appointment ID")
     upload_url: str = Field(..., description="Pre-signed S3 URL for uploading audio")
     s3_key: str = Field(..., description="S3 key where the file should be uploaded")
 
@@ -51,22 +48,19 @@ class RecordingInitiateResponse(BaseModel):
 async def initiate_recording(
     request: RecordingInitiateRequest,
     db: DbSession,
-    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
-    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
 ) -> RecordingInitiateResponse:
     """
     Initiate a recording upload for an appointment.
 
     This endpoint:
-    1. Creates a Call record with status="pending" and interaction_type="meeting"
-    2. Updates Appointment.interaction_id with the new Call ID
-    3. Returns a pre-signed S3 URL for the mobile app to upload the audio file
+    1. Validates the appointment exists
+    2. Returns a pre-signed S3 URL for the mobile app to upload the audio file
 
     Access: Any authenticated user
     """
     try:
         appointment_repo = AppointmentRepository(db)
-        call_repo = CallRepository(db)
 
         # Get the appointment
         appointment = await appointment_repo.get_by_id(request.appointment_id)
@@ -75,61 +69,6 @@ async def initiate_recording(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Appointment not found",
             )
-
-        # Check if appointment already has an interaction_id
-        if appointment.interaction_id:
-            logger.warning(
-                f"Appointment {request.appointment_id} already has interaction_id {appointment.interaction_id}"
-            )
-            # Return existing call info if it exists
-            existing_call = await call_repo.get_by_id(appointment.interaction_id)
-            if existing_call:
-                # Generate a new pre-signed URL if needed
-                s3_service = get_s3_service()
-                if not s3_service:
-                    raise HTTPException(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail="S3 service not available",
-                    )
-
-                # Generate S3 key for the recording
-                s3_key = s3_service.generate_s3_key(
-                    prefix="recordings",
-                    filename=f"appointment_{request.appointment_id}",
-                    extension="wav"
-                )
-
-                upload_url = s3_service.generate_presigned_url(
-                    s3_key=s3_key,
-                    content_type="audio/x-wav",
-                    bucket_type="audio",
-                )
-
-                return RecordingInitiateResponse(
-                    call_id=existing_call.id,
-                    upload_url=upload_url,
-                    s3_key=s3_key,
-                )
-
-        # Create a new Call record
-        call = Call(
-            company_id=appointment.company_id,
-            contact_card_id=appointment.contact_card_id,
-            lead_id=appointment.lead_id,
-            phone_number="",  # Not applicable for meeting recordings
-            interaction_type="meeting",
-            status=CallStatus.PENDING.value,
-            missed_call=False,
-        )
-
-        call = await call_repo.create(call)
-        logger.info(f"Created call record {call.id} for appointment {request.appointment_id}")
-
-        # Update appointment with interaction_id
-        appointment.interaction_id = call.id
-        appointment.mark_updated()
-        await appointment_repo.update(request.appointment_id, appointment)
-        await db.commit()
 
         # Get S3 service and generate pre-signed URL
         s3_service = get_s3_service()
@@ -142,7 +81,7 @@ async def initiate_recording(
         # Generate S3 key for the recording
         s3_key = s3_service.generate_s3_key(
             prefix="recordings",
-            filename=f"appointment_{request.appointment_id}_call_{call.id}",
+            filename=f"appointment_{request.appointment_id}",
             extension="wav"
         )
 
@@ -153,11 +92,11 @@ async def initiate_recording(
         )
 
         logger.info(
-            f"Generated pre-signed URL for appointment {request.appointment_id}, call {call.id}"
+            f"Generated pre-signed URL for appointment {request.appointment_id}"
         )
 
         return RecordingInitiateResponse(
-            call_id=call.id,
+            appointment_id=request.appointment_id,
             upload_url=upload_url,
             s3_key=s3_key,
         )
@@ -175,14 +114,14 @@ async def initiate_recording(
 
 class RecordingCompleteRequest(BaseModel):
     """Request to complete recording upload."""
-    call_id: UUID = Field(..., description="Call ID from initiate response")
+    appointment_id: UUID = Field(..., description="Appointment ID")
     s3_key: str = Field(..., description="S3 key where the file was uploaded")
 
 
 class RecordingCompleteResponse(BaseModel):
     """Response after recording upload completion."""
-    call_id: UUID = Field(..., description="Call ID")
-    status: str = Field(..., description="Call status")
+    appointment_id: UUID = Field(..., description="Appointment ID")
+    status: str = Field(..., description="Processing status")
     processing_job_id: Optional[str] = Field(None, description="Shunya job ID if processing was triggered")
 
 
@@ -190,29 +129,26 @@ class RecordingCompleteResponse(BaseModel):
 async def complete_recording(
     request: RecordingCompleteRequest,
     db: DbSession,
-    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
-    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
 ) -> RecordingCompleteResponse:
     """
     Complete recording upload and trigger processing.
 
     This endpoint:
-    1. Updates Call with audio_url (from S3 key)
-    2. Updates Call status to "processing"
-    3. Triggers Shunya processing
+    1. Updates Appointment with audio_url (from S3 key)
+    2. Triggers Shunya processing with appointment_id as tracker
 
     Access: Any authenticated user
     """
     try:
-        call_repo = CallRepository(db)
-        call_service = CallService(db)
+        appointment_repo = AppointmentRepository(db)
 
-        # Get the call
-        call = await call_repo.get_by_id(request.call_id)
-        if not call:
+        # Get the appointment
+        appointment = await appointment_repo.get_by_id(request.appointment_id)
+        if not appointment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Call not found",
+                detail="Appointment not found",
             )
 
         # Generate S3 URL from key
@@ -225,71 +161,61 @@ async def complete_recording(
 
         audio_url = s3_service.get_public_url(request.s3_key, bucket_type="audio")
 
-        # Update call with audio_url
-        call.audio_url = audio_url
-        await call_repo.update(request.call_id, call)
-        
-        # Also update appointment's audio_url if this call is linked to an appointment
-        # Skip overwrite if the appointment already has a CSR recording and this is a sales call
-        appointment_repo = AppointmentRepository(db)
-        appointment = await appointment_repo.get_by_interaction_id(request.call_id)
-        if appointment:
-            if appointment.audio_url and call.call_type == CallType.SALES_CALL:
-                logger.info(
-                    f"Skipping audio_url update for appointment {appointment.id}: "
-                    f"already has CSR recording, not overwriting with sales call {request.call_id}"
-                )
-            else:
-                appointment.audio_url = audio_url
-                appointment.mark_updated()
-                await appointment_repo.update(appointment.id, appointment)
-                logger.info(
-                    f"Updated appointment {appointment.id} with audio_url from call {request.call_id}"
-                )
-        
+        # Set audio_url directly on the appointment
+        appointment.audio_url = audio_url
+        appointment.recording_status = "uploaded"
+        appointment.mark_updated()
+        await appointment_repo.update(request.appointment_id, appointment)
         await db.commit()
 
         logger.info(
-            f"Recording upload completed for call {request.call_id}, triggering processing"
+            f"Recording upload completed for appointment {request.appointment_id}, triggering processing"
         )
 
-        # Trigger Shunya processing
+        # Trigger Shunya processing with appointment_id as tracker
         processing_job_id = None
         shoonya = get_shoonya_client()
         if shoonya.is_available():
             try:
                 from datetime import datetime
-                from app.core.config import settings
 
-                # Construct webhook URL for Shunya to notify us when processing completes
                 webhook_url = f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
 
                 result = await shoonya.process_call(
-                    call_id=str(call.id),
-                    company_id=str(call.company_id),
+                    call_id=str(appointment.id),  # appointment_id as tracker
+                    company_id=str(appointment.company_id),
                     audio_url=audio_url,
-                    phone_number=call.phone_number or "",
-                    duration=call.duration_seconds or 0,
-                    call_date=call.created_at.isoformat() if call.created_at else datetime.utcnow().isoformat(),
-                    webhook_url=f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete",
+                    phone_number="",
+                    duration=0,
+                    call_date=appointment.scheduled_start.isoformat() if appointment.scheduled_start else datetime.utcnow().isoformat(),
+                    webhook_url=webhook_url,
                     metadata={
-                        "interaction_type": call.interaction_type or "meeting",
-                        "appointment_id": str(call.lead_id) if call.lead_id else None,
-                        **(call.extra_metadata or {}),
+                        "is_appointment": True,
+                        "appointment_id": str(appointment.id),
+                        "interaction_type": "meeting",
+                        "call_type": "sales_call",
+                        "lead_id": str(appointment.lead_id) if appointment.lead_id else None,
+                        "contact_card_id": str(appointment.contact_card_id) if appointment.contact_card_id else None,
                     },
                 )
                 processing_job_id = result.get("job_id")
-                # Note: shunya_job_id is stored in call_processing_jobs table, not in calls table
+
+                # Store job ID on appointment
+                appointment.shunya_job_id = processing_job_id
+                appointment.analysis_status = "processing"
+                appointment.mark_updated()
+                await appointment_repo.update(request.appointment_id, appointment)
+                await db.commit()
+
                 logger.info(
-                    f"Triggered Shunya processing for call {request.call_id}, job_id={processing_job_id}"
+                    f"Triggered Shunya processing for appointment {request.appointment_id}, job_id={processing_job_id}"
                 )
             except Exception as e:
                 logger.error(f"Failed to trigger Shunya processing: {e}", exc_info=True)
-                # Don't fail the request - call is updated with audio_url
 
         return RecordingCompleteResponse(
-            call_id=request.call_id,
-            status="processing",  # Default status since field doesn't exist in DB
+            appointment_id=request.appointment_id,
+            status="processing",
             processing_job_id=processing_job_id,
         )
 
@@ -305,37 +231,83 @@ async def complete_recording(
         )
 
 
-@router.get("/{call_id}/analysis", response_model=RecordingAnalysisResponse, responses=RESPONSES)
+class RecordingAnalysisResponse(BaseModel):
+    """Response with appointment analysis data."""
+    appointment_id: UUID
+    analysis_status: Optional[str] = None
+    summary: Optional[str] = None
+    key_points: Optional[list[str]] = None
+    action_items: Optional[list[str]] = None
+    next_steps: Optional[list[str]] = None
+    objections: Optional[list[str]] = None
+    objection_texts: Optional[list[str]] = None
+    objections_total_count: Optional[int] = None
+    qualification_status: Optional[str] = None
+    booking_status: Optional[str] = None
+    sentiment_score: Optional[float] = None
+    sop_compliance_score: Optional[float] = None
+    sop_compliance_rate: Optional[float] = None
+    sop_stages_completed: Optional[list[str]] = None
+    sop_stages_missed: Optional[list[str]] = None
+    sop_compliance_issues: Optional[list[str]] = None
+    sop_compliance_positive_behaviors: Optional[list[str]] = None
+    compliance_target_role: Optional[str] = None
+    transcript: Optional[str] = None
+    duration_seconds: Optional[int] = None
+
+
+@router.get("/{appointment_id}/analysis", response_model=RecordingAnalysisResponse, responses=RESPONSES)
 async def get_recording_analysis(
     db: DbSession,
-    call_id: UUID,
+    appointment_id: UUID,
     user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.EXECUTIVE, UserRole.CSR])),
 ):
     """
-    Get comprehensive recording analysis for post-meeting insights.
+    Get recording analysis for an appointment.
 
-    Returns structured analysis with:
-    - Summary (key points, pending actions, sentiment)
-    - Objections (detected, categorized, with handling status)
-    - Compliance (SOP score, stages, positive behaviors, issues)
-    - Qualification (overall score, BANT scores, status)
-    - Lead score (total score, lead band)
-
-    **Recording Analysis Screen (Post-Meeting Insights)**
+    Returns structured analysis with summary, objections, compliance, qualification.
 
     Access: Sales reps, executives, and CSRs
     """
     try:
-        service = CallService(db)
-        analysis = await service.get_recording_analysis(call_id)
+        appointment_repo = AppointmentRepository(db)
+        appointment = await appointment_repo.get_by_id(appointment_id)
 
-        if not analysis:
+        if not appointment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Recording analysis not found for call {call_id}",
+                detail=f"Appointment not found: {appointment_id}",
             )
 
-        return analysis
+        if not appointment.analysis_status or appointment.analysis_status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Recording analysis not yet available for appointment {appointment_id}",
+            )
+
+        return RecordingAnalysisResponse(
+            appointment_id=appointment.id,
+            analysis_status=appointment.analysis_status,
+            summary=appointment.summary,
+            key_points=appointment.key_points,
+            action_items=appointment.action_items,
+            next_steps=appointment.next_steps,
+            objections=appointment.objections,
+            objection_texts=appointment.objection_texts,
+            objections_total_count=appointment.objections_total_count,
+            qualification_status=appointment.qualification_status,
+            booking_status=appointment.booking_status,
+            sentiment_score=appointment.sentiment_score,
+            sop_compliance_score=appointment.sop_compliance_score,
+            sop_compliance_rate=appointment.sop_compliance_rate,
+            sop_stages_completed=appointment.sop_stages_completed,
+            sop_stages_missed=appointment.sop_stages_missed,
+            sop_compliance_issues=appointment.sop_compliance_issues,
+            sop_compliance_positive_behaviors=appointment.sop_compliance_positive_behaviors,
+            compliance_target_role=appointment.compliance_target_role,
+            transcript=appointment.transcript,
+            duration_seconds=appointment.duration_seconds,
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -345,4 +317,3 @@ async def get_recording_analysis(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch recording analysis: {str(e)}",
         )
-

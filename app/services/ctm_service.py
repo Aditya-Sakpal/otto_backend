@@ -201,9 +201,14 @@ class CTMService:
                     contact_phone = caller_phone
 
             elif direction == "outbound":
-                caller_phone = payload.get("caller_number")  # Company's number
-                dialed_number = payload.get("dialed_number") or payload.get("destination_number")
-                contact_phone = dialed_number
+                caller_phone = payload.get("tracking_number")  # Company's tracking number
+                contact_phone = (
+                    payload.get("contact_number")
+                    or payload.get("dialed_number")
+                    or payload.get("destination_number")
+                    or payload.get("caller_number_bare")
+                    or payload.get("caller_number")
+                )
 
             else:
                 raise ValueError(f"Unknown call direction: {direction}")
@@ -275,33 +280,32 @@ class CTMService:
                 update_needed = False
                 contact_updates = {}
 
-                # Update address/location fields if provided (for inbound calls)
-                if direction == "inbound":
-                    street = payload.get("street")
-                    city = payload.get("city")
-                    state = payload.get("state")
-                    postal_code = payload.get("postal_code")
-                    country = payload.get("country")
+                # Update address/location fields if provided
+                street = payload.get("street")
+                city = payload.get("city")
+                state = payload.get("state")
+                postal_code = payload.get("postal_code")
+                country = payload.get("country")
 
-                    if street and not contact_card.address:
-                        contact_updates["address"] = street
+                if street and not contact_card.address:
+                    contact_updates["address"] = street
+                    update_needed = True
+                if city and not contact_card.city:
+                    contact_updates["city"] = city
+                    update_needed = True
+                if state and not contact_card.state:
+                    contact_updates["state"] = state
+                    update_needed = True
+                if postal_code and not contact_card.postal_code:
+                    contact_updates["postal_code"] = postal_code
+                    update_needed = True
+                if country:
+                    # Store country in extra_metadata since we don't have a direct column
+                    if contact_card.extra_metadata is None:
+                        contact_card.extra_metadata = {}
+                    if "country" not in contact_card.extra_metadata:
+                        contact_card.extra_metadata["country"] = country
                         update_needed = True
-                    if city and not contact_card.city:
-                        contact_updates["city"] = city
-                        update_needed = True
-                    if state and not contact_card.state:
-                        contact_updates["state"] = state
-                        update_needed = True
-                    if postal_code and not contact_card.postal_code:
-                        contact_updates["postal_code"] = postal_code
-                        update_needed = True
-                    if country:
-                        # Store country in extra_metadata since we don't have a direct column
-                        if contact_card.extra_metadata is None:
-                            contact_card.extra_metadata = {}
-                        if "country" not in contact_card.extra_metadata:
-                            contact_card.extra_metadata["country"] = country
-                            update_needed = True
 
                 if update_needed:
                     for key, value in contact_updates.items():
@@ -403,6 +407,8 @@ class CTMService:
                     existing_call.call_type = CallType.MISSED_CALL.value
                 if contact_card:
                     existing_call.contact_card_id = contact_card.id
+                if not existing_call.lead_source and payload.get("source"):
+                    existing_call.lead_source = payload["source"]
                 existing_call.extra_metadata = {**(existing_call.extra_metadata or {}), **extra_metadata}
 
                 call = await self.call_repo.update(existing_call.id, existing_call)
@@ -431,6 +437,7 @@ class CTMService:
                     call_type=CallType.MISSED_CALL if is_missed else None,
                     missed_call=is_missed,
                     interaction_type="call",
+                    lead_source=payload.get("source") or None,
                     extra_metadata=extra_metadata,
                 )
                 call = await self.call_repo.create(call)
@@ -450,6 +457,7 @@ class CTMService:
                             company_id=company_id,
                             contact_card_id=contact_card.id,
                             status=LeadStatus.NEW,
+                            lead_source=payload.get("source") or None,
                         )
                         lead = await lead_repo.create(lead)
                         logger.info("Lead created", lead_id=str(lead.id), contact_card_id=str(contact_card.id))

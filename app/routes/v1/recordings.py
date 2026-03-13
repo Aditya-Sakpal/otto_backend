@@ -15,7 +15,7 @@ from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role
 from app.core.logging import get_logger
 from app.core.s3 import get_s3_service
-from app.domain.enums import UserRole, CallStatus
+from app.domain.enums import UserRole, CallStatus, CallType
 from app.domain.users.models import User
 from app.domain.models.call import Call
 from app.infrastructure.repositories.call import CallRepository
@@ -230,15 +230,22 @@ async def complete_recording(
         await call_repo.update(request.call_id, call)
         
         # Also update appointment's audio_url if this call is linked to an appointment
+        # Skip overwrite if the appointment already has a CSR recording and this is a sales call
         appointment_repo = AppointmentRepository(db)
         appointment = await appointment_repo.get_by_interaction_id(request.call_id)
         if appointment:
-            appointment.audio_url = audio_url
-            appointment.mark_updated()
-            await appointment_repo.update(appointment.id, appointment)
-            logger.info(
-                f"Updated appointment {appointment.id} with audio_url from call {request.call_id}"
-            )
+            if appointment.audio_url and call.call_type == CallType.SALES_CALL:
+                logger.info(
+                    f"Skipping audio_url update for appointment {appointment.id}: "
+                    f"already has CSR recording, not overwriting with sales call {request.call_id}"
+                )
+            else:
+                appointment.audio_url = audio_url
+                appointment.mark_updated()
+                await appointment_repo.update(appointment.id, appointment)
+                logger.info(
+                    f"Updated appointment {appointment.id} with audio_url from call {request.call_id}"
+                )
         
         await db.commit()
 

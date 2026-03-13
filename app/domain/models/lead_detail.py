@@ -45,6 +45,7 @@ class Conversation(BaseModel):
     """Conversation (call) with the lead."""
     id: UUID
     call_type: Optional[str] = None
+    lead_source: Optional[str] = None
     phone_number: str
     duration_seconds: Optional[int] = None
     missed_call: bool = False
@@ -75,6 +76,7 @@ class PipelineConversation(_SlimModel):
     """A single call with analysis data for the pipeline lead detail view."""
     id: UUID
     call_type: Optional[str] = None
+    lead_source: Optional[str] = None
     duration_seconds: Optional[int] = None
     created_at: datetime
     booking_status: Optional[str] = None

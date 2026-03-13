@@ -57,7 +57,7 @@ QUALIFIED_STATUSES = ['hot', 'cold', 'warm', 'qualified']
 def is_qualified_status(qualification_status: Optional[str]) -> bool:
     """
     Check if a qualification_status is considered qualified.
-    
+
     Qualified statuses: 'hot', 'cold', 'warm', 'qualified'
     """
     if not qualification_status:
@@ -903,32 +903,32 @@ class CallService:
     ) -> LeadStatus:
         """
         Map qualification_status and booking_status to LeadStatus.
-        
+
         Args:
             qualification_status: 'hot', 'warm', 'cold', 'unqualified', or None
             booking_status: 'booked', 'not_booked', 'service_not_offered', or None
-            
+
         Returns:
             Appropriate LeadStatus enum value
         """
         if not qualification_status:
             return LeadStatus.NEW
-        
+
         qual_lower = qualification_status.lower()
         booking_lower = booking_status.lower() if booking_status else None
-        
+
         # If qualified and booked
         if qual_lower in ['hot', 'warm', 'cold'] and booking_lower == 'booked':
             return LeadStatus.QUALIFIED_BOOKED
-        
+
         # If qualified but service not offered
         if qual_lower in ['hot', 'warm', 'cold'] and booking_lower == 'service_not_offered':
             return LeadStatus.QUALIFIED_SERVICE_NOT_OFFERED
-        
+
         # If qualified but not booked
         if qual_lower in ['hot', 'warm', 'cold'] and booking_lower == 'not_booked':
             return LeadStatus.QUALIFIED_UNBOOKED
-        
+
         # Map qualification status directly (when booking_status is None or doesn't match above)
         if qual_lower == 'hot':
             return LeadStatus.HOT
@@ -938,35 +938,35 @@ class CallService:
             return LeadStatus.WARM  # Cold leads are still warm leads
         elif qual_lower == 'unqualified':
             return LeadStatus.ABANDONED
-        
+
         # Default to NEW if status is unknown
         return LeadStatus.NEW
-    
+
     def _map_to_deal_status(
         self,
         booking_status: Optional[str],
     ) -> Optional[DealStatus]:
         """
         Map booking_status to DealStatus.
-        
+
         Args:
             booking_status: 'booked', 'not_booked', 'service_not_offered', or None
-            
+
         Returns:
             Appropriate DealStatus enum value or None
         """
         if not booking_status:
             return None
-        
+
         booking_lower = booking_status.lower()
-        
+
         if booking_lower == 'booked':
             return DealStatus.BOOKED
         elif booking_lower == 'not_booked':
             return DealStatus.NURTURING
         elif booking_lower == 'service_not_offered':
             return DealStatus.NEW
-        
+
         return None
 
     def _map_to_pipeline_stage(
@@ -999,18 +999,18 @@ class CallService:
     ) -> Optional[Lead]:
         """
         Find existing lead by contact_card_id and company_id.
-        
+
         Args:
             contact_card_id: Contact card ID
             company_id: Company ID
-            
+
         Returns:
             Lead if found, None otherwise
         """
         try:
             from sqlalchemy import select
             from app.infrastructure.database.models.lead import LeadORM
-            
+
             result = await self.session.execute(
                 select(LeadORM).where(
                     LeadORM.contact_card_id == contact_card_id,
@@ -1018,7 +1018,7 @@ class CallService:
                 )
             )
             lead_orm = result.scalar_one_or_none()
-            
+
             if lead_orm:
                 return self.lead_repo._to_domain(lead_orm)
             return None
@@ -1092,7 +1092,7 @@ class CallService:
                 "scheduled_end": scheduled_end,
                 "location_address": location_address,
                 "outcome": outcome,
-                "assigned_rep_id": None,  # Sales rep assigned later via pipeline stage transition
+                "assigned_rep_id": None,  # Sales rep assigned later via pipeline stage movement
                 "interaction_id": call.id,
                 "extra_metadata": {
                     "created_from_call": str(call.id),
@@ -1236,12 +1236,11 @@ class CallService:
             if not isinstance(summary_section, dict):
                 return
 
-            # Collect all action texts from the three possible fields
+            # Only store action_items from Shunya analysis (pending_actions have their own table; next_steps are excluded)
             action_texts: List[str] = []
-            for field in ("next_steps", "action_items", "pending_actions"):
-                items = summary_section.get(field) or []
-                if isinstance(items, list):
-                    action_texts.extend(str(i).strip() for i in items if i and str(i).strip())
+            items = summary_section.get("action_items") or []
+            if isinstance(items, list):
+                action_texts.extend(str(i).strip() for i in items if i and str(i).strip())
 
             if not action_texts:
                 return
@@ -1374,7 +1373,7 @@ class CallService:
             if quick_filter:
                 quick_filter_lower = quick_filter.lower()
                 if quick_filter_lower == "hot_lead":
-                    query = query.where(LeadORM.status == "hot")
+                    query = query.where(func.lower(CallAnalysisORM.qualification_status) == "hot")
                 elif quick_filter_lower == "qualified_unbooked":
                     query = query.where(
                         and_(

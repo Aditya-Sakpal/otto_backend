@@ -974,6 +974,129 @@
             "description": "Assign lead to a user."
           },
           "response": []
+        },
+        {
+          "name": "Get Pipeline View",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/leads/pipeline",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads",
+                "pipeline"
+              ]
+            },
+            "description": "Get pipeline view of leads."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pipeline Lead Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/leads/{{lead_id}}/pipeline-detail",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads",
+                "{{lead_id}}",
+                "pipeline-detail"
+              ]
+            },
+            "description": "Get detailed pipeline information for a specific lead."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Customer Card",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/leads/{{lead_id}}/customer-card",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads",
+                "{{lead_id}}",
+                "customer-card"
+              ]
+            },
+            "description": "Get customer card for a specific lead."
+          },
+          "response": []
+        },
+        {
+          "name": "Move Lead Stage",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/leads/{{lead_id}}/move-stage",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads",
+                "{{lead_id}}",
+                "move-stage"
+              ]
+            },
+            "description": "Move a lead to a different stage.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"stage\": \"qualification\",\n    \"reason\": \"Customer is qualified\"\n}"
+            }
+          },
+          "response": []
         }
       ],
       "description": "Lead management endpoints."
@@ -1219,6 +1342,163 @@
               ]
             },
             "description": "List past appointments for a company."
+          },
+          "response": []
+        },
+        {
+          "name": "List Upcoming Appointments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments/upcoming",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "upcoming"
+              ]
+            },
+            "description": "List upcoming appointments."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Appointment Counts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments/counts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "counts"
+              ]
+            },
+            "description": "Get appointment counts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Appointment Context",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments/{{appointment_id}}/context",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "{{appointment_id}}",
+                "context"
+              ]
+            },
+            "description": "Get context information for a specific appointment."
+          },
+          "response": []
+        },
+        {
+          "name": "Reschedule Appointment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments/reschedule",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "reschedule"
+              ]
+            },
+            "description": "Reschedule an appointment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"appointment_id\": \"{{appointment_id}}\",\n    \"scheduled_start\": \"2026-04-01T10:00:00Z\",\n    \"scheduled_end\": \"2026-04-01T11:00:00Z\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Appointment Location",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/appointments/location",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "appointments",
+                "location"
+              ]
+            },
+            "description": "Update the location of an appointment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"appointment_id\": \"{{appointment_id}}\",\n    \"location_address\": \"123 Main St, Phoenix, AZ\"\n}"
+            }
           },
           "response": []
         }
@@ -3446,6 +3726,63 @@
             "description": "Send a message in a conversation."
           },
           "response": []
+        },
+        {
+          "name": "List User Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ask-otto/conversations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ask-otto",
+                "conversations"
+              ]
+            },
+            "description": "List all conversations for the current user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Thread Chats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ask-otto/thread/chats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ask-otto",
+                "thread",
+                "chats"
+              ]
+            },
+            "description": "Get chats for a thread."
+          },
+          "response": []
         }
       ],
       "description": "Ask Otto AI copilot endpoints."
@@ -3629,7 +3966,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"phone_number\": \"+1234567890\",\n    \"call_type\": \"meeting\"\n}"
+              "raw": "{\n    \"appointment_id\": \"{{appointment_id}}\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/recordings/initiate",
@@ -3665,7 +4002,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"call_id\": \"{{call_id}}\",\n    \"s3_key\": \"recordings/call-123.mp3\"\n}"
+              "raw": "{\n    \"appointment_id\": \"{{appointment_id}}\",\n    \"s3_key\": \"recordings/appointment-123.wav\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/recordings/complete",
@@ -3680,6 +4017,35 @@
               ]
             },
             "description": "Complete a recording and trigger processing."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Recording Analysis",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/recordings/{{appointment_id}}/analysis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "recordings",
+                "{{appointment_id}}",
+                "analysis"
+              ]
+            },
+            "description": "Get recording analysis for a specific appointment."
           },
           "response": []
         }
@@ -4292,6 +4658,42 @@
             "description": "Complete user and company onboarding."
           },
           "response": []
+        },
+        {
+          "name": "Validate ServiceTitan Credentials",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/onboarding/validate-servicetitan",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "onboarding",
+                "validate-servicetitan"
+              ]
+            },
+            "description": "Validate ServiceTitan credentials before onboarding.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"client_id\": \"cid_xxx\",\n    \"client_secret\": \"secret_xxx\",\n    \"tenant_id\": \"2593347861\",\n    \"app_key\": \"ak_xxx\"\n}"
+            }
+          },
+          "response": []
         }
       ],
       "description": "Onboarding endpoints for new users and companies."
@@ -4817,9 +5219,550 @@
             "description": "Webhook for Call Tracking Metrics outbound calls. No authentication required.\n\nFor outbound calls:\n- `dialed_number` or `destination_number`: The destination phone number\n- `agent_email` or `agent.email`: Agent who made the call (used to look up user)\n- `caller_number`: Company's outbound number\n\nOnly processes calls with status \"completed\" or \"answered\"."
           },
           "response": []
+        },
+        {
+          "name": "ServiceTitan Calls Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks/servicetitan/calls",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks",
+                "servicetitan",
+                "calls"
+              ]
+            },
+            "description": "Webhook for ServiceTitan call events. No authentication required.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"calls\": [\n        {\n            \"id\": 123,\n            \"direction\": \"Inbound\"\n        }\n    ],\n    \"company_id\": \"{{company_id}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ServiceTitan CRM Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks/servicetitan/crm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks",
+                "servicetitan",
+                "crm"
+              ]
+            },
+            "description": "Webhook for ServiceTitan CRM data sync. No authentication required.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"customers\": [],\n    \"customer_contacts\": [],\n    \"leads\": [],\n    \"bookings\": [],\n    \"company_id\": \"{{company_id}}\"\n}"
+            }
+          },
+          "response": []
         }
       ],
       "description": "Webhook endpoints for external services (telephony, CRM, etc.). No authentication required."
+    },
+    {
+      "name": "Coaching",
+      "item": [
+        {
+          "name": "Get Coaching Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/dashboard/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "dashboard",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Get coaching dashboard for a specific user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Team Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/team-dashboard",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "team-dashboard"
+              ]
+            },
+            "description": "Get team coaching dashboard."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Individual Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/individual-dashboard/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "individual-dashboard",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Get individual coaching dashboard for a specific user."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Coaching Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "sessions"
+              ]
+            },
+            "description": "Create a new coaching session.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"focus_areas\": [\n        \"objection_handling\"\n    ]\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Coaching Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/sessions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "sessions"
+              ]
+            },
+            "description": "List all coaching sessions."
+          },
+          "response": []
+        },
+        {
+          "name": "Stop Coaching Session",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/sessions/{{session_id}}/stop",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "sessions",
+                "{{session_id}}",
+                "stop"
+              ]
+            },
+            "description": "Stop a coaching session."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Session History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/sessions/{{session_id}}/history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "sessions",
+                "{{session_id}}",
+                "history"
+              ]
+            },
+            "description": "Get history for a specific coaching session."
+          },
+          "response": []
+        },
+        {
+          "name": "List Nudges",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/nudges",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "nudges"
+              ]
+            },
+            "description": "List all coaching nudges."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Unread Nudge Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/nudges/unread-count",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "nudges",
+                "unread-count"
+              ]
+            },
+            "description": "Get count of unread coaching nudges."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Nudge Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/nudges/{{nudge_id}}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "nudges",
+                "{{nudge_id}}",
+                "read"
+              ]
+            },
+            "description": "Mark a specific nudge as read."
+          },
+          "response": []
+        },
+        {
+          "name": "Dismiss Nudge",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/nudges/{{nudge_id}}/dismiss",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "nudges",
+                "{{nudge_id}}",
+                "dismiss"
+              ]
+            },
+            "description": "Dismiss a specific nudge."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All Nudges Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/coaching/nudges/mark-all-read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "coaching",
+                "nudges",
+                "mark-all-read"
+              ]
+            },
+            "description": "Mark all nudges as read."
+          },
+          "response": []
+        }
+      ],
+      "description": "Coaching session and nudge management endpoints."
+    },
+    {
+      "name": "Tenant Config",
+      "item": [
+        {
+          "name": "Create Tenant Config",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tenant-config",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenant-config"
+              ]
+            },
+            "description": "Create a new tenant configuration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"company_id\": \"{{company_id}}\",\n    \"config_key\": \"sop_doc_url\",\n    \"config_value\": \"https://example.com/sop.pdf\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tenant Config",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tenant-config/{{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenant-config",
+                "{{company_id}}"
+              ]
+            },
+            "description": "Get tenant configuration for a company."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Tenant Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "description": "JWT Bearer token",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tenant-config/{{company_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenant-config",
+                "{{company_id}}"
+              ]
+            },
+            "description": "Update tenant configuration for a company.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"config_key\": \"sop_doc_url\",\n    \"config_value\": \"https://example.com/sop-v2.pdf\"\n}"
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Tenant configuration management endpoints."
     },
     {
       "name": "Tasks",
@@ -5062,6 +6005,18 @@
       "key": "sales_rep_id",
       "value": "",
       "type": "default"
+    },
+    {
+      "key": "session_id",
+      "value": "",
+      "type": "string",
+      "description": "Coaching Session UUID"
+    },
+    {
+      "key": "nudge_id",
+      "value": "",
+      "type": "string",
+      "description": "Coaching Nudge UUID"
     }
   ]
 }

@@ -1064,7 +1064,7 @@ class CallService:
                 "scheduled_end": scheduled_end,
                 "location_address": location_address,
                 "outcome": outcome,
-                "assigned_rep_id": call.handled_by_user_id,
+                "assigned_rep_id": None,  # Sales rep assigned later via pipeline stage movement
                 "interaction_id": call.id,
                 "extra_metadata": {
                     "created_from_call": str(call.id),

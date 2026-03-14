@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.domain.models.base import BaseModel
-from app.domain.enums import CallType
+from app.domain.enums import CallType, CallScope
 
 
 class Call(BaseModel):
@@ -29,5 +29,6 @@ class Call(BaseModel):
     duration_seconds: Optional[int] = Field(None, description="Call duration in seconds")
     handled_by_user_id: Optional[UUID] = Field(None, description="CSR who handled the call")
     interaction_type: Optional[str] = Field(default="call", description="Type of interaction")
+    scope: Optional[CallScope] = Field(None, description="Whether call is in-scope or out-of-scope")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
 

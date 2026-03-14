@@ -182,3 +182,9 @@ class LeaderboardPeriod(str, Enum):
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"
     YEARLY = "yearly"
+
+
+class CallScope(str, Enum):
+    """Whether a call is in-scope or out-of-scope based on Shunya classification."""
+    IN = "in"
+    OUT = "out"

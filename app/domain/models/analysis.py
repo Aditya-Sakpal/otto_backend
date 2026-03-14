@@ -111,6 +111,9 @@ class CallAnalysis(BaseModel):
     property_details: Optional[dict] = Field(None, description="Home services property information (roof_type, roof_age_years, stories, hoa_status, etc.)")
     customer_details: Optional[dict] = Field(None, description="Customer details with address, phone, email, decision_makers")
 
+    # Scope
+    scope: Optional[str] = Field(None, description="Whether call is in-scope or out-of-scope (in/out)")
+
     # Raw analysis data
     raw_analysis: Optional[dict] = Field(None, description="Raw analysis data from AI")
 

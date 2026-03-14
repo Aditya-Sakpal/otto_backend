@@ -333,6 +333,28 @@ class ServiceTitanClient:
         path = f"/crm/v2/tenant/{self.tenant_id}/bookings"
         return await self._get_paginated(path, {"modifiedOnOrAfter": modified_on_or_after})
 
+    async def get_employee(self, employee_id: int | str) -> dict[str, Any] | None:
+        """
+        Fetch a single employee by ID from the Settings API.
+
+        Returns employee dict with email, name, role, phoneNumber, etc.
+        Returns None if not found or on error.
+        """
+        path = f"/settings/v2/tenant/{self.tenant_id}/employees/{employee_id}"
+        try:
+            return await self._get(path)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return None
+            logger.warning(
+                f"ST employee lookup failed for {employee_id}: "
+                f"{e.response.status_code}"
+            )
+            return None
+        except Exception as e:
+            logger.warning(f"ST employee lookup error for {employee_id}: {e}")
+            return None
+
     async def verify_credentials(self) -> dict[str, Any]:
         """
         Validate credentials during onboarding.

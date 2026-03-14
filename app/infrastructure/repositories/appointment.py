@@ -99,8 +99,9 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
     ) -> int:
         """Count appointments scheduled for today."""
         try:
-            today_start = datetime.combine(date.today(), time.min, tzinfo=timezone.utc)
-            today_end = datetime.combine(date.today(), time.max, tzinfo=timezone.utc)
+            utc_today = datetime.now(timezone.utc).date()
+            today_start = datetime.combine(utc_today, time.min, tzinfo=timezone.utc)
+            today_end = datetime.combine(utc_today, time.max, tzinfo=timezone.utc)
             filters = [
                 AppointmentORM.company_id == company_id,
                 AppointmentORM.scheduled_start >= today_start,

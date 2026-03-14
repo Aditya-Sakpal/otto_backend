@@ -24,6 +24,7 @@ class LeadORM(Base):
     assigned_rep_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     deal_size: Mapped[float | None] = mapped_column(Float, nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lead_source: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

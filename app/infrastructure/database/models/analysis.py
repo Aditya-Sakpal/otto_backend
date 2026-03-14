@@ -98,6 +98,9 @@ class CallAnalysisORM(Base):
     property_details: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Home services property info
     customer_details: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Customer details with address
 
+    # Scope
+    scope: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
+
     # Raw analysis
     raw_analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)

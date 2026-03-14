@@ -643,6 +643,10 @@ class CallService:
                 applied_rules = qualification_section.get("applied_rules", [])
                 property_details = qualification_section.get("property_details")
                 customer_details = qualification_section.get("customer_details")
+
+                # Scope classification: IN_SCOPE -> "in", OUT_OF_SCOPE -> "out"
+                scope_classification = qualification_section.get("scope_classification", "")
+                scope = "out" if scope_classification == "OUT_OF_SCOPE" else "in"
             else:
                 # Old format: direct fields
                 bant_need_score = None
@@ -683,6 +687,7 @@ class CallService:
                 applied_rules = []
                 property_details = None
                 customer_details = None
+                scope = None
 
             # Convert float values
             def safe_float(value):
@@ -760,6 +765,8 @@ class CallService:
                 applied_rules=applied_rules,
                 property_details=property_details,
                 customer_details=customer_details,
+                # Scope
+                scope=scope,
                 # Raw data
                 raw_analysis=analysis_data,  # Store complete raw data for reference (includes full objection objects)
             )
@@ -767,6 +774,11 @@ class CallService:
             # Upsert analysis
             analysis = await self.analysis_repo.upsert_by_call_id(call_id, call_analysis)
             logger.info("Call analysis processed", call_id=str(call_id), analysis_id=str(analysis.id))
+
+            # Update call scope to match analysis scope
+            if scope:
+                call.scope = scope
+                await self.call_repo.update(call_id, call)
 
             # Process pending actions from analysis
             await self._process_pending_actions(call, analysis_data, analysis)
@@ -1189,34 +1201,30 @@ class CallService:
         analysis: Any,
     ) -> None:
         """
-        Create ActionItem rows from AI-generated next_steps and action_items
+        Create ActionItem rows from AI-generated action_items and
+        PendingActionORM rows from AI-generated pending_actions
         extracted from the Shunya analysis payload.
 
         Reads from:
-          analysis_data["summary"]["next_steps"]   – recommended next actions
-          analysis_data["summary"]["action_items"] – explicit action items
-          analysis_data["summary"]["pending_actions"] – pending tasks
-
-        Each string is stored as a separate ActionItemORM row with source="ai_analysis".
+          analysis_data["summary"]["action_items"]    – explicit action items → ActionItemORM
+          analysis_data["summary"]["pending_actions"] – pending tasks → PendingActionORM
         """
         try:
             from app.infrastructure.database.models.action_item import ActionItemORM
+            from app.infrastructure.database.models.pending_action import PendingActionORM
 
             summary_section = analysis_data.get("summary", {})
             if not isinstance(summary_section, dict):
                 return
 
-            # Only store action_items from Shunya analysis (pending_actions have their own table; next_steps are excluded)
+            lead_id = getattr(call, "lead_id", None)
+            company_id = getattr(call, "company_id", None)
+
+            # 1) Store action_items as ActionItemORM rows
             action_texts: List[str] = []
             items = summary_section.get("action_items") or []
             if isinstance(items, list):
                 action_texts.extend(str(i).strip() for i in items if i and str(i).strip())
-
-            if not action_texts:
-                return
-
-            lead_id = getattr(call, "lead_id", None)
-            company_id = getattr(call, "company_id", None)
 
             for text in action_texts:
                 action_item = ActionItemORM(
@@ -1230,14 +1238,69 @@ class CallService:
                 )
                 self.session.add(action_item)
 
+            if action_texts:
+                logger.info(
+                    f"Created {len(action_texts)} action items from analysis",
+                    call_id=str(call.id),
+                )
+
+            # 2) Store pending_actions as PendingActionORM rows
+            pending_actions_list = summary_section.get("pending_actions") or []
+            if isinstance(pending_actions_list, list):
+                pa_count = 0
+                for pa in pending_actions_list:
+                    if not isinstance(pa, dict):
+                        continue
+
+                    # Parse due_at from ISO string if present
+                    due_at_val = None
+                    if pa.get("due_at"):
+                        try:
+                            from datetime import datetime as dt_cls
+                            due_at_str = pa["due_at"]
+                            # Handle both timezone-aware and naive ISO strings
+                            due_at_val = dt_cls.fromisoformat(due_at_str.replace("Z", "+00:00"))
+                        except (ValueError, TypeError):
+                            logger.warning(f"Could not parse due_at: {pa.get('due_at')}")
+
+                    # Use action_item text if available, fall back to raw_text
+                    raw_text = pa.get("action_item") or pa.get("raw_text") or ""
+
+                    pending_action = PendingActionORM(
+                        company_id=company_id,
+                        lead_id=lead_id,
+                        call_id=call.id,
+                        action_type=pa.get("type") or "follow_up",
+                        raw_text=raw_text,
+                        status="pending",
+                        due_at=due_at_val,
+                        priority=None,
+                        owner_id=None,
+                        source="ai_analysis",
+                        extra_metadata={
+                            k: v for k, v in {
+                                "confidence": pa.get("confidence"),
+                                "contact_method": pa.get("contact_method"),
+                                "category": pa.get("category"),
+                                "owner_role": pa.get("owner"),
+                                "original_raw_text": pa.get("raw_text"),
+                            }.items() if v is not None
+                        } or None,
+                    )
+                    self.session.add(pending_action)
+                    pa_count += 1
+
+                if pa_count:
+                    logger.info(
+                        f"Created {pa_count} pending actions from analysis",
+                        call_id=str(call.id),
+                    )
+
             await self.session.flush()
-            logger.info(
-                f"Created {len(action_texts)} action items from analysis",
-                call_id=str(call.id),
-            )
 
         except Exception as e:
             logger.error(f"Error processing pending actions: {e}", call_id=str(call.id))
+            traceback.print_exc()
             # Non-critical: do not re-raise
 
     async def get_call_logs(
@@ -1288,6 +1351,8 @@ class CallService:
                 LeadORM, CallORM.lead_id == LeadORM.id
             ).where(
                 CallORM.company_id == company_id
+            ).where(
+                or_(CallORM.scope == "in", CallORM.scope.is_(None))
             )
 
             # Apply filters
@@ -1444,6 +1509,8 @@ class CallService:
                 LeadORM, CallORM.lead_id == LeadORM.id
             ).where(
                 summary_base
+            ).where(
+                or_(CallORM.scope == "in", CallORM.scope.is_(None))
             )
 
             summary_result = await self.session.execute(summary_query)

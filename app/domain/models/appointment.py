@@ -30,5 +30,8 @@ class Appointment(BaseModel):
     assigned_rep_id: Optional[UUID] = Field(None, description="Assigned sales rep")
     interaction_id: Optional[UUID] = Field(None, description="Associated call/interaction ID")
     audio_url: Optional[str] = Field(None, description="Audio recording URL")
+    recording_status: Optional[str] = Field(None, description="Recording status (e.g. uploaded)")
+    analysis_status: Optional[str] = Field(None, description="Analysis status (e.g. processing, completed)")
+    shunya_job_id: Optional[str] = Field(None, description="Shunya processing job ID")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
 

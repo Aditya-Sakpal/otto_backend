@@ -16,7 +16,9 @@ from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role
 from app.core.logging import get_logger
 from app.core.s3 import get_s3_service
-from app.domain.enums import UserRole
+from sqlalchemy import select as sa_select
+from app.domain.enums import UserRole, PipelineStage
+from app.infrastructure.database.models.lead import LeadORM
 from app.domain.users.models import User
 from app.infrastructure.repositories.appointment import AppointmentRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
@@ -167,6 +169,23 @@ async def complete_recording(
         appointment.mark_updated()
         await appointment_repo.update(request.appointment_id, appointment)
         await db.commit()
+
+        # Move lead to APPOINTMENT_RAN since recording proves the appointment happened
+        if appointment.lead_id:
+            result = await db.execute(
+                sa_select(LeadORM).where(LeadORM.id == appointment.lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if lead_orm and lead_orm.pipeline_stage in (
+                PipelineStage.BOOKED.value,
+                PipelineStage.APPOINTMENT.value,
+            ):
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
+                await db.flush()
+                await db.commit()
+                logger.info(
+                    f"Updated lead {appointment.lead_id} pipeline_stage to appointment_ran"
+                )
 
         logger.info(
             f"Recording upload completed for appointment {request.appointment_id}, triggering processing"

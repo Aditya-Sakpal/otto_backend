@@ -220,6 +220,10 @@ class AppointmentResponse(AppointmentBase):
         None,
         description="Audio recording URL",
     )
+    recording_status: Optional[str] = Field(
+        None,
+        description="Recording status (e.g. uploaded)",
+    )
 
     class Config:
         from_attributes = True

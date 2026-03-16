@@ -122,10 +122,15 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
         company_id: UUID,
         assigned_rep_id: Optional[UUID] = None,
     ) -> int:
-        """Count appointments with pending outcome (not yet completed)."""
+        """Count today's appointments with pending outcome (not yet completed)."""
         try:
+            utc_today = datetime.now(timezone.utc).date()
+            today_start = datetime.combine(utc_today, time.min, tzinfo=timezone.utc)
+            today_end = datetime.combine(utc_today, time.max, tzinfo=timezone.utc)
             filters = [
                 AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= today_start,
+                AppointmentORM.scheduled_start <= today_end,
                 or_(
                     AppointmentORM.outcome.is_(None),
                     AppointmentORM.outcome == "pending",
@@ -146,10 +151,15 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
         company_id: UUID,
         assigned_rep_id: Optional[UUID] = None,
     ) -> int:
-        """Count appointments with closed outcome (won or lost)."""
+        """Count today's appointments with closed outcome (won or lost)."""
         try:
+            utc_today = datetime.now(timezone.utc).date()
+            today_start = datetime.combine(utc_today, time.min, tzinfo=timezone.utc)
+            today_end = datetime.combine(utc_today, time.max, tzinfo=timezone.utc)
             filters = [
                 AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= today_start,
+                AppointmentORM.scheduled_start <= today_end,
                 AppointmentORM.outcome.in_(["won", "lost"]),
             ]
             if assigned_rep_id:

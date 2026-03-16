@@ -216,6 +216,10 @@ class AppointmentResponse(AppointmentBase):
         None,
         description="Geocoded longitude from contact card",
     )
+    audio_url: Optional[str] = Field(
+        None,
+        description="Audio recording URL",
+    )
 
     class Config:
         from_attributes = True

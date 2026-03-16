@@ -311,6 +311,32 @@ class AppointmentContextResponse(BaseModel):
     longitude: Optional[float]
     outcome: Optional[str]
 
+    # Recording & analysis status
+    recording_status: Optional[str] = None
+    analysis_status: Optional[str] = None
+    audio_url: Optional[str] = None
+
+    # Analysis results (populated after Shoonya processing)
+    summary: Optional[str] = None
+    key_points: List[str] = Field(default_factory=list)
+    action_items: List[str] = Field(default_factory=list)
+    next_steps: List[str] = Field(default_factory=list)
+    sentiment_score: Optional[float] = None
+    qualification_status: Optional[str] = None
+    booking_status: Optional[str] = None
+
+    # Objections from appointment recording
+    objection_texts: List[str] = Field(default_factory=list)
+    objections_total_count: Optional[int] = None
+
+    # SOP compliance
+    sop_compliance_score: Optional[float] = None
+    sop_compliance_rate: Optional[float] = None
+    sop_stages_completed: List[str] = Field(default_factory=list)
+    sop_stages_missed: List[str] = Field(default_factory=list)
+    sop_compliance_issues: List[str] = Field(default_factory=list)
+    sop_compliance_positive_behaviors: List[str] = Field(default_factory=list)
+
     # Contact and rep info
     contact_info: ContactCardInfo
     sales_rep_name: Optional[str]

@@ -93,6 +93,7 @@ async def get_call_logs(
     booking_filter: Optional[str] = Query(None, description="Filter by booking status (booked/unbooked/all)"),
     existing_customer: Optional[bool] = Query(None, description="Filter by existing customer (true=only existing, false=only non-existing, omit=all)"),
     quick_filter: Optional[str] = Query(None, description="Quick filter (hot_lead, qualified_unbooked, qualified_booked, abandoned, residential, commercial, etc.)"),
+    scope_filter: Optional[str] = Query(None, description="Filter by scope (in_scope/out_scope/all). Defaults to in_scope if not provided."),
     skip: int = Query(0, ge=0, description="Number of records to skip (for pagination)"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
 ):
@@ -171,6 +172,7 @@ async def get_call_logs(
             booking_filter=booking_filter,
             existing_customer=existing_customer,
             quick_filter=quick_filter,
+            scope_filter=scope_filter,
             skip=skip,
             limit=limit,
             current_user=user,

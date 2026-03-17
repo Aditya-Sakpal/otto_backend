@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.s3 import get_s3_service
-from app.domain.enums import AppointmentOutcome, CallType, LeadStatus, PendingActionStatus
+from app.domain.enums import AppointmentOutcome, CallType, LeadStatus, PendingActionStatus, PipelineStage
 from app.domain.models.appointment import Appointment
 from app.domain.models.lead import Lead
 from app.domain.models.pending_action import PendingAction
@@ -56,6 +56,17 @@ ST_BOOKING_STATUS_MAP: dict[str, AppointmentOutcome] = {
     "accepted": AppointmentOutcome.PENDING,
     "converted": AppointmentOutcome.WON,
     "dismissed": AppointmentOutcome.LOST,
+}
+
+# LeadStatus → PipelineStage mapping (mirrors call_service._map_to_pipeline_stage)
+ST_PIPELINE_STAGE_MAP: dict[LeadStatus, PipelineStage] = {
+    LeadStatus.NEW: PipelineStage.REVIEW,
+    LeadStatus.QUALIFIED_UNBOOKED: PipelineStage.QUALIFIED,
+    LeadStatus.QUALIFIED_BOOKED: PipelineStage.BOOKED,
+    LeadStatus.QUALIFIED_SERVICE_NOT_OFFERED: PipelineStage.SERVICE_NOT_OFFERED,
+    LeadStatus.ABANDONED: PipelineStage.UNQUALIFIED,
+    LeadStatus.CLOSED_WON: PipelineStage.WON,
+    LeadStatus.CLOSED_LOST: PipelineStage.LOST,
 }
 
 # ST Export Call type values that indicate a missed call
@@ -376,21 +387,28 @@ class ServiceTitanService:
 
         # 10. Create Lead if contact doesn't have one yet (non-missed calls only)
         #     Per spec: New Call → upsert ContactCard → create Call → create Lead
+        #     Also link the call to the lead so pipeline-detail can find conversations.
         if contact_card and not is_missed:
             try:
-                existing_lead = await self._find_lead_by_contact(contact_card.id, company_id)
-                if not existing_lead:
+                lead = await self._find_lead_by_contact(contact_card.id, company_id)
+                if not lead:
                     new_lead = Lead(
                         company_id=company_id,
                         contact_card_id=contact_card.id,
                         status=LeadStatus.NEW,
+                        pipeline_stage=ST_PIPELINE_STAGE_MAP.get(LeadStatus.NEW),
                         lead_source=st_call.get("campaign") or None,
                         extra_metadata={"source": "st_call", "st_call_id": st_call_id},
                     )
-                    await self.lead_repo.create(new_lead)
+                    lead = await self.lead_repo.create(new_lead)
                     logger.info(f"Created lead from ST call {st_call_id}")
+
+                # Link call to lead
+                if lead and lead.id:
+                    call.lead_id = lead.id
+                    await self.call_repo.update(call.id, call)
             except Exception as e:
-                logger.error(f"Failed to create lead for ST call {st_call_id}: {e}")
+                logger.error(f"Failed to create/link lead for ST call {st_call_id}: {e}")
 
         return True
 
@@ -782,6 +800,9 @@ class ServiceTitanService:
 
         if existing_lead:
             existing_lead.status = otto_status
+            new_stage = ST_PIPELINE_STAGE_MAP.get(otto_status)
+            if new_stage:
+                existing_lead.pipeline_stage = new_stage
             if st_lead.get("campaignId") and not existing_lead.lead_source:
                 existing_lead.lead_source = str(st_lead["campaignId"])
             meta = dict(existing_lead.extra_metadata or {})
@@ -806,6 +827,7 @@ class ServiceTitanService:
                 company_id=company_id,
                 contact_card_id=contact_card.id,
                 status=otto_status,
+                pipeline_stage=ST_PIPELINE_STAGE_MAP.get(otto_status, PipelineStage.REVIEW),
                 lead_source=str(st_lead["campaignId"]) if st_lead.get("campaignId") else None,
                 extra_metadata=lead_meta,
             )
@@ -892,6 +914,7 @@ class ServiceTitanService:
                 company_id=company_id,
                 contact_card_id=contact_card.id,
                 status=LeadStatus.NEW,
+                pipeline_stage=PipelineStage.BOOKED,
                 lead_source=st_booking.get("source") or (str(st_booking["campaignId"]) if st_booking.get("campaignId") else None),
                 extra_metadata={"source": "st_booking", "st_booking_id": st_booking_id},
             )

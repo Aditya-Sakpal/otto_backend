@@ -1342,6 +1342,7 @@ class CallService:
         booking_filter: Optional[str] = None,
         existing_customer: Optional[bool] = None,
         quick_filter: Optional[str] = None,
+        scope_filter: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
         current_user: Optional["User"] = None,
@@ -1381,9 +1382,18 @@ class CallService:
                 LeadORM, CallORM.lead_id == LeadORM.id
             ).where(
                 CallORM.company_id == company_id
-            ).where(
-                or_(CallORM.scope == "in", CallORM.scope.is_(None))
             )
+
+            # Apply scope filter: in_scope (default), out_scope, or all
+            if scope_filter and scope_filter.lower() == "out_scope":
+                query = query.where(CallORM.scope == "out")
+            elif scope_filter and scope_filter.lower() == "all":
+                pass  # No scope filter — return all calls
+            else:
+                # Default: in_scope (includes None for legacy calls)
+                query = query.where(
+                    or_(CallORM.scope == "in", CallORM.scope.is_(None))
+                )
 
             # Apply filters
             if csr_id:
@@ -1539,9 +1549,17 @@ class CallService:
                 LeadORM, CallORM.lead_id == LeadORM.id
             ).where(
                 summary_base
-            ).where(
-                or_(CallORM.scope == "in", CallORM.scope.is_(None))
             )
+
+            # Apply same scope filter to summary
+            if scope_filter and scope_filter.lower() == "out_scope":
+                summary_query = summary_query.where(CallORM.scope == "out")
+            elif scope_filter and scope_filter.lower() == "all":
+                pass  # No scope filter
+            else:
+                summary_query = summary_query.where(
+                    or_(CallORM.scope == "in", CallORM.scope.is_(None))
+                )
 
             summary_result = await self.session.execute(summary_query)
             summary_row = summary_result.first()

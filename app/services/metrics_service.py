@@ -1149,9 +1149,10 @@ class MetricsService:
                 CallAnalysisORM,
                 CallORM,
                 CallAnalysisORM.call_id == CallORM.id
-            )
-            
+            ).join(UserORM, CallORM.handled_by_user_id == UserORM.id)
+
             # Get all analyses with calls for this company (use CallORM.created_at for date range)
+            # Only include sales_rep users, not CSRs
             analyses_query = select(
                 CallORM.handled_by_user_id,
                 CallAnalysisORM.qualification_status,
@@ -1162,7 +1163,8 @@ class MetricsService:
                 CallAnalysisORM.company_id == company_id,
                 CallORM.created_at >= start_dt,
                 CallORM.created_at <= end_dt,
-                CallORM.handled_by_user_id.isnot(None),  # Only include calls with assigned users
+                CallORM.handled_by_user_id.isnot(None),
+                UserORM.role == 'sales_rep',
                 _metrics_exclude_existing_and_service_not_offered(),
             )
             
@@ -1267,11 +1269,12 @@ class MetricsService:
             employee_results.sort(key=lambda x: x['success_rate'])
             top_5_employees = employee_results[:5]
             
-            # Get user details for the top 5 employees
+            # Get user details for the top 5 employees — only sales_rep role
             user_ids = [UUID(emp['user_id']) for emp in top_5_employees]
             users_query = select(UserORM).where(
                 UserORM.id.in_(user_ids),
-                UserORM.company_id == company_id
+                UserORM.company_id == company_id,
+                UserORM.role == 'sales_rep',
             )
             users_result = await self.session.execute(users_query)
             users_list = users_result.scalars().all()

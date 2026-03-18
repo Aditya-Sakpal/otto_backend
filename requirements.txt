@@ -113,5 +113,4 @@ aiosqlite>=0.20.0
 twilio>=9.0
 pydantic>=2.0
 pydantic-settings>=2.0
-structlog>=24.0
 python-dotenv>=1.0.0

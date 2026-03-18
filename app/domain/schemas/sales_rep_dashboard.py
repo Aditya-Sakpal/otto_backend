@@ -19,7 +19,7 @@ class RidealongEntry(BaseModel):
     service_type: str = Field(..., description="Service type (e.g. Roof replacement estimate)")
     scheduled_time: str = Field(..., description="Scheduled time formatted (e.g. 9:00AM)")
     arrival_time: Optional[str] = Field(None, description="Arrival time if available (e.g. 8:55 AM)")
-    status: Optional[str] = Field(None, description="Status")
+    status: str = Field("", description="Status")
     ghost_mode: str = Field(..., description="Ghost mode active for rep: True or False")
 
 

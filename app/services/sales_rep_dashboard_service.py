@@ -102,11 +102,6 @@ class SalesRepDashboardService:
         ghost_mode: bool,
     ) -> RidealongEntry:
         """Build RidealongEntry from appointment and enriched data."""
-        outcome = getattr(appointment, "outcome", None)
-        if isinstance(outcome, AppointmentOutcome):
-            outcome = outcome.value if outcome else None
-        status = OUTCOME_TO_STATUS.get(outcome, "In Progress")
-
         scheduled_start = getattr(appointment, "scheduled_start", None)
         scheduled_time = _format_time(scheduled_start) if scheduled_start else ""
 
@@ -129,7 +124,6 @@ class SalesRepDashboardService:
             service_type=str(service_type),
             scheduled_time=scheduled_time or "",
             arrival_time=arrival_time or "",
-            status=status,
             ghost_mode="True" if ghost_mode else "False",
         )
 

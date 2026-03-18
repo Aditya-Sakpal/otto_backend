@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4, UUID
 import asyncpg
 
+
 COMPANY_ID = 'd8e4f2a1-3b5c-4d6e-9f0a-1b2c3d4e5f6a'
 EXECUTIVE_ID = '7970e248-d6c6-472b-89f4-ca5f7c6f9940'
 

@@ -12,7 +12,7 @@ from pydantic import Field
 
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True)
 
 print("ENV DATABASE_URL =", os.getenv("DATABASE_URL"))
 

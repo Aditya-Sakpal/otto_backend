@@ -2070,6 +2070,28 @@ class MetricsService:
             warm_count = sum(1 for l in leads_list if l.status == "warm")
             new_count = sum(1 for l in leads_list if l.status == "new")
             
+            # Fetch service_requested for each lead from call_analyses
+            lead_ids = [lead.id for lead in leads_list]
+            service_map: Dict[str, str] = {}
+            if lead_ids:
+                from app.infrastructure.database.models.call import CallORM
+                from app.infrastructure.database.models.analysis import CallAnalysisORM
+
+                ca_rows = await self.session.execute(
+                    select(CallORM.lead_id, CallAnalysisORM.service_requested)
+                    .join(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+                    .where(
+                        CallORM.lead_id.in_(lead_ids),
+                        CallAnalysisORM.service_requested.isnot(None),
+                        CallAnalysisORM.service_requested != "",
+                    )
+                    .order_by(CallORM.created_at.desc())
+                )
+                for row in ca_rows.all():
+                    lid = str(row.lead_id)
+                    if lid not in service_map:
+                        service_map[lid] = row.service_requested
+
             # Convert to dict with contact_card info
             leads_data = []
             for lead in leads_list:
@@ -2080,6 +2102,7 @@ class MetricsService:
                     "deal_size": lead.deal_size,
                     "assigned_rep_id": str(lead.assigned_rep_id) if lead.assigned_rep_id else None,
                     "created_at": lead.created_at.isoformat() if lead.created_at else None,
+                    "service_requested": service_map.get(str(lead.id)),
                 }
                 # Add contact_card info if available
                 if lead.contact_card:
@@ -2089,6 +2112,9 @@ class MetricsService:
                         "last_name": lead.contact_card.last_name,
                         "primary_phone": lead.contact_card.primary_phone,
                         "email": lead.contact_card.email,
+                        "address": lead.contact_card.address,
+                        "city": lead.contact_card.city,
+                        "state": lead.contact_card.state,
                     }
                 leads_data.append(lead_dict)
             

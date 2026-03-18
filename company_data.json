@@ -1,0 +1,335 @@
+{
+  "company": {
+    "id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+    "name": "Arizona Roofers",
+    "phone_number": "6027904922",
+    "address": "4836 E McDowell Rd, C100, Phoenix, AZ 85008",
+    "extra_metadata": {
+      "ghost_mode_enabled": true
+    },
+    "reference_doc_url": "https://otto-documents-staging.s3.ap-southeast-2.amazonaws.com/user-onboarding-docs/anthony@arizonaroofers.com_What_types_of_appointments_to_book_.pdf.pdf",
+    "sop_doc_url": "https://otto-documents-staging.s3.ap-southeast-2.amazonaws.com/user-onboarding-docs/anthony@arizonaroofers.com_Intake_Calls_(3)_(1).pdf.pdf",
+    "csr_sop_doc_url": null,
+    "sales_sop_doc_url": null
+  },
+  "users": [
+    {
+      "id": "38dc7d9f-2935-416a-8fb9-2f929da8c0ab",
+      "email": "anthony@arizonaroofers.com",
+      "password_hash": "$2b$12$dUQArqRdKQW3EHxUkxCHH.THdj5JSrzOztdfPGV/3TS6ECucOlYJy",
+      "role": "executive",
+      "is_active": true,
+      "first_name": "Anthony",
+      "last_name": "Bonomo",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-20T21:43:03.484676+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "573c5f36-dcc5-4440-b8fd-58699807544a",
+      "email": "diva@arizonaroofers.com",
+      "password_hash": "$2b$12$kTUbsTFkcJyhbT8j8VhToeZySmZCXnBpPE08Fj9SJr68pa3t0/MIW",
+      "role": "csr",
+      "is_active": true,
+      "first_name": "Diva",
+      "last_name": "Shahpur",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-20T21:48:59.221684+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "3eed8382-6b30-44c9-82f6-6d70570e175e",
+      "email": "bronte@arizonaroofers.com",
+      "password_hash": "$2b$12$hFD2Bmnz21FXHKmfR7Sn9eZu/BGbrsY9w7Qc1jIatTgaJJ/6kZXmO",
+      "role": "csr",
+      "is_active": true,
+      "first_name": "Bronte",
+      "last_name": "Pisz",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-20T21:50:07.115944+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+      "email": "abonomo711@gmail.com",
+      "password_hash": "$2b$12$tpP65CXyHOqFuReDnX6DNuHydSWhMovF4Uttda8PtciuywfuMc5g6",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Anthony",
+      "last_name": "Bonom",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-20T21:51:18.176829+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "4a91553c-f219-4275-94ee-7f72aee61ee0",
+      "email": "christian@arizonaroofers.com",
+      "password_hash": "$2b$12$bxThLQAaBMkMyA9fK/.78ucD.kYNEi3eudDBoQxxkp5N8dbjh8sz2",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Christian",
+      "last_name": "Noren",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-27T14:17:08.078709+00:00",
+      "extra_metadata": {
+        "ghost_mode_active": true
+      }
+    },
+    {
+      "id": "878a99b5-0955-4e8e-bcf1-6ed121e9e3dd",
+      "email": "travis@arizonaroofers.com",
+      "password_hash": "$2b$12$eiGBaAFwjR5h.0rdMFeNFO/GW8RZsaZSJfHUnoxPFK2XzLdwD0vTO",
+      "role": "executive",
+      "is_active": true,
+      "first_name": "Travis",
+      "last_name": "Jones",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-20T21:45:01.010086+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "9f61cd87-675a-4ddd-83e9-f6ed64d0072b",
+      "email": "contact@gomotto.com",
+      "password_hash": "$2b$12$74FKj5xbsACCmQBPSKq25eVU/0rYbAtD6s9Njtyf7aJTnSbid8tiq",
+      "role": "executive",
+      "is_active": true,
+      "first_name": "Joseph",
+      "last_name": "Risi",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-02-03T00:02:48.334375+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "6861c27e-eff5-482d-b9ae-2489a8b375dd",
+      "email": "niko@arizonaroofers.com",
+      "password_hash": "$2b$12$Sc5GyGbYYoT4FC11DVeESeCI3EFH25RhnYmcezdesBAfYcIGFyGBG",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Nikolas",
+      "last_name": "Pagoulatos",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-20T21:52:33.064518+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "8e7f0422-c9e8-465e-94b4-99177d871128",
+      "email": "tanner@arizonaroofers.com",
+      "password_hash": "$2b$12$WJDUSLqyCBDsrFAJi/oGZeZVsmiwWH.MgIdVK8SsNmb1rUtagw/FW",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Tanner",
+      "last_name": "Broadbent",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-27T20:08:18.055879+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "99760869-b93b-48aa-9511-729a2ea2f1f3",
+      "email": "cole@arizonaroofers.com",
+      "password_hash": "$2b$12$9LhhtJFHrakhdfbTp3cOQud/97hyPjBQL1DaCvX5lfCuonBLkd/ie",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Cole",
+      "last_name": "Ludwig",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-27T14:14:24.348592+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "a5206a36-0ec8-4941-8e30-b32733798691",
+      "email": "brett@arizonaroofers.com",
+      "password_hash": "$2b$12$JXWmskC5n41ydZckz6NAyOxEsmrajTr6Rst1Ej.rqmmFEa4FH.txa",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Brett",
+      "last_name": "Jackson",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-27T14:15:37.339677+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "e9f57af6-5536-467d-98b4-4e2df8dcf1fa",
+      "email": "oliver@arizonaroofers.com",
+      "password_hash": "$2b$12$FEJwcygRxXy8NPHJX8EoAORHqpEvQfAKM1gq425DLo8vy6g0T0L6O",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Oliver",
+      "last_name": "Johnson",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-27T14:16:17.738180+00:00",
+      "extra_metadata": {
+        "ghost_mode_active": true
+      }
+    },
+    {
+      "id": "faabbe2e-e8f7-4d77-8eed-74b96ef1f1b6",
+      "email": "orlando@arizonaroofers.com",
+      "password_hash": "$2b$12$cyhpYJ8EdkzIt13Oj.MJbeEo9/XHcAdrLrIGZ0LTzhq2Lm6JbJCM6",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Orlando",
+      "last_name": "Chavarria",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-02-11T06:52:24.482384+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "d99f2ff2-6a1c-4f4f-ba82-1a2579defa73",
+      "email": "user@example.com",
+      "password_hash": "$2b$12$rA1J6IoBJwQjoHNbBLHBve0hER6K4wID.FcSKoVwvj8OL6lMzNOUC",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "string",
+      "last_name": "string",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-02-17T05:41:35.223474+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "d1a050d8-7835-42a3-ae53-00c3effb97a1",
+      "email": "testcsr+c3e6b7@example.com",
+      "password_hash": "$2b$12$V85dcQzFHj3ErIcgWIxvjOBARzd6jhLVXY0yNNTaAh1LjCyajquJm",
+      "role": "csr",
+      "is_active": true,
+      "first_name": "Test",
+      "last_name": "CSR",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-02-18T12:21:24.845426+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "6abc454c-91af-4056-b015-72effa49115c",
+      "email": "testcsr+5ee2da@example.com",
+      "password_hash": "$2b$12$es.pbaUGmH1zYKM9DdFUTubycQevCbaFSDhBMxwKsnshYlVBBDd5.",
+      "role": "csr",
+      "is_active": true,
+      "first_name": "Test",
+      "last_name": "CSR",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-02-18T12:22:10.374511+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "53924dfb-d50e-4280-8c14-d7d52ae36da5",
+      "email": "testcsr+ab8b6e@example.com",
+      "password_hash": "$2b$12$y4QAiGByIacSovtbVxNKAeMDNG6MpMFNxBg1.uonAdSjZtWLRVLLm",
+      "role": "csr",
+      "is_active": true,
+      "first_name": "Test",
+      "last_name": "CSR",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-02-18T13:14:26.056460+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "26774b5c-6049-496a-8f01-a2ae164fb014",
+      "email": "chandler@arizonaroofers.com",
+      "password_hash": "$2b$12$mzJQBZFqsiTK6Xacn45yg.GHYeN6VngnBnVZouqhF98pKqlxYURTa",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Chandler",
+      "last_name": "Duffy",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-02-10T21:02:22.848397+00:00",
+      "extra_metadata": {
+        "ghost_mode_active": false
+      }
+    },
+    {
+      "id": "0191d13c-8af6-468b-992b-364f96f3e5c3",
+      "email": "nick@azroofco.com",
+      "password_hash": "$2b$12$qMxa/fxmC/l1XgSQ4JBuaO/vQ1JS3QjdroW6lXZUJzGz3FlMcuu9a",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Nick",
+      "last_name": "William",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-03-11T18:25:28.487420+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "a1b6045a-af06-49e8-b978-fe2293cb5e66",
+      "email": "connor@arizonaroofers.com",
+      "password_hash": "$2b$12$fXQEA51FNRnadgbclvkwyO.UcgpAEU1E9f0w3oVBD2o.d8K3Lt7I6",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Connor",
+      "last_name": "Hamby",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-03-11T18:25:38.766206+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "f492c15e-024d-49cf-baf6-19fbd01dce2c",
+      "email": "ashkan@arizonaroofers.com",
+      "password_hash": "$2b$12$zVxWZcVqLbTgeJu/pqLtQ./FpWTvnSKh42qZOkS75LHEg8JOc2oxi",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Ashkan",
+      "last_name": "Etemadi",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-03-11T18:25:50.039364+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "f7c41116-884b-4f0e-be96-34046a30fd5d",
+      "email": "will@arizonaroofers.com",
+      "password_hash": "$2b$12$5B3r.8GJBW1YtaSlsgJtMe91uxXaE9cOld.Or54adku0nET/D17mO",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "William",
+      "last_name": "Ludewig",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-03-11T18:26:07.413701+00:00",
+      "extra_metadata": null
+    },
+    {
+      "id": "b771a4c2-322e-4773-90c7-5b1c98935037",
+      "email": "tmehrotra28@gmail.com",
+      "password_hash": "$2b$12$ZceVUlysmqqnzSiXmmJMh.W1imJfvd5892LG4ZIrSf61mt4tGoZPK",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Tushar",
+      "last_name": "Mehrotra",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-01-20T21:45:59.164797+00:00",
+      "extra_metadata": {
+        "ghost_mode_active": true
+      }
+    },
+    {
+      "id": "be044d80-771a-4d53-87de-2c8a362e801f",
+      "email": "josephrisiiv@gmail.com",
+      "password_hash": "$2b$12$74nHBHwtpc35mkTbbUPX8.RF7H198taVv49RU5p5KAXNcw/GjhNt6",
+      "role": "sales_rep",
+      "is_active": true,
+      "first_name": "Joseph",
+      "last_name": "Risi",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "created_at": "2026-03-11T18:25:58.074948+00:00",
+      "extra_metadata": {
+        "ghost_mode_active": false
+      }
+    }
+  ],
+  "tenant_configs": [],
+  "company_integrations": [
+    {
+      "id": "561b3e04-64fd-4ce8-bc32-29834f833307",
+      "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "location_id": "",
+      "crm_provider": "",
+      "crm_api_encrypted_key": "",
+      "crm_company_id": "",
+      "voip_provider": "ctm",
+      "voip_api_encrypted_key": "AumsLZtkWUmDUc9L8A5BuiKVzNNbKlC01Dq0VcES3pV9+ta18DhEMXkj4wTg8IbcaPcwDMJPORYppd3/sDRfmA==",
+      "voip_company_id": "541914",
+      "extra_metadata": {},
+      "st_tenant_id": null,
+      "st_client_id": null,
+      "st_client_secret_encrypted": null,
+      "recording_disclosure_enabled": true
+    }
+  ],
+  "invitations": []
+}

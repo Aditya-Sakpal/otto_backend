@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
-
 # Load environment variables from .env file
 load_dotenv(override=True)
 

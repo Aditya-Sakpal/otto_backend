@@ -17,6 +17,8 @@ from datetime import datetime
 from app.core.datetime_utils import isoformat_utc
 
 
+
+
 class UTCJSONResponse(JSONResponse):
     """Custom JSONResponse that serializes datetimes to ISO 8601 UTC (+00:00)."""
 

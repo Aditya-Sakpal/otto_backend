@@ -455,15 +455,15 @@ class SalesRepDashboardService:
                 AppointmentORM.lead_id,
                 AppointmentORM.contact_card_id,
                 AppointmentORM.outcome,
+                AppointmentORM.audio_url,
+                AppointmentORM.duration_seconds,
+                AppointmentORM.created_at.label("created_at"),
+                AppointmentORM.qualification_status,
+                AppointmentORM.objections,
+                AppointmentORM.summary,
                 CallORM.id.label("call_id"),
                 CallORM.phone_number,
-                CallORM.audio_url,
-                CallORM.duration_seconds,
-                CallORM.created_at.label("created_at"),
                 CallORM.call_type,
-                CallAnalysisORM.qualification_status,
-                CallAnalysisORM.objections,
-                CallAnalysisORM.summary,
             ).select_from(call_analysis_join).where(
                 AppointmentORM.company_id == company_id,
                 AppointmentORM.scheduled_start >= _start_dt,
@@ -1076,16 +1076,13 @@ class SalesRepDashboardService:
             else:
                 _start_dt = _end_dt - timedelta(days=30)
 
-            # Left join Appointment -> Call -> CallAnalysis so we can read objections from analysis
-            appt_call_join = outerjoin(AppointmentORM, CallORM, AppointmentORM.interaction_id == CallORM.id)
-            call_analysis_join = outerjoin(appt_call_join, CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
-
+            # Query appointments directly — objections are stored on AppointmentORM
             query = select(
                 AppointmentORM.assigned_rep_id,
                 AppointmentORM.outcome,
                 AppointmentORM.id.label("appointment_id"),
-                CallAnalysisORM,  # may be None
-            ).select_from(call_analysis_join).where(
+                AppointmentORM.objections,
+            ).where(
                 AppointmentORM.company_id == company_id,
                 AppointmentORM.scheduled_start >= _start_dt,
                 AppointmentORM.scheduled_start <= _end_dt,
@@ -1099,7 +1096,6 @@ class SalesRepDashboardService:
             for row in rows:
                 rep_id = row.assigned_rep_id
                 outcome = row.outcome
-                analysis = row[3]
                 if not rep_id:
                     continue
                 if rep_id not in rep_stats:
@@ -1116,9 +1112,9 @@ class SalesRepDashboardService:
                 if outcome == "lost" or outcome == "no_show":
                     stats["appointments_lost"] += 1
 
-                # Extract objections from analysis if present
-                if analysis and getattr(analysis, "objections", None):
-                    obs = analysis.objections
+                # Extract objections directly from appointment
+                obs = row.objections
+                if obs:
                     if isinstance(obs, str):
                         items = [o.strip() for o in obs.split(",") if o.strip()]
                     else:

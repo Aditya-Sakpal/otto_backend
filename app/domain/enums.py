@@ -184,6 +184,12 @@ class LeaderboardPeriod(str, Enum):
     YEARLY = "yearly"
 
 
+class CallScope(str, Enum):
+    """Whether a call is in-scope or out-of-scope based on Shunya classification."""
+    IN = "in"
+    OUT = "out"
+
+
 class ProxySessionStatus(str, Enum):
     """Proxy session status for masked communications."""
     ACTIVE = "active"

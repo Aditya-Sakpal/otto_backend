@@ -316,6 +316,15 @@ class AppointmentService:
         """
         response_data = AppointmentResponse.model_validate(appointment).model_dump()
 
+        logger.info(
+            "enrich_appointment datetime debug",
+            appointment_id=str(appointment.id),
+            domain_scheduled_start=str(appointment.scheduled_start),
+            domain_scheduled_end=str(appointment.scheduled_end),
+            response_scheduled_start=str(response_data.get("scheduled_start")),
+            response_scheduled_end=str(response_data.get("scheduled_end")),
+        )
+
         # Get contact details
         if appointment.contact_card_id:
             contact_card = await self.contact_repo.get_by_id(appointment.contact_card_id)

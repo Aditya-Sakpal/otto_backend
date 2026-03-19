@@ -26,7 +26,7 @@ class Appointment(BaseModel):
     location_address: Optional[str] = Field(None, description="Location address")
     latitude: Optional[float] = Field(None, description="Geocoded latitude")
     longitude: Optional[float] = Field(None, description="Geocoded longitude")
-    outcome: Optional[AppointmentOutcome] = Field(None, description="Appointment outcome")
+    outcome: Optional[AppointmentOutcome] = Field("pending", description="Appointment outcome")
     assigned_rep_id: Optional[UUID] = Field(None, description="Assigned sales rep")
     interaction_id: Optional[UUID] = Field(None, description="Associated call/interaction ID")
     audio_url: Optional[str] = Field(None, description="Audio recording URL")

@@ -107,3 +107,4 @@ weaviate-client==3.25.3
 websockets==15.0.1
 win32_setctime==1.2.0
 yarl==1.22.0
+twilio>=9.0.0

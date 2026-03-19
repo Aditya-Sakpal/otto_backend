@@ -16,6 +16,10 @@ from app.infrastructure.database.models.insight_job import InsightJobORM
 from app.infrastructure.database.models.post import PostORM
 from app.infrastructure.database.models.leaderboard_stats import LeaderboardStatsORM
 from app.infrastructure.database.models.tenant_config import TenantConfigORM
+from app.infrastructure.database.models.proxy_number import ProxyNumberORM
+from app.infrastructure.database.models.proxy_session import ProxySessionORM
+from app.infrastructure.database.models.masked_communication import MaskedCommunicationORM
+from app.infrastructure.database.models.rep_phone import RepPhoneORM
 
 __all__ = [
     "CompanyORM",
@@ -35,4 +39,8 @@ __all__ = [
     "PostORM",
     "LeaderboardStatsORM",
     "TenantConfigORM",
+    "ProxyNumberORM",
+    "ProxySessionORM",
+    "MaskedCommunicationORM",
+    "RepPhoneORM",
 ]

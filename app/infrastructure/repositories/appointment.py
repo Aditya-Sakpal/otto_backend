@@ -48,27 +48,7 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
                 query = query.offset(skip).limit(limit)
                 result = await self.session.execute(query)
                 orm_objs = result.scalars().all()
-                logger.info(
-                    "get_by_company datetime debug",
-                    start_date=str(start_date),
-                    end_date=str(end_date),
-                    past_only=past_only,
-                    orm_count=len(orm_objs),
-                    orm_scheduled_starts=[
-                        {"id": str(obj.id), "scheduled_start": str(obj.scheduled_start), "scheduled_end": str(obj.scheduled_end)}
-                        for obj in orm_objs[:5]
-                    ],
-                )
-                domain_objs = [self._to_domain(obj) for obj in orm_objs]
-                if domain_objs:
-                    logger.info(
-                        "get_by_company domain debug",
-                        domain_scheduled_starts=[
-                            {"id": str(obj.id), "scheduled_start": str(obj.scheduled_start), "scheduled_end": str(obj.scheduled_end)}
-                            for obj in domain_objs[:5]
-                        ],
-                    )
-                return domain_objs
+                return [self._to_domain(obj) for obj in orm_objs]
             return await self.get_all(
                 skip=skip,
                 limit=limit,
@@ -221,28 +201,7 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
                 query = query.offset(skip).limit(limit)
                 result = await self.session.execute(query)
                 orm_objs = result.scalars().all()
-                logger.info(
-                    "get_by_assigned_rep datetime debug",
-                    start_date=str(start_date),
-                    end_date=str(end_date),
-                    past_only=past_only,
-                    assigned_rep_id=str(assigned_rep_id),
-                    orm_count=len(orm_objs),
-                    orm_scheduled_starts=[
-                        {"id": str(obj.id), "scheduled_start": str(obj.scheduled_start), "scheduled_end": str(obj.scheduled_end)}
-                        for obj in orm_objs[:5]
-                    ],
-                )
-                domain_objs = [self._to_domain(obj) for obj in orm_objs]
-                if domain_objs:
-                    logger.info(
-                        "get_by_assigned_rep domain debug",
-                        domain_scheduled_starts=[
-                            {"id": str(obj.id), "scheduled_start": str(obj.scheduled_start), "scheduled_end": str(obj.scheduled_end)}
-                            for obj in domain_objs[:5]
-                        ],
-                    )
-                return domain_objs
+                return [self._to_domain(obj) for obj in orm_objs]
             return await self.get_all(
                 skip=skip,
                 limit=limit,

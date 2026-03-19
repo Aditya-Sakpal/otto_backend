@@ -1149,9 +1149,10 @@ class MetricsService:
                 CallAnalysisORM,
                 CallORM,
                 CallAnalysisORM.call_id == CallORM.id
-            )
-            
+            ).join(UserORM, CallORM.handled_by_user_id == UserORM.id)
+
             # Get all analyses with calls for this company (use CallORM.created_at for date range)
+            # Only include sales_rep users, not CSRs
             analyses_query = select(
                 CallORM.handled_by_user_id,
                 CallAnalysisORM.qualification_status,
@@ -1162,7 +1163,8 @@ class MetricsService:
                 CallAnalysisORM.company_id == company_id,
                 CallORM.created_at >= start_dt,
                 CallORM.created_at <= end_dt,
-                CallORM.handled_by_user_id.isnot(None),  # Only include calls with assigned users
+                CallORM.handled_by_user_id.isnot(None),
+                UserORM.role == 'sales_rep',
                 _metrics_exclude_existing_and_service_not_offered(),
             )
             
@@ -1267,11 +1269,12 @@ class MetricsService:
             employee_results.sort(key=lambda x: x['success_rate'])
             top_5_employees = employee_results[:5]
             
-            # Get user details for the top 5 employees
+            # Get user details for the top 5 employees — only sales_rep role
             user_ids = [UUID(emp['user_id']) for emp in top_5_employees]
             users_query = select(UserORM).where(
                 UserORM.id.in_(user_ids),
-                UserORM.company_id == company_id
+                UserORM.company_id == company_id,
+                UserORM.role == 'sales_rep',
             )
             users_result = await self.session.execute(users_query)
             users_list = users_result.scalars().all()
@@ -2067,6 +2070,28 @@ class MetricsService:
             warm_count = sum(1 for l in leads_list if l.status == "warm")
             new_count = sum(1 for l in leads_list if l.status == "new")
             
+            # Fetch service_requested for each lead from call_analyses
+            lead_ids = [lead.id for lead in leads_list]
+            service_map: Dict[str, str] = {}
+            if lead_ids:
+                from app.infrastructure.database.models.call import CallORM
+                from app.infrastructure.database.models.analysis import CallAnalysisORM
+
+                ca_rows = await self.session.execute(
+                    select(CallORM.lead_id, CallAnalysisORM.service_requested)
+                    .join(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+                    .where(
+                        CallORM.lead_id.in_(lead_ids),
+                        CallAnalysisORM.service_requested.isnot(None),
+                        CallAnalysisORM.service_requested != "",
+                    )
+                    .order_by(CallORM.created_at.desc())
+                )
+                for row in ca_rows.all():
+                    lid = str(row.lead_id)
+                    if lid not in service_map:
+                        service_map[lid] = row.service_requested
+
             # Convert to dict with contact_card info
             leads_data = []
             for lead in leads_list:
@@ -2077,6 +2102,7 @@ class MetricsService:
                     "deal_size": lead.deal_size,
                     "assigned_rep_id": str(lead.assigned_rep_id) if lead.assigned_rep_id else None,
                     "created_at": lead.created_at.isoformat() if lead.created_at else None,
+                    "service_requested": service_map.get(str(lead.id)),
                 }
                 # Add contact_card info if available
                 if lead.contact_card:
@@ -2086,6 +2112,9 @@ class MetricsService:
                         "last_name": lead.contact_card.last_name,
                         "primary_phone": lead.contact_card.primary_phone,
                         "email": lead.contact_card.email,
+                        "address": lead.contact_card.address,
+                        "city": lead.contact_card.city,
+                        "state": lead.contact_card.state,
                     }
                 leads_data.append(lead_dict)
             

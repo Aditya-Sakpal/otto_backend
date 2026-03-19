@@ -7,6 +7,7 @@ Supports both production and integration environments.
 Uses the Export API endpoints (continueFrom token pagination) for polling,
 and standard paginated endpoints for one-off lookups / credential verification.
 """
+import asyncio
 import re
 import time
 from datetime import datetime, timezone
@@ -76,29 +77,35 @@ class ServiceTitanClient:
 
         self._access_token: Optional[str] = None
         self._token_expires_at: float = 0
+        self._token_lock = asyncio.Lock()
 
     async def _ensure_token(self, client: httpx.AsyncClient) -> str:
         """Fetch or refresh OAuth2 access token, caching until 60s before expiry."""
         if self._access_token and time.time() < self._token_expires_at - 60:
             return self._access_token
 
-        logger.info(f"Fetching new ST access token for tenant {self.tenant_id}")
-        response = await client.post(
-            self._auth_url,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            data={
-                "grant_type": "client_credentials",
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        data = response.json()
-        self._access_token = data["access_token"]
-        expires_in = data.get("expires_in", 3600)
-        self._token_expires_at = time.time() + expires_in
-        return self._access_token
+        async with self._token_lock:
+            # Double-check after acquiring lock (another coroutine may have refreshed)
+            if self._access_token and time.time() < self._token_expires_at - 60:
+                return self._access_token
+
+            logger.info(f"Fetching new ST access token for tenant {self.tenant_id}")
+            response = await client.post(
+                self._auth_url,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+            self._access_token = data["access_token"]
+            expires_in = data.get("expires_in", 3600)
+            self._token_expires_at = time.time() + expires_in
+            return self._access_token
 
     def _auth_headers(self, token: str) -> dict[str, str]:
         return {

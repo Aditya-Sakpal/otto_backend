@@ -124,18 +124,6 @@ async def list_appointments(
                     detail="end_date must be ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
                 )
 
-        logger.info(
-            "list_appointments datetime debug",
-            raw_start_date=start_date,
-            raw_end_date=end_date,
-            parsed_start_dt=str(start_dt) if start_dt else None,
-            parsed_end_dt=str(end_dt) if end_dt else None,
-            start_dt_tzinfo=str(start_dt.tzinfo) if start_dt else None,
-            end_dt_tzinfo=str(end_dt.tzinfo) if end_dt else None,
-            company_id=str(company_id),
-            assigned_rep_id=str(assigned_rep_id) if assigned_rep_id else None,
-        )
-
         service = AppointmentService(db)
 
         # If lead_id is provided, return appointment for that lead
@@ -407,13 +395,6 @@ async def get_appointment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Appointment not found",
             )
-
-        logger.info(
-            "get_appointment datetime debug",
-            appointment_id=str(appointment_id),
-            response_scheduled_start=str(appointment.scheduled_start),
-            response_scheduled_end=str(appointment.scheduled_end),
-        )
 
         insights_result = await service.get_appointment_insights(appointment_id)
         insights_payload = insights_result.get("insights") if insights_result else None

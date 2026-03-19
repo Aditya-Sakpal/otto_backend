@@ -44,6 +44,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("st_poller")
 
+# Silence noisy third-party loggers
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 
 # --------------------------------------------------------------------------- #
 #  Entry point                                                                 #

@@ -21,6 +21,8 @@ from app.domain.users.models import User
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.core.logging import get_logger
 from app.infrastructure.database.models.ask_otto_conversation import AskOttoConversationORM, AskOttoMessageORM
+from app.services.title_generation_service import generate_conversation_title
+from app.infrastructure.database.session import AsyncSessionLocal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +45,29 @@ def _build_user_context(user: User) -> dict:
     if user.company_id:
         ctx["company_id"] = str(user.company_id)
     return ctx
+
+
+async def _generate_title_in_background(conversation_id: UUID, user_message: str):
+    """
+    Background task: generate a title from the first user message and update the conversation.
+    Uses its own DB session since the request session will be closed by the time this runs.
+    """
+    try:
+        title = await generate_conversation_title(user_message)
+        if not title:
+            return
+        async with AsyncSessionLocal() as session:
+            conv_query = select(AskOttoConversationORM).where(
+                AskOttoConversationORM.id == conversation_id
+            )
+            result = await session.execute(conv_query)
+            conversation = result.scalar_one_or_none()
+            if conversation and not conversation.title:
+                conversation.title = title
+                await session.commit()
+                logger.info(f"Auto-generated title for conversation {conversation_id}: {title}")
+    except Exception as e:
+        logger.error(f"Background title generation failed for {conversation_id}: {e}")
 
 
 # ──────────────────────────── Request Models ────────────────────────────
@@ -516,6 +541,12 @@ async def send_message(
 
         await db.commit()
 
+        # Auto-generate title on the first message if conversation has no title yet
+        if not conversation.title:
+            asyncio.create_task(
+                _generate_title_in_background(conversation.id, body.message)
+            )
+
         # Return streaming response with SSE format, streaming only the assistant text
         return StreamingResponse(
             _stream_response_generator(response_text),
@@ -658,6 +689,65 @@ async def get_conversation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get conversation: {str(e)}",
+        )
+
+
+class UpdateConversationRequest(BaseModel):
+    """Request body to update a conversation (e.g. rename)."""
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="New title for the conversation thread",
+        json_schema_extra={"example": "Weekly objections analysis"},
+    )
+
+
+@router.patch(
+    "/conversations/{conversation_id}",
+    summary="Rename a conversation thread",
+    description="Update the title of an existing Ask Otto conversation thread.",
+    responses=RESPONSES,
+)
+async def update_conversation(
+    conversation_id: UUID,
+    body: UpdateConversationRequest,
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+):
+    """Update an Ask Otto conversation (currently supports renaming)."""
+    try:
+        conv_query = select(AskOttoConversationORM).where(
+            AskOttoConversationORM.id == conversation_id
+        )
+        conv_result = await db.execute(conv_query)
+        conversation = conv_result.scalar_one_or_none()
+
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found",
+            )
+
+        conversation.title = body.title
+        await db.commit()
+        await db.refresh(conversation)
+
+        return {
+            "id": str(conversation.id),
+            "conversation_id": conversation.shunya_conversation_id,
+            "company_id": str(conversation.company_id),
+            "title": conversation.title,
+            "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating conversation: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update conversation: {str(e)}",
         )
 
 

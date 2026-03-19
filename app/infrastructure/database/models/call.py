@@ -46,6 +46,7 @@ class CallORM(Base):
     )
     answered_by_display: Mapped[str | None] = mapped_column(String(255), nullable=True)
     lead_source: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    scope: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
 
     # Relationships
     company = relationship("CompanyORM", back_populates="calls")

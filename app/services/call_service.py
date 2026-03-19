@@ -180,6 +180,32 @@ class CallService:
                 contact_card_id=str(call.contact_card_id) if call.contact_card_id else None,
             )
 
+            # Find or create lead for this contact card
+            if contact_card:
+                try:
+                    from app.domain.models.lead import Lead
+                    from app.domain.enums import LeadStatus
+
+                    existing_leads = await self.lead_repo.get_all(
+                        filters={"contact_card_id": contact_card.id, "company_id": company_id}
+                    )
+                    lead = existing_leads[0] if existing_leads else None
+
+                    if not lead:
+                        lead = Lead(
+                            company_id=company_id,
+                            contact_card_id=contact_card.id,
+                            status=LeadStatus.NEW,
+                        )
+                        lead = await self.lead_repo.create(lead)
+                        logger.info(f"Lead created for call {call.id}", lead_id=str(lead.id))
+
+                    if lead and not call.lead_id:
+                        call.lead_id = lead.id
+                        call = await self.call_repo.update(call.id, call)
+                except Exception as e:
+                    logger.error(f"Failed to find or create lead for call {call.id}: {e}")
+
             # Trigger analysis if audio URL is available
             if audio_url and not missed_call:
                 # TODO: Use Celery or BackgroundTasks for async execution

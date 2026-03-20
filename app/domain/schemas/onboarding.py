@@ -5,9 +5,11 @@ from pydantic import BaseModel, Field
 from app.domain.enums import UserRole
 
 class ValidateGHLRequest(BaseModel):
-    """Request schema for GHL validation."""
+    """Request schema for GoHighLevel (GHL) credential validation."""
     location_id: str = Field(..., description="GHL location ID")
     api_key: str = Field(..., description="GHL API key")
+
+    model_config = {"json_schema_extra": {"example": {"location_id": "loc_abc123", "api_key": "ghl-api-key-xxxxx"}}}
 
 
 class ValidateGHLResponse(BaseModel):
@@ -17,9 +19,11 @@ class ValidateGHLResponse(BaseModel):
 
 
 class ValidateCTMRequest(BaseModel):
-    """Request schema for CTM validation."""
+    """Request schema for CallTrackingMetrics (CTM) credential validation."""
     access_key: str = Field(..., description="CTM access key")
     secret_key: str = Field(..., description="CTM secret key")
+
+    model_config = {"json_schema_extra": {"example": {"access_key": "ctm-access-xxxxx", "secret_key": "ctm-secret-xxxxx"}}}
 
 
 class ValidateCTMResponse(BaseModel):
@@ -30,10 +34,12 @@ class ValidateCTMResponse(BaseModel):
 
 
 class ValidateServiceTitanRequest(BaseModel):
-    """Request schema for ServiceTitan validation."""
+    """Request schema for ServiceTitan credential validation."""
     tenant_id: str = Field(..., description="ServiceTitan tenant ID")
-    client_id: str = Field(..., description="ServiceTitan client ID")
-    client_secret: str = Field(..., description="ServiceTitan client secret")
+    client_id: str = Field(..., description="ServiceTitan client ID (OAuth2)")
+    client_secret: str = Field(..., description="ServiceTitan client secret (OAuth2)")
+
+    model_config = {"json_schema_extra": {"example": {"tenant_id": "12345", "client_id": "st-client-id", "client_secret": "st-client-secret"}}}
 
 
 class ValidateServiceTitanResponse(BaseModel):

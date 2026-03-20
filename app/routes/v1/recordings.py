@@ -38,12 +38,14 @@ class RecordingInitiateRequest(BaseModel):
     """Request to initiate a recording upload."""
     appointment_id: UUID = Field(..., description="Appointment ID to associate recording with")
 
+    model_config = {"json_schema_extra": {"example": {"appointment_id": "c3d4e5f6-a7b8-9012-cdef-345678901234"}}}
+
 
 class RecordingInitiateResponse(BaseModel):
-    """Response with pre-signed URL for upload."""
+    """Response with pre-signed S3 URL for uploading audio."""
     appointment_id: UUID = Field(..., description="Appointment ID")
-    upload_url: str = Field(..., description="Pre-signed S3 URL for uploading audio")
-    s3_key: str = Field(..., description="S3 key where the file should be uploaded")
+    upload_url: str = Field(..., description="Pre-signed S3 URL for uploading audio (expires in 15 minutes)")
+    s3_key: str = Field(..., description="S3 key where the file will be stored")
 
 
 @router.post("/initiate", response_model=RecordingInitiateResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)

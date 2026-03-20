@@ -96,21 +96,46 @@ class TaskDetailResponse(BaseModel):
 class CreateTaskRequest(BaseModel):
     """Request to create a task manually (no call)."""
     company_id: UUID = Field(..., description="Company ID")
-    action_type: str = Field(..., description="Type of action (e.g. follow_up_call, send_quote)")
+    action_type: str = Field(..., description="Type of action (e.g. follow_up_call, send_quote, schedule_appointment)")
     raw_text: Optional[str] = Field(None, description="Task title/description")
-    status: Optional[str] = Field("pending", description="Status: pending, in_progress, completed, cancelled")
-    priority: Optional[int] = Field(None, description="Priority (higher = more urgent)")
-    due_at: Optional[datetime] = Field(None, description="Due date/time")
-    owner_id: Optional[UUID] = Field(None, description="Assign to user (CSR or Sales Rep)")
-    lead_id: Optional[UUID] = Field(None, description="Optional lead ID")
+    status: Optional[str] = Field("pending", description="Task status. Allowed: pending, in_progress, completed, cancelled")
+    priority: Optional[int] = Field(None, description="Priority (higher = more urgent, e.g. 1=low, 5=critical)")
+    due_at: Optional[datetime] = Field(None, description="Due date/time in ISO 8601 format")
+    owner_id: Optional[UUID] = Field(None, description="Assign to user (CSR or Sales Rep UUID)")
+    lead_id: Optional[UUID] = Field(None, description="Optional lead ID to link the task to")
     call_id: Optional[UUID] = Field(None, description="Optional call ID (link to source call)")
-    appointment_id: Optional[UUID] = Field(None, description="Optional appointment ID")
+    appointment_id: Optional[UUID] = Field(None, description="Optional appointment ID to link the task to")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "company_id": "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+                "action_type": "follow_up_call",
+                "raw_text": "Follow up with customer about plumbing quote",
+                "status": "pending",
+                "priority": 3,
+                "due_at": "2026-03-22T14:00:00Z",
+                "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+                "lead_id": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+            }
+        }
+    }
 
 
 class UpdateTaskRequest(BaseModel):
-    """Request to update a task (reassign, status, priority, due date, description)."""
-    owner_id: Optional[UUID] = Field(None, description="Reassign to user (CSR or Sales Rep)")
-    status: Optional[str] = Field(None, description="Status: pending, in_progress, completed, cancelled")
-    priority: Optional[int] = Field(None, description="Priority (higher = more urgent)")
-    due_at: Optional[datetime] = Field(None, description="Due date/time")
+    """Request to update a task (reassign, status, priority, due date, description). All fields optional — only send fields you want to change."""
+    owner_id: Optional[UUID] = Field(None, description="Reassign to user (CSR or Sales Rep UUID)")
+    status: Optional[str] = Field(None, description="New status. Allowed: pending, in_progress, completed, cancelled")
+    priority: Optional[int] = Field(None, description="Priority (higher = more urgent, e.g. 1=low, 5=critical)")
+    due_at: Optional[datetime] = Field(None, description="Due date/time in ISO 8601 format")
     raw_text: Optional[str] = Field(None, description="Task title/description")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "status": "in_progress",
+                "priority": 4,
+                "due_at": "2026-03-25T10:00:00Z",
+            }
+        }
+    }

@@ -49,6 +49,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "reason_not_booked",  # Computed from call analyses
             "objection",  # Computed from call analyses
             "response",  # Computed from call analyses
+            "appointment_id",  # Computed from appointments relationship
         }
         data = domain_obj.model_dump(
             exclude=exclude_fields | ({"id"} if domain_obj.id else set())

@@ -26,7 +26,7 @@ class AppointmentBase(BaseModel):
         description="Location/address of the appointment",
     )
     outcome: Optional[AppointmentOutcome] = Field(
-        None,
+        "pending",
         description="Outcome of the appointment",
     )
     assigned_rep_id: Optional[UUID] = Field(

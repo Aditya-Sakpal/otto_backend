@@ -197,3 +197,30 @@ class CallScope(str, Enum):
     """Whether a call is in-scope or out-of-scope based on Shunya classification."""
     IN = "in"
     OUT = "out"
+
+
+class ProxySessionStatus(str, Enum):
+    """Proxy session status for masked communications."""
+    ACTIVE = "active"
+    CLOSED = "closed"
+
+
+class ProxySessionClosedReason(str, Enum):
+    """Reason a proxy session was closed."""
+    DEAL_WON = "deal_won"
+    DEAL_LOST = "deal_lost"
+    MANUAL = "manual"
+    EXPIRED = "expired"
+
+
+class MaskedCommType(str, Enum):
+    """Type of masked communication."""
+    SMS = "sms"
+    CALL = "call"
+    RECORDING = "recording"
+
+
+class MaskedCommDirection(str, Enum):
+    """Direction of masked communication."""
+    HOMEOWNER_TO_REP = "homeowner_to_rep"
+    REP_TO_HOMEOWNER = "rep_to_homeowner"

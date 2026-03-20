@@ -1343,6 +1343,7 @@ class CallService:
         existing_customer: Optional[bool] = None,
         quick_filter: Optional[str] = None,
         scope_filter: Optional[str] = None,
+        objection_filter: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
         current_user: Optional["User"] = None,
@@ -1491,6 +1492,19 @@ class CallService:
                     query = query.where(
                         func.lower(CallAnalysisORM.booking_status) == "service_not_offered"
                     )
+
+            # Objection filter: check if the given value exists in the objections array
+            # Supports both snake_case enum values (e.g. "service_fee_concerns") and
+            # legacy human-readable strings (e.g. "Service Fee Concerns") via case-insensitive match
+            if objection_filter:
+                from sqlalchemy import exists as sa_exists, literal, column as sa_column
+                query = query.where(
+                    sa_exists(
+                        select(literal(1))
+                        .select_from(func.unnest(CallAnalysisORM.objections).alias("obj"))
+                        .where(func.lower(sa_column("obj")) == objection_filter.strip().lower())
+                    )
+                )
 
             # Search filter (customer name, CSR name, or phone number)
             if search:

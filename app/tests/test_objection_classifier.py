@@ -3,7 +3,7 @@ Unit tests for ObjectionClassifier.
 """
 import pytest
 from app.domain.objection_classifier import ObjectionClassifier
-from app.domain.enums import ObjectionType
+from app.domain.enums import CSRObjectionType, ObjectionType  # ObjectionType is a backward-compat alias
 
 
 class TestObjectionClassifier:

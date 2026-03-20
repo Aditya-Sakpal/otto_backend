@@ -76,8 +76,8 @@ class AppointmentOutcome(str, Enum):
     RESCHEDULED = "rescheduled"
 
 
-class ObjectionType(str, Enum):
-    """Type of objection raised."""
+class CSRObjectionType(str, Enum):
+    """CSR objection categories (IDs 1-15)."""
     IMMEDIATE_SERVICE_UNAVAILABILITY = "immediate_service_unavailability"
     PHONE_CONNECTION_ISSUES = "phone_connection_issues"
     CUSTOMER_NEEDS_TIME_TO_DECIDE = "customer_needs_time_to_decide"
@@ -86,8 +86,17 @@ class ObjectionType(str, Enum):
     IN_PERSON_ESTIMATES_ONLY = "in_person_estimates_only"
     INEFFICIENT_AGENT_COMMUNICATION = "inefficient_agent_communication"
     CUSTOMER_DATA_PRIVACY_CONCERNS = "customer_data_privacy_concerns"
-    SERVICE_NOT_CATERED = "service_not_catered"
+    INSURANCE_RELATED = "insurance_related"
+    TRUST_CREDIBILITY_CONCERNS = "trust_credibility_concerns"
+    NOT_THE_DECISION_MAKER = "not_the_decision_maker"
+    WORKMANSHIP_QUALITY_COMPLAINTS = "workmanship_quality_complaints"
     OTHER = "other"
+    SERVICE_NOT_CATERED = "service_not_catered"
+    COMPETITOR_RELATED_CONCERNS = "competitor_related_concerns"
+
+
+# Backward-compatibility alias
+ObjectionType = CSRObjectionType
 
 
 class SOPStage(str, Enum):

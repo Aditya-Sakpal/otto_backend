@@ -37,11 +37,23 @@ logger = get_logger(__name__)
 
 class CreateActionItemRequest(BaseModel):
     """Request to create an action item from a call (executive assigning to CSR)."""
-    owner_id: UUID = Field(..., description="User to assign the action to (CSR)")
-    action_type: str = Field(..., description="Type of action (e.g. follow_up_call, send_quote)")
-    raw_text: Optional[str] = Field(None, description="Optional description")
-    due_at: Optional[datetime] = Field(None, description="When the action is due")
-    priority: Optional[int] = Field(None, description="Priority (higher = more urgent)")
+    owner_id: UUID = Field(..., description="User UUID to assign the action to (CSR or Sales Rep)")
+    action_type: str = Field(..., description="Type of action (e.g. follow_up_call, send_quote, schedule_appointment)")
+    raw_text: Optional[str] = Field(None, description="Optional description/notes for the action item")
+    due_at: Optional[datetime] = Field(None, description="When the action is due (ISO 8601)")
+    priority: Optional[int] = Field(None, description="Priority level (higher = more urgent, e.g. 1=low, 5=critical)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+                "action_type": "follow_up_call",
+                "raw_text": "Follow up with customer about the pricing concern",
+                "due_at": "2026-03-22T14:00:00Z",
+                "priority": 3,
+            }
+        }
+    }
 
 
 @router.get("", response_model=List[Call], responses=RESPONSES)

@@ -59,15 +59,29 @@ class UpdateIntegrationRequest(BaseModel):
 
 
 class CreateIntegrationRequest(BaseModel):
-    """Request to create integration."""
-    crm_provider: Optional[str] = Field(None, description="CRM provider name")
-    crm_api_key: Optional[str] = Field(None, description="CRM API key (will be encrypted)")
-    crm_company_id: Optional[str] = Field(None, description="CRM company ID")
-    voip_provider: Optional[str] = Field(None, description="VoIP provider name")
-    voip_api_key: Optional[str] = Field(None, description="VoIP API key (will be encrypted)")
-    voip_company_id: Optional[str] = Field(None, description="VoIP company ID")
-    location_id: Optional[str] = Field(None, description="Location ID (for GHL)")
+    """Request to create integration. Provide CRM and/or VoIP details."""
+    crm_provider: Optional[str] = Field(None, description="CRM provider name (e.g. 'gohighlevel', 'servicetitan')")
+    crm_api_key: Optional[str] = Field(None, description="CRM API key (will be encrypted at rest)")
+    crm_company_id: Optional[str] = Field(None, description="CRM company/account ID")
+    voip_provider: Optional[str] = Field(None, description="VoIP/telephony provider name (e.g. 'calltrackingmetrics')")
+    voip_api_key: Optional[str] = Field(None, description="VoIP API key (will be encrypted at rest)")
+    voip_company_id: Optional[str] = Field(None, description="VoIP company/account ID")
+    location_id: Optional[str] = Field(None, description="Location ID (for GHL multi-location)")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "crm_provider": "gohighlevel",
+                "crm_api_key": "ghl-api-key-xxxxx",
+                "crm_company_id": "ghl-company-123",
+                "voip_provider": "calltrackingmetrics",
+                "voip_api_key": "ctm-api-key-xxxxx",
+                "voip_company_id": "12345",
+                "location_id": "loc_abc123",
+            }
+        }
+    }
 
 
 class UpdateDocumentRequest(BaseModel):

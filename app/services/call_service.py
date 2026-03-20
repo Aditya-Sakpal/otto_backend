@@ -1,4 +1,4 @@
-﻿"""
+"""
 Call service.
 
 Orchestrates call-related business logic:

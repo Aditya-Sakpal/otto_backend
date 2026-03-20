@@ -31,7 +31,7 @@ from app.domain.schemas.appointment import (
     ObjectionDetail,
     ComplianceStageDetail,
 )
-from app.domain.enums import AppointmentOutcome, PendingActionStatus
+from app.domain.enums import AppointmentOutcome, PendingActionStatus, LeadStatus, DealStatus, PipelineStage
 from app.domain.schemas.appointment_details import (
     AppointmentDetailsResponse,
     AppointmentOverview,
@@ -152,9 +152,34 @@ class AppointmentService:
                 return None
 
             update_dict = data.model_dump(exclude_unset=True)
+            assigned_rep_id = update_dict.get("assigned_rep_id")
             for key, value in update_dict.items():
                 setattr(existing, key, value)
             existing.mark_updated()
+
+            # If someone sets/changes the assigned rep via the appointment API while
+            # the lead is still in `booked`, we must also advance `lead.pipeline_stage`
+            # so the pipeline progress bar moves to "Appointment scheduled".
+            #
+            # This keeps UI consistent when the frontend updates the Appointment row
+            # directly instead of calling the lead stage transition endpoint.
+            if assigned_rep_id:
+                from app.infrastructure.database.models.lead import LeadORM
+                from sqlalchemy import select
+
+                lead_orm_result = await self.session.execute(
+                    select(LeadORM).where(LeadORM.id == existing.lead_id)
+                )
+                lead_orm = lead_orm_result.scalar_one_or_none()
+                if lead_orm and lead_orm.pipeline_stage == PipelineStage.BOOKED.value:
+                    lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
+                    # Keep lead-level assignment in sync for consistency
+                    lead_orm.assigned_rep_id = assigned_rep_id
+                    # status/deal_status already typically match booked, but set defensively
+                    if lead_orm.status != LeadStatus.QUALIFIED_BOOKED.value:
+                        lead_orm.status = LeadStatus.QUALIFIED_BOOKED.value
+                    if lead_orm.deal_status != DealStatus.BOOKED.value:
+                        lead_orm.deal_status = DealStatus.BOOKED.value
 
             return await self.appointment_repo.update(appointment_id, existing)
         except Exception as e:

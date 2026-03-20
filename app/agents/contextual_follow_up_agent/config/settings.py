@@ -4,6 +4,8 @@ Global application settings.
 Uses Pydantic Settings v2 for type-safe environment variable management.
 Follows the same pattern as speed-to-lead/config/settings.py.
 """
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,8 +13,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
+    # Resolve project-root .env (OTTO/.env) regardless of CWD
+    _env_path = Path(__file__).resolve().parents[5] / ".env"
+
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_env_path),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

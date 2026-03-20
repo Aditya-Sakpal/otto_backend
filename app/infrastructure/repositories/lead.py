@@ -3,7 +3,7 @@ Lead repository.
 """
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from sqlalchemy import select, or_, and_, func, case, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,7 @@ from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.pending_action import PendingActionORM
+from app.infrastructure.database.models.follow_up_otto import FollowUpOttoORM
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.repositories.base import BaseRepository
 
@@ -54,6 +55,9 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         data = domain_obj.model_dump(
             exclude=exclude_fields | ({"id"} if domain_obj.id else set())
         )
+        # appointment_id is used only for domain convenience and does not exist
+        # as a column on LeadORM, so drop it to avoid constructor errors.
+        data.pop("appointment_id", None)
         return self.orm_model(**data)
 
     async def get_by_id(self, id: UUID) -> Optional[Lead]:
@@ -763,6 +767,131 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             traceback.print_exc()
             raise e
 
+    async def _build_follow_up_tracking(
+        self,
+        lead_id: UUID,
+        follow_up_actions: List[PendingActionORM],
+    ) -> FollowUpTracking:
+        """
+        Merge `follow_up_otto` (GoMotto agent) with `pending_actions`.
+        Pending actions referenced by `follow_up_otto.pending_action_id` are omitted
+        from the pending_action list to avoid duplicates.
+        """
+        otto_result = await self.session.execute(
+            select(FollowUpOttoORM)
+            .where(FollowUpOttoORM.lead_id == lead_id)
+            .order_by(FollowUpOttoORM.created_at.desc())
+        )
+        otto_rows = list(otto_result.scalars().all())
+
+        linked_pa_ids = {r.pending_action_id for r in otto_rows if r.pending_action_id}
+        standalone_pa = [pa for pa in follow_up_actions if pa.id not in linked_pa_ids]
+
+        otto_tasks: List[FollowUpTask] = []
+        for row in otto_rows:
+            ktp = row.key_talking_points
+            ktp_norm: Optional[list] = ktp if isinstance(ktp, list) else None
+            objections = row.objections
+            if isinstance(objections, list):
+                obj_norm = objections
+            elif isinstance(objections, dict):
+                obj_norm = [objections]
+            else:
+                obj_norm = None
+
+            otto_tasks.append(
+                FollowUpTask(
+                    id=row.id,
+                    action_type=row.action_type,
+                    raw_text=row.message_content,
+                    status=row.status,
+                    due_at=row.scheduled_at,
+                    priority=None,
+                    source="follow_up_otto",
+                    message_content=row.message_content,
+                    scheduled_at=row.scheduled_at,
+                    sent_at=row.sent_at,
+                    external_message_id=row.external_message_id,
+                    attempt_number=row.attempt_number,
+                    queue_type=row.queue_type,
+                    company_id=row.company_id,
+                    assigned_rep_id=row.assigned_rep_id,
+                    pending_action_id=row.pending_action_id,
+                    opening_line=row.opening_line,
+                    close_approach=row.close_approach,
+                    objections=obj_norm,
+                    key_talking_points=ktp_norm,
+                    error_message=row.error_message,
+                    ai_reasoning=row.ai_reasoning,
+                )
+            )
+
+        pa_tasks = [
+            FollowUpTask(
+                id=pa.id,
+                action_type=pa.action_type,
+                raw_text=pa.raw_text,
+                status=pa.status,
+                due_at=pa.due_at,
+                priority=pa.priority,
+                source="pending_action",
+            )
+            for pa in standalone_pa
+        ]
+
+        tasks = otto_tasks + pa_tasks
+        now_utc = datetime.now(timezone.utc)
+        pending_like_otto = {"proposed", "pending", "scheduled"}
+
+        completed_count = sum(1 for pa in standalone_pa if pa.status == "completed")
+        pending_count = sum(1 for pa in standalone_pa if pa.status in ("pending", "in_progress"))
+        follow_up_attempts = len(otto_rows) + completed_count + pending_count
+
+        touch_times: List[datetime] = []
+        for r in otto_rows:
+            touch_times.append(r.sent_at or r.updated_at or r.created_at)
+        for pa in follow_up_actions:
+            touch_times.append(pa.updated_at or pa.created_at)
+        last_touched = max(touch_times, default=None)
+
+        is_overdue_otto = any(
+            r.scheduled_at
+            and r.scheduled_at < now_utc
+            and r.status in pending_like_otto
+            for r in otto_rows
+        )
+        is_overdue_pa = any(
+            pa.due_at
+            and pa.due_at < now_utc
+            and pa.status in ("pending", "in_progress")
+            for pa in follow_up_actions
+        )
+        is_overdue = is_overdue_otto or is_overdue_pa
+
+        future_otto = [
+            r.scheduled_at
+            for r in otto_rows
+            if r.scheduled_at
+            and r.scheduled_at >= now_utc
+            and r.status in pending_like_otto
+        ]
+        future_pa = [
+            pa.due_at
+            for pa in follow_up_actions
+            if pa.due_at
+            and pa.due_at >= now_utc
+            and pa.status in ("pending", "in_progress")
+        ]
+        next_follow_up = min(future_otto + future_pa, default=None)
+
+        return FollowUpTracking(
+            follow_up_attempts=follow_up_attempts,
+            last_touched=last_touched,
+            is_overdue=is_overdue,
+            next_follow_up=next_follow_up,
+            tasks=tasks,
+        )
+
     async def get_pipeline_detail_by_id(self, lead_id: UUID) -> Optional[PipelineLeadDetail]:
         """
         Get 3-tab pipeline lead detail:
@@ -883,50 +1012,15 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
                     meeting_url = appt_orm.extra_metadata.get("meeting_url") or appt_orm.extra_metadata.get("join_url")
 
-                # ── 4b. Load follow-up tasks (pending_actions) for this lead ──────
+                # ── 4b. Follow-up: follow_up_otto (GoMotto) + pending_actions ─────
                 follow_up_result = await self.session.execute(
                     select(PendingActionORM)
                     .where(PendingActionORM.lead_id == lead_id)
                     .order_by(PendingActionORM.due_at.asc().nullslast())
                 )
                 follow_up_actions = list(follow_up_result.scalars().all())
-
-                from datetime import timezone
-                now_utc = datetime.now(timezone.utc)
-                follow_up_tasks = [
-                    FollowUpTask(
-                        id=pa.id,
-                        action_type=pa.action_type,
-                        raw_text=pa.raw_text,
-                        status=pa.status,
-                        due_at=pa.due_at,
-                        priority=pa.priority,
-                    )
-                    for pa in follow_up_actions
-                ]
-                completed_count = sum(1 for pa in follow_up_actions if pa.status == "completed")
-                pending_count = sum(1 for pa in follow_up_actions if pa.status in ("pending", "in_progress"))
-                is_overdue = any(
-                    pa.due_at and pa.due_at < now_utc
-                    for pa in follow_up_actions
-                    if pa.status in ("pending", "in_progress")
-                )
-                pending_with_due = [
-                    pa for pa in follow_up_actions
-                    if pa.status in ("pending", "in_progress") and pa.due_at and pa.due_at >= now_utc
-                ]
-                next_follow_up = min((pa.due_at for pa in pending_with_due), default=None)
-                last_touched_followup = max(
-                    (pa.updated_at or pa.created_at for pa in follow_up_actions),
-                    default=None,
-                )
-
-                follow_up_tracking = FollowUpTracking(
-                    follow_up_attempts=completed_count + pending_count,
-                    last_touched=last_touched_followup,
-                    is_overdue=is_overdue,
-                    next_follow_up=next_follow_up,
-                    tasks=follow_up_tasks,
+                follow_up_tracking = await self._build_follow_up_tracking(
+                    lead_id, follow_up_actions
                 )
 
                 # Build appointment details sub-section
@@ -1051,14 +1145,25 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                             key_points=list(dict.fromkeys(result_key_points)),
                         ),
                         conversations=result_conversations,
-                        follow_up=follow_up_tracking,
                     )
+
+            # Leads without an appointment row still get GoMotto / pending follow-ups here
+            root_follow_up: Optional[FollowUpTracking] = None
+            if appointment_tab is None:
+                fu_result = await self.session.execute(
+                    select(PendingActionORM)
+                    .where(PendingActionORM.lead_id == lead_id)
+                    .order_by(PendingActionORM.due_at.asc().nullslast())
+                )
+                fu_actions = list(fu_result.scalars().all())
+                root_follow_up = await self._build_follow_up_tracking(lead_id, fu_actions)
 
             return PipelineLeadDetail(
                 pipeline_stage=lead_orm.pipeline_stage,
                 lead=lead_tab,
                 appointment=appointment_tab,
                 result=result_tab,
+                follow_up=root_follow_up,
             )
 
         except Exception as e:

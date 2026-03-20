@@ -5,6 +5,7 @@ scan → assemble → gates → timing → cadence → action routing → genera
 """
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -195,6 +196,142 @@ async def _update_log_status(
     await local_session.commit()
 
 
+async def _insert_follow_up_otto(
+    pg_session: AsyncSession,
+    *,
+    id: str,
+    lead_id: uuid.UUID,
+    company_id: uuid.UUID,
+    message_content: str,
+    action_type: str,
+    scheduled_at: datetime,
+    status: str,
+    queue_type: str,
+    attempt_number: int,
+    sent_at: datetime | None = None,
+    error_message: str | None = None,
+    assigned_rep_id: uuid.UUID | None = None,
+    pending_action_id: str | None = None,
+    opening_line: str | None = None,
+    objections: list[dict] | None = None,
+    key_talking_points: list[str] | None = None,
+    close_approach: str | None = None,
+) -> None:
+    """Insert a row into follow_up_otto (Postgres) for the Follow Up tab."""
+    try:
+        objections_json = json.dumps(objections) if objections is not None else None
+        key_talking_points_json = (
+            json.dumps(key_talking_points) if key_talking_points is not None else None
+        )
+
+        logger.info(
+            "Inserting follow_up_otto row",
+            id=id,
+            lead_id=str(lead_id),
+            company_id=str(company_id),
+            action_type=action_type,
+            status=status,
+            queue_type=queue_type,
+            attempt_number=attempt_number,
+        )
+        await pg_session.execute(
+            text("""
+                INSERT INTO follow_up_otto (
+                    id, lead_id, company_id, message_content, action_type,
+                    scheduled_at, sent_at, status, error_message,
+                    queue_type, attempt_number, assigned_rep_id, pending_action_id,
+                    opening_line, objections, key_talking_points, close_approach
+                ) VALUES (
+                    :id, :lead_id, :company_id, :message_content, :action_type,
+                    :scheduled_at, :sent_at, :status, :error_message,
+                    :queue_type, :attempt_number, :assigned_rep_id, :pending_action_id,
+                    :opening_line,
+                    CAST(:objections AS jsonb),
+                    CAST(:key_talking_points AS jsonb),
+                    :close_approach
+                )
+            """),
+            {
+                "id": id,
+                "lead_id": str(lead_id),
+                "company_id": str(company_id),
+                "message_content": message_content,
+                "action_type": action_type,
+                "scheduled_at": scheduled_at,
+                "sent_at": sent_at,
+                "status": status,
+                "error_message": error_message,
+                "queue_type": queue_type,
+                "attempt_number": attempt_number,
+                "assigned_rep_id": str(assigned_rep_id) if assigned_rep_id else None,
+                "pending_action_id": pending_action_id,
+                "opening_line": opening_line,
+                "objections": objections_json,
+                "key_talking_points": key_talking_points_json,
+                "close_approach": close_approach,
+            },
+        )
+        await pg_session.commit()
+        logger.info(
+            "Inserted follow_up_otto row",
+            id=id,
+            lead_id=str(lead_id),
+            status=status,
+        )
+    except Exception as e:
+        logger.warning("Failed to insert follow_up_otto row", id=id, error=str(e))
+
+
+async def _update_follow_up_otto(
+    pg_session: AsyncSession,
+    log_id: str,
+    *,
+    status: str | None = None,
+    sent_at: datetime | None = None,
+    pending_action_id: str | None = None,
+    error_message: str | None = None,
+    external_message_id: str | None = None,
+) -> None:
+    """Update a follow_up_otto row after send/failure."""
+    try:
+        updates = ["updated_at = :updated_at"]
+        params = {"id": log_id, "updated_at": datetime.now(timezone.utc)}
+        if status is not None:
+            updates.append("status = :status")
+            params["status"] = status
+        if sent_at is not None:
+            updates.append("sent_at = :sent_at")
+            params["sent_at"] = sent_at
+        if pending_action_id is not None:
+            updates.append("pending_action_id = :pending_action_id")
+            params["pending_action_id"] = pending_action_id
+        if error_message is not None:
+            updates.append("error_message = :error_message")
+            params["error_message"] = error_message
+        if external_message_id is not None:
+            updates.append("external_message_id = :external_message_id")
+            params["external_message_id"] = external_message_id
+        logger.info(
+            "Updating follow_up_otto row",
+            id=log_id,
+            status=status,
+            sent_at=sent_at.isoformat() if sent_at else None,
+            pending_action_id=pending_action_id,
+            has_error=error_message is not None,
+            has_external_id=external_message_id is not None,
+        )
+        await pg_session.execute(
+            text(
+                f"UPDATE follow_up_otto SET {', '.join(updates)} WHERE id = :id"
+            ),
+            params,
+        )
+        await pg_session.commit()
+        logger.info("Updated follow_up_otto row", id=log_id)
+    except Exception as e:
+        logger.warning("Failed to update follow_up_otto row", id=log_id, error=str(e))
+
+
 async def process_lead(
     ctx: AssembledContext,
     schedule: ScheduleResult,
@@ -269,6 +406,19 @@ async def _process_sms(
         status=FollowUpStatus.PROPOSED.value,
         shunya_context_used=has_context,
     )
+    await _insert_follow_up_otto(
+        pg_session,
+        id=log_id,
+        lead_id=ctx.lead.lead_id,
+        company_id=ctx.lead.company_id,
+        message_content=sms_text,
+        action_type=ActionType.SMS_TO_LEAD.value,
+        scheduled_at=schedule.scheduled_for,
+        status=FollowUpStatus.PROPOSED.value,
+        queue_type=ctx.queue_type,
+        attempt_number=ctx.attempt_number,
+        assigned_rep_id=ctx.lead.assigned_rep_id,
+    )
 
     # Execute if auto-execute is on and not dry run
     if settings.AUTO_EXECUTE and not settings.DRY_RUN:
@@ -277,11 +427,19 @@ async def _process_sms(
                 local_session, log_id, FollowUpStatus.FAILED.value,
                 error_message="No phone number on lead",
             )
+            await _update_follow_up_otto(
+                pg_session, log_id, status=FollowUpStatus.FAILED.value,
+                error_message="No phone number on lead",
+            )
             return log_id
 
         if not company_config or not sms_sender:
             await _update_log_status(
                 local_session, log_id, FollowUpStatus.FAILED.value,
+                error_message="No company config or SMS sender available",
+            )
+            await _update_follow_up_otto(
+                pg_session, log_id, status=FollowUpStatus.FAILED.value,
                 error_message="No company config or SMS sender available",
             )
             return log_id
@@ -306,9 +464,18 @@ async def _process_sms(
                 local_session, log_id, FollowUpStatus.SENT.value,
                 sent_at=datetime.now(timezone.utc),
             )
+            await _update_follow_up_otto(
+                pg_session, log_id, status=FollowUpStatus.SENT.value,
+                sent_at=datetime.now(timezone.utc),
+                external_message_id=sid,
+            )
         else:
             await _update_log_status(
                 local_session, log_id, FollowUpStatus.FAILED.value,
+                error_message="Twilio send failed",
+            )
+            await _update_follow_up_otto(
+                pg_session, log_id, status=FollowUpStatus.FAILED.value,
                 error_message="Twilio send failed",
             )
 
@@ -348,12 +515,33 @@ async def _process_nudge(
         status=FollowUpStatus.PROPOSED.value,
         shunya_context_used=has_context,
     )
+    await _insert_follow_up_otto(
+        pg_session,
+        id=log_id,
+        lead_id=ctx.lead.lead_id,
+        company_id=ctx.lead.company_id,
+        message_content=nudge_text,
+        action_type=ActionType.NUDGE_SALES_REP.value,
+        scheduled_at=schedule.scheduled_for,
+        status=FollowUpStatus.PROPOSED.value,
+        queue_type=ctx.queue_type,
+        attempt_number=ctx.attempt_number,
+        assigned_rep_id=ctx.lead.assigned_rep_id,
+        opening_line=nudge.opening_line,
+        objections=[{"objection": o.objection, "suggested_response": o.suggested_response} for o in nudge.objections],
+        key_talking_points=nudge.key_talking_points,
+        close_approach=nudge.close_approach,
+    )
 
     # Execute if auto-execute is on and not dry run
     if settings.AUTO_EXECUTE and not settings.DRY_RUN:
         if not ctx.lead.assigned_rep_id:
             await _update_log_status(
                 local_session, log_id, FollowUpStatus.FAILED.value,
+                error_message="No assigned rep for nudge",
+            )
+            await _update_follow_up_otto(
+                pg_session, log_id, status=FollowUpStatus.FAILED.value,
                 error_message="No assigned rep for nudge",
             )
             return log_id
@@ -377,9 +565,18 @@ async def _process_nudge(
                 sent_at=datetime.now(timezone.utc),
                 pending_action_id=action_id,
             )
+            await _update_follow_up_otto(
+                pg_session, log_id, status=FollowUpStatus.SENT.value,
+                sent_at=datetime.now(timezone.utc),
+                pending_action_id=action_id,
+            )
         else:
             await _update_log_status(
                 local_session, log_id, FollowUpStatus.FAILED.value,
+                error_message="pending_action INSERT failed",
+            )
+            await _update_follow_up_otto(
+                pg_session, log_id, status=FollowUpStatus.FAILED.value,
                 error_message="pending_action INSERT failed",
             )
 
@@ -469,7 +666,7 @@ async def run(
                         gate="opt_out",
                         result=True,
                     )
-                    await _log_follow_up(
+                    log_id = await _log_follow_up(
                         local_session,
                         lead_id=ctx.lead.lead_id,
                         company_id=ctx.lead.company_id,
@@ -485,6 +682,19 @@ async def run(
                         shunya_context_used=False,
                         paused_reason=PausedReason.OPTED_OUT.value,
                         paused_at=now.isoformat(),
+                    )
+                    await _insert_follow_up_otto(
+                        pg_session,
+                        id=log_id,
+                        lead_id=ctx.lead.lead_id,
+                        company_id=ctx.lead.company_id,
+                        message_content="Sequence stopped — homeowner opted out",
+                        action_type=ActionType.MARK_DORMANT.value,
+                        scheduled_at=now,
+                        status=FollowUpStatus.OPTED_OUT.value,
+                        queue_type=queue_type.value,
+                        attempt_number=ctx.attempt_number,
+                        assigned_rep_id=ctx.lead.assigned_rep_id,
                     )
                     stats["gated_opted_out"] += 1
                     continue
@@ -510,7 +720,7 @@ async def run(
                             homeowner_name=ctx.lead.contact_name,
                             queue_type=queue_type.value,
                         )
-                    await _log_follow_up(
+                    log_id = await _log_follow_up(
                         local_session,
                         lead_id=ctx.lead.lead_id,
                         company_id=ctx.lead.company_id,
@@ -527,6 +737,19 @@ async def run(
                         paused_reason=PausedReason.HOMEOWNER_REPLIED.value,
                         paused_at=now.isoformat(),
                     )
+                    await _insert_follow_up_otto(
+                        pg_session,
+                        id=log_id,
+                        lead_id=ctx.lead.lead_id,
+                        company_id=ctx.lead.company_id,
+                        message_content="Sequence paused — homeowner replied",
+                        action_type=ActionType.SMS_TO_LEAD.value,
+                        scheduled_at=now,
+                        status=FollowUpStatus.PAUSED.value,
+                        queue_type=queue_type.value,
+                        attempt_number=ctx.attempt_number,
+                        assigned_rep_id=ctx.lead.assigned_rep_id,
+                    )
                     stats["gated_homeowner_reply"] += 1
                     continue
 
@@ -542,7 +765,7 @@ async def run(
                         gate="rep_intervention",
                         result=True,
                     )
-                    await _log_follow_up(
+                    log_id = await _log_follow_up(
                         local_session,
                         lead_id=ctx.lead.lead_id,
                         company_id=ctx.lead.company_id,
@@ -558,6 +781,19 @@ async def run(
                         shunya_context_used=False,
                         paused_reason=PausedReason.REP_INTERVENED.value,
                         paused_at=now.isoformat(),
+                    )
+                    await _insert_follow_up_otto(
+                        pg_session,
+                        id=log_id,
+                        lead_id=ctx.lead.lead_id,
+                        company_id=ctx.lead.company_id,
+                        message_content="Sequence paused — rep manually contacted lead",
+                        action_type=ActionType.SMS_TO_LEAD.value,
+                        scheduled_at=now,
+                        status=FollowUpStatus.PAUSED.value,
+                        queue_type=queue_type.value,
+                        attempt_number=ctx.attempt_number,
+                        assigned_rep_id=ctx.lead.assigned_rep_id,
                     )
                     stats["gated_rep_intervened"] += 1
                     continue
@@ -582,7 +818,7 @@ async def run(
             # Dormant check
             if schedule.is_dormant:
                 lead_log.info("Lead is dormant — max attempts reached")
-                await _log_follow_up(
+                log_id = await _log_follow_up(
                     local_session,
                     lead_id=ctx.lead.lead_id,
                     company_id=ctx.lead.company_id,
@@ -597,17 +833,43 @@ async def run(
                     status=FollowUpStatus.DORMANT.value,
                     shunya_context_used=False,
                 )
+                await _insert_follow_up_otto(
+                    pg_session,
+                    id=log_id,
+                    lead_id=ctx.lead.lead_id,
+                    company_id=ctx.lead.company_id,
+                    message_content="Lead marked dormant — max attempts exceeded",
+                    action_type=ActionType.MARK_DORMANT.value,
+                    scheduled_at=now,
+                    status=FollowUpStatus.DORMANT.value,
+                    queue_type=queue_type.value,
+                    attempt_number=ctx.attempt_number,
+                    assigned_rep_id=ctx.lead.assigned_rep_id,
+                )
                 stats["skipped_dormant"] += 1
                 continue
 
-            # Not due yet → log as pending, skip generation
+            # Not due yet → log as pending, skip generation (no follow_up_otto insert until we process)
             if schedule.scheduled_for > now:
-                lead_log.info(
-                    "Not due yet",
-                    scheduled_for=schedule.scheduled_for.isoformat(),
-                )
-                stats["skipped_not_due"] += 1
-                continue
+                # When testing a single lead with --lead-id, force due so we can verify follow_up_otto inserts
+                if lead_id_filter and str(ctx.lead.lead_id) == lead_id_filter:
+                    lead_log.info(
+                        "Single-lead test: forcing scheduled_for=now so lead is processed and follow_up_otto is populated",
+                        was_scheduled_for=schedule.scheduled_for.isoformat(),
+                    )
+                    schedule = ScheduleResult(
+                        scheduled_for=now,
+                        is_dormant=schedule.is_dormant,
+                        cadence_override=schedule.cadence_override,
+                        override_reason=schedule.override_reason or "test override",
+                    )
+                else:
+                    lead_log.info(
+                        "Not due yet — skipping process_lead and follow_up_otto insert",
+                        scheduled_for=schedule.scheduled_for.isoformat(),
+                    )
+                    stats["skipped_not_due"] += 1
+                    continue
 
             # Determine action types
             action_types = determine_action_types(ctx)

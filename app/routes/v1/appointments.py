@@ -99,13 +99,15 @@ async def list_appointments(
     - limit: Maximum number of results (1-1000)
     """
     try:
-        from datetime import date as date_type, datetime as datetime_type
+        from datetime import date as date_type, datetime as datetime_type, timezone as tz
 
         start_dt = None
         end_dt = None
         if start_date:
             try:
                 start_dt = datetime_type.fromisoformat(start_date)
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=tz.utc)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -114,6 +116,8 @@ async def list_appointments(
         if end_date:
             try:
                 end_dt = datetime_type.fromisoformat(end_date)
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=tz.utc)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -204,13 +208,15 @@ async def list_past_appointments(
     - limit: Maximum number of results (1-1000)
     """
     try:
-        from datetime import datetime as datetime_type
+        from datetime import datetime as datetime_type, timezone as tz
 
         start_dt = None
         end_dt = None
         if start_date:
             try:
                 start_dt = datetime_type.fromisoformat(start_date)
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=tz.utc)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -219,6 +225,8 @@ async def list_past_appointments(
         if end_date:
             try:
                 end_dt = datetime_type.fromisoformat(end_date)
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=tz.utc)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,

@@ -3,7 +3,7 @@ Lead detail domain model.
 
 Comprehensive lead details for the lead details page.
 """
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel as PydanticBaseModel, ConfigDict, Field
@@ -119,13 +119,39 @@ class AppointmentDetails(_SlimModel):
 
 
 class FollowUpTask(_SlimModel):
-    """A single follow-up / pending action."""
+    """
+    A single follow-up item: legacy `pending_actions` and/or `follow_up_otto` (GoMotto).
+    """
     id: UUID
     action_type: str
     raw_text: Optional[str] = None
     status: str = "pending"
     due_at: Optional[datetime] = None
     priority: Optional[int] = None
+
+    # When row comes from follow_up_otto (GoMotto agent)
+    source: Optional[str] = Field(
+        None,
+        description="pending_action | follow_up_otto",
+    )
+    message_content: Optional[str] = None
+    scheduled_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+    external_message_id: Optional[str] = None
+    attempt_number: Optional[int] = None
+    queue_type: Optional[str] = None
+    company_id: Optional[UUID] = None
+    assigned_rep_id: Optional[UUID] = None
+    pending_action_id: Optional[UUID] = Field(
+        None,
+        description="Linked pending_actions.id when nudge created a task",
+    )
+    opening_line: Optional[str] = None
+    close_approach: Optional[str] = None
+    objections: Optional[List[Any]] = None
+    key_talking_points: Optional[List[Any]] = None
+    error_message: Optional[str] = None
+    ai_reasoning: Optional[Any] = None
 
 
 class FollowUpTracking(_SlimModel):
@@ -163,8 +189,9 @@ class ResultTab(_SlimModel):
     overall_engagement: PipelineEngagement
     conversations: List[PipelineConversation] = Field(default_factory=list)
 
-    # Follow-up tracking
-    follow_up: FollowUpTracking = Field(default_factory=FollowUpTracking)
+    # Follow-up tracking intentionally omitted from `result` tab.
+    # GoMotto follow-ups are shown under `appointment.follow_up` only.
+    follow_up: Optional[FollowUpTracking] = None
 
 
 class PipelineLeadTab(_SlimModel):
@@ -182,11 +209,17 @@ class PipelineLeadDetail(_SlimModel):
     - lead: always present (CSR stage view — calls & overall engagement)
     - appointment: present when lead has a linked appointment
     - result: present when the appointment has been conducted (has outcome or analysis)
+    - follow_up: when there is no appointment tab, GoMotto + pending_actions live here
+      so follow-ups are still returned for qualified-unbooked leads without an appointment row.
     """
     pipeline_stage: Optional[str] = None
     lead: PipelineLeadTab
     appointment: Optional[AppointmentTab] = None
     result: Optional[ResultTab] = None
+    follow_up: Optional[FollowUpTracking] = Field(
+        None,
+        description="Follow-up tracking when appointment tab is absent",
+    )
 
 
 class LeadDetail(BaseModel):

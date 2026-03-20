@@ -199,21 +199,28 @@ async def shoonya_job_complete_webhook(
         # In NEW FLOW, call may not exist yet
         call = await service.call_repo.get_by_id(call_id)
 
-        # Get company_id from call if exists, otherwise from payload
+        # Always check appointments table — Shunya uses the same webhook for both
+        from app.infrastructure.repositories.appointment import AppointmentRepository
+        appointment_repo = AppointmentRepository(db)
+        found_appointment = await appointment_repo.get_by_id(call_id)
+
+        # Get company_id from call/appointment if exists, otherwise from payload
         if call:
-            # OLD FLOW: Call record exists
             if not company_id:
                 company_id = str(call.company_id)
             logger.info(f"Found existing call record for {call_id}")
+        elif found_appointment:
+            if not company_id:
+                company_id = str(found_appointment.company_id)
+            logger.info(f"Found appointment record for {call_id}")
         else:
-            # NEW FLOW: Call record doesn't exist yet (direct Shunya submission)
             if not company_id:
                 logger.warning(f"Call {call_id} not found and no company_id in payload")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Call {call_id} not found and company_id not provided",
                 )
-            logger.info(f"No existing call record for {call_id}, will create from Shunya results (NEW FLOW)")
+            logger.info(f"No existing call/appointment record for {call_id}, will create from Shunya results")
 
         # CRITICAL: Always fetch complete call summary from Shunya Summary API
         # The webhook payload only contains URLs (summary_url at top level or in results), not the actual data
@@ -306,15 +313,14 @@ async def shoonya_job_complete_webhook(
         logger.info(f"Processing analysis for call {call_id} with complete summary data")
 
         # Check if this is an appointment recording (not a call)
+        # Use our DB lookup first, fall back to Shunya metadata
         metadata = complete_summary_data.get("metadata", {}) if complete_summary_data else {}
-        is_appointment = metadata.get("is_appointment", False)
+        is_appointment = found_appointment is not None or metadata.get("is_appointment", False)
 
         if is_appointment:
             # APPOINTMENT FLOW: Write analysis directly to appointments table
             appointment_id_str = metadata.get("appointment_id") or str(call_id)
-            from app.infrastructure.repositories.appointment import AppointmentRepository
-            appointment_repo = AppointmentRepository(db)
-            appointment = await appointment_repo.get_by_id(UUID(appointment_id_str))
+            appointment = found_appointment or await appointment_repo.get_by_id(UUID(appointment_id_str))
 
             if not appointment:
                 logger.error(f"Appointment {appointment_id_str} not found for Shunya analysis")
@@ -335,7 +341,8 @@ async def shoonya_job_complete_webhook(
                 appointment.key_points = summary_section.get("key_points", [])
                 appointment.action_items = summary_section.get("action_items", [])
                 appointment.next_steps = summary_section.get("next_steps", [])
-                appointment.pending_actions_data = summary_section.get("pending_actions")
+                pending_actions = summary_section.get("pending_actions")
+                appointment.pending_actions_data = pending_actions if isinstance(pending_actions, dict) else None
                 appointment.sentiment_score = summary_section.get("sentiment_score")
 
             # Objections

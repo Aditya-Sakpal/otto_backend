@@ -26,6 +26,8 @@ from app.routes.v1 import (
     ghost_mode,
     coaching,
     tenant_config,
+    masked_comms,
+    twilio_webhooks,
 )
 
 router = APIRouter()
@@ -55,3 +57,5 @@ router.include_router(leaderboards.router, prefix="/leaderboards", tags=["leader
 router.include_router(ghost_mode.router, prefix="/ghost-mode", tags=["ghost-mode"])
 router.include_router(coaching.router, prefix="/coaching", tags=["coaching"])
 router.include_router(tenant_config.router, prefix="/tenant-config", tags=["tenant-config"])
+router.include_router(masked_comms.router, prefix="/masked-comms", tags=["masked-comms"])
+router.include_router(twilio_webhooks.router, prefix="/twilio/masked-comms", tags=["twilio-webhooks"])

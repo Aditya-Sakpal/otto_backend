@@ -42,8 +42,20 @@ class AppointmentBase(BaseModel):
 class AppointmentCreate(AppointmentBase):
     """Schema for creating a new appointment."""
 
-    # All fields from AppointmentBase are required/optional as defined there.
-    pass
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "company_id": "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+                "lead_id": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+                "contact_card_id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+                "scheduled_start": "2026-03-25T10:00:00Z",
+                "scheduled_end": "2026-03-25T11:00:00Z",
+                "location_address": "123 Main St, Phoenix AZ 85001",
+                "outcome": None,
+                "assigned_rep_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+            }
+        }
+    }
 
 
 class AppointmentUpdate(BaseModel):

@@ -35,19 +35,34 @@ RESPONSES = {
 
 # Request/Response Models
 class ProcessCallRequest(BaseModel):
-    """Request to process a call."""
+    """Request to process a call via AI analysis (transcription, summarization, objection detection, SOP compliance)."""
     call_id: str = Field(..., description="Call UUID")
     company_id: str = Field(..., description="Company UUID")
-    audio_url: str = Field(..., description="Public URL to audio file")
-    phone_number: str = Field(..., description="Phone number")
+    audio_url: str = Field(..., description="Public URL to audio file (mp3, wav, etc.)")
+    phone_number: str = Field(..., description="Phone number of the caller")
     duration: int = Field(..., description="Call duration in seconds")
-    call_date: str = Field(..., description="ISO 8601 datetime string")
-    metadata: dict = Field(default_factory=dict, description="Additional metadata")
-    webhook_url: Optional[str] = Field(None, description="Webhook URL for completion notification")
+    call_date: str = Field(..., description="ISO 8601 datetime string (e.g. '2026-03-20T10:30:00Z')")
+    metadata: dict = Field(default_factory=dict, description="Additional metadata (e.g. call_type, lead_id)")
+    webhook_url: Optional[str] = Field(None, description="Webhook URL for completion notification (defaults to internal webhook)")
     options: dict = Field(
         default_factory=dict,
-        description="Processing options: skip_rag_indexing, skip_summary_generation, priority"
+        description="Processing options: skip_rag_indexing (bool), skip_summary_generation (bool), priority ('normal'|'high')"
     )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "call_id": "ede64a3e-cb73-44c4-94cc-35af4a95b0ac",
+                "company_id": "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+                "audio_url": "https://storage.example.com/recordings/call-123.mp3",
+                "phone_number": "+15551234567",
+                "duration": 180,
+                "call_date": "2026-03-20T10:30:00Z",
+                "metadata": {"call_type": "csr_call", "lead_id": "b1c2d3e4-f5a6-7890-abcd-ef1234567890"},
+                "options": {"skip_rag_indexing": False, "priority": "normal"},
+            }
+        }
+    }
 
 
 class ProcessCallResponse(BaseModel):

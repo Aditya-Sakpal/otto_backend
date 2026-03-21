@@ -160,7 +160,34 @@ class FollowUpTracking(_SlimModel):
     last_touched: Optional[datetime] = None
     is_overdue: bool = False
     next_follow_up: Optional[datetime] = None
-    tasks: List[FollowUpTask] = Field(default_factory=list)
+    # For UI we expose the "current" follow-up directly under `follow_up`
+    # (no `tasks` list wrapper). The backend still computes tasks internally.
+
+    # Current follow-up (derived from the first/most relevant FollowUpTask)
+    task_id: Optional[UUID] = None
+    source: Optional[str] = None
+    action_type: Optional[str] = None
+    status: Optional[str] = None
+    due_at: Optional[datetime] = None
+    priority: Optional[int] = None
+
+    # GoMotto / Rep nudge content
+    message_content: Optional[str] = None
+    scheduled_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+    external_message_id: Optional[str] = None
+    attempt_number: Optional[int] = None
+    queue_type: Optional[str] = None
+    company_id: Optional[UUID] = None
+    assigned_rep_id: Optional[UUID] = None
+    pending_action_id: Optional[UUID] = None
+    error_message: Optional[str] = None
+    ai_reasoning: Optional[Any] = None
+
+    opening_line: Optional[str] = None
+    objections: Optional[List[Any]] = None
+    key_talking_points: Optional[List[Any]] = None
+    close_approach: Optional[str] = None
 
 
 class AppointmentTab(_SlimModel):

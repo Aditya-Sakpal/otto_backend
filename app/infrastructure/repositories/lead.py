@@ -1,7 +1,7 @@
 """
 Lead repository.
 """
-from typing import Optional, List
+from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime, date, timezone
 
@@ -788,6 +788,104 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         standalone_pa = [pa for pa in follow_up_actions if pa.id not in linked_pa_ids]
 
         otto_tasks: List[FollowUpTask] = []
+
+        def _clean_rep_nudge_message_content(raw: Optional[str]) -> Optional[str]:
+            """
+            Remove agenda-style section labels from old rep nudge formatting.
+            This keeps only the content blocks so the UI can show/send directly.
+            """
+            if not raw:
+                return raw
+            import re
+
+            # Fallback sanitizer used only when structured columns are empty.
+            # We keep it generic and conservative.
+            lines = raw.splitlines()
+            out: List[str] = []
+            skip_section = False
+
+            for line in lines:
+                stripped = line.strip()
+
+                # Drop the top-level agenda title
+                if stripped.startswith("Follow-up call agenda for "):
+                    continue
+
+                # If we ever encounter explicit key talking points, drop until blank line
+                if stripped.startswith("Key talking points:"):
+                    skip_section = True
+                    continue
+                if skip_section:
+                    if stripped == "" or stripped.startswith("Close:"):
+                        skip_section = False
+                    else:
+                        continue
+
+                # Remove simple labels if present
+                if stripped.startswith("Opening:"):
+                    out.append(stripped[len("Opening:") :].strip())
+                    continue
+                if stripped.startswith("Close:"):
+                    out.append(stripped[len("Close:") :].strip())
+                    continue
+                if stripped.startswith("Objections to address:"):
+                    continue
+                if stripped.startswith("Response:"):
+                    out.append(stripped[len("Response:") :].strip())
+                    continue
+
+                out.append(line)
+
+            cleaned = "\n".join(out)
+            cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+            return cleaned
+
+        def _compose_rep_nudge_customer_message(
+            *,
+            opening_line: Optional[str],
+            objections_raw: Any,
+            close_approach: Optional[str],
+        ) -> Optional[str]:
+            """
+            Build a customer-ready message from structured columns.
+
+            This is more robust than regex-stripping the old `message_content`
+            because we completely omit the "key talking points" section.
+            """
+            parts: List[str] = []
+
+            opening = (opening_line or "").strip()
+            if opening:
+                parts.append(opening)
+
+            # objections_raw is stored as JSONB; we normalize to a list of dicts
+            objection_items: List[dict] = []
+            if isinstance(objections_raw, list):
+                objection_items = [o for o in objections_raw if isinstance(o, dict)]
+            elif isinstance(objections_raw, dict):
+                objection_items = [objections_raw]
+
+            objection_blocks: List[str] = []
+            for o in objection_items:
+                ob = (o.get("objection") or "").strip()
+                resp = (o.get("suggested_response") or o.get("response") or "").strip()
+                if ob and resp:
+                    objection_blocks.append(f"\"{ob}\"\n{resp}")
+                elif resp:
+                    objection_blocks.append(resp)
+                elif ob:
+                    objection_blocks.append(ob)
+
+            if objection_blocks:
+                parts.append("\n\n".join(objection_blocks))
+
+            close = (close_approach or "").strip()
+            if close:
+                parts.append(close)
+
+            composed = "\n\n".join(parts).strip()
+            return composed or None
+
         for row in otto_rows:
             ktp = row.key_talking_points
             ktp_norm: Optional[list] = ktp if isinstance(ktp, list) else None
@@ -799,16 +897,26 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             else:
                 obj_norm = None
 
+            cleaned_message = row.message_content
+            if row.action_type == "nudge_sales_rep":
+                composed = _compose_rep_nudge_customer_message(
+                    opening_line=row.opening_line,
+                    objections_raw=row.objections,
+                    close_approach=row.close_approach,
+                )
+                # If structured columns are missing for some reason, fallback to stripping.
+                cleaned_message = composed or _clean_rep_nudge_message_content(row.message_content)
+
             otto_tasks.append(
                 FollowUpTask(
                     id=row.id,
                     action_type=row.action_type,
-                    raw_text=row.message_content,
+                    raw_text=cleaned_message,
                     status=row.status,
                     due_at=row.scheduled_at,
                     priority=None,
                     source="follow_up_otto",
-                    message_content=row.message_content,
+                    message_content=cleaned_message,
                     scheduled_at=row.scheduled_at,
                     sent_at=row.sent_at,
                     external_message_id=row.external_message_id,
@@ -884,12 +992,41 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         ]
         next_follow_up = min(future_otto + future_pa, default=None)
 
+        # Pick a "current" follow-up task for the UI.
+        # Prefer the next follow-up time; fallback to earliest due/scheduled.
+        def _task_when(t: FollowUpTask) -> datetime:
+            return t.due_at or t.scheduled_at or datetime.max.replace(tzinfo=timezone.utc)
+
+        current_task: Optional[FollowUpTask] = None
+        if tasks:
+            current_task = sorted(tasks, key=_task_when)[0]
+
         return FollowUpTracking(
             follow_up_attempts=follow_up_attempts,
             last_touched=last_touched,
             is_overdue=is_overdue,
             next_follow_up=next_follow_up,
-            tasks=tasks,
+            task_id=current_task.id if current_task else None,
+            source=current_task.source if current_task else None,
+            action_type=current_task.action_type if current_task else None,
+            status=current_task.status if current_task else None,
+            due_at=current_task.due_at if current_task else None,
+            priority=current_task.priority if current_task else None,
+            message_content=current_task.message_content if current_task else None,
+            scheduled_at=current_task.scheduled_at if current_task else None,
+            sent_at=current_task.sent_at if current_task else None,
+            external_message_id=current_task.external_message_id if current_task else None,
+            attempt_number=current_task.attempt_number if current_task else None,
+            queue_type=current_task.queue_type if current_task else None,
+            company_id=current_task.company_id if current_task else None,
+            assigned_rep_id=current_task.assigned_rep_id if current_task else None,
+            pending_action_id=current_task.pending_action_id if current_task else None,
+            error_message=current_task.error_message if current_task else None,
+            ai_reasoning=current_task.ai_reasoning if current_task else None,
+            opening_line=current_task.opening_line if current_task else None,
+            objections=current_task.objections if current_task else None,
+            key_talking_points=current_task.key_talking_points if current_task else None,
+            close_approach=current_task.close_approach if current_task else None,
         )
 
     async def get_pipeline_detail_by_id(self, lead_id: UUID) -> Optional[PipelineLeadDetail]:

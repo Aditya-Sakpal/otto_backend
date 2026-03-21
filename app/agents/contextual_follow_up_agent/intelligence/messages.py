@@ -168,30 +168,45 @@ async def generate_rep_nudge(
 
 
 def format_nudge_as_text(nudge: RepNudge, lead_name: str) -> str:
-    """Format a RepNudge into human-readable text for pending_action.raw_text."""
-    lines = [
-        f"Follow-up call agenda for {lead_name}:",
-        "",
-        f"Opening: {nudge.opening_line}",
-    ]
+    """
+    Format a RepNudge into a customer-ready script (no section headings).
 
+    IMPORTANT: The frontend/UI consumes `message_content` for display/sending.
+    So we intentionally remove labels like:
+      - "Follow-up call agenda..."
+      - "Opening:"
+      - "Objections to address:"
+      - "Key talking points:"
+      - "Close:"
+    and keep only the actual content blocks.
+    """
+
+    parts: list[str] = []
+
+    opening = (nudge.opening_line or "").strip()
+    if opening:
+        parts.append(opening)
+
+    # Objection handling (keep as quoted objection + suggested response text)
     if nudge.objections:
-        lines.append("")
-        lines.append("Objections to address:")
+        objection_blocks: list[str] = []
         for obj in nudge.objections:
-            lines.append(f"  - \"{obj.objection}\"")
-            lines.append(f"    Response: {obj.suggested_response}")
+            ob = (obj.objection or "").strip()
+            resp = (obj.suggested_response or "").strip()
+            if ob and resp:
+                objection_blocks.append(f"\"{ob}\"\n{resp}")
+            elif resp:
+                objection_blocks.append(resp)
+            elif ob:
+                objection_blocks.append(f"\"{ob}\"")
+        if objection_blocks:
+            parts.append("\n\n".join(objection_blocks))
 
-    if nudge.key_talking_points:
-        lines.append("")
-        lines.append("Key talking points:")
-        for tp in nudge.key_talking_points:
-            lines.append(f"  - {tp}")
+    close = (nudge.close_approach or "").strip()
+    if close:
+        parts.append(close)
 
-    lines.append("")
-    lines.append(f"Close: {nudge.close_approach}")
-
-    return "\n".join(lines)
+    return "\n\n".join([p for p in parts if p])
 
 
 def _parse_json_response(raw_text: str) -> dict:

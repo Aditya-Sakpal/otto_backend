@@ -2188,6 +2188,101 @@ class ShoonyaClient:
             traceback.print_exc()
             raise
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def list_coaching_reps(self, company_id: str) -> Dict[str, Any]:
+        """
+        List reps (agents) with calls for a company (Shunya aggregated coaching).
+
+        GET /api/v1/coaching/reps
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/coaching/reps"
+        params = {"company_id": company_id}
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+                params=params,
+                timeout=60.0,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error listing coaching reps: {e.response.status_code}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error listing coaching reps: {e}")
+            traceback.print_exc()
+            raise
+
+    @retry(
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=4, max=20),
+    )
+    async def get_rep_coaching_profile(
+        self,
+        company_id: str,
+        rep_id: str,
+        force_refresh: bool = False,
+        window_days: int = 30,
+    ) -> Dict[str, Any]:
+        """
+        Full rep coaching profile (15 canonical categories, Shunya).
+
+        GET /api/v1/coaching/reps/{rep_id}/profile
+
+        First request with force_refresh may take 30–60s; uses extended HTTP timeout.
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        from urllib.parse import quote
+
+        safe_rep = quote(rep_id, safe="")
+        url = f"{self.base_url}/api/v1/coaching/reps/{safe_rep}/profile"
+        params: Dict[str, Any] = {
+            "company_id": company_id,
+            "window_days": window_days,
+        }
+        if force_refresh:
+            params["force_refresh"] = "true"
+
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+                params=params,
+                timeout=120.0,
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error getting rep coaching profile: {e.response.status_code}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting rep coaching profile: {e}")
+            traceback.print_exc()
+            raise
+
 
 # Global client instance
 _shoonya_client: Optional[ShoonyaClient] = None

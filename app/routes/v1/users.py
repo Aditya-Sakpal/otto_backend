@@ -111,6 +111,64 @@ async def get_sales_reps_by_company(
         )
 
 
+@router.delete(
+    "/sales-reps/{sales_rep_id}",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="Deactivate a sales rep (soft delete)",
+)
+async def deactivate_sales_rep(
+    sales_rep_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_executive),
+) -> UserResponse:
+    """
+    Set is_active to false for the given sales rep user.
+
+    Access: EXECUTIVE only. When the caller has a company_id, the rep must belong to the same company.
+    """
+    try:
+        service = UserService(db)
+        target = await service.get_by_id(sales_rep_id)
+        if not target:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        if target.role != UserRole.SALES_REP:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not a sales rep",
+            )
+        if current_user.company_id is not None and target.company_id != current_user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot deactivate a sales rep outside your company",
+            )
+        updated = await service.deactivate_sales_rep(sales_rep_id)
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        return UserResponse.model_validate(updated)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error deactivating sales rep: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
 @router.get("/assignees", response_model=List[UserResponse], responses=RESPONSES)
 async def list_assignees(
     db: DbSession,

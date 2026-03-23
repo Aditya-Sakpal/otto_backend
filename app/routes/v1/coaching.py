@@ -6,6 +6,7 @@ Provides endpoints for the coaching dashboard:
 - Coaching session CRUD (create and list)
 - Smart nudge CRUD (list, read, dismiss, unread count)
 - Coaching cycle management (stop, history)
+- Shunya proxies: rep list + aggregated coaching profile (series 7.8 / 7.9)
 
 All endpoints require EXECUTIVE role.
 """
@@ -14,6 +15,7 @@ from typing import Optional
 from uuid import UUID
 from datetime import date
 
+import httpx
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 
 from app.core.dependencies import DbSession, get_current_user
@@ -40,11 +42,21 @@ from app.domain.schemas.nudges import (
 from app.services.coaching_service import CoachingService
 from app.services.smart_nudge_service import SmartNudgeService
 from app.services.coaching_cycle_service import CoachingCycleService
+from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["coaching"])
+
+
+def _assert_coaching_company_scope(current_user: User, company_id: UUID) -> None:
+    """Executives may only query their own company unless company_id is unset (e.g. dev)."""
+    if current_user.company_id is not None and current_user.company_id != company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access coaching data for your own company",
+        )
 
 RESPONSES = {
     400: {"description": "Bad request (e.g. missing company_id)"},
@@ -265,6 +277,107 @@ async def get_individual_dashboard(
     except Exception as e:
         logger.error(f"Error getting individual dashboard: {e}")
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Rep coaching profiles (Shunya proxy — docs series 7.8 / 7.9)
+# ============================================================================
+
+
+@router.get(
+    "/reps",
+    responses={**RESPONSES, 200: {"description": "Rep list from Shunya"}},
+    summary="List reps for aggregated coaching (Shunya)",
+    description="""
+Proxies **GET /api/v1/coaching/reps** on Shunya. Returns `rep_id` values to use with
+`/coaching/reps/{rep_id}/profile` (and Shunya's `/top3` when exposed).
+
+**Query:** `company_id` (required).
+
+Requires EXECUTIVE. `company_id` must match the authenticated user's company when set.
+""",
+)
+async def list_coaching_reps_proxy(
+    company_id: UUID = Query(..., description="Company UUID"),
+    current_user: User = Depends(require_executive),
+):
+    _assert_coaching_company_scope(current_user, company_id)
+    shoonya = get_shoonya_client()
+    if not shoonya.is_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Shunya coaching service not available",
+        )
+    try:
+        return await shoonya.list_coaching_reps(str(company_id))
+    except httpx.HTTPStatusError as e:
+        detail = e.response.text[:2000] if e.response.text else e.response.reason_phrase
+        raise HTTPException(status_code=e.response.status_code, detail=detail)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing coaching reps from Shunya: {e}")
+        traceback.print_exc()
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/reps/{rep_id}/profile",
+    responses={**RESPONSES, 200: {"description": "Full coaching profile from Shunya"}},
+    summary="Get rep coaching profile — all categories (Shunya)",
+    description="""
+Proxies **GET /api/v1/coaching/reps/{rep_id}/profile** on Shunya: rolling-window
+aggregated strengths/weaknesses in canonical categories.
+
+**Path:** `rep_id` — Shunya agent id from `/coaching/reps` (e.g. from call metadata).
+
+**Query:** `company_id` (required), `force_refresh` (optional), `window_days` (7–180, default 30).
+
+`force_refresh=true` can take 30–60s on Shunya.
+
+Requires EXECUTIVE. `company_id` must match the authenticated user's company when set.
+""",
+)
+async def get_rep_coaching_profile_proxy(
+    rep_id: str,
+    company_id: UUID = Query(..., description="Company UUID"),
+    current_user: User = Depends(require_executive),
+    force_refresh: bool = Query(False, description="Force Shunya to rebuild cached profile"),
+    window_days: int = Query(30, ge=7, le=180, description="Aggregation window in days"),
+):
+    _assert_coaching_company_scope(current_user, company_id)
+    shoonya = get_shoonya_client()
+    if not shoonya.is_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Shunya coaching service not available",
+        )
+    try:
+        return await shoonya.get_rep_coaching_profile(
+            company_id=str(company_id),
+            rep_id=rep_id,
+            force_refresh=force_refresh,
+            window_days=window_days,
+        )
+    except httpx.HTTPStatusError as e:
+        detail = e.response.text[:2000] if e.response.text else e.response.reason_phrase
+        raise HTTPException(status_code=e.response.status_code, detail=detail)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rep coaching profile from Shunya: {e}")
+        traceback.print_exc()
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
         raise HTTPException(status_code=500, detail=str(e))
 
 

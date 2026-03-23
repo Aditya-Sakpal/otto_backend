@@ -941,6 +941,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 raw_text=pa.raw_text,
                 status=pa.status,
                 due_at=pa.due_at,
+                scheduled_at=pa.due_at,
                 priority=pa.priority,
                 source="pending_action",
             )
@@ -992,41 +993,19 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         ]
         next_follow_up = min(future_otto + future_pa, default=None)
 
-        # Pick a "current" follow-up task for the UI.
-        # Prefer the next follow-up time; fallback to earliest due/scheduled.
-        def _task_when(t: FollowUpTask) -> datetime:
-            return t.due_at or t.scheduled_at or datetime.max.replace(tzinfo=timezone.utc)
+        min_dt = datetime.min.replace(tzinfo=timezone.utc)
 
-        current_task: Optional[FollowUpTask] = None
-        if tasks:
-            current_task = sorted(tasks, key=_task_when)[0]
+        def _content_sort_ts(t: FollowUpTask) -> datetime:
+            return t.sent_at or t.scheduled_at or t.due_at or min_dt
+
+        follow_up_content = sorted(tasks, key=_content_sort_ts, reverse=True)
 
         return FollowUpTracking(
             follow_up_attempts=follow_up_attempts,
             last_touched=last_touched,
             is_overdue=is_overdue,
             next_follow_up=next_follow_up,
-            task_id=current_task.id if current_task else None,
-            source=current_task.source if current_task else None,
-            action_type=current_task.action_type if current_task else None,
-            status=current_task.status if current_task else None,
-            due_at=current_task.due_at if current_task else None,
-            priority=current_task.priority if current_task else None,
-            message_content=current_task.message_content if current_task else None,
-            scheduled_at=current_task.scheduled_at if current_task else None,
-            sent_at=current_task.sent_at if current_task else None,
-            external_message_id=current_task.external_message_id if current_task else None,
-            attempt_number=current_task.attempt_number if current_task else None,
-            queue_type=current_task.queue_type if current_task else None,
-            company_id=current_task.company_id if current_task else None,
-            assigned_rep_id=current_task.assigned_rep_id if current_task else None,
-            pending_action_id=current_task.pending_action_id if current_task else None,
-            error_message=current_task.error_message if current_task else None,
-            ai_reasoning=current_task.ai_reasoning if current_task else None,
-            opening_line=current_task.opening_line if current_task else None,
-            objections=current_task.objections if current_task else None,
-            key_talking_points=current_task.key_talking_points if current_task else None,
-            close_approach=current_task.close_approach if current_task else None,
+            follow_up_content=follow_up_content,
         )
 
     async def get_pipeline_detail_by_id(self, lead_id: UUID) -> Optional[PipelineLeadDetail]:

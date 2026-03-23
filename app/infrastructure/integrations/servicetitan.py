@@ -310,10 +310,19 @@ class ServiceTitanClient:
 
         # from_token is an ISO timestamp when using fallback mode
         modified_since = from_token or now
-        items = await self._get_paginated(
-            f"/crm/v2/tenant/{self.tenant_id}/bookings",
-            {"modifiedOnOrAfter": modified_since},
-        )
+        try:
+            items = await self._get_paginated(
+                f"/crm/v2/tenant/{self.tenant_id}/bookings",
+                {"modifiedOnOrAfter": modified_since},
+            )
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code != 403:
+                raise
+            logger.warning(
+                f"Tenant {self.tenant_id}: bookings paginated endpoint also "
+                f"returned 403 — tenant may not have CRM bookings access"
+            )
+            return [], now
         return items, now
 
     # ----------------------------------------------------------------------- #

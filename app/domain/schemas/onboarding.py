@@ -51,3 +51,6 @@ class OnboardingCompleteResponse(BaseModel):
     role: UserRole
     company_id: Optional[UUID]
     created_at: str
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"

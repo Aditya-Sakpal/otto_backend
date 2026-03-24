@@ -19,6 +19,7 @@ from app.domain.schemas.onboarding import (
     ValidateServiceTitanRequest,
     ValidateServiceTitanResponse,
 )
+from app.domain.users.schemas import UserResponse
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
 from app.services.onboarding_service import OnboardingService
@@ -173,15 +174,18 @@ async def complete_onboarding(
 
         user = result.user
         return OnboardingCompleteResponse(
-            id=user.id,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            role=user.role,
-            company_id=user.company_id,
-            created_at=user.created_at.isoformat() if hasattr(user.created_at, "isoformat") else str(user.created_at),
             access_token=result.access_token,
             refresh_token=result.refresh_token,
+            user=UserResponse(
+                id=user.id,
+                email=user.email,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                role=user.role,
+                company_id=user.company_id,
+                is_active=user.is_active,
+                created_at=user.created_at,
+            ),
         )
 
     except ValueError as e:

@@ -43,14 +43,14 @@ class ValidateServiceTitanResponse(BaseModel):
 
 
 class OnboardingCompleteResponse(BaseModel):
-    """Response schema for onboarding completion."""
-    id: UUID
-    email: str
-    first_name: Optional[str]
-    last_name: Optional[str]
-    role: UserRole
-    company_id: Optional[UUID]
-    created_at: str
+    """Response schema for onboarding completion. Matches LoginResponse format."""
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    user: "UserResponse"
+
+
+# Avoid circular import — resolve forward ref
+from app.domain.users.schemas import UserResponse  # noqa: E402
+
+OnboardingCompleteResponse.model_rebuild()

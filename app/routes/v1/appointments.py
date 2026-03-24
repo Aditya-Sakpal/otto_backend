@@ -4,6 +4,7 @@ Appointments API routes.
 Provides appointment management endpoints.
 """
 import traceback
+from datetime import date as date_type, datetime as datetime_type, time as time_type, timezone as tz
 from typing import List, Optional
 from uuid import UUID
 
@@ -21,6 +22,7 @@ from app.domain.schemas.appointment import (
     AppointmentResponse,
     AppointmentInsightSummary,
     AppointmentContextResponse,
+    AppointmentsTodayResponse,
 )
 from app.infrastructure.integrations.google_geocoding import get_google_geocoding_client
 from app.domain.users.models import User
@@ -57,6 +59,7 @@ RESPONSES = {
     422: {"description": "Validation error"},
     500: {"description": "Internal server error"},
 }
+
 
 
 @router.get("", response_model=List[AppointmentResponse], responses=RESPONSES)
@@ -332,6 +335,53 @@ async def list_upcoming_appointments(
         raise
     except Exception as e:
         logger.error(f"Error listing upcoming appointments: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/today", response_model=AppointmentsTodayResponse, responses=RESPONSES)
+async def get_appointments_today(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company/tenant ID"),
+    assigned_rep_id: UUID = Query(..., description="Assigned sales rep user ID"),
+    date: str = Query(..., description="Date in UTC (YYYY-MM-DD)"),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+):
+    """
+    Get appointments and counts for a sales rep on a specific date.
+
+    Returns the list of enriched appointments and counts (total, pending, closed)
+    for the given rep on the given UTC date.
+
+    Access: Any authenticated user
+    """
+    try:
+        # Parse date
+        try:
+            parsed_date = date_type.fromisoformat(date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="date must be YYYY-MM-DD format",
+            )
+
+        utc_start = datetime_type.combine(parsed_date, time_type.min, tzinfo=tz.utc)
+        utc_end = datetime_type.combine(parsed_date, time_type.max, tzinfo=tz.utc)
+
+        service = AppointmentService(db)
+        return await service.get_today_summary(
+            company_id=company_id,
+            assigned_rep_id=assigned_rep_id,
+            utc_start=utc_start,
+            utc_end=utc_end,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting today's appointments: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

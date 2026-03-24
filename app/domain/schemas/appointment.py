@@ -368,3 +368,9 @@ class AppointmentContextResponse(BaseModel):
     # AI briefing (may be None if Shoonya unavailable)
     ai_briefing: Optional[AIBriefing] = None
 
+
+class AppointmentsTodayResponse(BaseModel):
+    """Response for the /today endpoint with appointments and counts."""
+    appointments: List[AppointmentResponse] = Field(..., description="List of appointments for the day")
+    counts: dict = Field(..., description="Counts: total_today, pending, closed")
+

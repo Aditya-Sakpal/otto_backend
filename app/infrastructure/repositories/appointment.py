@@ -172,6 +172,80 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
             logger.error(f"Error counting closed appointments: {e}")
             raise e
 
+    async def count_for_date_range(
+        self,
+        company_id: UUID,
+        assigned_rep_id: UUID,
+        utc_start: datetime,
+        utc_end: datetime,
+    ) -> int:
+        """Count appointments for a rep within a UTC date range."""
+        try:
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id == assigned_rep_id,
+                AppointmentORM.scheduled_start >= utc_start,
+                AppointmentORM.scheduled_start <= utc_end,
+            ]
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting appointments for date range: {e}")
+            raise e
+
+    async def count_pending_for_date_range(
+        self,
+        company_id: UUID,
+        assigned_rep_id: UUID,
+        utc_start: datetime,
+        utc_end: datetime,
+    ) -> int:
+        """Count pending appointments for a rep within a UTC date range."""
+        try:
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id == assigned_rep_id,
+                AppointmentORM.scheduled_start >= utc_start,
+                AppointmentORM.scheduled_start <= utc_end,
+                or_(
+                    AppointmentORM.outcome.is_(None),
+                    AppointmentORM.outcome == "pending",
+                ),
+            ]
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting pending appointments for date range: {e}")
+            raise e
+
+    async def count_closed_for_date_range(
+        self,
+        company_id: UUID,
+        assigned_rep_id: UUID,
+        utc_start: datetime,
+        utc_end: datetime,
+    ) -> int:
+        """Count closed (won/lost) appointments for a rep within a UTC date range."""
+        try:
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id == assigned_rep_id,
+                AppointmentORM.scheduled_start >= utc_start,
+                AppointmentORM.scheduled_start <= utc_end,
+                AppointmentORM.outcome.in_(["won", "lost"]),
+            ]
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting closed appointments for date range: {e}")
+            raise e
+
     async def get_by_assigned_rep(
         self,
         company_id: UUID,

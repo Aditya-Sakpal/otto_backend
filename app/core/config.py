@@ -144,6 +144,11 @@ class Settings(BaseSettings):
         description="Shared secret for ST worker → webhook auth",
     )
 
+    # Twilio (Masked Communications)
+    TWILIO_ACCOUNT_SID: str = Field(default=os.getenv("TWILIO_ACCOUNT_SID", ""), description="Twilio Account SID")
+    TWILIO_AUTH_TOKEN: str = Field(default=os.getenv("TWILIO_AUTH_TOKEN", ""), description="Twilio Auth Token")
+    TWILIO_SYSTEM_NUMBER: str = Field(default=os.getenv("TWILIO_SYSTEM_NUMBER", ""), description="Twilio system number for OTP")
+
     # Feature Flags
     ENABLE_CELERY: bool = Field(default=os.getenv("ENABLE_CELERY", "False").lower() == "true", description="Enable Celery for background jobs")
     ENABLE_VECTOR_DB: bool = Field(default=os.getenv("ENABLE_VECTOR_DB", "True").lower() == "true", description="Enable vector DB for RAG")

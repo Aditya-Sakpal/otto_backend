@@ -1,7 +1,7 @@
 """
 Company integration ORM model.
 """
-from sqlalchemy import String, ForeignKey, JSON
+from sqlalchemy import Boolean, String, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid import uuid4, UUID
 
@@ -32,6 +32,11 @@ class CompanyIntegrationORM(Base):
     st_tenant_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     st_client_id: Mapped[str | None] = mapped_column(String, nullable=True)
     st_client_secret_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Masked Communications
+    recording_disclosure_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
 
     # Additional metadata
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)

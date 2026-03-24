@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.inspection import inspect
 
 from app.core.logging import get_logger
+from app.domain.enums import LeadStatus
 from app.domain.models.lead import Lead
 from app.domain.models.lead_detail import LeadDetail, PipelineLeadDetail
 from app.domain.schemas.sales_rep import (
@@ -33,15 +34,15 @@ logger = get_logger(__name__)
 
 class LeadService:
     """Service for lead-related operations."""
-    
+
     def __init__(self, session: AsyncSession):
         self.session = session
         self.lead_repo = LeadRepository(session)
-    
+
     async def get_by_id(self, lead_id: UUID) -> Optional[Lead]:
         """Get lead by ID."""
         return await self.lead_repo.get_by_id(lead_id)
-    
+
     async def get_by_company(
         self,
         company_id: UUID,
@@ -75,7 +76,7 @@ class LeadService:
             skip=skip,
             limit=limit,
         )
-    
+
     async def get_by_statuses(
         self,
         company_id: UUID,
@@ -90,7 +91,7 @@ class LeadService:
             skip=skip,
             limit=limit,
         )
-    
+
     async def get_unbooked(
         self,
         company_id: UUID,
@@ -103,7 +104,7 @@ class LeadService:
             skip=skip,
             limit=limit,
         )
-    
+
     async def get_by_priority(
         self,
         company_id: UUID,
@@ -116,7 +117,7 @@ class LeadService:
             skip=skip,
             limit=limit,
         )
-    
+
     async def get_nurturing(
         self,
         company_id: UUID,
@@ -133,7 +134,7 @@ class LeadService:
             skip=skip,
             limit=limit,
         )
-    
+
     async def get_lost(
         self,
         company_id: UUID,
@@ -147,7 +148,7 @@ class LeadService:
             skip=skip,
             limit=limit,
         )
-    
+
     async def get_pipeline_view(
         self,
         company_id: UUID,
@@ -375,7 +376,7 @@ class LeadService:
             )
 
         return PendingLeadsResponse(total_count=total, count=len(results), results=results)
-    
+
     async def assign_to_rep(
         self,
         lead_id: UUID,
@@ -384,7 +385,7 @@ class LeadService:
     ) -> Optional[Lead]:
         """
         Assign a lead to a sales rep.
-        
+
         Validates that:
         - Lead exists
         - Sales rep exists and has sales_rep role
@@ -393,16 +394,16 @@ class LeadService:
         from app.infrastructure.database.models.user import UserORM
         from app.infrastructure.database.models.lead import LeadORM
         from sqlalchemy import select
-        
+
         # Get the lead to verify it exists and get company_id
         lead_result = await self.session.execute(
             select(LeadORM).where(LeadORM.id == lead_id)
         )
         lead_orm = lead_result.scalar_one_or_none()
-        
+
         if not lead_orm:
             return None
-        
+
         # Get the sales rep to verify they exist and have the correct role
         rep_result = await self.session.execute(
             select(UserORM).where(
@@ -412,21 +413,21 @@ class LeadService:
             )
         )
         rep_orm = rep_result.scalar_one_or_none()
-        
+
         if not rep_orm:
             raise ValueError(f"Sales rep with ID {sales_rep_id} not found or not active")
-        
+
         # Verify both belong to the same company
         if lead_orm.company_id != rep_orm.company_id:
             raise ValueError("Lead and sales rep must belong to the same company")
-        
+
         # Assign the lead
         return await self.lead_repo.assign_to_rep(
             lead_id=lead_id,
             sales_rep_id=sales_rep_id,
             assigned_by_user_id=assigned_by_user_id,
         )
-    
+
     @staticmethod
     def _derive_pipeline_stage(lead_status: "LeadStatus") -> Optional[str]:
         """Derive pipeline_stage from a LeadStatus value."""
@@ -581,7 +582,7 @@ class LeadService:
                 raise ValueError("reason is required when moving to 'lost'")
 
         # Delegate to repository
-        return await self.lead_repo.move_pipeline_stage(
+        result = await self.lead_repo.move_pipeline_stage(
             lead_id=lead_id,
             target_stage=target,
             changed_by_user_id=changed_by_user_id,
@@ -592,4 +593,24 @@ class LeadService:
             deal_size=deal_size,
             reason=reason,
         )
+
+        # Masked comms lifecycle hooks
+        try:
+            from app.services.proxy_session_service import ProxySessionService
+            proxy_svc = ProxySessionService(self.session)
+
+            if target == PipelineStage.APPOINTMENT_RAN and (assigned_rep_id or lead_orm.assigned_rep_id):
+                rep_id = assigned_rep_id or lead_orm.assigned_rep_id
+                await proxy_svc.create_session(
+                    company_id=lead_orm.company_id,
+                    lead_id=lead_id,
+                    rep_user_id=rep_id,
+                )
+            elif target in (PipelineStage.WON, PipelineStage.LOST):
+                reason_str = "deal_won" if target == PipelineStage.WON else "deal_lost"
+                await proxy_svc.close_sessions_for_lead(lead_id, reason_str)
+        except Exception as e:
+            logger.warning(f"Failed proxy session lifecycle hook: {e}")
+
+        return result
 

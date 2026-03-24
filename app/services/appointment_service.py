@@ -193,6 +193,56 @@ class AppointmentService:
             "closed": closed,
         }
 
+    async def get_today_summary(
+        self,
+        company_id: UUID,
+        assigned_rep_id: UUID,
+        utc_start: datetime,
+        utc_end: datetime,
+    ) -> dict:
+        """
+        Get appointments and counts for a rep on a specific date.
+
+        Args:
+            company_id: Company UUID
+            assigned_rep_id: Sales rep user ID
+            utc_start: Start of day in UTC
+            utc_end: End of day in UTC
+
+        Returns:
+            Dict with 'appointments' list and 'counts' dict
+        """
+        appointments = await self.appointment_repo.get_by_assigned_rep(
+            company_id=company_id,
+            assigned_rep_id=assigned_rep_id,
+            start_date=utc_start,
+            end_date=utc_end,
+        )
+
+        enriched = [
+            await self._enrich_appointment_response(appt, include_full_details=False)
+            for appt in appointments
+        ]
+
+        total = await self.appointment_repo.count_for_date_range(
+            company_id, assigned_rep_id, utc_start, utc_end
+        )
+        pending = await self.appointment_repo.count_pending_for_date_range(
+            company_id, assigned_rep_id, utc_start, utc_end
+        )
+        closed = await self.appointment_repo.count_closed_for_date_range(
+            company_id, assigned_rep_id, utc_start, utc_end
+        )
+
+        return {
+            "appointments": enriched,
+            "counts": {
+                "total_today": total,
+                "pending": pending,
+                "closed": closed,
+            },
+        }
+
     async def _build_appointment_insights(self, interaction_id: UUID) -> Optional[AppointmentInsightSummary]:
         """
         Build comprehensive appointment insights from call analysis.

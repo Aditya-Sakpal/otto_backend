@@ -215,6 +215,7 @@ async def complete_recording(
                         "appointment_id": str(appointment.id),
                         "interaction_type": "meeting",
                         "call_type": "sales_call",
+                        "role": "sales_rep",
                         "lead_id": str(appointment.lead_id) if appointment.lead_id else None,
                         "contact_card_id": str(appointment.contact_card_id) if appointment.contact_card_id else None,
                     },

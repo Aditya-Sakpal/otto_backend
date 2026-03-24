@@ -3,6 +3,7 @@ API key encryption utilities.
 Handles encryption and decryption of API keys using AES-256.
 """
 import base64
+import functools
 import os
 from typing import Optional
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -14,6 +15,7 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
+@functools.lru_cache(maxsize=1)
 def get_encryption_key() -> bytes:
     """
     Get encryption key from environment or generate a default.
@@ -33,16 +35,8 @@ def get_encryption_key() -> bytes:
                 key_bytes = base64.b64decode(encryption_key_env)
                 if len(key_bytes) == 32:
                     return key_bytes
-                else:
-                    logger.warning(
-                        f"ENCRYPTION_KEY decoded to {len(key_bytes)} bytes, need 32 bytes. "
-                        "Treating as raw string and hashing."
-                    )
             except Exception:
-                # Not valid base64, treat as raw string
-                logger.warning(
-                    "ENCRYPTION_KEY is not valid base64. Treating as raw string and deriving key."
-                )
+                pass
 
             # If base64 decode failed or wrong length, derive key from the string
             from cryptography.hazmat.primitives import hashes
@@ -57,7 +51,6 @@ def get_encryption_key() -> bytes:
                 backend=default_backend()
             )
             key_bytes = kdf.derive(encryption_key_env.encode('utf-8'))
-            logger.info("Successfully derived 32-byte encryption key from ENCRYPTION_KEY string")
             return key_bytes
 
         except Exception as e:

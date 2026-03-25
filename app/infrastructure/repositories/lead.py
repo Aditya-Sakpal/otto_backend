@@ -1,6 +1,7 @@
 """
 Lead repository.
 """
+import asyncio
 from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime, date, timezone
@@ -29,6 +30,7 @@ from app.infrastructure.database.models.pending_action import PendingActionORM
 from app.infrastructure.database.models.follow_up_otto import FollowUpOttoORM
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.repositories.base import BaseRepository
+from app.infrastructure.integrations.shoonya import get_shoonya_client
 
 logger = get_logger(__name__)
 
@@ -720,6 +722,30 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 # Sort calls by created_at descending (most recent first)
                 sorted_calls = sorted(calls, key=lambda c: c.created_at, reverse=True)
 
+                # Always fetch live phases from Shoonya 2.6 for each call.
+                shoonya = get_shoonya_client()
+                live_phases_by_call: dict[UUID, Any] = {}
+
+                if shoonya.is_available():
+                    async def _fetch_live_phases(call_id: UUID):
+                        try:
+                            payload = await shoonya.get_call_conversation_phases(
+                                call_id=str(call_id),
+                                company_id=str(lead_orm.company_id),
+                            )
+                            phases = payload.get("phases")
+                            return call_id, (phases if phases is not None else payload)
+                        except Exception as e:
+                            logger.warning(f"Could not fetch live phases for call {call_id}: {e}")
+                            return call_id, None
+
+                    phase_results = await asyncio.gather(
+                        *(_fetch_live_phases(call.id) for call in sorted_calls),
+                        return_exceptions=False,
+                    )
+                    for cid, phases in phase_results:
+                        live_phases_by_call[cid] = phases
+
                 for call in sorted_calls:
                     # Get analysis for this call - it's already loaded via selectinload
                     analysis = None
@@ -744,6 +770,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                         sop_compliance_score=analysis.sop_compliance_score if analysis else None,
                         qualification_status=analysis.qualification_status if analysis else None,
                         booking_status=analysis.booking_status if analysis else None,
+                        phases=live_phases_by_call.get(call.id),
                     )
                     conversations.append(conversation)
 

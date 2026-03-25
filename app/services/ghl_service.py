@@ -637,6 +637,17 @@ class GHLService:
 
             logger.info(f"Updated lead from GHL opportunity {opportunity_id}")
 
+            # Auto-close proxy sessions when deal is won or lost
+            if ghl_status in ("won", "lost"):
+                try:
+                    from app.services.proxy_session_service import ProxySessionService
+                    proxy_svc = ProxySessionService(db_session)
+                    lead_ref = existing_lead if existing_lead else lead
+                    reason = "deal_won" if ghl_status == "won" else "deal_lost"
+                    await proxy_svc.close_sessions_for_lead(lead_ref.id, reason)
+                except Exception as e:
+                    logger.warning(f"Failed to close proxy sessions: {e}", exc_info=False)
+
         except Exception as e:
             logger.error(f"Error updating lead event: {e}", exc_info=True)
             raise
@@ -947,6 +958,19 @@ class GHLService:
                             lead_id=str(lead.id),
                             ghl_appointment_id=appointment_id,
                         )
+
+                        # Auto-create proxy session for masked communications
+                        if lead_orm.assigned_rep_id:
+                            try:
+                                from app.services.proxy_session_service import ProxySessionService
+                                proxy_svc = ProxySessionService(db_session)
+                                await proxy_svc.create_session(
+                                    company_id=lead.company_id,
+                                    lead_id=lead.id,
+                                    rep_user_id=lead_orm.assigned_rep_id,
+                                )
+                            except Exception as e:
+                                logger.warning(f"Failed to create proxy session: {e}", exc_info=False)
 
                     await db_session.flush()
 

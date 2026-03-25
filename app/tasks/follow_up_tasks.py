@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(
     name="app.tasks.follow_up_tasks.run_contextual_follow_up",
-    bind=True,
-    max_retries=2,
-    default_retry_delay=120,  # 2 minutes between retries
+    # Do not retry the full orchestrator: one failure after many leads would
+    # re-run the entire scan and duplicate all Anthropic calls (very expensive).
+    max_retries=0,
 )
-def run_contextual_follow_up(self) -> dict:
+def run_contextual_follow_up() -> dict:
     """
     Run the contextual follow-up agent as a Celery task.
 
@@ -61,6 +61,6 @@ def run_contextual_follow_up(self) -> dict:
 
     try:
         return asyncio.run(_run())
-    except Exception as exc:
-        logger.exception("Contextual follow-up agent failed: %s", exc)
-        raise self.retry(exc=exc)
+    except Exception:
+        logger.exception("Contextual follow-up agent failed")
+        raise

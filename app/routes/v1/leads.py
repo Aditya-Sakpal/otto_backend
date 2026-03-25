@@ -30,6 +30,285 @@ RESPONSES = {
     500: {"description": "Internal server error"},
 }
 
+# Example payload shown in Swagger for GET /api/v1/leads/{lead_id}/details
+LEAD_DETAIL_EXAMPLE = {
+    "id": "bc175381-b349-4cfc-ac23-8085d567665e",
+    "created_at": "2026-03-02T09:46:30.204322Z",
+    "updated_at": "2026-03-02T22:14:22.586681Z",
+    "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+    "status": "closed_won",
+    "deal_status": "nurturing",
+    "pipeline_stage": "appointment",
+    "deal_size": None,
+    "contact": {
+        "id": "4013a406-29d0-4eb8-aad8-2139735b4254",
+        "created_at": "2026-03-23T17:38:15.532212",
+        "updated_at": None,
+        "first_name": "BRENDA",
+        "last_name": "JOHNSON",
+        "primary_phone": "6233417153",
+        "email": None,
+    },
+    "agent": {
+        "id": "573c5f36-dcc5-4440-b8fd-58699807544a",
+        "created_at": "2026-03-23T17:38:15.781301",
+        "updated_at": None,
+        "first_name": "Diva",
+        "last_name": "Shahpur",
+        "email": "diva@arizonaroofers.com",
+    },
+    "overall_engagement": {
+        "id": "05752e45-fa3d-40aa-9bf8-3064913778e4",
+        "created_at": "2026-03-23T17:38:16.905634",
+        "updated_at": None,
+        "summary": "Call summary unavailable Call summary unavailable",
+        "key_points": [],
+        "action_items": [],
+        "appointment_status": None,
+    },
+    "conversations": [
+        {
+            "id": "5a91dbeb-8818-4ace-998a-b37194f3b6c6",
+            "created_at": "2026-03-02T09:46:51.782191Z",
+            "updated_at": None,
+            "call_type": None,
+            "lead_source": None,
+            "phone_number": "6233417153",
+            "duration_seconds": 54,
+            "missed_call": False,
+            # Transcript is truncated for readability in Swagger.
+            "transcript": "SPEAKER_00: Hi, this is Nika from Arizona Roofers... (truncated)",
+            "call_recording_url": "https://ottoaudio.s3.ap-southeast-2.amazonaws.com/recordings/4013a406-29d0-4eb8-aad8-2139735b4254/4028711981.mp3",
+            "handled_by_user_id": "573c5f36-dcc5-4440-b8fd-58699807544a",
+            "summary": "Call summary unavailable",
+            "key_points": [],
+            "objections": [],
+            "sentiment_score": 0.5,
+            "sop_compliance_score": 0.5,
+            "qualification_status": "cold",
+            "booking_status": "not_booked",
+            "phases": {
+                "greeting": {
+                    "phase": "greeting",
+                    "detected": True,
+                    "confidence": 0.5,
+                    "timestamps": {
+                        "start_ms": 1920,
+                        "end_ms": 4197,
+                        "duration_ms": 2277,
+                        "estimation_method": "hybrid_aligned",
+                    },
+                    "segments": [
+                        {
+                            "start_word_index": 0,
+                            "end_word_index": 48,
+                            "speaker": "SPEAKER_00",
+                            "text": "SPEAKER_00: Hi, this is Nika from Arizona Roofers. How can I",
+                        }
+                    ],
+                    "key_phrases": ["can", "this is"],
+                    "quality_score": 0.7,
+                    "quality_notes": None,
+                },
+                "problem_discovery": {
+                    "phase": "problem_discovery",
+                    "detected": False,
+                    "confidence": 0,
+                    "timestamps": None,
+                    "segments": [],
+                    "key_phrases": [],
+                    "quality_score": None,
+                    "quality_notes": None,
+                },
+                "qualification": {
+                    "phase": "qualification",
+                    "detected": False,
+                    "confidence": 0,
+                    "timestamps": None,
+                    "segments": [],
+                    "key_phrases": [],
+                    "quality_score": None,
+                    "quality_notes": None,
+                },
+                "objection_handling": {
+                    "phase": "objection_handling",
+                    "detected": False,
+                    "confidence": 0,
+                    "timestamps": None,
+                    "segments": [],
+                    "key_phrases": [],
+                    "quality_score": None,
+                    "quality_notes": None,
+                },
+                "closing": {
+                    "phase": "closing",
+                    "detected": True,
+                    "confidence": 0.25,
+                    "timestamps": {
+                        "start_ms": 4151,
+                        "end_ms": 7433,
+                        "duration_ms": 3282,
+                        "estimation_method": "hybrid_aligned",
+                    },
+                    "segments": [
+                        {
+                            "start_word_index": 48,
+                            "end_word_index": 112,
+                            "speaker": "SPEAKER_00",
+                            "text": "as per tracking, you are already scheduled for February 19th, 10:00am to 12:00pm okay. I'm sorry. I thought you guys were different companies. That's okay. Not a problem. Thank you very much, Brenda. Be safe. Bye. Bye. You have",
+                        }
+                    ],
+                    "key_phrases": ["schedule", "schedule"],
+                    "quality_score": 0.7,
+                    "quality_notes": None,
+                },
+                "post_close": {
+                    "phase": "post_close",
+                    "detected": False,
+                    "confidence": 0,
+                    "timestamps": None,
+                    "segments": [],
+                    "key_phrases": [],
+                    "quality_score": None,
+                    "quality_notes": None,
+                },
+            },
+        },
+        {
+            "id": "450b7ac3-b00c-4dc4-9ada-9c7a80e0696f",
+            "created_at": "2026-03-02T09:46:35.867614Z",
+            "updated_at": None,
+            "call_type": None,
+            "lead_source": None,
+            "phone_number": "6233417153",
+            "duration_seconds": 310,
+            "missed_call": False,
+            "transcript": "SPEAKER_00: Arizona roof. Yes, I was doing. If I can have somebody come out and give me an estimate of a new roof. What's going on? I'm sorry, honey, what? What? What's going on? I just wanted someone to come out and give me a quote on a new roof. Okay. How old is your current roof? 25 years. Okay, and are you the property owner? Yes. Okay, one moment please. Alrighty. Grab your property address. In a sec. Okay. 76 34. What? Oh, sorry, what? No, go ahead. 7634. 7634 west robin lane. Rotman lane. Like r o t r o b I n. Robin lane. Okay. In peoria? Yes. Okay, And then your first last name please? Brenda Johnson. Brenda, do you have a good email I can put on file? Yes. Vernie V E R N I E2222cogs.net and the best phone number to reach you. 623-341-7153. Perfect. Am I able to send you email and text message updates about the roof? I'm sorry, what? Honey? Am I able to send you email and text message updates about the roof? Like appointment confirmation? Okay. Yeah. So you want to reroof the full new roof? Yes. What type of roofing material do you have? Tile, shingle or flat? Tile. Do you know how much square footage the home is? 2136. Do you have any solar panels on the roof? No. Is this a one story hall? Yes. Okay. Is this a gated community? Any gate codes we should be aware of? No. No. Is there an HOA for the neighborhood? Yes. Perfect. And are you the only property owner, Brenda? Yes, we're the only owner. We've been here 25 years. We're the only owners. Perfect. Alrighty. Is there a certain day and time that works best for you to be present during time of inspection? This week. Can you do it on Thursday? This week? Let me check. Yeah, we could do it on Thursday if that works best for you. We have a 10am to 12 slot, if that works. A 10, 10. 10am to 12pm appointment window slot, if that works. Yeah, 10 to 12. Okay, that's fine. Perfect. You'll be getting a text and email confirmation of your appointment and the technician will give you a call when he's on his way, usually 30 minutes before he heads out that way. How it kind of works is Mikhail come out there, chat with you a little bit. You can show him any problem areas since you know what you're looking for. He'll go up there, do a full roof inspection, take about 50 to 100 photos. They'll write up a report and they'll give you multiple quotes. But he'll also give you a full review, quote on whatever you're looking for and kind of discuss everything that we offer with you. Do you have any other questions? No, I don't, honey. Thank you. Of course. You're all set. You will. See you then.",
+            "call_recording_url": "https://ottoaudio.s3.ap-southeast-2.amazonaws.com/recordings/4013a406-29d0-4eb8-aad8-2139735b4254/4028701751.mp3",
+            "handled_by_user_id": "573c5f36-dcc5-4440-b8fd-58699807544a",
+            "summary": "Call summary unavailable",
+            "key_points": [],
+            "objections": [],
+            "sentiment_score": 0.5,
+            "sop_compliance_score": 0.5,
+            "qualification_status": "cold",
+            "booking_status": "not_booked",
+            "phases": {
+                "greeting": {
+                    "phase": "greeting",
+                    "detected": False,
+                    "confidence": 0,
+                    "timestamps": None,
+                    "segments": [],
+                    "key_phrases": [],
+                    "quality_score": None,
+                    "quality_notes": None,
+                },
+                "problem_discovery": {
+                    "phase": "problem_discovery",
+                    "detected": True,
+                    "confidence": 0.25,
+                    "timestamps": {
+                        "start_ms": 720,
+                        "end_ms": 901,
+                        "duration_ms": 181,
+                        "estimation_method": "hybrid_aligned",
+                    },
+                    "segments": [
+                        {
+                            "start_word_index": 0,
+                            "end_word_index": 124,
+                            "speaker": "SPEAKER_00",
+                            "text": "going on? I'm sorry, honey, what? What? What's going on? I just wanted someone to come out and give me a quote on a new roof. Okay. How old is your current roof? 25 years. Okay, and are you the property owner? Yes. Okay, one moment please. Alrighty. Grab your property address. In a sec. Okay. 76 34. What? Oh, sorry, what? No, go ahead. 7634. 7634 west robin lane. Rotman lane. Like r o t r o b I n. Robin lane. Okay. In peoria? Yes. Okay, And then your first last name please? Brenda Johnson. Brenda, do you",
+                        }
+                    ],
+                    "key_phrases": ["going on", "going on"],
+                    "quality_score": 0.7,
+                    "quality_notes": None,
+                },
+                "qualification": {
+                    "phase": "qualification",
+                    "detected": True,
+                    "confidence": 0.25,
+                    "timestamps": {
+                        "start_ms": 899,
+                        "end_ms": 1153,
+                        "duration_ms": 254,
+                        "estimation_method": "hybrid_aligned",
+                    },
+                    "segments": [
+                        {
+                            "start_word_index": 124,
+                            "end_word_index": 298,
+                            "speaker": "SPEAKER_00",
+                            "text": "t r o b I n. Robin lane. Okay. In peoria? Yes. Okay, And then your first last name please? Brenda Johnson. Brenda, do you have a good email I can put on file? Yes. Vernie V E R N I E2222cogs.net and the best phone number to reach you. 623-341-7153. Perfect. Am I able to send you email and text message updates about the roof? I'm sorry, what? Honey? Am I able to send you email and text message updates about the roof? Like appointment confirmation? Okay. Yeah. So you want to reroof the full new roof? Yes. What",
+                        }
+                    ],
+                    "key_phrases": [
+                        "when he's on his way, usually 30 minutes before he heads out that way. how it kind of works is mikhail come out there, chat with you a little bit. you can show him any problem areas since you know what you're looking for. he'll go up there, do a full roof inspection, take about 50 to 100 photos. they'll write up a report and they'll give you multiple quotes. but he'll also give you a full review, quote on whatever you're looking"
+                    ],
+                    "quality_score": 0.7,
+                    "quality_notes": None,
+                },
+                "objection_handling": {
+                    "phase": "objection_handling",
+                    "detected": False,
+                    "confidence": 0,
+                    "timestamps": None,
+                    "segments": [],
+                    "key_phrases": [],
+                    "quality_score": None,
+                    "quality_notes": None,
+                },
+                "closing": {
+                    "phase": "closing",
+                    "detected": True,
+                    "confidence": 0.25,
+                    "timestamps": {
+                        "start_ms": 1151,
+                        "end_ms": 1370,
+                        "duration_ms": 219,
+                        "estimation_method": "hybrid_aligned",
+                    },
+                    "segments": [
+                        {
+                            "start_word_index": 298,
+                            "end_word_index": 448,
+                            "speaker": "SPEAKER_00",
+                            "text": "for you to be present during time of inspection? This week. Can you do it on Thursday? This week? Let me check. Yeah, we could do it on Thursday if that works best for you. We have a 10am to 12 slot, if that works. A 10, 10. 10am to 12pm appointment window slot, if that works. Yeah, 10 to 12. Okay, that's fine. Perfect. You'll be getting a text and email confirmation of your appointment and the technician will give you a call when he's on his way, usually 30 minutes before he heads out that way. How it",
+                        }
+                    ],
+                    "key_phrases": ["appointment", "appointment"],
+                    "quality_score": 0.7,
+                    "quality_notes": None,
+                },
+                "post_close": {
+                    "phase": "post_close",
+                    "detected": True,
+                    "confidence": 0.25,
+                    "timestamps": {
+                        "start_ms": 1369,
+                        "end_ms": 1838,
+                        "duration_ms": 469,
+                        "estimation_method": "hybrid_aligned",
+                    },
+                    "segments": [
+                        {
+                            "start_word_index": 448,
+                            "end_word_index": 498,
+                            "speaker": "SPEAKER_00",
+                            "text": "you're looking for. He'll go up there, do a full roof inspection, take about 50 to 100 photos. They'll write up a report and they'll give you multiple quotes. But he'll also give you a full review, quote on whatever you're looking for and kind of discuss everything that we offer with you. Do you have any other questions? No, I don't, honey. Thank you. Of course. You're all set. You will. See you then.",
+                        }
+                    ],
+                    "key_phrases": ["confirmation", "confirmation"],
+                    "quality_score": 0.7,
+                    "quality_notes": None,
+                },
+            },
+        },
+    ],
+}
+
 
 @router.get("", response_model=List[Lead], responses=RESPONSES)
 async def list_leads(
@@ -199,7 +478,17 @@ async def get_lead(
         )
 
 
-@router.get("/{lead_id}/details", response_model=LeadDetail, responses=RESPONSES)
+@router.get(
+    "/{lead_id}/details",
+    response_model=LeadDetail,
+    responses={
+        **RESPONSES,
+        200: {
+            "description": "Lead detail response",
+            "content": {"application/json": {"example": LEAD_DETAIL_EXAMPLE}},
+        },
+    },
+)
 async def get_lead_details(
     lead_id: UUID,
     db: DbSession,
@@ -217,6 +506,8 @@ async def get_lead_details(
       Each conversation includes:
       - Call details (type, phone number, duration, transcript, recording URL)
       - Analysis data (summary, key points, objections, sentiment, SOP compliance)
+      - Phases data (greeting, problem_discovery, qualification, objection_handling, closing, post_close)
+        Each phase includes detection status, confidence, timestamps, segments, key phrases, and quality scores
     
     Access: EXECUTIVE, CSR
     """

@@ -1854,6 +1854,46 @@ class ShoonyaClient:
             traceback.print_exc()
             raise
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_call_conversation_phases(
+        self,
+        call_id: str,
+        company_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get detected conversation phases for a call.
+
+        GET /api/v1/call-processing/calls/{call_id}/phases
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/call-processing/calls/{call_id}/phases"
+        logger.info(f"Calling Shunya API: {url}")
+
+        try:
+            response = await self._http_client.get(
+                url,
+                headers=self._get_headers(company_id),
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error getting call conversation phases: {e.response.status_code} {e.response.reason_phrase}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error getting call conversation phases: {e}")
+            traceback.print_exc()
+            raise
+
     # ============================================================================
     # Shunya Coaching Session APIs (Section 7)
     # ============================================================================

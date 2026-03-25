@@ -62,6 +62,10 @@ class Conversation(BaseModel):
     sop_compliance_score: Optional[float] = None
     qualification_status: Optional[str] = None
     booking_status: Optional[str] = None
+    phases: Optional[dict] = Field(
+        None,
+        description="Live conversation phase payload from Shoonya call phases API",
+    )
 
 
 class PipelineEngagement(_SlimModel):

@@ -356,7 +356,8 @@ async def process_lead(
             log_id = await _process_sms(
                 ctx, schedule, claude_client=claude_client,
                 company_name=company_name, company_config=company_config,
-                sms_sender=sms_sender, local_session=local_session,
+                sms_sender=sms_sender, pg_session=pg_session,
+                local_session=local_session,
             )
         elif action_type == ActionType.NUDGE_SALES_REP:
             log_id = await _process_nudge(
@@ -380,6 +381,7 @@ async def _process_sms(
     company_name: str,
     company_config,
     sms_sender: TwilioSMSSender | None,
+    pg_session: AsyncSession,
     local_session: AsyncSession,
 ) -> str | None:
     """Generate and optionally send an SMS to the homeowner."""

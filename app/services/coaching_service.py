@@ -877,11 +877,9 @@ class CoachingService:
         if not end_date:
             end_date = date.today()
 
-        # Fetch issues and objections in parallel — they are independent
-        issues_resp, objections_resp = await asyncio.gather(
-            self.get_rep_issues(user_id, company_id, start_date, end_date),
-            self.get_rep_objections(user_id, company_id, start_date, end_date),
-        )
+        # Fetch issues and objections sequentially (AsyncSession not safe for concurrent use)
+        issues_resp = await self.get_rep_issues(user_id, company_id, start_date, end_date)
+        objections_resp = await self.get_rep_objections(user_id, company_id, start_date, end_date)
         rep_name = issues_resp.rep_name
 
         nudges: List[SmartNudge] = []

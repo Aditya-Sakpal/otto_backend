@@ -3,6 +3,8 @@ Coaching API routes.
 
 Provides endpoints for the coaching dashboard:
 - Single combined dashboard endpoint returning all 8 coaching sections in one call
+- Split dashboard endpoints: team-only and individual-only views
+- Granular section endpoints: individual sections (issues, strengths, progression, peer_benchmark, impact, objections, nudges)
 - Coaching session CRUD (create and list)
 - Smart nudge CRUD (list, read, dismiss, unread count)
 - Coaching cycle management (stop, history)
@@ -28,6 +30,13 @@ from app.domain.schemas.coaching import (
     CreateCoachingSessionRequest,
     CoachingSessionResponse,
     CoachingSessionListResponse,
+    RepIssuesResponse,
+    RepStrengthsResponse,
+    RepProgressionResponse,
+    RepPeerBenchmarkResponse,
+    RepImpactResponse,
+    RepObjectionsResponse,
+    RepSmartNudgesResponse,
 )
 from app.domain.schemas.nudges import (
     SmartNudgeResponse,
@@ -86,7 +95,7 @@ async def get_coaching_dashboard(
     current_user: User = Depends(require_executive),
     start_date: Optional[date] = Query(None, description="Start date for filtering issues, strengths, objections, and nudges (YYYY-MM-DD). Defaults to 30 days ago"),
     end_date: Optional[date] = Query(None, description="End date for filtering issues, strengths, objections, and nudges (YYYY-MM-DD). Defaults to today"),
-    weeks: int = Query(8, ge=1, le=52, description="Number of weeks for the progression chart (1-52). Only affects the 'progression' section"),
+    weeks: int = Query(8, ge=4, le=52, description="Number of weeks for the progression chart (4-52, Shunya API requirement). Only affects the 'progression' section"),
     days: int = Query(30, ge=7, le=365, description="Analysis period in days for peer benchmark comparison (7-365). Only affects the 'peer_benchmark' section"),
     role_filter: Optional[str] = Query(None, description="Filter team members by role (e.g. 'sales_rep', 'csr'). Only affects the 'team' section"),
     search: Optional[str] = Query(None, description="Search team members by name or email (partial match). Only affects the 'team' section"),
@@ -105,7 +114,7 @@ async def get_coaching_dashboard(
     - **company_id** (required): Company UUID for data scoping
     - **start_date**: Start date for date-filtered sections (defaults to 30 days ago)
     - **end_date**: End date for date-filtered sections (defaults to today)
-    - **weeks**: Number of weeks for the progression chart (default 8, range 1-52)
+    - **weeks**: Number of weeks for the progression chart (default 8, range 4-52)
     - **days**: Analysis period for peer benchmark (default 30, range 7-365)
     - **role_filter**: Filter team overview by role (e.g. 'sales_rep', 'csr')
     - **search**: Search team overview by name or email
@@ -224,7 +233,7 @@ async def get_individual_dashboard(
     current_user: User = Depends(require_executive),
     start_date: Optional[date] = Query(None, description="Start date for filtering issues, strengths, objections, and nudges (YYYY-MM-DD). Defaults to 30 days ago"),
     end_date: Optional[date] = Query(None, description="End date for filtering issues, strengths, objections, and nudges (YYYY-MM-DD). Defaults to today"),
-    weeks: int = Query(8, ge=1, le=52, description="Number of weeks for the progression chart (1-52). Only affects the 'progression' section"),
+    weeks: int = Query(8, ge=4, le=52, description="Number of weeks for the progression chart (4-52, Shunya API requirement). Only affects the 'progression' section"),
     days: int = Query(30, ge=7, le=365, description="Analysis period in days for peer benchmark comparison (7-365). Only affects the 'peer_benchmark' section"),
 ):
     """
@@ -241,7 +250,7 @@ async def get_individual_dashboard(
     - **company_id** (required): Company UUID for data scoping
     - **start_date**: Start date for date-filtered sections (defaults to 30 days ago)
     - **end_date**: End date for date-filtered sections (defaults to today)
-    - **weeks**: Number of weeks for the progression chart (default 8, range 1-52)
+    - **weeks**: Number of weeks for the progression chart (default 8, range 4-52)
     - **days**: Analysis period for peer benchmark (default 30, range 7-365)
 
     **Response Sections:**
@@ -276,6 +285,249 @@ async def get_individual_dashboard(
         raise
     except Exception as e:
         logger.error(f"Error getting individual dashboard: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Individual Dashboard - Granular Section Endpoints
+# ============================================================================
+
+
+@router.get(
+    "/reps/{user_id}/issues",
+    response_model=RepIssuesResponse,
+    responses=RESPONSES,
+    summary="Get rep coaching issues",
+    description="Returns coaching issues grouped by type, sorted by frequency. Date-filtered.",
+)
+async def get_rep_issues_endpoint(
+    user_id: UUID,
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID for data scoping"),
+    current_user: User = Depends(require_executive),
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD). Defaults to 30 days ago"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD). Defaults to today"),
+):
+    """
+    Get coaching issues for a specific rep.
+    
+    Returns all coaching issues grouped by issue text, with frequency counts,
+    severity, transcript evidence, and related SOP metrics.
+    
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingService(db)
+        return await service.get_rep_issues(user_id, company_id, start_date, end_date)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rep issues: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/reps/{user_id}/strengths",
+    response_model=RepStrengthsResponse,
+    responses=RESPONSES,
+    summary="Get rep coaching strengths",
+    description="Returns coaching strengths grouped by behavior, sorted by frequency. Date-filtered.",
+)
+async def get_rep_strengths_endpoint(
+    user_id: UUID,
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID for data scoping"),
+    current_user: User = Depends(require_executive),
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD). Defaults to 30 days ago"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD). Defaults to today"),
+):
+    """
+    Get coaching strengths for a specific rep.
+    
+    Returns all coaching strengths grouped by behavior, with frequency counts,
+    effectiveness explanations, and transcript evidence.
+    
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingService(db)
+        return await service.get_rep_strengths(user_id, company_id, start_date, end_date)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rep strengths: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/reps/{user_id}/progression",
+    response_model=RepProgressionResponse,
+    responses=RESPONSES,
+    summary="Get rep progression",
+    description="Returns weekly metric trends with anomaly detection. Proxied from Shunya API.",
+)
+async def get_rep_progression_endpoint(
+    user_id: UUID,
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID for data scoping"),
+    current_user: User = Depends(require_executive),
+    weeks: int = Query(8, ge=4, le=52, description="Number of weeks to analyze (4-52, Shunya API requirement)"),
+):
+    """
+    Get progression trends for a specific rep.
+    
+    Returns weekly metric data with trend detection and anomaly identification.
+    Proxied from Shunya API.
+    
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingService(db)
+        return await service.get_rep_progression(user_id, company_id, weeks)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rep progression: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/reps/{user_id}/peer-benchmark",
+    response_model=RepPeerBenchmarkResponse,
+    responses=RESPONSES,
+    summary="Get rep peer benchmark",
+    description="Returns rep vs team comparison on 5 metrics. Proxied from Shunya API.",
+)
+async def get_rep_peer_benchmark_endpoint(
+    user_id: UUID,
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID for data scoping"),
+    current_user: User = Depends(require_executive),
+    days: int = Query(30, ge=7, le=365, description="Analysis period in days (7-365)"),
+):
+    """
+    Get peer benchmark comparison for a specific rep.
+    
+    Compares the rep's performance against team averages across 5 key metrics:
+    compliance_score, booking_rate, objection_handling, rapport_score, script_adherence.
+    
+    Proxied from Shunya API.
+    
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingService(db)
+        return await service.get_rep_peer_benchmark(user_id, company_id, days)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rep peer benchmark: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/reps/{user_id}/impact",
+    response_model=RepImpactResponse,
+    responses=RESPONSES,
+    summary="Get rep coaching impact",
+    description="Returns coaching session history with baseline vs post-coaching scores.",
+)
+async def get_rep_impact_endpoint(
+    user_id: UUID,
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID for data scoping"),
+    current_user: User = Depends(require_executive),
+):
+    """
+    Get coaching impact data for a specific rep.
+    
+    Returns all coaching sessions with baseline scores, impact scores,
+    improvement percentages, and target achievement status.
+    
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingService(db)
+        return await service.get_rep_impact(user_id, company_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rep impact: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/reps/{user_id}/objections",
+    response_model=RepObjectionsResponse,
+    responses=RESPONSES,
+    summary="Get rep objection handling stats",
+    description="Returns objection categories with rep overcome rate vs team average. Date-filtered.",
+)
+async def get_rep_objections_endpoint(
+    user_id: UUID,
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID for data scoping"),
+    current_user: User = Depends(require_executive),
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD). Defaults to 30 days ago"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD). Defaults to today"),
+):
+    """
+    Get objection handling statistics for a specific rep.
+    
+    Returns objections grouped by category with overcome rates,
+    compared against team averages.
+    
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingService(db)
+        return await service.get_rep_objections(user_id, company_id, start_date, end_date)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rep objections: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/reps/{user_id}/nudges",
+    response_model=RepSmartNudgesResponse,
+    responses=RESPONSES,
+    summary="Get rep smart nudges",
+    description="Returns AI-generated coaching recommendations. Date-filtered.",
+)
+async def get_rep_nudges_endpoint(
+    user_id: UUID,
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company UUID for data scoping"),
+    current_user: User = Depends(require_executive),
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD). Defaults to 30 days ago"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD). Defaults to today"),
+):
+    """
+    Get smart coaching nudges for a specific rep.
+    
+    Returns AI-generated coaching recommendations based on:
+    - High-frequency coaching issues
+    - Low objection overcome rates
+    - Declining compliance trends
+    
+    Required role: EXECUTIVE
+    """
+    try:
+        service = CoachingService(db)
+        return await service.get_rep_nudges(user_id, company_id, start_date, end_date)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rep nudges: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 

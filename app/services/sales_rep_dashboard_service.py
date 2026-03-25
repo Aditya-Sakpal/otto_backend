@@ -879,6 +879,14 @@ class SalesRepDashboardService:
                         weekly_data=weekly_data,
                     )
             except Exception as trend_err:
+                # If any statement fails, Postgres marks the transaction as aborted.
+                # Roll back so subsequent queries in the same request can run.
+                try:
+                    await self.session.rollback()
+                except Exception as rollback_err:
+                    logger.warning(
+                        f"Could not rollback after trends failure: {rollback_err}"
+                    )
                 logger.warning(f"Could not load trends (close_rate_series/sales_increase): {trend_err}")
 
             trends = Trends(
@@ -887,6 +895,11 @@ class SalesRepDashboardService:
             )
             return SalesOverview(core_kpis=core_kpis, trends=trends)
         except Exception as e:
+            # Same rationale: ensure we recover from an aborted transaction.
+            try:
+                await self.session.rollback()
+            except Exception as rollback_err:
+                logger.warning(f"Could not rollback after sales_overview failure: {rollback_err}")
             logger.warning(f"Could not load sales_overview: {e}")
             import traceback
             traceback.print_exc()

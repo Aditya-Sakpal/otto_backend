@@ -24,6 +24,7 @@ class CompanyIntegrationRepository:
         crm_company_id: str | None = None,
         voip_provider: str | None = None,
         voip_api_key: str | None = None,
+        voip_access_key: str | None = None,
         voip_company_id: str | None = None,
         extra_metadata: dict | None = None,
         st_tenant_id: str | None = None,
@@ -40,7 +41,8 @@ class CompanyIntegrationRepository:
             crm_api_key: CRM API key - will be encrypted (optional)
             crm_company_id: CRM company ID (optional)
             voip_provider: VoIP provider name (optional)
-            voip_api_key: VoIP API key - will be encrypted (optional)
+            voip_api_key: VoIP API key (secret_key) - will be encrypted (optional)
+            voip_access_key: VoIP access key (CTM access_key) - will be encrypted (optional)
             voip_company_id: VoIP company ID (optional)
             extra_metadata: Additional metadata (optional)
 
@@ -51,6 +53,7 @@ class CompanyIntegrationRepository:
             # Encrypt API keys if provided
             crm_encrypted_key = encrypt_api_key(crm_api_key) if crm_api_key else None
             voip_encrypted_key = encrypt_api_key(voip_api_key) if voip_api_key else None
+            voip_access_encrypted = encrypt_api_key(voip_access_key) if voip_access_key else None
             st_secret_encrypted = encrypt_api_key(st_client_secret) if st_client_secret else None
 
             orm_obj = CompanyIntegrationORM(
@@ -60,6 +63,7 @@ class CompanyIntegrationRepository:
                 crm_provider=crm_provider or "",
                 crm_company_id=crm_company_id,
                 voip_api_encrypted_key=voip_encrypted_key or "",
+                voip_access_key_encrypted=voip_access_encrypted,
                 voip_provider=voip_provider or "",
                 voip_company_id=voip_company_id,
                 extra_metadata=extra_metadata or {},
@@ -86,6 +90,7 @@ class CompanyIntegrationRepository:
         crm_company_id: str | None = None,
         voip_provider: str | None = None,
         voip_api_key: str | None = None,
+        voip_access_key: str | None = None,
         voip_company_id: str | None = None,
         extra_metadata: dict | None = None,
         st_tenant_id: str | None = None,
@@ -103,7 +108,8 @@ class CompanyIntegrationRepository:
             crm_api_key: CRM API key - will be encrypted (optional)
             crm_company_id: CRM company ID (optional)
             voip_provider: VoIP provider name (optional)
-            voip_api_key: VoIP API key - will be encrypted (optional)
+            voip_api_key: VoIP API key (secret_key) - will be encrypted (optional)
+            voip_access_key: VoIP access key (CTM access_key) - will be encrypted (optional)
             voip_company_id: VoIP company ID (optional)
             extra_metadata: Additional metadata (optional)
 
@@ -127,6 +133,8 @@ class CompanyIntegrationRepository:
                 orm_obj.voip_provider = voip_provider
             if voip_api_key is not None:
                 orm_obj.voip_api_encrypted_key = encrypt_api_key(voip_api_key)
+            if voip_access_key is not None:
+                orm_obj.voip_access_key_encrypted = encrypt_api_key(voip_access_key)
             if voip_company_id is not None:
                 orm_obj.voip_company_id = voip_company_id
             if extra_metadata is not None:
@@ -156,6 +164,7 @@ class CompanyIntegrationRepository:
         crm_company_id: str | None = None,
         voip_provider: str | None = None,
         voip_api_key: str | None = None,
+        voip_access_key: str | None = None,
         voip_company_id: str | None = None,
         extra_metadata: dict | None = None,
         st_tenant_id: str | None = None,
@@ -164,20 +173,6 @@ class CompanyIntegrationRepository:
     ) -> CompanyIntegrationORM:
         """
         Upsert company integration (create if not exists, update if exists).
-
-        Args:
-            company_id: Company UUID
-            location_id: GHL location ID (optional)
-            crm_provider: CRM provider name (optional)
-            crm_api_key: CRM API key - will be encrypted (optional)
-            crm_company_id: CRM company ID (optional)
-            voip_provider: VoIP provider name (optional)
-            voip_api_key: VoIP API key - will be encrypted (optional)
-            voip_company_id: VoIP company ID (optional)
-            extra_metadata: Additional metadata (optional)
-
-        Returns:
-            Created or updated CompanyIntegrationORM instance
         """
         try:
             existing = await self.get_by_company_id(company_id)
@@ -191,6 +186,7 @@ class CompanyIntegrationRepository:
                     crm_company_id=crm_company_id,
                     voip_provider=voip_provider,
                     voip_api_key=voip_api_key,
+                    voip_access_key=voip_access_key,
                     voip_company_id=voip_company_id,
                     extra_metadata=extra_metadata,
                     st_tenant_id=st_tenant_id,
@@ -206,6 +202,7 @@ class CompanyIntegrationRepository:
                     crm_company_id=crm_company_id,
                     voip_provider=voip_provider,
                     voip_api_key=voip_api_key,
+                    voip_access_key=voip_access_key,
                     voip_company_id=voip_company_id,
                     extra_metadata=extra_metadata,
                     st_tenant_id=st_tenant_id,
@@ -323,6 +320,30 @@ class CompanyIntegrationRepository:
             return None
         except Exception as e:
             logger.error(f"Error getting voip_api_encrypted_key by company_id: {e}")
+            raise e
+
+    async def get_voip_access_key_encrypted_by_voip_company_id(self, voip_company_id: str) -> str | None:
+        """
+        Get voip_access_key_encrypted from voip_company_id.
+
+        Args:
+            voip_company_id: VoIP company ID
+
+        Returns:
+            Encrypted VoIP access key or None if not found
+        """
+        try:
+            result = await self.session.execute(
+                select(CompanyIntegrationORM).where(
+                    CompanyIntegrationORM.voip_company_id == voip_company_id
+                )
+            )
+            orm_obj = result.scalar_one_or_none()
+            if orm_obj:
+                return orm_obj.voip_access_key_encrypted
+            return None
+        except Exception as e:
+            logger.error(f"Error getting voip_access_key_encrypted by voip_company_id: {e}")
             raise e
 
     async def get_decrypted_crm_key(self, company_id: UUID) -> str | None:

@@ -790,11 +790,30 @@ async def ctm_call_webhook(
         if not isinstance(company_id, UUID):
             company_id = UUID(str(company_id))
 
+        # Decrypt CTM credentials for authenticated audio download
+        ctm_access_key = None
+        ctm_secret_key = None
+        try:
+            voip_api_encrypted_key = await integration_repo.get_voip_api_encrypted_key_by_voip_company_id(
+                voip_company_id
+            )
+            voip_access_key_encrypted = await integration_repo.get_voip_access_key_encrypted_by_voip_company_id(
+                voip_company_id
+            )
+            if voip_api_encrypted_key:
+                ctm_secret_key = decrypt_api_key(voip_api_encrypted_key)
+            if voip_access_key_encrypted:
+                ctm_access_key = decrypt_api_key(voip_access_key_encrypted)
+        except Exception as e:
+            logger.warning(f"Could not decrypt CTM credentials for audio download: {e}")
+
         # Process CTM webhook
         service = CTMService(db)
         call = await service.process_webhook(
             payload=payload,
             company_id=company_id,
+            ctm_access_key=ctm_access_key,
+            ctm_secret_key=ctm_secret_key,
         )
 
         return {

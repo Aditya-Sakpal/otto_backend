@@ -281,7 +281,7 @@ class S3Service:
     def generate_presigned_url(
         self,
         s3_key: str,
-        expiration: int = 3600,
+        expiration: int = 14400,
         content_type: Optional[str] = None,
         bucket_type: Optional[BucketType] = None,
     ) -> str:

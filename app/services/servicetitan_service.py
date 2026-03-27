@@ -349,7 +349,7 @@ class ServiceTitanService:
             missed_call=is_missed,
             interaction_type="call",
             handled_by_user_id=handled_by_user_id,
-            lead_source=st_call.get("campaign") or None,
+            lead_source=st_call.get("campaign", {}).get("name") if isinstance(st_call.get("campaign"), dict) else st_call.get("campaign") or None,
             extra_metadata={
                 "st_call_id": st_call_id,
                 "st_direction": st_call.get("direction"),
@@ -397,7 +397,7 @@ class ServiceTitanService:
                         contact_card_id=contact_card.id,
                         status=LeadStatus.NEW,
                         pipeline_stage=ST_PIPELINE_STAGE_MAP.get(LeadStatus.NEW),
-                        lead_source=st_call.get("campaign") or None,
+                        lead_source=st_call.get("campaign", {}).get("name") if isinstance(st_call.get("campaign"), dict) else st_call.get("campaign") or None,
                         extra_metadata={"source": "st_call", "st_call_id": st_call_id},
                     )
                     lead = await self.lead_repo.create(new_lead)

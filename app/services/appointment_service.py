@@ -464,11 +464,12 @@ class AppointmentService:
             if insights:
                 response_data["insights"] = insights.model_dump()
 
-        # Fetch live conversation phases from Shunya
-        phase_call_id = appointment.interaction_id or appointment.id
-        phases = await self._fetch_phases(phase_call_id, appointment.company_id)
-        if phases:
-            response_data["phases"] = phases
+        # Fetch live conversation phases from Shunya (only for single-appointment endpoints)
+        if include_full_details:
+            phase_call_id = appointment.interaction_id or appointment.id
+            phases = await self._fetch_phases(phase_call_id, appointment.company_id)
+            if phases:
+                response_data["phases"] = phases
 
         return AppointmentResponse(**response_data)
 

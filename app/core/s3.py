@@ -251,7 +251,7 @@ class S3Service:
                     )
 
             s3_url = f"https://{bucket_name}.s3.{self.region}.amazonaws.com/{s3_key}"
-            logger.info(f"Successfully moved CTM recording to S3: {s3_key}")
+            logger.info(f"Successfully moved recording to S3: {s3_key}")
             return s3_url
 
         except httpx.HTTPStatusError as e:

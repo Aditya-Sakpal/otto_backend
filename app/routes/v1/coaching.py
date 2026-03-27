@@ -15,7 +15,7 @@ All endpoints require EXECUTIVE role.
 import traceback
 from typing import Optional
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime, timezone, timedelta, datetime, timezone, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends, Query, HTTPException, status
@@ -539,13 +539,18 @@ async def get_rep_nudges_endpoint(
 
 @router.get(
     "/reps",
-    responses={**RESPONSES, 200: {"description": "Rep list from Shunya"}},
+    responses={**RESPONSES, 200: {"description": "Rep list from Shunya enriched with role and booking_rate"}},
     summary="List reps for aggregated coaching (Shunya)",
     description="""
-Proxies **GET /api/v1/coaching/reps** on Shunya. Returns `rep_id` values to use with
-`/coaching/reps/{rep_id}/profile` (and Shunya's `/top3` when exposed).
+Proxies **GET /api/v1/coaching/reps** on Shunya, enriched with Otto's user data.
 
-**Query:** `company_id` (required).
+Returns `rep_id` values to use with `/coaching/reps/{rep_id}/profile` (and Shunya's `/top3` when exposed).
+
+**Enrichment:** Each rep includes:
+- `role` (from Otto's users table)
+- `booking_rate` (calculated from Otto's calls + analyses)
+
+**Query:** `company_id` (required), optional date filters for booking_rate calculation.
 
 Requires EXECUTIVE. `company_id` must match the authenticated user's company when set.
 """,
@@ -553,6 +558,8 @@ Requires EXECUTIVE. `company_id` must match the authenticated user's company whe
 async def list_coaching_reps_proxy(
     company_id: UUID = Query(..., description="Company UUID"),
     current_user: User = Depends(require_executive),
+    start_date: Optional[date] = Query(None, description="Start date for booking rate calculation (defaults to 30 days ago)"),
+    end_date: Optional[date] = Query(None, description="End date for booking rate calculation (defaults to today)"),
 ):
     _assert_coaching_company_scope(current_user, company_id)
     shoonya = get_shoonya_client()
@@ -562,7 +569,103 @@ async def list_coaching_reps_proxy(
             detail="Shunya coaching service not available",
         )
     try:
-        return await shoonya.list_coaching_reps(str(company_id))
+        # Get Shunya rep list
+        shoonya_data = await shoonya.list_coaching_reps(str(company_id))
+        
+        # Get Otto database session
+        from app.infrastructure.database.session import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
+            # Fetch Otto users for enrichment
+            if not start_date:
+                start_date = date.today() - timedelta(days=30)
+            if not end_date:
+                end_date = date.today()
+            
+            start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+            
+            # Get all users for this company
+            from sqlalchemy import select, func, case
+            from app.infrastructure.database.models.user import UserORM
+            from app.infrastructure.database.models.call import CallORM
+            from app.infrastructure.database.models.analysis import CallAnalysisORM
+            
+            users_result = await session.execute(
+                select(UserORM).where(
+                    UserORM.company_id == company_id,
+                    UserORM.is_active == True,
+                )
+            )
+            users = users_result.scalars().all()
+            user_ids = [u.id for u in users]
+            
+            # Calculate booking rates for all users
+            booking_result = await session.execute(
+                select(
+                    CallORM.handled_by_user_id,
+                    func.count(
+                        case((func.lower(CallAnalysisORM.booking_status) == "booked", 1))
+                    ).label("booked_count"),
+                    func.count(
+                        case(
+                            (
+                                CallAnalysisORM.qualification_status.in_(
+                                    ["hot", "warm", "cold", "qualified"]
+                                ),
+                                1,
+                            )
+                        )
+                    ).label("qualified_count"),
+                )
+                .select_from(CallORM)
+                .outerjoin(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
+                    CallORM.handled_by_user_id.in_(user_ids),
+                    CallORM.company_id == company_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                )
+                .group_by(CallORM.handled_by_user_id)
+            )
+            booking_by_user = {row.handled_by_user_id: row for row in booking_result}
+            
+            # Create lookup by name
+            user_lookup = {}
+            for user in users:
+                full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+                if full_name:
+                    user_lookup[full_name.lower()] = {
+                        "role": user.role,
+                        "user_id": user.id,
+                    }
+            
+            # Enrich Shunya reps with Otto data
+            if "reps" in shoonya_data:
+                for rep in shoonya_data["reps"]:
+                    rep_name = rep.get("rep_name", "").strip()
+                    user_data = user_lookup.get(rep_name.lower())
+                    
+                    if user_data:
+                        # Add role
+                        rep["role"] = user_data["role"]
+                        
+                        # Calculate booking rate
+                        user_id = user_data["user_id"]
+                        booking_data = booking_by_user.get(user_id)
+                        if booking_data:
+                            booked = int(booking_data.booked_count or 0)
+                            qualified = int(booking_data.qualified_count or 0)
+                            booking_rate = (booked / qualified * 100) if qualified > 0 else 0.0
+                            rep["booking_rate"] = round(booking_rate, 1)
+                        else:
+                            rep["booking_rate"] = 0.0
+                    else:
+                        # No matching user found
+                        rep["role"] = None
+                        rep["booking_rate"] = 0.0
+        
+        return shoonya_data
+        
     except httpx.HTTPStatusError as e:
         detail = e.response.text[:2000] if e.response.text else e.response.reason_phrase
         raise HTTPException(status_code=e.response.status_code, detail=detail)

@@ -236,6 +236,10 @@ class AppointmentResponse(AppointmentBase):
         None,
         description="Recording status (e.g. uploaded)",
     )
+    phases: Optional[dict] = Field(
+        None,
+        description="Live conversation phase detection from Shunya (greeting, problem_discovery, qualification, objection_handling, closing, post_close)",
+    )
 
     class Config:
         from_attributes = True
@@ -364,6 +368,12 @@ class AppointmentContextResponse(BaseModel):
 
     # Pending actions
     pending_actions: List[PendingActionItem]
+
+    # Conversation phases from Shunya
+    phases: Optional[dict] = Field(
+        None,
+        description="Live conversation phase detection from Shunya (greeting, problem_discovery, qualification, objection_handling, closing, post_close)",
+    )
 
     # AI briefing (may be None if Shoonya unavailable)
     ai_briefing: Optional[AIBriefing] = None

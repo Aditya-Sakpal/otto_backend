@@ -25,6 +25,7 @@ class CompanyIntegrationORM(Base):
 
     # VoIP integration fields (all optional)
     voip_api_encrypted_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    voip_access_key_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
     voip_provider: Mapped[str | None] = mapped_column(String, nullable=True)
     voip_company_id: Mapped[str | None] = mapped_column(String, nullable=True)
 

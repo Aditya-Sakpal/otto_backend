@@ -1,5 +1,13 @@
 """
-Entry point: python -m contextual_follow_up
+Entry point for the contextual follow-up agent.
+
+The package lives under ``app/agents/``. From the ``backend`` directory run either:
+
+- PowerShell: ``$env:PYTHONPATH = "app\\agents"; python -m contextual_follow_up_agent --lead-id ...``
+- Bash: ``PYTHONPATH=app/agents python -m contextual_follow_up_agent --lead-id ...``
+- Or: ``backend/scripts/run_contextual_follow_up.ps1 --lead-id ...`` (Windows)
+
+Use the backend virtualenv (``requirements.txt``) so dependencies like structlog are installed.
 
 Supports:
   --lead-id UUID    Process a single lead end-to-end

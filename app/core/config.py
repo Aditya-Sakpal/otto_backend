@@ -54,6 +54,16 @@ class Settings(BaseSettings):
 
     # OpenAI (fallback LLM)
     OPENAI_API_KEY: str = Field(default=os.getenv("OPENAI_API_KEY", ""), description="OpenAI API key")
+    INTENT_CLASSIFICATION_MODEL: str = Field(
+        default=os.getenv("INTENT_CLASSIFICATION_MODEL", "gpt-4o-mini"),
+        description="OpenAI model for inbound SMS intent classification",
+    )
+
+    # Twilio (webhook signature validation for inbound SMS)
+    TWILIO_AUTH_TOKEN: str = Field(
+        default=os.getenv("TWILIO_AUTH_TOKEN", ""),
+        description="Twilio auth token; used to validate inbound SMS webhooks when set",
+    )
 
     # Vector DB Configuration
     VECTOR_DB_PROVIDER: str = Field(

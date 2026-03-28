@@ -147,6 +147,7 @@ class CompanyService:
         csr_sop_doc_url: str | None = None,
         sales_sop_doc_url: str | None = None,
         extra_metadata: dict | None = None,
+        follow_up_manual_review_enabled: bool | None = None,
     ) -> CompanyORM | None:
         """
         Update a company.
@@ -161,6 +162,7 @@ class CompanyService:
             csr_sop_doc_url: URL to CSR SOP document (optional)
             sales_sop_doc_url: URL to Sales SOP document (optional)
             extra_metadata: Additional metadata (optional)
+            follow_up_manual_review_enabled: Contextual follow-up draft-before-send toggle (optional)
 
         Returns:
             Updated CompanyORM instance or None if not found
@@ -174,7 +176,8 @@ class CompanyService:
             sop_doc_url=sop_doc_url,
             csr_sop_doc_url=csr_sop_doc_url,
             sales_sop_doc_url=sales_sop_doc_url,
-            extra_metadata=extra_metadata
+            extra_metadata=extra_metadata,
+            follow_up_manual_review_enabled=follow_up_manual_review_enabled,
         )
 
     async def update_company_integration(

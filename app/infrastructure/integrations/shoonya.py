@@ -12,6 +12,15 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Peer-comparison can be slow on Shunya (heavy aggregates); shared client default is 30s read.
+# httpx.Timeout requires either one default or all of connect/read/write/pool (see httpx._config).
+_PEER_COMPARISON_TIMEOUT = httpx.Timeout(
+    connect=20.0,
+    read=120.0,
+    write=30.0,
+    pool=30.0,
+)
+
 
 class ShoonyaClient:
     """
@@ -1714,6 +1723,7 @@ class ShoonyaClient:
                 url,
                 headers=self._get_headers(company_id),
                 params=params,
+                timeout=_PEER_COMPARISON_TIMEOUT,
             )
             response.raise_for_status()
             return response.json()

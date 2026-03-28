@@ -4,7 +4,7 @@ Settings API response schemas.
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 from app.domain.models.base import BaseModel
 
@@ -92,5 +92,50 @@ class UpdateDocumentRequest(BaseModel):
 
 class SettingsResponse(BaseModel):
     """Complete settings response."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        validate_assignment=True,
+        use_enum_values=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "00000000-0000-4000-8000-000000000001",
+                    "created_at": "2026-03-27T12:00:00",
+                    "updated_at": None,
+                    "integrations": [],
+                    "documents": [],
+                    "follow_up_manual_review_enabled": False,
+                }
+            ]
+        },
+    )
+
     integrations: List[IntegrationResponse]
     documents: List[DocumentResponse]
+    follow_up_manual_review_enabled: bool = Field(
+        default=False,
+        description="If true, contextual follow-up agent saves drafts (proposed) until manual send",
+    )
+
+
+class FollowUpManualReviewPatch(BaseModel):
+    """Toggle manual review before automated follow-up sends."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        validate_assignment=True,
+        use_enum_values=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "00000000-0000-4000-8000-000000000002",
+                    "created_at": "2026-03-27T12:00:00",
+                    "updated_at": None,
+                    "follow_up_manual_review_enabled": True,
+                }
+            ]
+        },
+    )
+
+    follow_up_manual_review_enabled: bool

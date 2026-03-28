@@ -154,6 +154,8 @@ class CTMService:
         self,
         payload: Dict[str, Any],
         company_id: UUID,
+        ctm_access_key: str | None = None,
+        ctm_secret_key: str | None = None,
     ) -> Call:
         """
         Process Call Tracking Metrics (CTM) webhook payload.
@@ -323,6 +325,15 @@ class CTMService:
                         message_id = str(call_id_ctm)
                         s3_key = f"recordings/{contact_id_str}/{message_id}.mp3"
 
+                        # Build Basic Auth headers for CTM audio download
+                        auth_headers = None
+                        if ctm_access_key and ctm_secret_key:
+                            import base64
+                            credentials = base64.b64encode(
+                                f"{ctm_access_key}:{ctm_secret_key}".encode()
+                            ).decode()
+                            auth_headers = {"Authorization": f"Basic {credentials}"}
+
                         # Stream from CTM URL to S3
                         s3_audio_url = await s3_service.upload_from_url(
                             url=audio_url_ctm,
@@ -334,6 +345,7 @@ class CTMService:
                                 "company_id": str(company_id),
                             },
                             bucket_type="audio",
+                            headers=auth_headers,
                         )
                         logger.info(
                             "Audio streamed to S3",

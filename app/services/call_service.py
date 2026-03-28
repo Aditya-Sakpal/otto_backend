@@ -254,6 +254,16 @@ class CallService:
                             # It's already a string
                             call_type_str = call.call_type
 
+                    # Build metadata: start from extra_metadata, then override agent
+                    # with our DB user ID so Shunya always sees the Otto user, not
+                    # the CRM-specific agent ID (CTM, ST, GHL).
+                    call_metadata = {
+                        "call_type": call_type_str,
+                        **(call.extra_metadata or {}),
+                    }
+                    if call.handled_by_user_id:
+                        call_metadata["agent"] = {"id": str(call.handled_by_user_id)}
+
                     result = await self.shoonya.process_call(
                         call_id=str(call.id),
                         company_id=str(call.company_id),
@@ -262,10 +272,7 @@ class CallService:
                         duration=call.duration_seconds or 0,
                         call_date=call.created_at.isoformat() if call.created_at else datetime.utcnow().isoformat(),
                         webhook_url=webhook_url,
-                        metadata={
-                            "call_type": call_type_str,
-                            **(call.extra_metadata or {}),
-                        },
+                        metadata=call_metadata,
                     )
                     logger.info(
                         "Call processing job submitted",
@@ -339,6 +346,10 @@ class CallService:
                 "direct_analysis": True,  # Flag to indicate this was sent directly
                 **(extra_metadata or {}),
             }
+            # Override agent with our DB user ID so Shunya always sees the
+            # Otto user, not the CRM-specific agent ID (CTM, ST, GHL).
+            if handled_by_user_id:
+                metadata["agent"] = {"id": str(handled_by_user_id)}
 
             # Submit to Shunya
             result = await self.shoonya.process_call(

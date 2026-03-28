@@ -1022,27 +1022,7 @@ class AppointmentService:
             pending_messages=pending_messages,
         )
 
-        # 11. Shoonya conversation phases for the appointment interaction call (same as lead/pipeline detail)
-        phases_payload: Optional[Dict[str, Any]] = None
-        if appointment.interaction_id:
-            shoonya = get_shoonya_client()
-            if shoonya.is_available():
-                try:
-                    raw = await shoonya.get_call_conversation_phases(
-                        call_id=str(appointment.interaction_id),
-                        company_id=str(lead.company_id),
-                    )
-                    inner = raw.get("phases")
-                    phases_payload = inner if inner is not None else raw
-                except Exception as e:
-                    logger.warning(
-                        "appointment context: could not fetch Shoonya conversation phases",
-                        appointment_id=str(appointment_id),
-                        interaction_id=str(appointment.interaction_id),
-                        error=str(e),
-                    )
-
-        # 12. Fetch conversation phases from Shunya
+        # 11. Fetch conversation phases from Shunya
         phase_call_id = appointment.interaction_id or appointment.id
         phases = await self._fetch_phases(phase_call_id, appointment.company_id)
 
@@ -1057,7 +1037,6 @@ class AppointmentService:
             outcome=appointment.outcome.value if appointment.outcome and hasattr(appointment.outcome, 'value') else appointment.outcome,
             recording_status=appointment.recording_status,
             audio_url=appointment.audio_url,
-            phases=phases_payload,
             appointment_analysis=AppointmentAnalysis(
                 analysis_status=appointment.analysis_status,
                 summary=appointment.summary,

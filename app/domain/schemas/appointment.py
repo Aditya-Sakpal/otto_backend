@@ -599,3 +599,13 @@ class AppointmentContextResponse(BaseModel):
         },
     )
 
+
+class AppointmentsTodayCounts(BaseModel):
+    total_today: int
+    pending: int
+    closed: int
+
+
+class AppointmentsTodayResponse(BaseModel):
+    appointments: List[AppointmentResponse]
+    counts: AppointmentsTodayCounts

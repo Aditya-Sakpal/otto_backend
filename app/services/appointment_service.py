@@ -273,6 +273,26 @@ class AppointmentService:
             },
         }
 
+    async def _fetch_phases(self, call_id: UUID, company_id: UUID) -> Optional[dict]:
+        """
+        Fetch live conversation phases from Shunya for a call.
+
+        Returns the phases dict or None if unavailable.
+        """
+        try:
+            shoonya = get_shoonya_client()
+            if not shoonya.is_available():
+                return None
+            payload = await shoonya.get_call_conversation_phases(
+                call_id=str(call_id),
+                company_id=str(company_id),
+            )
+            phases = payload.get("phases")
+            return phases if phases is not None else payload
+        except Exception as e:
+            logger.warning(f"Could not fetch phases for call {call_id}: {e}")
+            return None
+
     async def _build_appointment_insights(self, interaction_id: UUID) -> Optional[AppointmentInsightSummary]:
         """
         Build comprehensive appointment insights from call analysis.
@@ -448,6 +468,13 @@ class AppointmentService:
             insights = await self._build_appointment_insights(appointment.interaction_id)
             if insights:
                 response_data["insights"] = insights.model_dump()
+
+        # Fetch live conversation phases from Shunya (only for single-appointment endpoints)
+        if include_full_details:
+            phase_call_id = appointment.interaction_id or appointment.id
+            phases = await self._fetch_phases(phase_call_id, appointment.company_id)
+            if phases:
+                response_data["phases"] = phases
 
         return AppointmentResponse(**response_data)
 
@@ -1015,6 +1042,10 @@ class AppointmentService:
                         error=str(e),
                     )
 
+        # 12. Fetch conversation phases from Shunya
+        phase_call_id = appointment.interaction_id or appointment.id
+        phases = await self._fetch_phases(phase_call_id, appointment.company_id)
+
         # 12. Build response
         return AppointmentContextResponse(
             appointment_id=appointment.id,
@@ -1066,6 +1097,7 @@ class AppointmentService:
             conversation_history=conversation_history,
             objections=aggregated_objections,
             pending_actions=pending_actions,
+            phases=phases,
             # ai_briefing=ai_briefing, # Shunya API does not work as of yet
             ai_briefing=None,
             follow_up=follow_up_section,

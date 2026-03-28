@@ -1,6 +1,7 @@
-"""
-ORM for masked_communications (proxy / Twilio comms log).
+"""Masked communication ORM model.
 
+Stores individual call or SMS records within a proxy session.
+Each record represents one direction of one communication event.
 Includes intent columns used by the Intent-to-Action engine for inbound SMS.
 """
 from __future__ import annotations
@@ -58,4 +59,6 @@ class MaskedCommunicationORM(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
+    # Relationships
     session = relationship("ProxySessionORM", back_populates="communications")
+    call = relationship("CallORM")

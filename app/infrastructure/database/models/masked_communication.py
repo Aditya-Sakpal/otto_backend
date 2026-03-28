@@ -1,6 +1,7 @@
-"""
-ORM for masked_communications (proxy / Twilio comms log).
+"""Masked communication ORM model.
 
+Stores individual call or SMS records within a proxy session.
+Each record represents one direction of one communication event.
 Includes intent columns used by the Intent-to-Action engine for inbound SMS.
 """
 from __future__ import annotations
@@ -11,7 +12,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.base import Base
 
@@ -57,3 +58,7 @@ class MaskedCommunicationORM(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+    # Relationships
+    session = relationship("ProxySessionORM", back_populates="communications")
+    call = relationship("CallORM")

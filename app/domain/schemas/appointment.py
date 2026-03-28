@@ -2,10 +2,10 @@
 Appointment Pydantic schemas for API requests and responses.
 """
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.enums import AppointmentOutcome
 
@@ -332,8 +332,198 @@ class AppointmentAnalysis(BaseModel):
     sop_compliance_positive_behaviors: List[str] = Field(default_factory=list)
 
 
+class AppointmentContextFollowUpDraft(BaseModel):
+    """A contextual follow-up row saved before send (e.g. manual review)."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "action_type": "sms_to_lead",
+                    "status": "proposed",
+                    "message_content": "Hi Jane — following up on your roof estimate. Want me to hold Tuesday 2pm?",
+                    "scheduled_at": "2026-03-27T18:00:00Z",
+                    "created_at": "2026-03-27T17:05:00Z",
+                    "queue_type": "appointment_ran",
+                    "attempt_number": 1,
+                }
+            ]
+        }
+    )
+
+    id: UUID
+    action_type: str
+    status: str
+    message_content: str
+    scheduled_at: datetime
+    created_at: datetime
+    queue_type: str
+    attempt_number: int
+
+
+class AppointmentContextFollowUpSection(BaseModel):
+    """Contextual follow-up agent: company toggle + drafts awaiting send/edit."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "manual_review_enabled": True,
+                    "pending_messages": [
+                        {
+                            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                            "action_type": "sms_to_lead",
+                            "status": "proposed",
+                            "message_content": "Hi Jane — following up on your roof estimate. Want me to hold Tuesday 2pm?",
+                            "scheduled_at": "2026-03-27T18:00:00Z",
+                            "created_at": "2026-03-27T17:05:00Z",
+                            "queue_type": "appointment_ran",
+                            "attempt_number": 1,
+                        }
+                    ],
+                },
+                {"manual_review_enabled": False, "pending_messages": []},
+            ]
+        }
+    )
+
+    manual_review_enabled: bool
+    pending_messages: List[AppointmentContextFollowUpDraft] = Field(default_factory=list)
+
+
+# OpenAPI / Swagger: use this for GET /appointments/{id}/context response example (single source of truth).
+APPOINTMENT_CONTEXT_RESPONSE_EXAMPLE: Dict[str, Any] = {
+    "appointment_id": "dbd8540e-6337-4127-93a2-d8d20cb9b5dd",
+    "scheduled_start": "2026-03-24T17:00:00Z",
+    "scheduled_end": None,
+    "location_address": "Ashken",
+    "latitude": None,
+    "longitude": None,
+    "outcome": "pending",
+    "recording_status": "uploaded",
+    "audio_url": "https://ottoaudio.s3.ap-southeast-2.amazonaws.com/recordings/appointment_dbd8540e-6337-4127-93a2-d8d20cb9b5dd.wav",
+    "phases": {
+        "greeting": {
+            "phase": "greeting",
+            "detected": True,
+            "confidence": 0.5,
+            "timestamps": {
+                "start_ms": 1920,
+                "end_ms": 4197,
+                "duration_ms": 2277,
+                "estimation_method": "hybrid_aligned",
+            },
+            "segments": [],
+            "key_phrases": ["thanks for calling"],
+            "quality_score": 0.7,
+            "quality_notes": None,
+        },
+        "problem_discovery": {
+            "phase": "problem_discovery",
+            "detected": False,
+            "confidence": 0,
+            "timestamps": None,
+            "segments": [],
+            "key_phrases": [],
+            "quality_score": None,
+            "quality_notes": None,
+        },
+        "qualification": {
+            "phase": "qualification",
+            "detected": False,
+            "confidence": 0,
+            "timestamps": None,
+            "segments": [],
+            "key_phrases": [],
+            "quality_score": None,
+            "quality_notes": None,
+        },
+        "objection_handling": {
+            "phase": "objection_handling",
+            "detected": False,
+            "confidence": 0,
+            "timestamps": None,
+            "segments": [],
+            "key_phrases": [],
+            "quality_score": None,
+            "quality_notes": None,
+        },
+        "closing": {
+            "phase": "closing",
+            "detected": False,
+            "confidence": 0,
+            "timestamps": None,
+            "segments": [],
+            "key_phrases": [],
+            "quality_score": None,
+            "quality_notes": None,
+        },
+        "post_close": {
+            "phase": "post_close",
+            "detected": False,
+            "confidence": 0,
+            "timestamps": None,
+            "segments": [],
+            "key_phrases": [],
+            "quality_score": None,
+            "quality_notes": None,
+        },
+    },
+    "appointment_analysis": {
+        "analysis_status": "completed",
+        "summary": "Walkthrough completed; homeowner asked about warranty.",
+        "key_points": ["Discussed timeline"],
+        "action_items": [],
+        "next_steps": [],
+        "sentiment_score": 0.72,
+        "qualification_status": "warm",
+        "booking_status": "booked",
+        "objection_texts": [],
+        "objections_total_count": 0,
+        "sop_compliance_score": 0.85,
+        "sop_compliance_rate": None,
+        "sop_stages_completed": ["greeting", "qualification"],
+        "sop_stages_missed": [],
+        "sop_compliance_issues": [],
+        "sop_compliance_positive_behaviors": [],
+    },
+    "contact_info": {
+        "id": "4013a406-29d0-4eb8-aad8-2139735b4254",
+        "first_name": "Jane",
+        "last_name": "Doe",
+        "primary_phone": "+15551234567",
+        "email": "jane@example.com",
+        "address": None,
+        "city": None,
+        "state": None,
+    },
+    "sales_rep_name": "Alex Smith",
+    "lead_info": {
+        "id": "bc175381-b349-4cfc-ac23-8085d567665e",
+        "status": "qualified_booked",
+        "deal_size": 12000.0,
+        "deal_type": None,
+        "lead_score": None,
+    },
+    "conversation_history": [],
+    "objections": {
+        "unique_objections": [],
+        "objection_counts": {},
+        "top_objections": [],
+    },
+    "pending_actions": [],
+    "ai_briefing": None,
+    "follow_up": None,
+}
+
+
 class AppointmentContextResponse(BaseModel):
     """Comprehensive appointment context for pre-meeting intelligence."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"example": APPOINTMENT_CONTEXT_RESPONSE_EXAMPLE}
+    )
 
     # Appointment basics
     appointment_id: UUID
@@ -345,6 +535,14 @@ class AppointmentContextResponse(BaseModel):
     outcome: Optional[str]
     recording_status: Optional[str] = None
     audio_url: Optional[str] = None
+    phases: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "Shoonya conversation phases for the appointment interaction call "
+            "(GET /api/v1/call-processing/calls/{call_id}/phases). "
+            "Null when there is no interaction_id or Shoonya is unavailable."
+        ),
+    )
 
     # Analysis (nested)
     appointment_analysis: Optional[AppointmentAnalysis] = None
@@ -368,9 +566,26 @@ class AppointmentContextResponse(BaseModel):
     # AI briefing (may be None if Shoonya unavailable)
     ai_briefing: Optional[AIBriefing] = None
 
-
-class AppointmentsTodayResponse(BaseModel):
-    """Response for the /today endpoint with appointments and counts."""
-    appointments: List[AppointmentResponse] = Field(..., description="List of appointments for the day")
-    counts: dict = Field(..., description="Counts: total_today, pending, closed")
+    # Contextual follow-up agent (proposed messages when manual review is on)
+    follow_up: Optional[AppointmentContextFollowUpSection] = Field(
+        None,
+        description="When manual review is enabled for the company, lists proposed SMS/nudge drafts for this lead.",
+        json_schema_extra={
+            "example": {
+                "manual_review_enabled": True,
+                "pending_messages": [
+                    {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "action_type": "sms_to_lead",
+                        "status": "proposed",
+                        "message_content": "Hi Jane — following up on your roof estimate.",
+                        "scheduled_at": "2026-03-27T18:00:00Z",
+                        "created_at": "2026-03-27T17:05:00Z",
+                        "queue_type": "appointment_ran",
+                        "attempt_number": 1,
+                    }
+                ],
+            }
+        },
+    )
 

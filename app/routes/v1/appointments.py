@@ -15,6 +15,7 @@ from app.core.logging import get_logger
 from app.core.permissions import require_any_role
 from app.domain.enums import UserRole
 from app.domain.schemas.appointment import (
+    APPOINTMENT_CONTEXT_RESPONSE_EXAMPLE,
     AppointmentCreate,
     AppointmentUpdate,
     AppointmentLocationUpdate,
@@ -481,7 +482,17 @@ async def get_appointment(
 @router.get(
     "/{appointment_id}/context",
     response_model=AppointmentContextResponse,
-    responses=RESPONSES,
+    responses={
+        **RESPONSES,
+        200: {
+            "description": "Appointment context; `phases` sits after `audio_url`, before `appointment_analysis`",
+            "content": {
+                "application/json": {
+                    "example": APPOINTMENT_CONTEXT_RESPONSE_EXAMPLE,
+                }
+            },
+        },
+    },
 )
 async def get_appointment_context(
     appointment_id: UUID,
@@ -492,7 +503,32 @@ async def get_appointment_context(
     Get comprehensive appointment context for pre-meeting intelligence.
 
     Returns appointment details, lead info, contact info, CSR conversation history,
-    previous objections, pending actions, and AI-generated briefing.
+    previous objections, pending actions, AI-generated briefing, and optional **follow_up**
+    (manual-review drafts from the contextual follow-up agent).
+
+    **`phases`** (between `audio_url` and `appointment_analysis`): Shoonya conversation phases
+    for the appointment **interaction** call (`interaction_id` → GET .../calls/{call_id}/phases).
+    Omitted or null when there is no linked interaction or Shoonya is unavailable.
+
+    **Example `follow_up` fragment (200)** — present when the company uses manual review and drafts exist:
+
+    ```json
+    "follow_up": {
+      "manual_review_enabled": true,
+      "pending_messages": [
+        {
+          "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          "action_type": "sms_to_lead",
+          "status": "proposed",
+          "message_content": "Hi Jane — following up on your roof estimate.",
+          "scheduled_at": "2026-03-27T18:00:00Z",
+          "created_at": "2026-03-27T17:05:00Z",
+          "queue_type": "appointment_ran",
+          "attempt_number": 1
+        }
+      ]
+    }
+    ```
 
     **Wave 2: Pre-Meeting Intelligence**
 

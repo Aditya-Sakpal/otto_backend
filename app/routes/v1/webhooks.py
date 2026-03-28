@@ -13,7 +13,9 @@ import json
 import traceback
 from typing import Any, Dict, Optional, Set
 from uuid import UUID
+
 from fastapi import APIRouter, Header, Request, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -28,6 +30,7 @@ from app.services.call_service import CallService, transform_summary_to_analysis
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
 from app.services.servicetitan_service import ServiceTitanService
+from app.services.intent_to_action_service import record_twilio_inbound_sms
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -923,3 +926,63 @@ async def servicetitan_crm_webhook(
     except Exception as e:
         logger.error(f"Error processing ST CRM webhook: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/twilio/messaging/inbound")
+async def twilio_inbound_sms_webhook(request: Request, db: DbSession):
+    """
+    Twilio Status Callback / inbound SMS webhook (application/x-www-form-urlencoded).
+
+    Configure Twilio to POST here when an SMS is received on a proxy number.
+    Resolves `proxy_sessions` + `proxy_numbers`, inserts `masked_communications`,
+    and stores intent_label + confidence_score (Intent-to-Action).
+
+    Validates `X-Twilio-Signature` when TWILIO_AUTH_TOKEN is set.
+    """
+    form = await request.form()
+    params = {k: v for k, v in form.multi_items()}
+
+    if settings.TWILIO_AUTH_TOKEN:
+        try:
+            from twilio.request_validator import RequestValidator
+
+            validator = RequestValidator(settings.TWILIO_AUTH_TOKEN)
+            signature = request.headers.get("X-Twilio-Signature") or ""
+            url = str(request.url)
+            if not validator.validate(url, params, signature):
+                raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Twilio signature validation error", error=str(e))
+            raise HTTPException(status_code=500, detail="Webhook validation failed")
+
+    from_number = (params.get("From") or "").strip()
+    to_number = (params.get("To") or "").strip()
+    body = params.get("Body") or ""
+    message_sid = (params.get("MessageSid") or "").strip() or None
+
+    if not from_number or not to_number:
+        raise HTTPException(status_code=400, detail="From and To are required")
+
+    try:
+        new_id = await record_twilio_inbound_sms(
+            db,
+            from_number=from_number,
+            to_number=to_number,
+            body=body,
+            message_sid=message_sid,
+        )
+        await db.commit()
+    except Exception as e:
+        logger.error("twilio inbound SMS webhook failed", error=str(e), exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Twilio expects 2xx and optional empty TwiML
+    logger.info(
+        "twilio inbound SMS processed",
+        new_id=str(new_id) if new_id else None,
+        message_sid=message_sid,
+    )
+    return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="application/xml")

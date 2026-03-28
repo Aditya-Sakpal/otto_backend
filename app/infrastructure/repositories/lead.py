@@ -611,6 +611,45 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             logger.error(f"Error getting leads by pipeline stages: {e}")
             raise e
 
+    async def _live_phases_by_call_ids(
+        self,
+        call_ids: List[UUID],
+        company_id: UUID,
+    ) -> dict[UUID, Any]:
+        """
+        Fetch Shoonya conversation phases for each call id.
+        Returns a map call_id → phases dict (or None if client off / request failed).
+        """
+        out: dict[UUID, Any] = {}
+        if not call_ids:
+            return out
+        unique = list(dict.fromkeys(call_ids))
+        shoonya = get_shoonya_client()
+        if not shoonya.is_available():
+            for cid in unique:
+                out[cid] = None
+            return out
+
+        async def _fetch_one(call_id: UUID) -> tuple[UUID, Any]:
+            try:
+                payload = await shoonya.get_call_conversation_phases(
+                    call_id=str(call_id),
+                    company_id=str(company_id),
+                )
+                phases = payload.get("phases")
+                return call_id, (phases if phases is not None else payload)
+            except Exception as e:
+                logger.warning(f"Could not fetch live phases for call {call_id}: {e}")
+                return call_id, None
+
+        phase_results = await asyncio.gather(
+            *(_fetch_one(cid) for cid in unique),
+            return_exceptions=False,
+        )
+        for cid, phases in phase_results:
+            out[cid] = phases
+        return out
+
     async def get_detail_by_id(self, lead_id: UUID) -> Optional[LeadDetail]:
         """Get detailed lead information for lead details page."""
         try:
@@ -721,30 +760,10 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             if calls:
                 # Sort calls by created_at descending (most recent first)
                 sorted_calls = sorted(calls, key=lambda c: c.created_at, reverse=True)
-
-                # Always fetch live phases from Shoonya 2.6 for each call.
-                shoonya = get_shoonya_client()
-                live_phases_by_call: dict[UUID, Any] = {}
-
-                if shoonya.is_available():
-                    async def _fetch_live_phases(call_id: UUID):
-                        try:
-                            payload = await shoonya.get_call_conversation_phases(
-                                call_id=str(call_id),
-                                company_id=str(lead_orm.company_id),
-                            )
-                            phases = payload.get("phases")
-                            return call_id, (phases if phases is not None else payload)
-                        except Exception as e:
-                            logger.warning(f"Could not fetch live phases for call {call_id}: {e}")
-                            return call_id, None
-
-                    phase_results = await asyncio.gather(
-                        *(_fetch_live_phases(call.id) for call in sorted_calls),
-                        return_exceptions=False,
-                    )
-                    for cid, phases in phase_results:
-                        live_phases_by_call[cid] = phases
+                live_phases_by_call = await self._live_phases_by_call_ids(
+                    [c.id for c in sorted_calls],
+                    lead_orm.company_id,
+                )
 
                 for call in sorted_calls:
                     # Get analysis for this call - it's already loaded via selectinload
@@ -1065,7 +1084,25 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 raw_calls = []
             sorted_calls = sorted(raw_calls, key=lambda c: c.created_at, reverse=True)
 
-            # ── 3. Build Lead tab ─────────────────────────────────────────────────
+            # ── 3. Most recent appointment (needed for interaction_id before Shoonya phase fetch)
+            appt_result = await self.session.execute(
+                select(AppointmentORM)
+                .where(AppointmentORM.lead_id == lead_id)
+                .order_by(AppointmentORM.scheduled_start.desc())
+                .limit(1)
+            )
+            appt_orm = appt_result.scalar_one_or_none()
+
+            call_ids_for_phases = list(dict.fromkeys(c.id for c in sorted_calls))
+            if appt_orm and appt_orm.interaction_id:
+                if appt_orm.interaction_id not in call_ids_for_phases:
+                    call_ids_for_phases.append(appt_orm.interaction_id)
+            phases_map = await self._live_phases_by_call_ids(
+                call_ids_for_phases,
+                lead_orm.company_id,
+            )
+
+            # ── 4. Build Lead tab ─────────────────────────────────────────────────
             lead_conversations: List[PipelineConversation] = []
             summaries: List[str] = []
             all_key_points: List[str] = []
@@ -1098,6 +1135,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                         key_points=list(analysis.key_points) if analysis and analysis.key_points else [],
                         objections=list(analysis.objections) if analysis and analysis.objections else [],
                         call_recording_url=call.audio_url,
+                        phases=phases_map.get(call.id),
                     )
                 )
 
@@ -1113,14 +1151,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 conversations=lead_conversations,
             )
 
-            # ── 4. Load most recent appointment for this lead ─────────────────────
-            appt_result = await self.session.execute(
-                select(AppointmentORM)
-                .where(AppointmentORM.lead_id == lead_id)
-                .order_by(AppointmentORM.scheduled_start.desc())
-                .limit(1)
-            )
-            appt_orm = appt_result.scalar_one_or_none()
+            # ── 5. Appointment / result tabs (appt_orm already loaded) ─────────
 
             appointment_tab: Optional[AppointmentTab] = None
             result_tab: Optional[ResultTab] = None
@@ -1262,6 +1293,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                                     key_points=list(ia.key_points) if ia and ia.key_points else [],
                                     objections=list(ia.objections) if ia and ia.objections else (list(appt_orm.objections) if appt_orm.objections else []),
                                     call_recording_url=interaction_call.audio_url or appt_orm.audio_url,
+                                    phases=phases_map.get(interaction_call.id),
                                 )
                             )
 

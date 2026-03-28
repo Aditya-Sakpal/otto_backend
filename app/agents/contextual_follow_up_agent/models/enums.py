@@ -12,14 +12,15 @@ class QueueType(str, Enum):
 
 class FollowUpStatus(str, Enum):
     """Status of a follow-up log entry."""
-    PROPOSED = "proposed"    # In review queue, not yet approved
-    PENDING = "pending"      # Approved/scheduled, not yet sent
-    SENT = "sent"            # Successfully delivered
-    FAILED = "failed"        # Delivery failed
-    DORMANT = "dormant"      # Lead exhausted max attempts
-    CANCELLED = "cancelled"  # Manually cancelled
-    OPTED_OUT = "opted_out"  # Homeowner opted out of messaging
-    PAUSED = "paused"        # Sequence paused (rep intervened or homeowner replied)
+    PROPOSED = "proposed"          # In review queue, not yet approved
+    PENDING = "pending"            # Approved/scheduled, not yet sent
+    SENT = "sent"                  # Successfully delivered
+    FAILED = "failed"              # Delivery failed
+    DORMANT = "dormant"            # Lead exhausted max attempts
+    CANCELLED = "cancelled"        # Manually cancelled
+    OPTED_OUT = "opted_out"        # Homeowner opted out of messaging
+    PAUSED = "paused"              # Sequence paused — rep manually intervened
+    HUMAN_HANDOFF = "human_handoff"  # Hard stop — homeowner replied; AI outbound permanently halted
 
 
 class ActionType(str, Enum):

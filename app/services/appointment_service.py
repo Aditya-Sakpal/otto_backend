@@ -10,6 +10,7 @@ from datetime import date, datetime
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -21,6 +22,8 @@ from app.domain.schemas.appointment import (
     AppointmentInsightSummary,
     AppointmentAnalysis,
     AppointmentContextResponse,
+    AppointmentContextFollowUpDraft,
+    AppointmentContextFollowUpSection,
     CallSummaryItem,
     ContactCardInfo,
     LeadContextInfo,
@@ -43,6 +46,8 @@ from app.infrastructure.repositories.analysis import CallAnalysisRepository
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.lead import LeadRepository
 from app.infrastructure.repositories.pending_action import PendingActionRepository
+from app.infrastructure.database.models.follow_up_otto import FollowUpOttoORM
+from app.infrastructure.database.models.company import CompanyORM
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.core.datetime_utils import isoformat_utc
 
@@ -951,7 +956,66 @@ class AppointmentService:
         #     pending_actions=pending_actions[:3],  # Top 3 actions
         # )
 
-        # 11. Build response
+        company_row = (
+            await self.session.execute(
+                select(CompanyORM).where(CompanyORM.id == lead.company_id)
+            )
+        ).scalar_one_or_none()
+
+        manual_review_enabled = (
+            bool(company_row.follow_up_manual_review_enabled) if company_row else False
+        )
+
+        pending_messages: List[AppointmentContextFollowUpDraft] = []
+        if manual_review_enabled:
+            otto_result = await self.session.execute(
+                select(FollowUpOttoORM)
+                .where(
+                    FollowUpOttoORM.lead_id == lead.id,
+                    FollowUpOttoORM.status == "proposed",
+                )
+                .order_by(FollowUpOttoORM.created_at.desc())
+            )
+            for o in otto_result.scalars().all():
+                pending_messages.append(
+                    AppointmentContextFollowUpDraft(
+                        id=o.id,
+                        action_type=o.action_type,
+                        status=o.status,
+                        message_content=o.message_content,
+                        scheduled_at=o.scheduled_at,
+                        created_at=o.created_at,
+                        queue_type=o.queue_type,
+                        attempt_number=o.attempt_number,
+                    )
+                )
+
+        follow_up_section = AppointmentContextFollowUpSection(
+            manual_review_enabled=manual_review_enabled,
+            pending_messages=pending_messages,
+        )
+
+        # 11. Shoonya conversation phases for the appointment interaction call (same as lead/pipeline detail)
+        phases_payload: Optional[Dict[str, Any]] = None
+        if appointment.interaction_id:
+            shoonya = get_shoonya_client()
+            if shoonya.is_available():
+                try:
+                    raw = await shoonya.get_call_conversation_phases(
+                        call_id=str(appointment.interaction_id),
+                        company_id=str(lead.company_id),
+                    )
+                    inner = raw.get("phases")
+                    phases_payload = inner if inner is not None else raw
+                except Exception as e:
+                    logger.warning(
+                        "appointment context: could not fetch Shoonya conversation phases",
+                        appointment_id=str(appointment_id),
+                        interaction_id=str(appointment.interaction_id),
+                        error=str(e),
+                    )
+
+        # 12. Build response
         return AppointmentContextResponse(
             appointment_id=appointment.id,
             scheduled_start=appointment.scheduled_start,
@@ -962,6 +1026,7 @@ class AppointmentService:
             outcome=appointment.outcome.value if appointment.outcome and hasattr(appointment.outcome, 'value') else appointment.outcome,
             recording_status=appointment.recording_status,
             audio_url=appointment.audio_url,
+            phases=phases_payload,
             appointment_analysis=AppointmentAnalysis(
                 analysis_status=appointment.analysis_status,
                 summary=appointment.summary,
@@ -1003,6 +1068,7 @@ class AppointmentService:
             pending_actions=pending_actions,
             # ai_briefing=ai_briefing, # Shunya API does not work as of yet
             ai_briefing=None,
+            follow_up=follow_up_section,
         )
 
     async def _generate_ai_briefing(

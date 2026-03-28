@@ -89,6 +89,10 @@ class PipelineConversation(_SlimModel):
     key_points: List[str] = Field(default_factory=list)
     objections: List[str] = Field(default_factory=list)
     call_recording_url: Optional[str] = None
+    phases: Optional[dict] = Field(
+        None,
+        description="Live conversation phase payload from Shoonya GET .../calls/{call_id}/phases",
+    )
 
 
 class SalesRepInfo(_SlimModel):

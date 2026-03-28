@@ -1,7 +1,15 @@
 """
 Orchestrator — main pipeline loop.
 
-scan → assemble → gates → timing → cadence → action routing → generate → execute
+Order of operations (do not reorder without revisiting safety):
+
+1. Scan → assemble context
+2. Intelligence gates (always before any outbound execution):
+   opt-out → homeowner-reply (hard rule, unconditional) → rep intervention (if masked comms)
+3. Timing / cadence / dormant / not-due checks
+4. Generate message + persist as proposed (follow_up_log + follow_up_otto)
+5. Execution gate: AUTO_EXECUTE and not DRY_RUN and not company manual-review ON
+   → then Twilio or pending_actions. Manual review only skips this step, not step 2.
 """
 from __future__ import annotations
 
@@ -99,6 +107,31 @@ def determine_action_types(ctx: AssembledContext) -> list[ActionType]:
 
     # Default (no sentiment data) → rep nudge only
     return [ActionType.NUDGE_SALES_REP]
+
+
+async def _company_follow_up_manual_review_enabled(
+    pg_session: AsyncSession,
+    company_id: uuid.UUID,
+    cache: dict[str, bool],
+) -> bool:
+    """True if company has manual review ON (execution step only; gates always run first)."""
+    key = str(company_id)
+    if key in cache:
+        return cache[key]
+    result = await pg_session.execute(
+        text("""
+            SELECT follow_up_manual_review_enabled FROM companies
+            WHERE id = CAST(:id AS uuid)
+        """),
+        {"id": key},
+    )
+    row = result.first()
+    if not row or row[0] is None:
+        cache[key] = False
+        return False
+    enabled = bool(row[0])
+    cache[key] = enabled
+    return enabled
 
 
 async def _log_follow_up(
@@ -343,6 +376,7 @@ async def process_lead(
     sms_sender: TwilioSMSSender | None,
     pg_session: AsyncSession,
     local_session: AsyncSession,
+    manual_review_enabled: bool,
 ) -> list[str]:
     """
     Process a single lead: generate messages and optionally execute.
@@ -358,11 +392,13 @@ async def process_lead(
                 company_name=company_name, company_config=company_config,
                 sms_sender=sms_sender, pg_session=pg_session,
                 local_session=local_session,
+                manual_review_enabled=manual_review_enabled,
             )
         elif action_type == ActionType.NUDGE_SALES_REP:
             log_id = await _process_nudge(
                 ctx, schedule, claude_client=claude_client,
                 pg_session=pg_session, local_session=local_session,
+                manual_review_enabled=manual_review_enabled,
             )
         else:
             continue
@@ -383,6 +419,7 @@ async def _process_sms(
     sms_sender: TwilioSMSSender | None,
     pg_session: AsyncSession,
     local_session: AsyncSession,
+    manual_review_enabled: bool,
 ) -> str | None:
     """Generate and optionally send an SMS to the homeowner."""
     sms_text = await generate_sms(ctx, company_name, claude_client)
@@ -422,8 +459,13 @@ async def _process_sms(
         assigned_rep_id=ctx.lead.assigned_rep_id,
     )
 
-    # Execute if auto-execute is on and not dry run
-    if settings.AUTO_EXECUTE and not settings.DRY_RUN:
+    # Step 5: execute send only if auto mode, not dry run, and not company manual-review.
+    should_send = (
+        settings.AUTO_EXECUTE
+        and not settings.DRY_RUN
+        and not manual_review_enabled
+    )
+    if should_send:
         if not ctx.lead.phone:
             await _update_log_status(
                 local_session, log_id, FollowUpStatus.FAILED.value,
@@ -491,6 +533,7 @@ async def _process_nudge(
     claude_client: AsyncAnthropic,
     pg_session: AsyncSession,
     local_session: AsyncSession,
+    manual_review_enabled: bool,
 ) -> str | None:
     """Generate and optionally create a rep nudge in pending_actions."""
     nudge = await generate_rep_nudge(ctx, claude_client)
@@ -535,8 +578,12 @@ async def _process_nudge(
         close_approach=nudge.close_approach,
     )
 
-    # Execute if auto-execute is on and not dry run
-    if settings.AUTO_EXECUTE and not settings.DRY_RUN:
+    should_send = (
+        settings.AUTO_EXECUTE
+        and not settings.DRY_RUN
+        and not manual_review_enabled
+    )
+    if should_send:
         if not ctx.lead.assigned_rep_id:
             await _update_log_status(
                 local_session, log_id, FollowUpStatus.FAILED.value,
@@ -635,6 +682,7 @@ async def run(
     ]
 
     now = datetime.now(timezone.utc)
+    manual_review_cache: dict[str, bool] = {}
 
     for row, queue_type in work_items:
         try:
@@ -701,59 +749,62 @@ async def run(
                     stats["gated_opted_out"] += 1
                     continue
 
-            # Gate 2: Homeowner reply detection (only if MASKED_COMMS_ENABLED)
-            if settings.MASKED_COMMS_ENABLED:
-                last_sent_at = ctx.history.last_attempt_at
-                replied = await check_for_homeowner_reply(
-                    str(ctx.lead.lead_id), last_sent_at, pg_session,
+            # Gate 2: Homeowner reply — HARD RULE, always enforced regardless of
+            # MASKED_COMMS_ENABLED. The reply_detector returns False gracefully
+            # when masked_communications does not yet exist, so this is safe.
+            # The moment a customer replies, AI outbound for that lead stops
+            # unconditionally — no config flag can bypass this.
+            last_sent_at = ctx.history.last_attempt_at
+            replied = await check_for_homeowner_reply(
+                str(ctx.lead.lead_id), last_sent_at, pg_session,
+            )
+            if replied:
+                lead_log.warning(
+                    "Gate: homeowner replied — hard handoff to human, AI outbound permanently stopped",
+                    gate="homeowner_reply",
+                    result=True,
                 )
-                if replied:
-                    lead_log.info(
-                        "Gate: homeowner replied",
-                        gate="homeowner_reply",
-                        result=True,
-                    )
-                    # Notify the rep if one is assigned
-                    if ctx.lead.assigned_rep_id:
-                        await notify_rep_of_reply(
-                            pg_session,
-                            lead_id=str(ctx.lead.lead_id),
-                            rep_id=str(ctx.lead.assigned_rep_id),
-                            homeowner_name=ctx.lead.contact_name,
-                            queue_type=queue_type.value,
-                        )
-                    log_id = await _log_follow_up(
-                        local_session,
-                        lead_id=ctx.lead.lead_id,
-                        company_id=ctx.lead.company_id,
-                        queue_type=queue_type.value,
-                        attempt_number=ctx.attempt_number,
-                        action_type=ActionType.SMS_TO_LEAD.value,
-                        scheduled_at=now,
-                        channel="none",
-                        message_content="Sequence paused — homeowner replied",
-                        cadence_override=False,
-                        override_reason=None,
-                        status=FollowUpStatus.PAUSED.value,
-                        shunya_context_used=False,
-                        paused_reason=PausedReason.HOMEOWNER_REPLIED.value,
-                        paused_at=now.isoformat(),
-                    )
-                    await _insert_follow_up_otto(
+                # Always notify the rep so a human takes over immediately
+                if ctx.lead.assigned_rep_id:
+                    await notify_rep_of_reply(
                         pg_session,
-                        id=log_id,
-                        lead_id=ctx.lead.lead_id,
-                        company_id=ctx.lead.company_id,
-                        message_content="Sequence paused — homeowner replied",
-                        action_type=ActionType.SMS_TO_LEAD.value,
-                        scheduled_at=now,
-                        status=FollowUpStatus.PAUSED.value,
+                        lead_id=str(ctx.lead.lead_id),
+                        rep_id=str(ctx.lead.assigned_rep_id),
+                        homeowner_name=ctx.lead.contact_name,
                         queue_type=queue_type.value,
-                        attempt_number=ctx.attempt_number,
-                        assigned_rep_id=ctx.lead.assigned_rep_id,
                     )
-                    stats["gated_homeowner_reply"] += 1
-                    continue
+                log_id = await _log_follow_up(
+                    local_session,
+                    lead_id=ctx.lead.lead_id,
+                    company_id=ctx.lead.company_id,
+                    queue_type=queue_type.value,
+                    attempt_number=ctx.attempt_number,
+                    action_type=ActionType.MARK_DORMANT.value,
+                    scheduled_at=now,
+                    channel="none",
+                    message_content="AI outbound stopped — homeowner replied, handed off to human",
+                    cadence_override=False,
+                    override_reason=None,
+                    status=FollowUpStatus.HUMAN_HANDOFF.value,
+                    shunya_context_used=False,
+                    paused_reason=PausedReason.HOMEOWNER_REPLIED.value,
+                    paused_at=now.isoformat(),
+                )
+                await _insert_follow_up_otto(
+                    pg_session,
+                    id=log_id,
+                    lead_id=ctx.lead.lead_id,
+                    company_id=ctx.lead.company_id,
+                    message_content="AI outbound stopped — homeowner replied, handed off to human",
+                    action_type=ActionType.MARK_DORMANT.value,
+                    scheduled_at=now,
+                    status=FollowUpStatus.HUMAN_HANDOFF.value,
+                    queue_type=queue_type.value,
+                    attempt_number=ctx.attempt_number,
+                    assigned_rep_id=ctx.lead.assigned_rep_id,
+                )
+                stats["gated_homeowner_reply"] += 1
+                continue
 
             # Gate 3: Rep intervention check (only if MASKED_COMMS_ENABLED)
             if settings.MASKED_COMMS_ENABLED:
@@ -879,6 +930,10 @@ async def run(
             # Get company config for SMS
             company_config = company_store.get(str(ctx.lead.company_id))
 
+            manual_review_enabled = await _company_follow_up_manual_review_enabled(
+                pg_session, ctx.lead.company_id, manual_review_cache,
+            )
+
             # Process lead
             log_ids = await process_lead(
                 ctx, schedule, action_types,
@@ -888,6 +943,7 @@ async def run(
                 sms_sender=sms_sender,
                 pg_session=pg_session,
                 local_session=local_session,
+                manual_review_enabled=manual_review_enabled,
             )
 
             stats["processed"] += 1

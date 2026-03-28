@@ -21,6 +21,7 @@ from app.infrastructure.database.models.proxy_session import ProxySessionORM
 from app.infrastructure.database.models.masked_communication import MaskedCommunicationORM
 from app.infrastructure.database.models.rep_phone import RepPhoneORM
 from app.infrastructure.database.models.follow_up_otto import FollowUpOttoORM
+from app.infrastructure.database.models.masked_communication import MaskedCommunicationORM
 
 __all__ = [
     "CompanyORM",
@@ -45,4 +46,5 @@ __all__ = [
     "MaskedCommunicationORM",
     "RepPhoneORM",
     "FollowUpOttoORM",
+    "MaskedCommunicationORM",
 ]

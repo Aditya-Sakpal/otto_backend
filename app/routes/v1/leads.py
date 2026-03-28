@@ -309,6 +309,143 @@ LEAD_DETAIL_EXAMPLE = {
     ],
 }
 
+# Swagger example for GET /leads/{lead_id}/pipeline-detail (includes Shoonya phases per conversation)
+_PIPELINE_DETAIL_PHASES_EXAMPLE = {
+    "greeting": {
+        "phase": "greeting",
+        "detected": True,
+        "confidence": 0.5,
+        "timestamps": {
+            "start_ms": 1920,
+            "end_ms": 4197,
+            "duration_ms": 2277,
+            "estimation_method": "hybrid_aligned",
+        },
+        "segments": [
+            {
+                "start_word_index": 0,
+                "end_word_index": 12,
+                "speaker": "SPEAKER_00",
+                "text": "Hi, thanks for calling — how can we help?",
+            }
+        ],
+        "key_phrases": ["thanks for calling"],
+        "quality_score": 0.7,
+        "quality_notes": None,
+    },
+    "problem_discovery": {
+        "phase": "problem_discovery",
+        "detected": False,
+        "confidence": 0,
+        "timestamps": None,
+        "segments": [],
+        "key_phrases": [],
+        "quality_score": None,
+        "quality_notes": None,
+    },
+    "qualification": {
+        "phase": "qualification",
+        "detected": False,
+        "confidence": 0,
+        "timestamps": None,
+        "segments": [],
+        "key_phrases": [],
+        "quality_score": None,
+        "quality_notes": None,
+    },
+    "objection_handling": {
+        "phase": "objection_handling",
+        "detected": False,
+        "confidence": 0,
+        "timestamps": None,
+        "segments": [],
+        "key_phrases": [],
+        "quality_score": None,
+        "quality_notes": None,
+    },
+    "closing": {
+        "phase": "closing",
+        "detected": False,
+        "confidence": 0,
+        "timestamps": None,
+        "segments": [],
+        "key_phrases": [],
+        "quality_score": None,
+        "quality_notes": None,
+    },
+    "post_close": {
+        "phase": "post_close",
+        "detected": False,
+        "confidence": 0,
+        "timestamps": None,
+        "segments": [],
+        "key_phrases": [],
+        "quality_score": None,
+        "quality_notes": None,
+    },
+}
+
+PIPELINE_DETAIL_EXAMPLE = {
+    "pipeline_stage": "appointment",
+    "lead": {
+        "id": "bc175381-b349-4cfc-ac23-8085d567665e",
+        "status": "qualified_booked",
+        "overall_engagement": {
+            "last_touched": "2026-03-02T09:46:51.782191Z",
+            "next_move": "Send estimate follow-up",
+            "summary": "Customer interested in roof estimate.",
+            "key_points": ["Scheduled inspection window discussed"],
+        },
+        "conversations": [
+            {
+                "id": "5a91dbeb-8818-4ace-998a-b37194f3b6c6",
+                "call_type": "csr_call",
+                "lead_source": None,
+                "duration_seconds": 310,
+                "created_at": "2026-03-02T09:46:51.782191Z",
+                "booking_status": "not_booked",
+                "qualification_status": "warm",
+                "summary": "CSR call summary…",
+                "key_points": [],
+                "objections": [],
+                "call_recording_url": "https://example.com/recording.mp3",
+                "phases": _PIPELINE_DETAIL_PHASES_EXAMPLE,
+            }
+        ],
+    },
+    "appointment": None,
+    "result": {
+        "outcome": "won",
+        "outcome_summary": "Sold full roof replacement.",
+        "deal_size": 18500.0,
+        "key_lesson": None,
+        "overall_engagement": {
+            "last_touched": "2026-03-10T14:00:00Z",
+            "next_move": None,
+            "summary": "On-site appointment closed.",
+            "key_points": ["Customer signed"],
+        },
+        "conversations": [
+            {
+                "id": "7c2f4a10-1111-4222-8333-444455556666",
+                "call_type": None,
+                "lead_source": None,
+                "duration_seconds": 2400,
+                "created_at": "2026-03-10T14:00:00Z",
+                "booking_status": "booked",
+                "qualification_status": "hot",
+                "summary": "Appointment recording summary…",
+                "key_points": ["Warranty explained"],
+                "objections": [],
+                "call_recording_url": "https://example.com/appt-recording.mp3",
+                "phases": _PIPELINE_DETAIL_PHASES_EXAMPLE,
+            }
+        ],
+        "follow_up": None,
+    },
+    "follow_up": None,
+}
+
 
 @router.get("", response_model=List[Lead], responses=RESPONSES)
 async def list_leads(
@@ -533,7 +670,21 @@ async def get_lead_details(
         )
 
 
-@router.get("/{lead_id}/pipeline-detail", response_model=PipelineLeadDetail, responses=RESPONSES)
+@router.get(
+    "/{lead_id}/pipeline-detail",
+    response_model=PipelineLeadDetail,
+    responses={
+        **RESPONSES,
+        200: {
+            "description": "Pipeline lead detail (3-tab) with Shoonya conversation phases on each call",
+            "content": {
+                "application/json": {
+                    "example": PIPELINE_DETAIL_EXAMPLE,
+                }
+            },
+        },
+    },
+)
 async def get_pipeline_lead_detail(
     lead_id: UUID,
     db: DbSession,
@@ -546,10 +697,13 @@ async def get_pipeline_lead_detail(
 
     - **lead** (always present): CSR stage — overall engagement (last touched, next move,
       summary, key points) and all conversations (calls) with their analysis data.
+      Each item in `lead.conversations` may include **`phases`** (Shoonya call conversation
+      phases: greeting, problem_discovery, qualification, etc.) when Shunya is configured.
     - **appointment** (present when a linked appointment exists): appointment details
       including contact name, assigned sales rep, status, location, date/time, meeting URL.
     - **result** (present when appointment has been conducted): outcome engagement
-      (last touched, next move, summary, key points) and the appointment call conversation.
+      (last touched, next move, summary, key points) and the appointment interaction call(s).
+      Each item in `result.conversations` may include the same **`phases`** shape for that call.
 
     Access: EXECUTIVE, CSR
     """

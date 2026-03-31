@@ -2041,85 +2041,97 @@ class MetricsService:
         try:
             from sqlalchemy.orm import selectinload
             from app.infrastructure.database.models.contact import ContactCardORM
-            
-            start_dt, end_dt = self._get_date_range(start_date, end_date)
-            
-            # Get hot, warm, new leads prioritized in date range with contact_card loaded
-            leads = await self.session.execute(
-                select(LeadORM)
-                .options(selectinload(LeadORM.contact_card))
-                .where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    LeadORM.status.in_(["hot", "warm", "new"])
-                ).order_by(
-                    case(
-                        (LeadORM.status == "hot", 1),
-                        (LeadORM.status == "warm", 2),
-                        (LeadORM.status == "new", 3),
-                        else_=4,
-                    ),
-                    LeadORM.created_at.desc()
-                ).limit(limit)
-            )
-            leads_list = leads.scalars().all()
-            
-            # Count by status
-            hot_count = sum(1 for l in leads_list if l.status == "hot")
-            warm_count = sum(1 for l in leads_list if l.status == "warm")
-            new_count = sum(1 for l in leads_list if l.status == "new")
-            
-            # Fetch service_requested for each lead from call_analyses
-            lead_ids = [lead.id for lead in leads_list]
-            service_map: Dict[str, str] = {}
-            if lead_ids:
-                from app.infrastructure.database.models.call import CallORM
-                from app.infrastructure.database.models.analysis import CallAnalysisORM
+            from app.infrastructure.database.models.call import CallORM
+            from app.infrastructure.database.models.analysis import CallAnalysisORM
 
+            start_dt, end_dt = self._get_date_range(start_date, end_date)
+
+            # Get missed calls in date range with contact_card loaded
+            missed_calls_query = await self.session.execute(
+                select(CallORM)
+                .options(selectinload(CallORM.contact_card))
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == True,
+                )
+                .order_by(CallORM.created_at.desc())
+                .limit(limit)
+            )
+            missed_calls = missed_calls_query.scalars().all()
+
+            # Fetch lead info for calls that have lead_id
+            lead_ids = [c.lead_id for c in missed_calls if c.lead_id]
+            leads_map: Dict[str, Any] = {}
+            if lead_ids:
+                leads_result = await self.session.execute(
+                    select(LeadORM).where(LeadORM.id.in_(lead_ids))
+                )
+                for lead in leads_result.scalars().all():
+                    leads_map[str(lead.id)] = lead
+
+            # Fetch service_requested from call_analyses
+            call_ids = [c.id for c in missed_calls]
+            service_map: Dict[str, str] = {}
+            if call_ids:
                 ca_rows = await self.session.execute(
-                    select(CallORM.lead_id, CallAnalysisORM.service_requested)
-                    .join(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+                    select(CallAnalysisORM.call_id, CallAnalysisORM.service_requested)
                     .where(
-                        CallORM.lead_id.in_(lead_ids),
+                        CallAnalysisORM.call_id.in_(call_ids),
                         CallAnalysisORM.service_requested.isnot(None),
                         CallAnalysisORM.service_requested != "",
                     )
-                    .order_by(CallORM.created_at.desc())
                 )
                 for row in ca_rows.all():
-                    lid = str(row.lead_id)
-                    if lid not in service_map:
-                        service_map[lid] = row.service_requested
+                    service_map[str(row.call_id)] = row.service_requested
 
-            # Convert to dict with contact_card info
+            # Count leads by status from missed calls
+            hot_count = 0
+            warm_count = 0
+            new_count = 0
+            for c in missed_calls:
+                if c.lead_id and str(c.lead_id) in leads_map:
+                    status = leads_map[str(c.lead_id)].status
+                    if status == "hot":
+                        hot_count += 1
+                    elif status == "warm":
+                        warm_count += 1
+                    elif status == "new":
+                        new_count += 1
+
+            # Build response
             leads_data = []
-            for lead in leads_list:
-                lead_dict = {
-                    "id": str(lead.id),
-                    "contact_card_id": str(lead.contact_card_id),
-                    "status": lead.status,
-                    "deal_size": lead.deal_size,
-                    "assigned_rep_id": str(lead.assigned_rep_id) if lead.assigned_rep_id else None,
-                    "created_at": lead.created_at.isoformat() if lead.created_at else None,
-                    "service_requested": service_map.get(str(lead.id)),
+            for call in missed_calls:
+                lead = leads_map.get(str(call.lead_id)) if call.lead_id else None
+                call_dict = {
+                    "id": str(call.id),
+                    "contact_card_id": str(call.contact_card_id) if call.contact_card_id else None,
+                    "lead_id": str(call.lead_id) if call.lead_id else None,
+                    "phone_number": call.phone_number,
+                    "call_type": call.call_type,
+                    "created_at": call.created_at.isoformat() if call.created_at else None,
+                    "service_requested": service_map.get(str(call.id)),
+                    "status": lead.status if lead else None,
+                    "deal_size": lead.deal_size if lead else None,
+                    "assigned_rep_id": str(lead.assigned_rep_id) if lead and lead.assigned_rep_id else None,
                 }
                 # Add contact_card info if available
-                if lead.contact_card:
-                    lead_dict["contact_card"] = {
-                        "id": str(lead.contact_card.id),
-                        "first_name": lead.contact_card.first_name,
-                        "last_name": lead.contact_card.last_name,
-                        "primary_phone": lead.contact_card.primary_phone,
-                        "email": lead.contact_card.email,
-                        "address": lead.contact_card.address,
-                        "city": lead.contact_card.city,
-                        "state": lead.contact_card.state,
+                if call.contact_card:
+                    call_dict["contact_card"] = {
+                        "id": str(call.contact_card.id),
+                        "first_name": call.contact_card.first_name,
+                        "last_name": call.contact_card.last_name,
+                        "primary_phone": call.contact_card.primary_phone,
+                        "email": call.contact_card.email,
+                        "address": call.contact_card.address,
+                        "city": call.contact_card.city,
+                        "state": call.contact_card.state,
                     }
-                leads_data.append(lead_dict)
-            
+                leads_data.append(call_dict)
+
             return {
-                "total": len(leads_list),
+                "total": len(missed_calls),
                 "hot_leads": hot_count,
                 "warm_leads": warm_count,
                 "new_leads": new_count,

@@ -1884,6 +1884,7 @@ class ShoonyaClient:
             response = await self._http_client.get(
                 url,
                 headers=self._get_headers(company_id),
+                timeout=60.0,  # Phases API can take ~15s; use extended timeout
             )
             response.raise_for_status()
             return response.json()

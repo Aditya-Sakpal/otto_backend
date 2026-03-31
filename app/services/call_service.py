@@ -261,8 +261,7 @@ class CallService:
                         "call_type": call_type_str,
                         **(call.extra_metadata or {}),
                     }
-                    if call.handled_by_user_id:
-                        call_metadata["agent"] = {"id": str(call.handled_by_user_id)}
+                    call_metadata["agent"] = {"id": str(call.handled_by_user_id)} if call.handled_by_user_id else None
 
                     result = await self.shoonya.process_call(
                         call_id=str(call.id),
@@ -348,8 +347,7 @@ class CallService:
             }
             # Override agent with our DB user ID so Shunya always sees the
             # Otto user, not the CRM-specific agent ID (CTM, ST, GHL).
-            if handled_by_user_id:
-                metadata["agent"] = {"id": str(handled_by_user_id)}
+            metadata["agent"] = {"id": str(handled_by_user_id)} if handled_by_user_id else None
 
             # Submit to Shunya
             result = await self.shoonya.process_call(

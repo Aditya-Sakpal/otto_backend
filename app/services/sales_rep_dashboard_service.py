@@ -10,11 +10,12 @@ from datetime import date, datetime, timezone
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from sqlalchemy import select, func, case, or_
+from sqlalchemy import select, func, case, or_, and_, not_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.logging import get_logger
-from app.domain.enums import AppointmentOutcome
+from app.domain.enums import AppointmentOutcome, UserRole, CallType
 from app.domain.schemas.sales_rep_dashboard import (
     RidealongEntry,
     SalesTeamStatsEntry,
@@ -32,6 +33,7 @@ from app.domain.schemas.sales_rep_dashboard import (
     AttendanceMetrics,
 )
 from app.services.analytics_service import AnalyticsService
+from app.services.metrics_service import MetricsService
 from app.core.datetime_utils import isoformat_utc
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.call import CallORM
@@ -92,6 +94,7 @@ class SalesRepDashboardService:
         self.appointment_repo = AppointmentRepository(session)
         self.contact_repo = ContactRepository(session)
         self.user_repo = UserRepository(session)
+        self.metrics_service = MetricsService(session)
 
 
     async def _enrich_ridealong(
@@ -310,23 +313,6 @@ class SalesRepDashboardService:
         )
         duration_map = {r[0]: r[1] for r in total_duration_result.all()}
 
-        # Win rate: won appointments / total assigned appointments per rep
-        appt_stats_result = await self.session.execute(
-            select(
-                AppointmentORM.assigned_rep_id,
-                func.count(AppointmentORM.id).label("total"),
-                func.count(case(
-                    (AppointmentORM.outcome == "won", AppointmentORM.id)
-                )).label("won"),
-            )
-            .where(
-                AppointmentORM.company_id == company_id,
-                AppointmentORM.assigned_rep_id.in_(rep_ids),
-            )
-            .group_by(AppointmentORM.assigned_rep_id)
-        )
-        appt_stats_map = {r[0]: (r.total, r.won) for r in appt_stats_result.all()}
-
         # SOP compliance (process score) from call analyses
         process_result = await self.session.execute(
             select(
@@ -391,9 +377,13 @@ class SalesRepDashboardService:
             total_sec = duration_map.get(rep_id, 0) or 0
             total_hours = round(total_sec / 3600.0, 2)
 
-            # Win rate = won / total assigned appointments (returned as 0-1 fraction; frontend multiplies by 100)
-            total_appts, won = appt_stats_map.get(rep_id, (0, 0))
-            win_rate = round((won / total_appts) if total_appts > 0 else 0.0, 4)
+            # Win rate: use the same KPI logic as SalesRepStatService / MetricsService
+            try:
+                kpi = await self.metrics_service.get_sales_rep_kpi(user_id=rep_id)
+                win_rate = kpi.get("win_rate", 0.0) or 0.0
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Failed to compute KPI win_rate for rep {rep_id}: {e}")
+                win_rate = 0.0
 
             avg_sop = process_map.get(rep_id)
             process_score = round(float(avg_sop * 10), 2) if avg_sop is not None else 0.0
@@ -427,6 +417,9 @@ class SalesRepDashboardService:
     ) -> List[dict]:
         """
         Get top objections for sales dashboard using appointments.
+        Only includes appointments assigned to a sales_rep, and excludes objections tied to a
+        CSR phone interaction (csr_call or handler role csr) when an interaction call exists.
+
         Returns a list of ObjectionAppointmentEntry-like dicts:
         {
            objection_type, count, affected_appointments_count, appointment_logs: [...]
@@ -434,7 +427,7 @@ class SalesRepDashboardService:
         """
         try:
             from datetime import timedelta
-            from sqlalchemy import outerjoin, select
+            from sqlalchemy import select
 
             # Compute internal date range (align with sales overview)
             if end_date:
@@ -446,9 +439,17 @@ class SalesRepDashboardService:
             else:
                 _start_dt = _end_dt - timedelta(days=30)
 
-            # Left join Appointment -> Call -> CallAnalysis so we can read objections and call details
-            appt_call_join = outerjoin(AppointmentORM, CallORM, AppointmentORM.interaction_id == CallORM.id)
-            call_analysis_join = outerjoin(appt_call_join, CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
+            assigned_rep = aliased(UserORM)
+            call_handler = aliased(UserORM)
+
+            # Appointment must be owned by a sales rep; optional call + analysis for log context
+            csr_linked_interaction = and_(
+                CallORM.id.isnot(None),
+                or_(
+                    CallORM.call_type == CallType.CSR_CALL.value,
+                    call_handler.role == UserRole.CSR.value,
+                ),
+            )
 
             query = select(
                 AppointmentORM.id.label("appointment_id"),
@@ -464,10 +465,24 @@ class SalesRepDashboardService:
                 CallORM.id.label("call_id"),
                 CallORM.phone_number,
                 CallORM.call_type,
-            ).select_from(call_analysis_join).where(
+            ).select_from(AppointmentORM).join(
+                assigned_rep,
+                AppointmentORM.assigned_rep_id == assigned_rep.id,
+            ).outerjoin(
+                CallORM,
+                AppointmentORM.interaction_id == CallORM.id,
+            ).outerjoin(
+                call_handler,
+                CallORM.handled_by_user_id == call_handler.id,
+            ).outerjoin(
+                CallAnalysisORM,
+                CallORM.id == CallAnalysisORM.call_id,
+            ).where(
                 AppointmentORM.company_id == company_id,
                 AppointmentORM.scheduled_start >= _start_dt,
                 AppointmentORM.scheduled_start <= _end_dt,
+                assigned_rep.role == UserRole.SALES_REP.value,
+                not_(csr_linked_interaction),
             )
 
             result = await self.session.execute(query)

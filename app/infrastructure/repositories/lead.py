@@ -2,6 +2,7 @@
 Lead repository.
 """
 import asyncio
+import re
 from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime, date, timezone
@@ -33,6 +34,84 @@ from app.infrastructure.repositories.base import BaseRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 
 logger = get_logger(__name__)
+
+# List endpoints (pipeline / CRM) sort keys after normalization
+LEAD_SORT_CREATED_DESC = "created_desc"
+LEAD_SORT_CREATED_ASC = "created_asc"
+LEAD_SORT_NAME_ASC = "name_asc"
+LEAD_SORT_NAME_DESC = "name_desc"
+LEAD_SORT_PRIORITY = "priority"
+
+
+def normalize_lead_list_sort(sort: Optional[str]) -> str:
+    """
+    Map client `sort` query values to internal sort keys.
+
+    Accepts common UI/API spellings (snake_case, kebab-case, labels, camelCase).
+    Unknown values fall back to most-recent-first (created_desc).
+    """
+    if sort is None or not str(sort).strip():
+        return LEAD_SORT_CREATED_DESC
+    raw = str(sort).strip()
+    raw = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", raw)
+    s = raw.lower().replace(" ", "_").replace("-", "_")
+    aliases = {
+        LEAD_SORT_PRIORITY: LEAD_SORT_PRIORITY,
+        "priority": LEAD_SORT_PRIORITY,
+        LEAD_SORT_NAME_ASC: LEAD_SORT_NAME_ASC,
+        "name_a_z": LEAD_SORT_NAME_ASC,
+        "name_az": LEAD_SORT_NAME_ASC,
+        "a_z": LEAD_SORT_NAME_ASC,
+        "contact_name_asc": LEAD_SORT_NAME_ASC,
+        LEAD_SORT_NAME_DESC: LEAD_SORT_NAME_DESC,
+        "name_z_a": LEAD_SORT_NAME_DESC,
+        "name_za": LEAD_SORT_NAME_DESC,
+        "z_a": LEAD_SORT_NAME_DESC,
+        "contact_name_desc": LEAD_SORT_NAME_DESC,
+        LEAD_SORT_CREATED_DESC: LEAD_SORT_CREATED_DESC,
+        "most_recent": LEAD_SORT_CREATED_DESC,
+        "recent": LEAD_SORT_CREATED_DESC,
+        "newest": LEAD_SORT_CREATED_DESC,
+        "date_desc": LEAD_SORT_CREATED_DESC,
+        LEAD_SORT_CREATED_ASC: LEAD_SORT_CREATED_ASC,
+        "oldest_first": LEAD_SORT_CREATED_ASC,
+        "oldest": LEAD_SORT_CREATED_ASC,
+        "date_asc": LEAD_SORT_CREATED_ASC,
+    }
+    return aliases.get(s, LEAD_SORT_CREATED_DESC)
+
+
+def _apply_lead_list_sort(query, sort: str):
+    """Apply ORDER BY for company lead list queries; may outerjoin contact_cards for name sorts."""
+    if sort == LEAD_SORT_PRIORITY:
+        return query.order_by(
+            case(
+                (LeadORM.status == "hot", 1),
+                (LeadORM.status == "warm", 2),
+                (LeadORM.status == "new", 3),
+                else_=4,
+            ),
+            LeadORM.created_at.desc(),
+        )
+    if sort == LEAD_SORT_NAME_ASC:
+        query = query.outerjoin(
+            ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
+        )
+        fn = func.lower(func.coalesce(ContactCardORM.first_name, ""))
+        ln = func.lower(func.coalesce(ContactCardORM.last_name, ""))
+        return query.order_by(fn.asc(), ln.asc(), LeadORM.id.asc())
+    if sort == LEAD_SORT_NAME_DESC:
+        query = query.outerjoin(
+            ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
+        )
+        fn = func.lower(func.coalesce(ContactCardORM.first_name, ""))
+        ln = func.lower(func.coalesce(ContactCardORM.last_name, ""))
+        return query.order_by(fn.desc(), ln.desc(), LeadORM.id.desc())
+    if sort == LEAD_SORT_CREATED_ASC:
+        return query.order_by(
+            LeadORM.created_at.asc().nulls_last(), LeadORM.id.asc()
+        )
+    return query.order_by(LeadORM.created_at.desc().nulls_last(), LeadORM.id.desc())
 
 
 class LeadRepository(BaseRepository[LeadORM, Lead]):
@@ -241,19 +320,20 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         company_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get all leads for a company."""
         try:
-            result = await self.session.execute(
+            q = (
                 select(LeadORM)
                 .options(
                     selectinload(LeadORM.contact_card),
-                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
                 )
                 .where(LeadORM.company_id == company_id)
-                .offset(skip)
-                .limit(limit)
             )
+            q = _apply_lead_list_sort(q, sort)
+            result = await self.session.execute(q.offset(skip).limit(limit))
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:
@@ -269,6 +349,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         statuses: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get leads for a company with optional date range, search (name/phone), and status filters."""
         try:
@@ -320,10 +401,12 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 if statuses:
                     final_q = final_q.where(LeadORM.status.in_(statuses))
 
-                result = await self.session.execute(final_q.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit))
+                result = await self.session.execute(
+                    _apply_lead_list_sort(final_q, sort).offset(skip).limit(limit)
+                )
             else:
                 result = await self.session.execute(
-                    query.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit)
+                    _apply_lead_list_sort(query, sort).offset(skip).limit(limit)
                 )
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
@@ -337,20 +420,23 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         statuses: List[str],
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get leads by multiple status values."""
         try:
-            result = await self.session.execute(
+            q = (
                 select(LeadORM)
                 .options(
                     selectinload(LeadORM.contact_card),
-                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
                 )
                 .where(
                     LeadORM.company_id == company_id,
                     LeadORM.status.in_(statuses),
-                ).offset(skip).limit(limit)
+                )
             )
+            q = _apply_lead_list_sort(q, sort)
+            result = await self.session.execute(q.offset(skip).limit(limit))
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:

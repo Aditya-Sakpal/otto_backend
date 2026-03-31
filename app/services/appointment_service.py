@@ -516,6 +516,8 @@ class AppointmentService:
         past_only: bool = False,
         skip: int = 0,
         limit: int = 100,
+        outcome: Optional[str] = None,
+        search: Optional[str] = None,
     ) -> List[AppointmentResponse]:
         """
         Get all appointments for a company with enriched names.
@@ -525,6 +527,8 @@ class AppointmentService:
             start_date: Filter appointments scheduled on or after this date
             end_date: Filter appointments scheduled on or before this date
             past_only: If True, only return appointments with scheduled_start in the past
+            outcome: Optional outcome filter (pending, won, lost, no_show, rescheduled)
+            search: Optional search on contact name/phone, rep name, location (whitespace tokens ANDed)
             skip: Number of records to skip
             limit: Maximum number of records to return
 
@@ -538,6 +542,8 @@ class AppointmentService:
             past_only=past_only,
             skip=skip,
             limit=limit,
+            outcome=outcome,
+            search=search,
         )
 
         return [
@@ -554,6 +560,8 @@ class AppointmentService:
         past_only: bool = False,
         skip: int = 0,
         limit: int = 100,
+        outcome: Optional[str] = None,
+        search: Optional[str] = None,
     ) -> List[AppointmentResponse]:
         """
         Get all appointments for a company assigned to a specific sales rep with enriched names.
@@ -564,6 +572,8 @@ class AppointmentService:
             start_date: Filter appointments scheduled on or after this date
             end_date: Filter appointments scheduled on or before this date
             past_only: If True, only return appointments with scheduled_start in the past
+            outcome: Optional outcome filter (pending, won, lost, no_show, rescheduled)
+            search: Optional search on contact name/phone, rep name, location (whitespace tokens ANDed)
             skip: Number of records to skip
             limit: Maximum number of records to return
 
@@ -578,6 +588,8 @@ class AppointmentService:
             past_only=past_only,
             skip=skip,
             limit=limit,
+            outcome=outcome,
+            search=search,
         )
 
         return [

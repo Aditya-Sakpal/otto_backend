@@ -224,6 +224,7 @@ class SalesRepDashboardService:
         status: Optional[str] = None,
         ghost_mode: Optional[bool] = None,
         sales_rep_name: Optional[str] = None,
+        search: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[RidealongEntry]:
@@ -237,6 +238,7 @@ class SalesRepDashboardService:
             status=status,
             ghost_mode=ghost_mode,
             sales_rep_name=sales_rep_name,
+            search=search,
             skip=skip,
             limit=limit,
             order_desc=True,

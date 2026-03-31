@@ -178,7 +178,11 @@ async def get_ridealongs_list(
     ),
     status: Optional[str] = Query(
         None,
-        description="Filter by status: pending, won, lost, no_show, rescheduled, or 'In Progress'",
+        description="Filter by outcome: pending, won, lost, no_show, rescheduled, or 'In Progress'",
+    ),
+    outcome: Optional[str] = Query(
+        None,
+        description="Same filter as status; use when the client sends outcome= (e.g. won) instead of status=",
     ),
     ghost_mode: Optional[bool] = Query(
         None,
@@ -188,6 +192,11 @@ async def get_ridealongs_list(
         None,
         description="Filter by sales rep name (partial match)",
     ),
+    search: Optional[str] = Query(
+        None,
+        description="Search contact name/phone, rep name, or location (tokens ANDed)",
+    ),
+    q: Optional[str] = Query(None, description="Alias for search"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     current_user: User = Depends(
@@ -211,13 +220,16 @@ async def get_ridealongs_list(
             raise HTTPException(status_code=400, detail="end_date must be YYYY-MM-DD")
 
     service = SalesRepDashboardService(db)
+    status_effective = (outcome.strip() if outcome and outcome.strip() else None) or status
+    search_effective = (search or q or "").strip() or None
     return await service.get_ridealongs_list(
         company_id=company_id,
         start_date=start_d,
         end_date=end_d,
-        status=status,
+        status=status_effective,
         ghost_mode=ghost_mode,
         sales_rep_name=sales_rep_name,
+        search=search_effective,
         skip=skip,
         limit=limit,
     )

@@ -85,6 +85,18 @@ async def list_appointments(
         None,
         description="Filter appointments on or before this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
     ),
+    outcome: Optional[str] = Query(
+        None,
+        description="Filter by outcome: pending, won, lost, no_show, rescheduled (case-insensitive; aliases: in progress, no show)",
+    ),
+    search: Optional[str] = Query(
+        None,
+        description="Search contact name/phone, assigned rep name, or location (whitespace-separated terms, all must match)",
+    ),
+    q: Optional[str] = Query(
+        None,
+        description="Alias for search (some clients use q=)",
+    ),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
 ) -> List[AppointmentResponse]:
@@ -99,6 +111,8 @@ async def list_appointments(
     - lead_id: Filter by associated lead (if provided, company filter is ignored)
     - start_date: Filter appointments on or after this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
     - end_date: Filter appointments on or before this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+    - outcome: Filter by appointment outcome (pending / won / lost / no_show / rescheduled)
+    - search / q: Text search (contact, rep, location)
     - skip: Pagination offset
     - limit: Maximum number of results (1-1000)
     """
@@ -129,6 +143,7 @@ async def list_appointments(
                 )
 
         service = AppointmentService(db)
+        search_effective = (search or q or "").strip() or None
 
         # If lead_id is provided, return appointment for that lead
         if lead_id:
@@ -156,6 +171,8 @@ async def list_appointments(
                 end_date=end_dt,
                 skip=skip,
                 limit=limit,
+                outcome=outcome,
+                search=search_effective,
             )
 
         # Default: return all appointments for company
@@ -165,6 +182,8 @@ async def list_appointments(
             end_date=end_dt,
             skip=skip,
             limit=limit,
+            outcome=outcome,
+            search=search_effective,
         )
     except HTTPException:
         raise
@@ -195,6 +214,12 @@ async def list_past_appointments(
         None,
         description="Filter appointments on or before this datetime (ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
     ),
+    outcome: Optional[str] = Query(
+        None,
+        description="Filter by outcome: pending, won, lost, no_show, rescheduled",
+    ),
+    search: Optional[str] = Query(None, description="Search contact, rep, or location"),
+    q: Optional[str] = Query(None, description="Alias for search"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
 ) -> List[AppointmentResponse]:
@@ -238,6 +263,7 @@ async def list_past_appointments(
                 )
 
         service = AppointmentService(db)
+        search_effective = (search or q or "").strip() or None
 
         if assigned_rep_id:
             user_repo = UserRepository(db)
@@ -260,6 +286,8 @@ async def list_past_appointments(
                 past_only=True,
                 skip=skip,
                 limit=limit,
+                outcome=outcome,
+                search=search_effective,
             )
 
         return await service.list_enriched_by_company(
@@ -269,6 +297,8 @@ async def list_past_appointments(
             past_only=True,
             skip=skip,
             limit=limit,
+            outcome=outcome,
+            search=search_effective,
         )
     except HTTPException:
         raise

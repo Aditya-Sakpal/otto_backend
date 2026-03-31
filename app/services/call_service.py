@@ -1673,17 +1673,25 @@ class CallService:
                         raw = analysis.sentiment_score
                         score = round(raw * 100, 1) if raw <= 1.0 else round(raw, 1)
 
-                # Get objections
+                # Get objections (REQ-032: never blank when analysis exists; no detections → explicit label)
                 objections = None
-                if analysis and analysis.objections:
-                    # Classify objections before displaying
-                    from app.domain.objection_classifier import ObjectionClassifier
-                    classified = ObjectionClassifier.classify_and_deduplicate(analysis.objections)
+                if analysis:
+                    if analysis.objections:
+                        from app.domain.objection_classifier import ObjectionClassifier
 
-                    # Join objections with comma
-                    objections = ", ".join(classified[:3])  # Limit to first 3
-                    if len(classified) > 3:
-                        objections += "..."
+                        classified = ObjectionClassifier.classify_and_deduplicate(
+                            analysis.objections
+                        )
+                        if classified:
+                            objections = ", ".join(classified[:3])
+                            if len(classified) > 3:
+                                objections += "..."
+                        else:
+                            objections = "None Detected"
+                    else:
+                        objections = "None Detected"
+                else:
+                    objections = "None Detected"
 
                 # Get tags (from lead status or extra_metadata)
                 tags = []

@@ -1864,17 +1864,13 @@ class ShoonyaClient:
             traceback.print_exc()
             raise
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-    )
-    async def get_call_conversation_phases(
+    async def _get_call_conversation_phases_once(
         self,
         call_id: str,
         company_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Get detected conversation phases for a call.
+        Single GET for conversation phases (no retries).
 
         GET /api/v1/call-processing/calls/{call_id}/phases
         """
@@ -1904,6 +1900,30 @@ class ShoonyaClient:
             logger.error(f"Error getting call conversation phases: {e}")
             traceback.print_exc()
             raise
+
+    async def get_call_conversation_phases_no_retry(
+        self,
+        call_id: str,
+        company_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Same as get_call_conversation_phases but without Tenacity retries (e.g. pipeline-detail fan-out)."""
+        return await self._get_call_conversation_phases_once(call_id, company_id)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    async def get_call_conversation_phases(
+        self,
+        call_id: str,
+        company_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get detected conversation phases for a call.
+
+        GET /api/v1/call-processing/calls/{call_id}/phases
+        """
+        return await self._get_call_conversation_phases_once(call_id, company_id)
 
     # ============================================================================
     # Shunya Coaching Session APIs (Section 7)

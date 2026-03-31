@@ -632,7 +632,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
 
         async def _fetch_one(call_id: UUID) -> tuple[UUID, Any]:
             try:
-                payload = await shoonya.get_call_conversation_phases(
+                payload = await shoonya.get_call_conversation_phases_no_retry(
                     call_id=str(call_id),
                     company_id=str(company_id),
                 )

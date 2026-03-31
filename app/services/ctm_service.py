@@ -392,7 +392,7 @@ class CTMService:
                 "hour": payload.get("hour"),
                 "location": payload.get("location"),
                 "country": payload.get("country"),
-                "agent": agent_data,
+                "ctm_agent": agent_data,
                 # Preserve the full raw payload for debugging / future use
                 "ctm_raw_payload": payload,
             }

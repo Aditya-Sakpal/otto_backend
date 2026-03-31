@@ -23,7 +23,10 @@ from app.domain.schemas.sales_rep import (
     PendingLeadAppointment,
     PendingLeadWorkflow,
 )
-from app.infrastructure.repositories.lead import LeadRepository
+from app.infrastructure.repositories.lead import (
+    LeadRepository,
+    LEAD_SORT_CREATED_DESC,
+)
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.database.models.call import CallORM
@@ -48,12 +51,14 @@ class LeadService:
         company_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get all leads for a company."""
         return await self.lead_repo.get_by_company(
             company_id=company_id,
             skip=skip,
             limit=limit,
+            sort=sort,
         )
 
     async def list_with_filters(
@@ -65,6 +70,7 @@ class LeadService:
         statuses: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get leads with optional date range, search (name/phone), and status filters."""
         return await self.lead_repo.get_list_with_filters(
@@ -75,6 +81,7 @@ class LeadService:
             statuses=statuses,
             skip=skip,
             limit=limit,
+            sort=sort,
         )
 
     async def get_by_statuses(
@@ -83,6 +90,7 @@ class LeadService:
         statuses: List[str],
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get leads by status filter."""
         return await self.lead_repo.get_by_statuses(
@@ -90,6 +98,7 @@ class LeadService:
             statuses=statuses,
             skip=skip,
             limit=limit,
+            sort=sort,
         )
 
     async def get_unbooked(
@@ -124,6 +133,7 @@ class LeadService:
         statuses: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get nurturing leads (new, warm, hot)."""
         if statuses is None:
@@ -133,6 +143,7 @@ class LeadService:
             statuses=statuses,
             skip=skip,
             limit=limit,
+            sort=sort,
         )
 
     async def get_lost(
@@ -140,6 +151,7 @@ class LeadService:
         company_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get lost leads (closed_lost, abandoned, dormant)."""
         return await self.lead_repo.get_by_statuses(
@@ -147,6 +159,7 @@ class LeadService:
             statuses=["closed_lost", "abandoned", "dormant"],
             skip=skip,
             limit=limit,
+            sort=sort,
         )
 
     async def get_pipeline_view(

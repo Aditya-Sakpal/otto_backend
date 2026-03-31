@@ -114,7 +114,10 @@ class UserRepository(BaseRepository[UserORM, User]):
         try:
             # Convert enum to string value for comparison (ORM stores role as string)
             role_value = role.value if isinstance(role, UserRole) else role
-            query = select(UserORM).where(UserORM.role == role_value)
+            query = select(UserORM).where(
+                UserORM.role == role_value,
+                UserORM.is_active == True,
+            )
 
             if company_id:
                 query = query.where(UserORM.company_id == company_id)

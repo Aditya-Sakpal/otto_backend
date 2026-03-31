@@ -17,6 +17,7 @@ from app.domain.models.lead_detail import LeadDetail, PipelineLeadDetail
 from app.domain.models.customer_card import CustomerCard
 from app.domain.users.models import User
 from app.services.lead_service import LeadService
+from app.infrastructure.repositories.lead import normalize_lead_list_sort
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -470,7 +471,8 @@ async def list_leads(
     Query Parameters:
     - status: Filter by status (comma-separated for multiple, e.g., "qualified_unbooked" or "closed_lost,abandoned,dormant")
     - nurturing: Filter nurturing leads (comma-separated, e.g., "new,warm,hot")
-    - sort: Sort option (e.g., "priority")
+    - sort: Sort option: `created_desc` (default), `created_asc`, `name_asc`, `name_desc`, `priority`;
+      also accepts common aliases (`most_recent`, `oldest_first`, `name_a_z`, `name_z_a`, camelCase).
     - start_date: Filter leads created on or after this date (YYYY-MM-DD)
     - end_date: Filter leads created on or before this date (YYYY-MM-DD)
     - search: Search by contact name or phone number
@@ -490,6 +492,7 @@ async def list_leads(
                 end_d = date_type.fromisoformat(end_date)
             except ValueError:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="end_date must be YYYY-MM-DD")
+        sort_key = normalize_lead_list_sort(sort)
         use_filters = start_d is not None or end_d is not None or (search and search.strip())
         if use_filters:
             statuses = None
@@ -508,13 +511,7 @@ async def list_leads(
                 statuses=statuses,
                 skip=skip,
                 limit=limit,
-            )
-        # Sort by priority
-        if sort == "priority":
-            return await service.get_by_priority(
-                company_id=company_id,
-                skip=skip,
-                limit=limit,
+                sort=sort_key,
             )
         # Filter by status
         if status_filter:
@@ -528,6 +525,7 @@ async def list_leads(
                 statuses=statuses,
                 skip=skip,
                 limit=limit,
+                sort=sort_key,
             )
         # Filter by nurturing only
         if nurturing:
@@ -537,12 +535,14 @@ async def list_leads(
                 statuses=nurturing_statuses,
                 skip=skip,
                 limit=limit,
+                sort=sort_key,
             )
         # Default: return all leads
         return await service.get_by_company(
             company_id=company_id,
             skip=skip,
             limit=limit,
+            sort=sort_key,
         )
     except Exception as e:
         logger.error(f"Error listing leads: {e}")

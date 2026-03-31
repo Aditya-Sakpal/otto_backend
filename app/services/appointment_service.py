@@ -6,6 +6,7 @@ Provides business logic for managing appointments:
 - Listing by company, lead, or assigned sales rep
 - Enriched responses with contact and user details
 """
+import asyncio
 from datetime import date, datetime
 from typing import List, Optional, Dict, Any
 from uuid import UUID
@@ -463,18 +464,31 @@ class AppointmentService:
                         "is_active": rep_user.is_active,
                     }
 
-        # Get recording insights if interaction_id exists
-        if appointment.interaction_id:
-            insights = await self._build_appointment_insights(appointment.interaction_id)
-            if insights:
-                response_data["insights"] = insights.model_dump()
+        # Fetch insights and conversation phases in parallel
+        # (phases API takes ~14s; running concurrently avoids Heroku 30s timeout)
+        async def _noop():
+            return None
 
-        # Fetch live conversation phases from Shunya (only for single-appointment endpoints)
-        if include_full_details:
-            phase_call_id = appointment.interaction_id or appointment.id
-            phases = await self._fetch_phases(phase_call_id, appointment.company_id)
-            if phases:
-                response_data["phases"] = phases
+        insights_coro = (
+            self._build_appointment_insights(appointment.interaction_id)
+            if appointment.interaction_id
+            else _noop()
+        )
+        phases_coro = (
+            self._fetch_phases(
+                appointment.interaction_id or appointment.id,
+                appointment.company_id,
+            )
+            if include_full_details
+            else _noop()
+        )
+
+        insights, phases = await asyncio.gather(insights_coro, phases_coro)
+
+        if insights:
+            response_data["insights"] = insights.model_dump()
+        if phases:
+            response_data["phases"] = phases
 
         return AppointmentResponse(**response_data)
 
@@ -865,16 +879,24 @@ class AppointmentService:
             logger.warning(f"Appointment {appointment_id} not found")
             return None
 
+        # Fire phases fetch early — it runs ~14s on Shunya, so start it now
+        phase_call_id = appointment.interaction_id or appointment.id
+        phases_task = asyncio.create_task(
+            self._fetch_phases(phase_call_id, appointment.company_id)
+        )
+
         # 2. Get lead (required)
         lead = await self.lead_repo.get_by_id(appointment.lead_id)
         if not lead:
             logger.error(f"Lead {appointment.lead_id} not found for appointment {appointment_id}")
+            phases_task.cancel()
             return None
 
         # 3. Get contact card (required)
         contact_card = await self.contact_repo.get_by_id(appointment.contact_card_id)
         if not contact_card:
             logger.error(f"Contact card {appointment.contact_card_id} not found")
+            phases_task.cancel()
             return None
 
         # 4. Get sales rep name
@@ -1022,9 +1044,8 @@ class AppointmentService:
             pending_messages=pending_messages,
         )
 
-        # 11. Fetch conversation phases from Shunya
-        phase_call_id = appointment.interaction_id or appointment.id
-        phases = await self._fetch_phases(phase_call_id, appointment.company_id)
+        # 11. Await conversation phases (fired early in parallel with DB queries)
+        phases = await phases_task
 
         # 12. Build response
         return AppointmentContextResponse(

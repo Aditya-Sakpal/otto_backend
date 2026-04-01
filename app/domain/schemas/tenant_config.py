@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional, List, Dict
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -98,11 +98,19 @@ class QualificationRule(BaseModel):
 class ServicePriority(BaseModel):
     """Priority configuration for a specific service the company offers."""
 
-    service_name: str = Field(..., description="Service name, e.g. 'Roof Replacement'")
+    service_name: str = Field("", description="Service name, e.g. 'Roof Replacement'")
     priority: str = Field(
         "NORMAL",
         description="Priority level: HIGH, NORMAL, or LOW",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_service_name(cls, data):
+        """Accept 'service_type' as an alias for 'service_name' from legacy DB data."""
+        if isinstance(data, dict) and "service_name" not in data and "service_type" in data:
+            data["service_name"] = data.pop("service_type")
+        return data
 
     model_config = {
         "json_schema_extra": {
@@ -148,6 +156,17 @@ class CustomKeywords(BaseModel):
         default_factory=list,
         description="Words for service detection, e.g. ['roof', 'gutter', 'leak', 'shingle']",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_keywords(cls, data):
+        """Convert dict values to list for keyword fields (legacy DB data stores {} instead of [])."""
+        if isinstance(data, dict):
+            for field in ("urgency_keywords", "budget_keywords", "objection_keywords", "service_keywords"):
+                val = data.get(field)
+                if isinstance(val, dict):
+                    data[field] = list(val.values()) if val else []
+        return data
 
     model_config = {
         "json_schema_extra": {

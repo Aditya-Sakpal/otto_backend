@@ -2264,16 +2264,17 @@ class MetricsService:
             )
             total_leads = total_leads_result.scalar() or 0
             
-            # Qualified leads
+            # Qualified leads (from call_analyses: qualification_status in hot/warm/cold)
             qualified_leads_result = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.assigned_rep_id == user_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    or_(
-                        LeadORM.status.like('qualified_%'),
-                        LeadORM.deal_status == 'qualified'
-                    )
+                select(func.count(func.distinct(CallAnalysisORM.id)))
+                .select_from(CallAnalysisORM)
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    func.lower(CallAnalysisORM.qualification_status).in_(["hot", "warm", "cold"]),
                 )
             )
             qualified_leads = qualified_leads_result.scalar() or 0

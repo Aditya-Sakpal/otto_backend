@@ -185,6 +185,7 @@ class LeadService:
         leads = await self.lead_repo.get_by_pipeline_stages(
             company_id=company_id,
             search=search,
+            limit_per_stage=limit,
         )
 
         for lead in leads:

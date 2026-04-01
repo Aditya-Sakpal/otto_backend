@@ -28,7 +28,7 @@ class SalesTeamStatsEntry(BaseModel):
 
     sales_rep_id: UUID = Field(..., description="Sales rep user UUID")
     rep_name: str = Field(..., description="Sales rep display name")
-    total_recordings_hours: float = Field(..., description="Total recording hours")
+    total_recordings: int = Field(..., description="Total number of call recordings")
     win_rate: float = Field(..., description="Win rate percentage (0-100)")
     process_score: float = Field(..., description="Process/SOP compliance score")
     skills_score: float = Field(..., description="Skills score")

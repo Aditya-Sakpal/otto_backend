@@ -2280,18 +2280,8 @@ class MetricsService:
             qualified_leads = qualified_leads_result.scalar() or 0
             
             # ===== APPOINTMENT METRICS =====
-            # Booked appointments
+            # Booked appointments (from call_analyses where booking_status = 'booked')
             booked_appointments_result = await self.session.execute(
-                select(func.count(AppointmentORM.id)).where(
-                    AppointmentORM.assigned_rep_id == user_id,
-                    AppointmentORM.created_at >= start_dt,
-                    AppointmentORM.created_at <= end_dt,
-                )
-            )
-            booked_appointments = booked_appointments_result.scalar() or 0
-            
-            # Booked calls (from call_analyses, case-insensitive booking_status) for this user
-            booked_calls_result = await self.session.execute(
                 select(func.count(CallAnalysisORM.id))
                 .select_from(CallAnalysisORM)
                 .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
@@ -2300,16 +2290,13 @@ class MetricsService:
                     CallORM.handled_by_user_id == user_id,
                     CallORM.created_at >= start_dt,
                     CallORM.created_at <= end_dt,
-                    CallAnalysisORM.booking_status.isnot(None),
                     func.lower(CallAnalysisORM.booking_status) == "booked",
-                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
-            booked_calls = booked_calls_result.scalar() or 0
-            
-            # Booking rate: (appointments + booked calls) / qualified leads
-            total_booked = booked_appointments + booked_calls
-            booking_rate = (total_booked / qualified_leads * 100) if qualified_leads > 0 else 0.0
+            booked_appointments = booked_appointments_result.scalar() or 0
+
+            # Booking rate: booked appointments / qualified leads
+            booking_rate = (booked_appointments / qualified_leads * 100) if qualified_leads > 0 else 0.0
             
             # ===== CONVERSION RATE =====
             # Conversion rate: appointments with outcome='won' / qualified_leads
@@ -2492,7 +2479,6 @@ class MetricsService:
                 "missed_calls": missed_calls,
                 "missed_calls_status": missed_calls_status,
                 "booked_appointments": booked_appointments,
-                "booked_calls": booked_calls,
                 "total_leads": total_leads,
                 "qualified_leads": qualified_leads,
                 "booking_rate": round(booking_rate, 1),

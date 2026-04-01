@@ -1533,11 +1533,14 @@ class CallService:
             # legacy human-readable strings (e.g. "Service Fee Concerns") via case-insensitive match
             if objection_filter:
                 from sqlalchemy import exists as sa_exists, literal, column as sa_column
+                # Normalize: convert snake_case to spaces for matching against DB values
+                # e.g. "service_fee_concerns" → "service fee concerns" matches "Service Fee Concerns"
+                normalized_filter = objection_filter.strip().lower().replace("_", " ")
                 query = query.where(
                     sa_exists(
                         select(literal(1))
                         .select_from(func.unnest(CallAnalysisORM.objections).alias("obj"))
-                        .where(func.lower(sa_column("obj")) == objection_filter.strip().lower())
+                        .where(func.lower(sa_column("obj")) == normalized_filter)
                     )
                 )
 

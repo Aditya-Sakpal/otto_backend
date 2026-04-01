@@ -656,10 +656,17 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
     async def get_by_pipeline_stages(
         self,
         company_id: UUID,
+        search: Optional[str] = None,
     ) -> List[Lead]:
-        """Get all leads for a company that have a pipeline_stage set, with relationships loaded."""
+        """Get all leads for a company that have a pipeline_stage set, with relationships loaded.
+
+        When ``search`` is set, only leads whose contact matches (case-insensitive) are returned:
+        first name, last name, full name (first + last), or primary phone. Whitespace-separated
+        terms are ANDed so each term must match at least one of those fields — search applies
+        across every pipeline stage before the service buckets by stage.
+        """
         try:
-            result = await self.session.execute(
+            stmt = (
                 select(LeadORM)
                 .options(
                     selectinload(LeadORM.contact_card),
@@ -671,6 +678,43 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 )
                 .order_by(LeadORM.created_at.desc())
             )
+
+            raw = (search or "").strip()
+            if raw:
+                tokens = [t for t in re.split(r"\s+", raw) if t]
+                full_name_expr = func.trim(
+                    func.concat(
+                        func.coalesce(ContactCardORM.first_name, ""),
+                        " ",
+                        func.coalesce(ContactCardORM.last_name, ""),
+                    )
+                )
+
+                def _like_pattern(tok: str) -> str:
+                    esc = (
+                        tok.replace("\\", "\\\\")
+                        .replace("%", "\\%")
+                        .replace("_", "\\_")
+                    )
+                    return f"%{esc}%"
+
+                token_filters = []
+                for tok in tokens:
+                    p = _like_pattern(tok)
+                    token_filters.append(
+                        or_(
+                            ContactCardORM.first_name.ilike(p, escape="\\"),
+                            ContactCardORM.last_name.ilike(p, escape="\\"),
+                            full_name_expr.ilike(p, escape="\\"),
+                            ContactCardORM.primary_phone.ilike(p, escape="\\"),
+                        )
+                    )
+                stmt = stmt.join(
+                    ContactCardORM,
+                    LeadORM.contact_card_id == ContactCardORM.id,
+                ).where(and_(*token_filters))
+
+            result = await self.session.execute(stmt)
             orm_objs = result.scalars().all()
 
             # Fetch appointment IDs for leads in stages that have appointments

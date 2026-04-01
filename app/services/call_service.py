@@ -34,7 +34,7 @@ from app.domain.users.repository import UserRepository
 from app.domain.users.models import User
 from app.domain.models.lead import Lead
 from app.domain.models.appointment import Appointment
-from app.domain.enums import LeadStatus, DealStatus, AppointmentOutcome, PipelineStage
+from app.domain.enums import LeadStatus, DealStatus, AppointmentOutcome, PipelineStage, CallType
 from app.services.ghost_mode_service import GhostModeService
 from app.domain.schemas.calls import (
     RecordingAnalysisResponse,
@@ -984,7 +984,7 @@ class CallService:
         elif qual_lower == 'cold':
             return LeadStatus.WARM  # Cold leads are still warm leads
         elif qual_lower == 'unqualified':
-            return LeadStatus.ABANDONED
+            return LeadStatus.NEW
 
         # Default to NEW if status is unknown
         return LeadStatus.NEW
@@ -1693,6 +1693,22 @@ class CallService:
                 else:
                     objections = "None Detected"
 
+                # Derive call_outcome from call-level data
+                if call.missed_call:
+                    call_outcome = "Missed Call"
+                elif call.handled_by_user_id:
+                    call_type_val = call.call_type.value if hasattr(call.call_type, 'value') else call.call_type
+                    if call_type_val == CallType.SALES_CALL.value:
+                        call_outcome = "Sales Rep Handled"
+                    else:
+                        call_outcome = "CSR Handled"
+                elif call.duration_seconds and call.duration_seconds > 0:
+                    call_outcome = "CSR Handled"
+                elif call.audio_url and (call.duration_seconds is None or call.duration_seconds == 0):
+                    call_outcome = "Voicemail Left"
+                else:
+                    call_outcome = "Unclassified"
+
                 # Get tags (from lead status or extra_metadata)
                 tags = []
                 if lead:
@@ -1785,6 +1801,7 @@ class CallService:
                     "score": score,
                     "objections": objections,
                     "tags": ", ".join(tags) if tags else None,
+                    "call_outcome": call_outcome,
                 })
 
             return {

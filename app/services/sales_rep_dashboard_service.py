@@ -37,6 +37,7 @@ from app.services.metrics_service import MetricsService
 from app.core.datetime_utils import isoformat_utc
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.call import CallORM
+from app.infrastructure.database.models.contact import ContactCardORM
 from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
 from app.infrastructure.repositories.appointment import AppointmentRepository

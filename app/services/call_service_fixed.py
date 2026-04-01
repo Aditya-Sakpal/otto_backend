@@ -829,7 +829,7 @@ class CallService:
         elif qual_lower == 'cold':
             return LeadStatus.WARM  # Cold leads are still warm leads
         elif qual_lower == 'unqualified':
-            return LeadStatus.ABANDONED
+            return LeadStatus.NEW
         
         # Default to NEW if status is unknown
         return LeadStatus.NEW

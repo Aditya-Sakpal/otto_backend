@@ -1529,13 +1529,39 @@ class CallService:
                     )
 
             # Objection filter: check if the given value exists in the objections array
-            # Supports both snake_case enum values (e.g. "service_fee_concerns") and
-            # legacy human-readable strings (e.g. "Service Fee Concerns") via case-insensitive match
+            # Supports frontend snake_case aliases, direct DB values, and normalized forms
             if objection_filter:
                 from sqlalchemy import exists as sa_exists, literal, column as sa_column
-                # Normalize: convert snake_case to spaces for matching against DB values
-                # e.g. "service_fee_concerns" → "service fee concerns" matches "Service Fee Concerns"
-                normalized_filter = objection_filter.strip().lower().replace("_", " ")
+
+                # Map frontend aliases to actual DB objection values (lowercase)
+                _OBJECTION_ALIAS_MAP = {
+                    "service_fee_concerns": "service fee concerns",
+                    "price_too_high": "service fee concerns",
+                    "scheduling_conflicts": "scheduling conflicts",
+                    "need_to_check_schedule": "scheduling conflicts",
+                    "customer_needs_time_to_decide": "customer needs time to decide",
+                    "not_ready_to_book": "customer needs time to decide",
+                    "service_not_available": "immediate service unavailability",
+                    "immediate_service_unavailability": "immediate service unavailability",
+                    "in_person_estimates_only": "in-person estimates only",
+                    "phone_connection_issues": "phone connection issues",
+                    "customer_data_privacy_concerns": "customer data privacy concerns",
+                    "service_not_catered": "service not catered",
+                    "trust_credibility_concerns": "trust/credibility concerns",
+                    "competitor_related_concerns": "competitor-related concerns",
+                    "already_have_provider": "competitor-related concerns",
+                    "not_the_decision_maker": "not the decision maker",
+                    "inefficient_agent_communication": "inefficient agent communication",
+                    "location_too_far": "service not catered",
+                    "other": "other",
+                }
+
+                filter_key = objection_filter.strip().lower()
+                normalized_filter = _OBJECTION_ALIAS_MAP.get(
+                    filter_key,
+                    filter_key.replace("_", " "),  # fallback: underscore → space
+                )
+
                 query = query.where(
                     sa_exists(
                         select(literal(1))

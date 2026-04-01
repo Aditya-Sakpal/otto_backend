@@ -282,7 +282,7 @@ class SalesRepDashboardService:
         limit: int = 100,
     ) -> List[SalesTeamStatsEntry]:
         """
-        Get sales team stats: rep_name, total_recordings_hours, win_rate,
+        Get sales team stats: rep_name, total_recordings, win_rate,
         process_score, skills_score, otto_usage_hours.
         """
         from app.domain.enums import UserRole
@@ -300,20 +300,19 @@ class SalesRepDashboardService:
         rep_ids = [r.id for r in sales_reps]
         rep_names = {r.id: f"{(r.first_name or '')} {(r.last_name or '')}".strip() or "Unknown" for r in sales_reps}
 
-        # Total recording duration from appointments (duration_seconds)
-        total_duration_result = await self.session.execute(
+        # Total recordings count (same logic as SalesRepStatService)
+        total_recordings_result = await self.session.execute(
             select(
-                AppointmentORM.assigned_rep_id,
-                func.coalesce(func.sum(AppointmentORM.duration_seconds), 0).label("total_sec"),
+                CallORM.handled_by_user_id,
+                func.count(CallORM.id).label("total_recordings"),
             )
             .where(
-                AppointmentORM.company_id == company_id,
-                AppointmentORM.assigned_rep_id.in_(rep_ids),
-                AppointmentORM.duration_seconds.isnot(None),
+                CallORM.company_id == company_id,
+                CallORM.handled_by_user_id.in_(rep_ids),
             )
-            .group_by(AppointmentORM.assigned_rep_id)
+            .group_by(CallORM.handled_by_user_id)
         )
-        duration_map = {r[0]: r[1] for r in total_duration_result.all()}
+        recordings_map = {r[0]: r[1] for r in total_recordings_result.all()}
 
         # SOP compliance (process score) from call analyses
         process_result = await self.session.execute(
@@ -376,8 +375,7 @@ class SalesRepDashboardService:
         entries: List[SalesTeamStatsEntry] = []
         for rep in sales_reps:
             rep_id = rep.id
-            total_sec = duration_map.get(rep_id, 0) or 0
-            total_hours = round(total_sec / 3600.0, 2)
+            total_recordings = int(recordings_map.get(rep_id, 0) or 0)
 
             # Win rate: use the same KPI logic as SalesRepStatService / MetricsService
             try:
@@ -403,7 +401,7 @@ class SalesRepDashboardService:
                 SalesTeamStatsEntry(
                     sales_rep_id=rep_id,
                     rep_name=rep_names.get(rep_id, "Unknown"),
-                    total_recordings_hours=total_hours,
+                    total_recordings=total_recordings,
                     win_rate=win_rate,
                     process_score=process_score,
                     skills_score=skills_score,

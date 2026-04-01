@@ -26,7 +26,7 @@ from app.infrastructure.database.session import AsyncSessionLocal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/ask-otto", tags=["ask-otto"])
+router = APIRouter(prefix="/ask-Gomotto", tags=["ask-Gomotto"])
 logger = get_logger(__name__)
 
 

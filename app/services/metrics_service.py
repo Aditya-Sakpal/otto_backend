@@ -2173,8 +2173,9 @@ class MetricsService:
             if not user:
                 raise ValueError(f"User {user_id} not found")
             
-            if user.role != UserRole.CSR.value:
-                raise ValueError(f"User {user_id} is not a CSR")
+            # Allow non-CSR callers for /metrics/csr/{user_id}/profile (e.g. exec viewing any user).
+            # if user.role != UserRole.CSR.value:
+            #     raise ValueError(f"User {user_id} is not a CSR")
             
             if not user.company_id:
                 raise ValueError(f"User {user_id} has no company_id")

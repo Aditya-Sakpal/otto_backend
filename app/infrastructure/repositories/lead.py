@@ -109,9 +109,15 @@ def _apply_lead_list_sort(query, sort: str):
         return query.order_by(fn.desc(), ln.desc(), LeadORM.id.desc())
     if sort == LEAD_SORT_CREATED_ASC:
         return query.order_by(
-            LeadORM.created_at.asc().nulls_last(), LeadORM.id.asc()
+            LeadORM.created_at.asc().nulls_last(),
+            LeadORM.updated_at.asc().nulls_last(),
+            LeadORM.id.asc(),
         )
-    return query.order_by(LeadORM.created_at.desc().nulls_last(), LeadORM.id.desc())
+    return query.order_by(
+        LeadORM.created_at.desc().nulls_last(),
+        LeadORM.updated_at.desc().nulls_last(),
+        LeadORM.id.desc(),
+    )
 
 
 class LeadRepository(BaseRepository[LeadORM, Lead]):

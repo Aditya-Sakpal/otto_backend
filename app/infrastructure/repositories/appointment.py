@@ -152,6 +152,8 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
                 query = _apply_appointment_outcome_filter(query, norm)
                 if tokens:
                     query = _apply_appointment_search_filter(query, tokens)
+                # Ensure deterministic ordering for pagination/limits (otherwise large ranges can look "cut off")
+                query = query.order_by(AppointmentORM.scheduled_start.desc(), AppointmentORM.created_at.desc())
                 query = query.offset(skip).limit(limit)
                 result = await self.session.execute(query)
                 orm_objs = (
@@ -400,6 +402,8 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
                 query = _apply_appointment_outcome_filter(query, norm)
                 if tokens:
                     query = _apply_appointment_search_filter(query, tokens)
+                # Ensure deterministic ordering for pagination/limits (otherwise large ranges can look "cut off")
+                query = query.order_by(AppointmentORM.scheduled_start.desc(), AppointmentORM.created_at.desc())
                 query = query.offset(skip).limit(limit)
                 result = await self.session.execute(query)
                 orm_objs = (
@@ -528,9 +532,15 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
                     )
 
             if order_desc:
-                query = query.order_by(AppointmentORM.scheduled_start.desc())
+                query = query.order_by(
+                    AppointmentORM.scheduled_start.desc(),
+                    AppointmentORM.created_at.desc(),
+                )
             else:
-                query = query.order_by(AppointmentORM.scheduled_start.asc())
+                query = query.order_by(
+                    AppointmentORM.scheduled_start.asc(),
+                    AppointmentORM.created_at.asc(),
+                )
 
             query = query.offset(skip).limit(limit)
             result = await self.session.execute(query)

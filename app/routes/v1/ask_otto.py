@@ -509,6 +509,10 @@ async def send_message(
                     company_id=str(conversation.company_id),
                     user_id=user_id_for_shunya,
                     user_context=user_context,
+                    context=conversation.context or {
+                        "include_customer_context": True,
+                        "include_call_history": True,
+                    },
                 )
                 response_text = result.get("answer") or result.get("message") or ""
             except Exception as e:

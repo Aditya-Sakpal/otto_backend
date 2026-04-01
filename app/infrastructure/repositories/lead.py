@@ -315,6 +315,72 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         }
         return Lead(**lead_data)
 
+    def _to_domain_light(
+        self,
+        orm_obj: LeadORM,
+        appointment_id: UUID = None,
+        call_audio_urls: list = None,
+        lead_source_fallback: str = None,
+        reason_not_booked: str = None,
+        objection: str = None,
+        response: str = None,
+    ) -> Lead:
+        """Convert ORM to domain model using pre-fetched supplementary data (no calls eager load)."""
+        # Contact info
+        name = None
+        phone_number = None
+        try:
+            mapper = inspect(orm_obj)
+            contact_attr = mapper.attrs.get('contact_card')
+            if contact_attr and contact_attr.loaded_value is not None:
+                contact = contact_attr.loaded_value
+                if contact:
+                    first_name = contact.first_name or ""
+                    last_name = contact.last_name or ""
+                    name = f"{first_name} {last_name}".strip() or None
+                    phone_number = contact.primary_phone
+        except (AttributeError, KeyError, TypeError):
+            pass
+
+        lead_source = getattr(orm_obj, "lead_source", None) or lead_source_fallback
+
+        deal_status = None
+        if orm_obj.deal_status:
+            try:
+                deal_status = DealStatus(orm_obj.deal_status)
+            except ValueError:
+                deal_status = None
+
+        pipeline_stage = None
+        if orm_obj.pipeline_stage:
+            try:
+                pipeline_stage = PipelineStage(orm_obj.pipeline_stage)
+            except ValueError:
+                pipeline_stage = None
+
+        return Lead(
+            id=orm_obj.id,
+            company_id=orm_obj.company_id,
+            contact_card_id=orm_obj.contact_card_id,
+            status=orm_obj.status,
+            deal_status=deal_status,
+            pipeline_stage=pipeline_stage,
+            assigned_rep_id=orm_obj.assigned_rep_id,
+            deal_size=orm_obj.deal_size,
+            closed_at=orm_obj.closed_at,
+            extra_metadata=orm_obj.extra_metadata,
+            call_audio_urls=call_audio_urls or None,
+            created_at=orm_obj.created_at,
+            updated_at=orm_obj.updated_at,
+            name=name,
+            phone_number=phone_number,
+            reason_not_booked=reason_not_booked,
+            objection=objection,
+            response=response,
+            lead_source=lead_source,
+            appointment_id=appointment_id,
+        )
+
     async def get_by_company(
         self,
         company_id: UUID,
@@ -657,28 +723,25 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         self,
         company_id: UUID,
         search: Optional[str] = None,
+        limit_per_stage: int = 20,
     ) -> List[Lead]:
-        """Get all leads for a company that have a pipeline_stage set, with relationships loaded.
+        """Get leads for a company grouped by pipeline_stage, limited per stage.
 
-        When ``search`` is set, only leads whose contact matches (case-insensitive) are returned:
-        first name, last name, full name (first + last), or primary phone. Whitespace-separated
-        terms are ANDed so each term must match at least one of those fields — search applies
-        across every pipeline stage before the service buckets by stage.
+        Uses a window function (row_number partitioned by pipeline_stage) to fetch
+        at most ``limit_per_stage`` leads per stage in a single query, avoiding
+        loading the entire leads table into memory.
+
+        When ``search`` is set, only leads whose contact matches (case-insensitive) are returned.
         """
         try:
-            stmt = (
-                select(LeadORM)
-                .options(
-                    selectinload(LeadORM.contact_card),
-                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
-                )
-                .where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.pipeline_stage.isnot(None),
-                )
-                .order_by(LeadORM.created_at.desc())
-            )
+            # Base filters
+            base_filters = [
+                LeadORM.company_id == company_id,
+                LeadORM.pipeline_stage.isnot(None),
+            ]
 
+            # Build optional search join + filters
+            search_join = None
             raw = (search or "").strip()
             if raw:
                 tokens = [t for t in re.split(r"\s+", raw) if t]
@@ -709,15 +772,110 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                             ContactCardORM.primary_phone.ilike(p, escape="\\"),
                         )
                     )
-                stmt = stmt.join(
-                    ContactCardORM,
-                    LeadORM.contact_card_id == ContactCardORM.id,
-                ).where(and_(*token_filters))
+                base_filters.extend(token_filters)
+                search_join = (ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id)
+
+            # Subquery: assign row_number per pipeline_stage, ordered by created_at desc
+            row_num = func.row_number().over(
+                partition_by=LeadORM.pipeline_stage,
+                order_by=LeadORM.created_at.desc(),
+            ).label("rn")
+
+            sub = select(LeadORM.id, row_num)
+            if search_join:
+                sub = sub.join(search_join[0], search_join[1])
+            sub = sub.where(*base_filters).subquery()
+
+            # Main query: only fetch leads with rn <= limit_per_stage (contact_card only, NO calls eager load)
+            stmt = (
+                select(LeadORM)
+                .join(sub, LeadORM.id == sub.c.id)
+                .where(sub.c.rn <= limit_per_stage)
+                .options(selectinload(LeadORM.contact_card))
+                .order_by(LeadORM.created_at.desc())
+            )
 
             result = await self.session.execute(stmt)
             orm_objs = result.scalars().all()
+            lead_ids = [obj.id for obj in orm_objs]
 
-            # Fetch appointment IDs for leads in stages that have appointments
+            if not lead_ids:
+                return []
+
+            # --- Lightweight targeted queries instead of eager-loading all calls + analyses ---
+
+            # 1. Audio URLs per lead (simple column select, no ORM hydration)
+            audio_result = await self.session.execute(
+                select(CallORM.lead_id, CallORM.audio_url)
+                .where(
+                    CallORM.lead_id.in_(lead_ids),
+                    CallORM.audio_url.isnot(None),
+                )
+            )
+            lead_audio_map: dict[UUID, list[str]] = {}
+            for lid, url in audio_result.all():
+                lead_audio_map.setdefault(lid, []).append(url)
+
+            # 2. Lead source fallback: most recent call with lead_source per lead
+            lead_source_result = await self.session.execute(
+                select(CallORM.lead_id, CallORM.lead_source)
+                .where(
+                    CallORM.lead_id.in_(lead_ids),
+                    CallORM.lead_source.isnot(None),
+                )
+                .order_by(CallORM.created_at.desc())
+            )
+            lead_source_map: dict[UUID, str] = {}
+            for lid, src in lead_source_result.all():
+                if lid not in lead_source_map:
+                    lead_source_map[lid] = src
+
+            # 3. Most recent analysis per lead (objection, response, reason_not_booked)
+            # Use row_number to get latest analysis per lead
+            analysis_rn = func.row_number().over(
+                partition_by=CallORM.lead_id,
+                order_by=CallORM.created_at.desc(),
+            ).label("a_rn")
+            analysis_sub = (
+                select(
+                    CallORM.lead_id,
+                    CallAnalysisORM.objections,
+                    CallAnalysisORM.objection_texts,
+                    CallAnalysisORM.booking_status,
+                    analysis_rn,
+                )
+                .join(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(CallORM.lead_id.in_(lead_ids))
+                .subquery()
+            )
+            analysis_result = await self.session.execute(
+                select(
+                    analysis_sub.c.lead_id,
+                    analysis_sub.c.objections,
+                    analysis_sub.c.objection_texts,
+                    analysis_sub.c.booking_status,
+                ).where(analysis_sub.c.a_rn == 1)
+            )
+            lead_analysis_map: dict[UUID, dict] = {}
+            for row in analysis_result.all():
+                objection = None
+                response = None
+                reason_not_booked = None
+                if row.objections and len(row.objections) > 0:
+                    objection = str(row.objections[0])
+                if row.objection_texts and len(row.objection_texts) > 0:
+                    response = row.objection_texts[0]
+                if row.booking_status:
+                    bs = row.booking_status.lower()
+                    if bs in ("not_booked", "unbooked", "qualified_unbooked"):
+                        reason_not_booked = response or objection or row.booking_status
+                lead_analysis_map[row.lead_id] = {
+                    "objection": objection,
+                    "response": response,
+                    "reason_not_booked": reason_not_booked,
+                }
+
+            # 4. Appointment IDs for relevant stages
             appointment_stages = {"booked", "appointment", "appointment_ran", "won", "lost", "review"}
             lead_ids_needing_appt = [
                 obj.id for obj in orm_objs
@@ -732,11 +890,25 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     .order_by(AppointmentORM.scheduled_start.desc())
                 )
                 for lead_id, appt_id in appt_result.all():
-                    # Keep only the most recent appointment per lead
                     if lead_id not in lead_appointment_map:
                         lead_appointment_map[lead_id] = appt_id
 
-            return [self._to_domain(obj, appointment_id=lead_appointment_map.get(obj.id)) for obj in orm_objs]
+            # Build domain objects without relying on calls eager load
+            results = []
+            for obj in orm_objs:
+                oid = obj.id
+                analysis_data = lead_analysis_map.get(oid, {})
+                lead = self._to_domain_light(
+                    orm_obj=obj,
+                    appointment_id=lead_appointment_map.get(oid),
+                    call_audio_urls=lead_audio_map.get(oid),
+                    lead_source_fallback=lead_source_map.get(oid),
+                    reason_not_booked=analysis_data.get("reason_not_booked"),
+                    objection=analysis_data.get("objection"),
+                    response=analysis_data.get("response"),
+                )
+                results.append(lead)
+            return results
         except Exception as e:
             logger.error(f"Error getting leads by pipeline stages: {e}")
             raise e

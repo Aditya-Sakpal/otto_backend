@@ -253,7 +253,7 @@ async def get_sales_team_stats(
     ),
 ) -> list[SalesTeamStatsEntry]:
     """
-    Get sales team stats: rep_name, total_recordings_hours, win_rate,
+    Get sales team stats: rep_name, total_recordings, win_rate,
     process_score, skills_score, otto_usage_hours. Supports pagination.
     """
     service = SalesRepDashboardService(db)

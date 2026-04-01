@@ -166,20 +166,26 @@ class LeadService:
         self,
         company_id: UUID,
         limit: int = 20,
+        search: Optional[str] = None,
     ) -> dict:
         """
         Get leads grouped by pipeline stage.
 
         Returns a dictionary with all pipeline stages as keys,
         each containing an array of leads in that stage (capped by limit).
+
+        Optional ``search`` filters by contact name or phone across all stages before bucketing.
         """
         from app.domain.enums import PipelineStage
 
         # Initialize all stages with empty lists
         pipeline: dict = {stage.value: [] for stage in PipelineStage}
 
-        # Fetch all leads that have a pipeline_stage
-        leads = await self.lead_repo.get_by_pipeline_stages(company_id=company_id)
+        # Fetch all leads that have a pipeline_stage (optionally filtered by search)
+        leads = await self.lead_repo.get_by_pipeline_stages(
+            company_id=company_id,
+            search=search,
+        )
 
         for lead in leads:
             ps = lead.pipeline_stage

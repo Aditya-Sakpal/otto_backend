@@ -121,6 +121,7 @@ class SalesRepStatService:
         recording = item.appointment.recording_url or ""
 
         return PendingLeadItem(
+            lead_id=item.id,
             name=item.customer.full_name or "",
             looking_for=item.sales_context.intent or "",
             objection=item.sales_context.primary_objection or "",

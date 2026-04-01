@@ -558,6 +558,13 @@ async def get_pipeline_view(
     company_id: UUID,
     db: DbSession,
     limit: int = Query(20, ge=1, le=500, description="Max leads per pipeline stage"),
+    search: Optional[str] = Query(
+        None,
+        min_length=1,
+        max_length=200,
+        description="Filter by contact first name, last name, full name, or phone (case-insensitive). "
+        "Matches across all pipeline stages; space-separated terms are all required (AND).",
+    ),
     user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
 ) -> Dict[str, List[Lead]]:
     """
@@ -567,11 +574,18 @@ async def get_pipeline_view(
     (qualified, unqualified, service_not_offered, booked, appointment, appointment_ran, won, lost, review),
     each containing an array of leads in that stage (capped by `limit`).
 
+    Use `search` to return only leads whose contact name or phone matches; results are still
+    grouped by stage so you see matching leads wherever they sit in the pipeline.
+
     Access: EXECUTIVE, CSR
     """
     try:
         service = LeadService(db)
-        return await service.get_pipeline_view(company_id=company_id, limit=limit)
+        return await service.get_pipeline_view(
+            company_id=company_id,
+            limit=limit,
+            search=search,
+        )
     except Exception as e:
         logger.error(f"Error getting pipeline view: {e}")
         traceback.print_exc()

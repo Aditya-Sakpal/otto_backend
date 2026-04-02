@@ -35,10 +35,12 @@ from app.domain.schemas.metrics import (
     UnbookedLeadsResponse,
     PendingActionsResponse,
     CSRProfileResponse,
+    StrengthsAndIssuesResponse,
 )
 from app.services.metrics_service import MetricsService
 from app.services.analytics_service import AnalyticsService
 from app.services.pending_action_service import PendingActionService
+from app.infrastructure.integrations.shoonya import get_shoonya_client
 
 router = APIRouter(tags=["metrics"])
 
@@ -555,6 +557,122 @@ async def get_most_coaching_opportunities(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+@router.get("/coaching/strengths-and-issues", response_model=StrengthsAndIssuesResponse, responses=RESPONSES)
+async def get_strengths_and_issues(
+    user_id: UUID = Query(..., description="Rep/CSR user UUID"),
+    db: DbSession = None,
+    company_id: Optional[UUID] = Query(None, description="Company UUID (auto-resolved from user if omitted)"),
+    window_days: int = Query(30, ge=7, le=180, description="Time window in days for Shunya aggregation"),
+    force_refresh: bool = Query(False, description="Force Shunya to rebuild the profile (may take 30-60s)"),
+    current_user: User = Depends(get_current_user),
+    start_date: Optional[date] = Query(None, description="Start date for DB metrics (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date for DB metrics (YYYY-MM-DD)"),
+):
+    """
+    Unified strengths & issues endpoint.
+
+    Combines Shunya's coaching profile (15 canonical categories with severity,
+    representative examples) with Otto DB performance metrics (booking rate,
+    conversion rate, objection-based coaching needs, trends).
+
+    - **user_id**: Rep/CSR user UUID (used as Shunya rep_id)
+    - **company_id**: Company UUID (optional, resolved from user record)
+    - **window_days**: Shunya aggregation window (default 30)
+    - **force_refresh**: Force Shunya cache rebuild
+    - **start_date/end_date**: Date range for DB metrics (defaults to 30 days)
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+
+    # Resolve company_id from user if not provided
+    if not company_id:
+        try:
+            from app.infrastructure.database.models.user import UserORM
+            from sqlalchemy import select
+            user_result = await db.execute(
+                select(UserORM.company_id).where(UserORM.id == user_id)
+            )
+            row = user_result.scalar_one_or_none()
+            if row:
+                company_id = row
+        except Exception:
+            pass
+        # Fall back to company_id from token
+        if not company_id and hasattr(current_user, 'company_id') and current_user.company_id:
+            company_id = current_user.company_id
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="company_id is required (could not resolve from user)",
+            )
+
+    # Fetch Shunya coaching profile
+    shoonya = get_shoonya_client()
+    shunya_profile = {}
+    if shoonya.is_available():
+        try:
+            shunya_profile = await shoonya.get_coaching_profile(
+                rep_id=str(user_id),
+                company_id=str(company_id),
+                force_refresh=force_refresh,
+                window_days=window_days,
+            )
+        except Exception as e:
+            _log.warning(f"Shunya coaching profile unavailable: {e}")
+
+    # Merge with DB metrics (graceful degradation if DB is unreachable)
+    db_metrics = {}
+    try:
+        service = MetricsService(db)
+        return await service.get_strengths_and_issues(
+            user_id=user_id,
+            company_id=company_id,
+            shunya_profile=shunya_profile,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except Exception as e:
+        _log.warning(f"DB metrics unavailable, returning Shunya-only data: {e}")
+        from datetime import datetime
+
+        def _parse_severity(sv):
+            if isinstance(sv, dict) and sv:
+                return {"high": sv.get("high", 0), "medium": sv.get("medium", 0), "low": sv.get("low", 0)}
+            return None
+
+        def _parse_bucket(b):
+            return {
+                "category": b.get("category", ""),
+                "count": b.get("count", 0),
+                "severity_distribution": _parse_severity(b.get("severity_distribution")),
+                "representative_examples": b.get("representative_examples", []),
+                "related_sop_metrics": b.get("related_sop_metrics", []),
+                "latest_occurrence": b.get("latest_occurrence"),
+            }
+
+        return {
+            "rep_id": shunya_profile.get("rep_id", str(user_id)),
+            "rep_name": shunya_profile.get("rep_name", ""),
+            "company_id": shunya_profile.get("company_id", str(company_id)),
+            "window_start": shunya_profile.get("window_start", ""),
+            "window_end": shunya_profile.get("window_end", ""),
+            "calls_analyzed": shunya_profile.get("calls_analyzed", 0),
+            "top_weaknesses": [_parse_bucket(b) for b in shunya_profile.get("top_weaknesses", [])],
+            "top_strengths": [_parse_bucket(b) for b in shunya_profile.get("top_strengths", [])],
+            "all_weakness_buckets": [_parse_bucket(b) for b in shunya_profile.get("all_weakness_buckets", [])],
+            "all_strength_buckets": [_parse_bucket(b) for b in shunya_profile.get("all_strength_buckets", [])],
+            "db_performance_metrics": {
+                "total_calls": 0, "calls_answered": 0, "calls_answered_percentage": 0.0,
+                "missed_calls": 0, "missed_calls_status": "low", "booking_rate": 0.0,
+                "conversion_rate": 0.0, "avg_response_time": 0.0, "response_time_status": "on_target",
+                "avg_sop_compliance_score": 0.0, "qualified_leads": 0, "booked_appointments": 0,
+                "rank": None, "total_csrs": 0, "top_objections": [], "booking_rate_trend": [],
+            },
+            "calculated_at": shunya_profile.get("calculated_at", datetime.utcnow().isoformat()),
+            "data_sources": ["shunya_coaching_profile"],
+        }
 
 
 @router.get("/conversion/lead-to-sale", response_model=ConversionMetricsResponse, responses=RESPONSES)

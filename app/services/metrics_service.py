@@ -2691,3 +2691,293 @@ class MetricsService:
         except Exception as e:
             logger.error(f"Error getting sales rep KPI: {e}")
             raise e
+
+    async def get_strengths_and_issues(
+        self,
+        user_id: UUID,
+        company_id: UUID,
+        shunya_profile: Dict[str, Any],
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """
+        Build unified strengths & issues response by combining Shunya coaching
+        profile with our DB performance metrics.
+        """
+        try:
+            start_dt, end_dt = self._get_date_range(start_date, end_date)
+
+            # --- DB metrics: calls ---
+            total_calls_q = await self.session.execute(
+                select(func.count(CallORM.id)).where(
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                )
+            )
+            total_calls = total_calls_q.scalar() or 0
+
+            answered_q = await self.session.execute(
+                select(func.count(CallORM.id)).where(
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == False,
+                )
+            )
+            calls_answered = answered_q.scalar() or 0
+            missed_calls = total_calls - calls_answered
+            calls_answered_pct = (calls_answered / total_calls * 100) if total_calls > 0 else 0.0
+            missed_pct = (missed_calls / total_calls * 100) if total_calls > 0 else 0.0
+            missed_status = "high" if missed_pct > 10 else ("medium" if missed_pct > 5 else "low")
+
+            # Avg response time
+            resp_time_q = await self.session.execute(
+                select(
+                    func.avg(func.extract('epoch', CallORM.answered_at - CallORM.created_at))
+                ).where(
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == False,
+                    CallORM.answered_at.isnot(None),
+                )
+            )
+            avg_response_time = resp_time_q.scalar() or 0.0
+            rt_target = 15.0
+            rt_status = "on_target" if avg_response_time <= rt_target else (
+                "above_target" if avg_response_time <= rt_target * 1.5 else "below_target"
+            )
+
+            # --- Leads & appointments ---
+            qualified_q = await self.session.execute(
+                select(func.count(LeadORM.id)).where(
+                    LeadORM.assigned_rep_id == user_id,
+                    LeadORM.created_at >= start_dt,
+                    LeadORM.created_at <= end_dt,
+                    or_(LeadORM.status.like('qualified_%'), LeadORM.deal_status == 'qualified'),
+                )
+            )
+            qualified_leads = qualified_q.scalar() or 0
+
+            booked_appt_q = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(
+                    AppointmentORM.assigned_rep_id == user_id,
+                    AppointmentORM.created_at >= start_dt,
+                    AppointmentORM.created_at <= end_dt,
+                )
+            )
+            booked_appointments = booked_appt_q.scalar() or 0
+
+            booked_calls_q = await self.session.execute(
+                select(func.count(CallAnalysisORM.id))
+                .select_from(CallAnalysisORM)
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallAnalysisORM.booking_status.isnot(None),
+                    func.lower(CallAnalysisORM.booking_status) == "booked",
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+            )
+            booked_calls = booked_calls_q.scalar() or 0
+            total_booked = booked_appointments + booked_calls
+            booking_rate = (total_booked / qualified_leads * 100) if qualified_leads > 0 else 0.0
+
+            # Conversion rate
+            won_q = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(
+                    AppointmentORM.assigned_rep_id == user_id,
+                    AppointmentORM.created_at >= start_dt,
+                    AppointmentORM.created_at <= end_dt,
+                    AppointmentORM.outcome == 'won',
+                )
+            )
+            won = won_q.scalar() or 0
+            conversion_rate = (won / qualified_leads * 100) if qualified_leads > 0 else 0.0
+
+            # SOP compliance average
+            sop_q = await self.session.execute(
+                select(func.avg(CallAnalysisORM.sop_compliance_score))
+                .select_from(CallAnalysisORM)
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallAnalysisORM.sop_compliance_score.isnot(None),
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+            )
+            avg_sop = sop_q.scalar() or 0.0
+
+            # Rank among CSRs
+            all_csrs_q = await self.session.execute(
+                select(UserORM.id).where(
+                    UserORM.company_id == company_id,
+                    UserORM.is_active == True,
+                    UserORM.role.in_([UserRole.CSR.value, UserRole.SALES_REP.value]),
+                )
+            )
+            all_csr_ids = [r[0] for r in all_csrs_q.all()]
+            total_csrs = len(all_csr_ids)
+
+            csr_booking_rates = {}
+            for csr_id in all_csr_ids:
+                cq = await self.session.execute(
+                    select(func.count(LeadORM.id)).where(
+                        LeadORM.assigned_rep_id == csr_id,
+                        LeadORM.created_at >= start_dt,
+                        LeadORM.created_at <= end_dt,
+                        or_(LeadORM.status.like('qualified_%'), LeadORM.deal_status == 'qualified'),
+                    )
+                )
+                csr_qual = cq.scalar() or 0
+                aq = await self.session.execute(
+                    select(func.count(AppointmentORM.id)).where(
+                        AppointmentORM.assigned_rep_id == csr_id,
+                        AppointmentORM.created_at >= start_dt,
+                        AppointmentORM.created_at <= end_dt,
+                    )
+                )
+                csr_appt = aq.scalar() or 0
+                csr_booking_rates[csr_id] = (csr_appt / csr_qual * 100) if csr_qual > 0 else 0.0
+
+            sorted_csrs = sorted(csr_booking_rates.items(), key=lambda x: x[1], reverse=True)
+            rank = None
+            for idx, (csr_id, _) in enumerate(sorted_csrs, 1):
+                if csr_id == user_id:
+                    rank = idx
+                    break
+
+            # Top 3 objection-based coaching needs
+            from sqlalchemy import join as sa_join
+            call_analysis_join = sa_join(CallAnalysisORM, CallORM, CallAnalysisORM.call_id == CallORM.id)
+            analyses_q = await self.session.execute(
+                select(
+                    CallAnalysisORM.qualification_status,
+                    CallAnalysisORM.booking_status,
+                    CallAnalysisORM,
+                ).select_from(call_analysis_join).where(
+                    CallORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    _metrics_exclude_existing_and_service_not_offered(),
+                )
+            )
+            obj_stats: Dict[str, Dict[str, int]] = {}
+            for row in analyses_q.all():
+                analysis = row[2]
+                is_qualified = row.qualification_status and row.qualification_status.lower() in ['hot', 'cold', 'warm', 'qualified']
+                is_booked = row.booking_status and row.booking_status.lower() == 'booked'
+                if analysis and analysis.objections:
+                    for obj in self._classify_objections_in_analysis(analysis):
+                        obj = str(obj).strip()
+                        if not obj:
+                            continue
+                        if obj not in obj_stats:
+                            obj_stats[obj] = {'count': 0, 'qualified': 0, 'booked': 0}
+                        obj_stats[obj]['count'] += 1
+                        if is_qualified:
+                            obj_stats[obj]['qualified'] += 1
+                        if is_booked:
+                            obj_stats[obj]['booked'] += 1
+
+            top_objections = []
+            for obj, s in sorted(obj_stats.items(), key=lambda x: x[1]['count'], reverse=True)[:3]:
+                unbooked = s['qualified'] - s['booked']
+                top_objections.append({
+                    "objection": obj,
+                    "pct_unbooked": round((unbooked / s['qualified'] * 100) if s['qualified'] > 0 else 0.0, 1),
+                    "unbooked_qualified_ratio": f"{unbooked}/{s['qualified']}",
+                    "unbooked_count": unbooked,
+                    "qualified_count": s['qualified'],
+                })
+
+            # Booking rate trend (last 4 weeks)
+            booking_rate_trend = []
+            for i in range(4):
+                w_end = end_dt - timedelta(weeks=i)
+                w_start = w_end - timedelta(weeks=1)
+                wq = await self.session.execute(
+                    select(func.count(LeadORM.id)).where(
+                        LeadORM.assigned_rep_id == user_id,
+                        LeadORM.created_at >= w_start,
+                        LeadORM.created_at <= w_end,
+                        or_(LeadORM.status.like('qualified_%'), LeadORM.deal_status == 'qualified'),
+                    )
+                )
+                w_qual = wq.scalar() or 0
+                wa = await self.session.execute(
+                    select(func.count(AppointmentORM.id)).where(
+                        AppointmentORM.assigned_rep_id == user_id,
+                        AppointmentORM.created_at >= w_start,
+                        AppointmentORM.created_at <= w_end,
+                    )
+                )
+                w_booked = wa.scalar() or 0
+                booking_rate_trend.append({
+                    "period_start": w_start.isoformat(),
+                    "period_end": w_end.isoformat(),
+                    "booking_rate": round((w_booked / w_qual * 100) if w_qual > 0 else 0.0, 1),
+                    "booked": w_booked,
+                    "qualified": w_qual,
+                })
+            booking_rate_trend.reverse()
+
+            # --- Build unified response ---
+            def _parse_severity(sv: Any) -> Any:
+                if isinstance(sv, dict) and sv:
+                    return {"high": sv.get("high", 0), "medium": sv.get("medium", 0), "low": sv.get("low", 0)}
+                return None
+
+            def _parse_bucket(b: Dict[str, Any]) -> Dict[str, Any]:
+                return {
+                    "category": b.get("category", ""),
+                    "count": b.get("count", 0),
+                    "severity_distribution": _parse_severity(b.get("severity_distribution")),
+                    "representative_examples": b.get("representative_examples", []),
+                    "related_sop_metrics": b.get("related_sop_metrics", []),
+                    "latest_occurrence": b.get("latest_occurrence"),
+                }
+
+            return {
+                "rep_id": shunya_profile.get("rep_id", str(user_id)),
+                "rep_name": shunya_profile.get("rep_name", ""),
+                "company_id": shunya_profile.get("company_id", str(company_id)),
+                "window_start": shunya_profile.get("window_start", start_dt.isoformat()),
+                "window_end": shunya_profile.get("window_end", end_dt.isoformat()),
+                "calls_analyzed": shunya_profile.get("calls_analyzed", 0),
+                "top_weaknesses": [_parse_bucket(b) for b in shunya_profile.get("top_weaknesses", [])],
+                "top_strengths": [_parse_bucket(b) for b in shunya_profile.get("top_strengths", [])],
+                "all_weakness_buckets": [_parse_bucket(b) for b in shunya_profile.get("all_weakness_buckets", [])],
+                "all_strength_buckets": [_parse_bucket(b) for b in shunya_profile.get("all_strength_buckets", [])],
+                "db_performance_metrics": {
+                    "total_calls": total_calls,
+                    "calls_answered": calls_answered,
+                    "calls_answered_percentage": round(calls_answered_pct, 1),
+                    "missed_calls": missed_calls,
+                    "missed_calls_status": missed_status,
+                    "booking_rate": round(booking_rate, 1),
+                    "conversion_rate": round(conversion_rate, 1),
+                    "avg_response_time": round(avg_response_time, 1),
+                    "response_time_status": rt_status,
+                    "avg_sop_compliance_score": round(float(avg_sop), 1),
+                    "qualified_leads": qualified_leads,
+                    "booked_appointments": booked_appointments,
+                    "rank": rank,
+                    "total_csrs": total_csrs,
+                    "top_objections": top_objections,
+                    "booking_rate_trend": booking_rate_trend,
+                },
+                "calculated_at": shunya_profile.get("calculated_at", datetime.utcnow().isoformat()),
+                "data_sources": ["shunya_coaching_profile", "otto_db_metrics"],
+            }
+        except Exception as e:
+            logger.error(f"Error getting strengths and issues: {e}")
+            raise

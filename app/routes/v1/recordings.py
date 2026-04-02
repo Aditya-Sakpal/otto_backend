@@ -173,21 +173,31 @@ async def complete_recording(
         await db.commit()
 
         # Move lead to APPOINTMENT_RAN since recording proves the appointment happened
+        # Also assign the sales rep to the lead if not already assigned
         if appointment.lead_id:
             result = await db.execute(
                 sa_select(LeadORM).where(LeadORM.id == appointment.lead_id)
             )
             lead_orm = result.scalar_one_or_none()
-            if lead_orm and lead_orm.pipeline_stage in (
-                PipelineStage.BOOKED.value,
-                PipelineStage.APPOINTMENT.value,
-            ):
-                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
-                await db.flush()
-                await db.commit()
-                logger.info(
-                    f"Updated lead {appointment.lead_id} pipeline_stage to appointment_ran"
-                )
+            if lead_orm:
+                updated = False
+                if lead_orm.pipeline_stage in (
+                    PipelineStage.BOOKED.value,
+                    PipelineStage.APPOINTMENT.value,
+                ):
+                    lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
+                    updated = True
+                if not lead_orm.assigned_rep_id and appointment.assigned_rep_id:
+                    lead_orm.assigned_rep_id = appointment.assigned_rep_id
+                    updated = True
+                if updated:
+                    await db.flush()
+                    await db.commit()
+                    logger.info(
+                        f"Updated lead {appointment.lead_id}: "
+                        f"pipeline_stage={lead_orm.pipeline_stage}, "
+                        f"assigned_rep_id={lead_orm.assigned_rep_id}"
+                    )
 
         logger.info(
             f"Recording upload completed for appointment {request.appointment_id}, triggering processing"

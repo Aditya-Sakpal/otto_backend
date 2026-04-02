@@ -7,7 +7,7 @@ from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime, date, timezone
 
-from sqlalchemy import select, or_, and_, func, case, text
+from sqlalchemy import select, or_, and_, func, case, text, cast, Text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.inspection import inspect
@@ -737,18 +737,31 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         at most ``limit_per_stage`` leads per stage in a single query, avoiding
         loading the entire leads table into memory.
 
-        When ``search`` is set, only leads whose contact matches (case-insensitive) are returned.
+        When ``search`` is set, only leads whose contact matches name (incl. email), phone, or
+        address (incl. property_snapshot JSON as text) are returned (case-insensitive, AND
+        across whitespace-separated tokens). Single-token searches run as **three SQL queries**
+        (name / phone / address paths), executed **sequentially** on this session, then union lead ids;
+        multi-token searches use one combined SQL id query (mixed-field AND semantics).
         """
         try:
-            # Base filters
-            base_filters = [
+            raw = (search or "").strip()
+            company_stage_base = [
                 LeadORM.company_id == company_id,
                 LeadORM.pipeline_stage.isnot(None),
+                ContactCardORM.company_id == company_id,
             ]
 
-            # Build optional search join + filters
-            search_join = None
-            raw = (search or "").strip()
+            def _like_pattern(tok: str) -> str:
+                esc = (
+                    tok.replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")
+                )
+                return f"%{esc}%"
+
+            partition_order: list
+            candidate_lead_ids: Optional[set[UUID]] = None
+
             if raw:
                 tokens = [t for t in re.split(r"\s+", raw) if t]
                 full_name_expr = func.trim(
@@ -758,39 +771,125 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                         func.coalesce(ContactCardORM.last_name, ""),
                     )
                 )
+                property_snapshot_txt = cast(ContactCardORM.property_snapshot, Text)
 
-                def _like_pattern(tok: str) -> str:
-                    esc = (
-                        tok.replace("\\", "\\\\")
-                        .replace("%", "\\%")
-                        .replace("_", "\\_")
+                def _name_match(p: str):
+                    return or_(
+                        ContactCardORM.first_name.ilike(p, escape="\\"),
+                        ContactCardORM.last_name.ilike(p, escape="\\"),
+                        full_name_expr.ilike(p, escape="\\"),
+                        ContactCardORM.email.ilike(p, escape="\\"),
                     )
-                    return f"%{esc}%"
 
-                token_filters = []
-                for tok in tokens:
-                    p = _like_pattern(tok)
-                    token_filters.append(
-                        or_(
-                            ContactCardORM.first_name.ilike(p, escape="\\"),
-                            ContactCardORM.last_name.ilike(p, escape="\\"),
-                            full_name_expr.ilike(p, escape="\\"),
-                            ContactCardORM.primary_phone.ilike(p, escape="\\"),
+                def _phone_match(p: str):
+                    return or_(
+                        ContactCardORM.primary_phone.ilike(p, escape="\\"),
+                        ContactCardORM.secondary_phone.ilike(p, escape="\\"),
+                    )
+
+                def _addr_match(p: str):
+                    return or_(
+                        ContactCardORM.address.ilike(p, escape="\\"),
+                        ContactCardORM.city.ilike(p, escape="\\"),
+                        ContactCardORM.state.ilike(p, escape="\\"),
+                        ContactCardORM.postal_code.ilike(p, escape="\\"),
+                        property_snapshot_txt.ilike(p, escape="\\"),
+                    )
+
+                async def _lead_ids_matching(expr) -> set[UUID]:
+                    stmt = (
+                        select(LeadORM.id)
+                        .select_from(LeadORM)
+                        .join(
+                            ContactCardORM,
+                            LeadORM.contact_card_id == ContactCardORM.id,
                         )
+                        .where(*company_stage_base, expr)
                     )
-                base_filters.extend(token_filters)
-                search_join = (ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id)
+                    res = await self.session.execute(stmt)
+                    return {row[0] for row in res.all()}
 
-            # Subquery: assign row_number per pipeline_stage, ordered by created_at desc
+                if len(tokens) == 1:
+                    p0 = _like_pattern(tokens[0])
+                    # Same AsyncSession cannot run concurrent executes (SQLAlchemy isce).
+                    id_name = await _lead_ids_matching(_name_match(p0))
+                    id_phone = await _lead_ids_matching(_phone_match(p0))
+                    id_addr = await _lead_ids_matching(_addr_match(p0))
+                    candidate_lead_ids = id_name | id_phone | id_addr
+                else:
+                    token_filters = []
+                    for tok in tokens:
+                        p = _like_pattern(tok)
+                        token_filters.append(
+                            or_(_name_match(p), _phone_match(p), _addr_match(p))
+                        )
+                    stmt_ids = (
+                        select(LeadORM.id)
+                        .select_from(LeadORM)
+                        .join(
+                            ContactCardORM,
+                            LeadORM.contact_card_id == ContactCardORM.id,
+                        )
+                        .where(*company_stage_base, *token_filters)
+                    )
+                    res_ids = await self.session.execute(stmt_ids)
+                    candidate_lead_ids = {row[0] for row in res_ids.all()}
+
+                if not candidate_lead_ids:
+                    return []
+
+                p_rank = _like_pattern(raw)
+                name_phone_match = or_(
+                    ContactCardORM.first_name.ilike(p_rank, escape="\\"),
+                    ContactCardORM.last_name.ilike(p_rank, escape="\\"),
+                    full_name_expr.ilike(p_rank, escape="\\"),
+                    ContactCardORM.email.ilike(p_rank, escape="\\"),
+                    ContactCardORM.primary_phone.ilike(p_rank, escape="\\"),
+                    ContactCardORM.secondary_phone.ilike(p_rank, escape="\\"),
+                )
+                address_match = or_(
+                    ContactCardORM.address.ilike(p_rank, escape="\\"),
+                    ContactCardORM.city.ilike(p_rank, escape="\\"),
+                    ContactCardORM.state.ilike(p_rank, escape="\\"),
+                    ContactCardORM.postal_code.ilike(p_rank, escape="\\"),
+                    property_snapshot_txt.ilike(p_rank, escape="\\"),
+                )
+                partition_order = [
+                    case((name_phone_match, 0), (address_match, 1), else_=2).asc(),
+                    LeadORM.created_at.desc(),
+                ]
+            else:
+                partition_order = [LeadORM.created_at.desc()]
+
             row_num = func.row_number().over(
                 partition_by=LeadORM.pipeline_stage,
-                order_by=LeadORM.created_at.desc(),
+                order_by=partition_order,
             ).label("rn")
 
-            sub = select(LeadORM.id, row_num)
-            if search_join:
-                sub = sub.join(search_join[0], search_join[1])
-            sub = sub.where(*base_filters).subquery()
+            if candidate_lead_ids is not None:
+                sub = (
+                    select(LeadORM.id, row_num)
+                    .join(
+                        ContactCardORM,
+                        LeadORM.contact_card_id == ContactCardORM.id,
+                    )
+                    .where(
+                        LeadORM.company_id == company_id,
+                        LeadORM.pipeline_stage.isnot(None),
+                        ContactCardORM.company_id == company_id,
+                        LeadORM.id.in_(candidate_lead_ids),
+                    )
+                    .subquery()
+                )
+            else:
+                sub = (
+                    select(LeadORM.id, row_num)
+                    .where(
+                        LeadORM.company_id == company_id,
+                        LeadORM.pipeline_stage.isnot(None),
+                    )
+                    .subquery()
+                )
 
             # Main query: only fetch leads with rn <= limit_per_stage (contact_card only, NO calls eager load)
             stmt = (
@@ -798,7 +897,8 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 .join(sub, LeadORM.id == sub.c.id)
                 .where(sub.c.rn <= limit_per_stage)
                 .options(selectinload(LeadORM.contact_card))
-                .order_by(LeadORM.created_at.desc())
+                # Match window ordering per stage (search: name/phone before address; then recency)
+                .order_by(LeadORM.pipeline_stage, sub.c.rn)
             )
 
             result = await self.session.execute(stmt)

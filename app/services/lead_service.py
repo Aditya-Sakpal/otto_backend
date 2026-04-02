@@ -174,7 +174,8 @@ class LeadService:
         Returns a dictionary with all pipeline stages as keys,
         each containing an array of leads in that stage (capped by limit).
 
-        Optional ``search`` filters by contact name or phone across all stages before bucketing.
+        Optional ``search`` filters in SQL by contact name, phone, or address fields across
+        all company leads with a pipeline stage, then applies the per-stage cap.
         """
         from app.domain.enums import PipelineStage
 

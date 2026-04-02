@@ -13,6 +13,7 @@ class RidealongEntry(BaseModel):
     """Single ridealong (appointment) entry for dashboard."""
 
     appointment_id: UUID = Field(..., description="Appointment UUID")
+    lead_id: Optional[UUID] = Field(None, description="Lead UUID associated with this appointment")
     customer_name: str = Field(..., description="Contact/customer name")
     sales_rep: str = Field(..., description="Assigned sales rep name")
     service_type: str = Field(..., description="Service type (e.g. Roof replacement estimate)")
@@ -27,7 +28,7 @@ class SalesTeamStatsEntry(BaseModel):
 
     sales_rep_id: UUID = Field(..., description="Sales rep user UUID")
     rep_name: str = Field(..., description="Sales rep display name")
-    total_recordings_hours: float = Field(..., description="Total recording hours")
+    total_recordings: int = Field(..., description="Total number of call recordings")
     win_rate: float = Field(..., description="Win rate percentage (0-100)")
     process_score: float = Field(..., description="Process/SOP compliance score")
     skills_score: float = Field(..., description="Skills score")
@@ -35,10 +36,124 @@ class SalesTeamStatsEntry(BaseModel):
 
 
 class ObjectionBreakdownEntry(BaseModel):
-    """Single objection in objections_breakdown."""
+    """Single objection in objections_breakdown (legacy format - kept for backward compatibility)."""
 
     objection_text: str = Field(..., description="Objection label (e.g. I need a lower price)")
     percentage: float = Field(..., description="Percentage (0-100)")
+
+
+class CallLogEntry(BaseModel):
+    """Single call log entry in objections call_logs."""
+
+    call_id: str = Field(..., description="Call UUID")
+    lead_id: Optional[str] = Field(None, description="Lead UUID")
+    contact_name: str = Field(..., description="Contact name")
+    phone_number: str = Field(..., description="Phone number")
+    audio_url: Optional[str] = Field(None, description="Audio recording URL")
+    call_type: Optional[str] = Field(None, description="Call type")
+    duration_seconds: Optional[int] = Field(None, description="Duration in seconds")
+    created_at: Optional[str] = Field(None, description="Call creation timestamp (ISO format)")
+    qualification_status: Optional[str] = Field(None, description="Qualification status")
+    booking_status: Optional[str] = Field(None, description="Booking status")
+    transcript: Optional[str] = Field(None, description="Call transcript")
+    summary: Optional[str] = Field(None, description="Call summary")
+
+
+class MostCoachingNeedEntry(BaseModel):
+    """Single entry in most_coaching_need array."""
+
+    csr_id: str = Field(..., description="User ID (CSR or Sales Rep)")
+    csr_name: str = Field(..., description="User name (CSR or Sales Rep)")
+    unbooked_calls: int = Field(..., description="Number of unbooked calls/appointments with this objection")
+
+
+class ObjectionEntry(BaseModel):
+    """Single objection entry matching metrics/objections/top format."""
+
+    objection_type: str = Field(..., description="Objection type (e.g., price, timing, authority)")
+    count: int = Field(..., description="Number of calls/appointments with this objection")
+    affected_leads_count: int = Field(..., description="Number of unique leads affected")
+    call_logs: List[CallLogEntry] = Field(
+        default_factory=list,
+        description="List of calls/appointments with this objection",
+    )
+    most_coaching_need: List[MostCoachingNeedEntry] = Field(
+        default_factory=list,
+        description="List of CSRs/Sales Reps with unbooked calls/appointments for this objection",
+    )
+
+
+class AppointmentLogEntry(BaseModel):
+    """Single appointment log entry for objections in sales dashboard."""
+
+    appointment_id: Optional[str] = Field(None, description="Appointment UUID")
+    lead_id: Optional[str] = Field(None, description="Lead UUID")
+    contact_name: str = Field("Unknown", description="Contact name")
+    phone_number: str = Field("", description="Phone number")
+    audio_url: Optional[str] = Field(None, description="Audio recording URL")
+    call_type: Optional[str] = Field(None, description="Call type")
+    duration_seconds: Optional[int] = Field(None, description="Duration in seconds")
+    created_at: Optional[str] = Field(None, description="Creation timestamp (ISO format)")
+    qualification_status: Optional[str] = Field(None, description="Qualification status")
+    booking_status: Optional[str] = Field(None, description="Booking status")
+    transcript: Optional[str] = Field(None, description="Transcript")
+    summary: Optional[str] = Field(None, description="Summary")
+    key_points: List[str] = Field(default_factory=list, description="Key points")
+
+
+class CoachingNeedEntry(BaseModel):
+    """Per-rep coaching need within an objection."""
+
+    user_id: Optional[str] = Field(None, description="User UUID")
+    user_name: str = Field("Unknown", description="Rep name")
+    email: Optional[str] = Field(None, description="Rep email")
+    unbooked_count: int = Field(0, description="Number of unbooked appointments with this objection")
+    call_logs: List[AppointmentLogEntry] = Field(
+        default_factory=list,
+        description="Appointment logs for this rep and objection",
+    )
+
+
+class BookingRateTrendEntry(BaseModel):
+    """Weekly booking rate trend entry."""
+
+    period_start: str = Field(..., description="Week start date (ISO)")
+    period_end: str = Field(..., description="Week end date (ISO)")
+    booking_rate: float = Field(0, description="Booking rate percentage")
+    booked: int = Field(0, description="Booked count")
+    unbooked: int = Field(0, description="Unbooked count")
+
+
+class ObjectionAppointmentEntry(BaseModel):
+    """Objection entry for sales dashboard, aligned with /metrics/objections/top."""
+
+    objection_type: str = Field(..., description="Objection type (e.g., service_fee_concerns)")
+    count: int = Field(..., description="Total occurrences of this objection")
+    affected_leads_count: int = Field(0, description="Number of unique leads affected")
+    affected_appointments_count: int = Field(0, description="Number of unique appointments affected")
+    booking_rate: Optional[float] = Field(None, description="Booking rate percentage")
+    booked: int = Field(0, description="Number of booked appointments")
+    unbooked: int = Field(0, description="Number of unbooked appointments")
+    booking_rate_trend: List[BookingRateTrendEntry] = Field(
+        default_factory=list,
+        description="Weekly booking rate trend",
+    )
+    most_coaching_needs: List[CoachingNeedEntry] = Field(
+        default_factory=list,
+        description="Per-rep coaching needs for this objection",
+    )
+    call_logs: List[AppointmentLogEntry] = Field(
+        default_factory=list,
+        description="Appointment logs with this objection",
+    )
+    appointment_logs: List[AppointmentLogEntry] = Field(
+        default_factory=list,
+        description="Appointment logs (alias of call_logs)",
+    )
+    sub_objections: Optional[List["ObjectionAppointmentEntry"]] = Field(
+        None,
+        description="Sub-objections breakdown (only for 'other' type)",
+    )
 
 
 class CoreKpis(BaseModel):
@@ -118,6 +233,30 @@ class TeamCoachingMetrics(BaseModel):
     attendance: AttendanceMetrics = Field(..., description="Attendance metrics")
 
 
+class SalesRepObjectionLossEntry(BaseModel):
+    """Objection entry specific for sales rep coaching opportunities (appointment-based)."""
+
+    objection: str = Field(..., description="Objection text")
+    appointments_lost: float = Field(..., description="Percentage of appointments lost for this objection (0-100)")
+    appointment_lost_ratio: str = Field(..., description="Lost / total_with_objection (e.g. 6/12)")
+
+
+class SalesRepCoachingOpportunityEntry(BaseModel):
+    """Single sales-rep coaching opportunity entry (appointment-focused)."""
+
+    user_id: str = Field(..., description="Sales rep user UUID")
+    sales_rep_name: str = Field(..., description="Sales rep display name")
+    success_rate: float = Field(..., description="Success rate percentage (won / total * 100)")
+    win_ratio: str = Field(..., description="Won/total string (e.g. '8/16')")
+    appointments_won: int = Field(..., description="Number of appointments won")
+    appointments_pending: int = Field(..., description="Number of appointments assigned (pending/resolved) - total appointments")
+    total_appointments: int = Field(..., description="Total appointments (same as appointments_pending)")
+    most_coaching_need: List[SalesRepObjectionLossEntry] = Field(
+        default_factory=list,
+        description="Top objections with appointment-lost metrics",
+    )
+
+
 class SalesRepDashboardResponse(BaseModel):
     """Main dashboard response with ridealongs, sales team stats, and overview sections."""
 
@@ -129,9 +268,9 @@ class SalesRepDashboardResponse(BaseModel):
         default_factory=list,
         description="Sales team stats (up to 3)",
     )
-    objections_breakdown: List[ObjectionBreakdownEntry] = Field(
+    objections: List[ObjectionAppointmentEntry] = Field(
         default_factory=list,
-        description="Top objections with percentages",
+        description="Top objections (appointment-focused) with appointment_logs",
     )
     sales_overview: Optional[SalesOverview] = Field(
         None,
@@ -140,6 +279,10 @@ class SalesRepDashboardResponse(BaseModel):
     team_coaching_metrics: Optional[TeamCoachingMetrics] = Field(
         None,
         description="Team coaching metrics",
+    )
+    most_coaching_opportunities: Optional[List[SalesRepCoachingOpportunityEntry]] = Field(
+        None,
+        description="Deprecated — coaching data is now inside each objection's most_coaching_needs",
     )
 
 

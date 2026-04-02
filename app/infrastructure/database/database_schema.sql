@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS leads (
     contact_card_id UUID NOT NULL REFERENCES contact_cards(id) ON DELETE CASCADE,
     status VARCHAR NOT NULL DEFAULT 'new',
     deal_status VARCHAR,
+    pipeline_stage VARCHAR,
     assigned_rep_id UUID REFERENCES users(id) ON DELETE SET NULL,
     deal_size DOUBLE PRECISION,
     closed_at TIMESTAMP WITH TIME ZONE,
@@ -104,6 +105,7 @@ CREATE INDEX IF NOT EXISTS idx_leads_contact_card_id ON leads(contact_card_id);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_assigned_rep_id ON leads(assigned_rep_id);
 CREATE INDEX IF NOT EXISTS idx_leads_deal_status ON leads(deal_status);
+CREATE INDEX IF NOT EXISTS idx_leads_pipeline_stage ON leads(pipeline_stage);
 
 -- ============================================================================
 -- TABLE: calls
@@ -229,6 +231,7 @@ COMMENT ON COLUMN users.role IS 'User role: csr, sales_rep, executive';
 COMMENT ON COLUMN users.company_id IS 'Associated company/tenant (nullable for system users)';
 COMMENT ON COLUMN leads.status IS 'Lead status: new, warm, hot, qualified_booked, qualified_unbooked, etc.';
 COMMENT ON COLUMN leads.deal_status IS 'Deal status: new, nurturing, booked, in_progress, won, lost';
+COMMENT ON COLUMN leads.pipeline_stage IS 'Pipeline stage: qualified, unqualified, service_not_offered, booked, appointment_ran, won, lost, review';
 COMMENT ON COLUMN calls.call_type IS 'Type of call: csr_call, sales_call, missed_call';
 COMMENT ON COLUMN call_analyses.status IS 'Analysis status: pending, processing, completed, failed';
 COMMENT ON COLUMN call_analyses.objections IS 'Array of objection types: price, timing, authority, need, competitor, other';

@@ -333,7 +333,11 @@ class LeadService:
             transcript_id = None
             if appt:
                 scheduled_for = appt.scheduled_start
-                if appt.interaction_id:
+                # Prefer appointment's own audio (sales rep recording) over linked call audio
+                if appt.audio_url:
+                    recording_url = appt.audio_url
+                    transcript_id = str(appt.id)
+                elif appt.interaction_id:
                     call_for_appt = next(
                         (c for c in calls if c.id == appt.interaction_id),
                         None,

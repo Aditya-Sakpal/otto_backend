@@ -275,6 +275,81 @@ class ExecutiveViewMetrics(BaseModel):
     response_time_target: float = Field(default=15.0, description="Target response time in seconds")
 
 
+# ===== Unified Strengths & Issues Schemas =====
+
+
+class SeverityDistribution(BaseModel):
+    """Severity breakdown for a weakness bucket."""
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+
+
+class CoachingBucket(BaseModel):
+    """A single coaching category bucket (strength or weakness)."""
+    category: str = Field(..., description="One of 15 canonical categories (e.g. 'Needs Discovery', 'Closing Technique')")
+    count: int = Field(..., description="Total occurrences across all calls in the time window")
+    severity_distribution: Optional[SeverityDistribution] = Field(None, description="Severity breakdown (weaknesses only)")
+    representative_examples: List[str] = Field(default_factory=list, description="Up to 3 real call excerpts")
+    related_sop_metrics: List[str] = Field(default_factory=list, description="SOP metric IDs associated with this bucket")
+    latest_occurrence: Optional[str] = Field(None, description="ISO datetime of most recent item")
+
+
+class ObjectionCoachingNeed(BaseModel):
+    """Per-objection coaching need from our DB (not available in Shunya)."""
+    objection: str
+    pct_unbooked: float = Field(..., description="Percentage of unbooked qualified leads with this objection")
+    unbooked_qualified_ratio: str = Field(..., description="e.g. '3/10'")
+    unbooked_count: int = 0
+    qualified_count: int = 0
+
+
+class DBPerformanceMetrics(BaseModel):
+    """Performance metrics from our database (not available in Shunya)."""
+    total_calls: int = Field(0, description="Total calls handled")
+    calls_answered: int = Field(0, description="Calls answered")
+    calls_answered_percentage: float = Field(0.0, description="% of calls answered")
+    missed_calls: int = Field(0, description="Missed calls count")
+    missed_calls_status: str = Field("low", description="low / medium / high")
+    booking_rate: float = Field(0.0, description="Booking rate percentage")
+    conversion_rate: float = Field(0.0, description="Conversion rate percentage")
+    avg_response_time: float = Field(0.0, description="Average response time in seconds")
+    response_time_status: str = Field("on_target", description="on_target / above_target / below_target")
+    avg_sop_compliance_score: float = Field(0.0, description="Average SOP compliance score")
+    qualified_leads: int = Field(0, description="Number of qualified leads")
+    booked_appointments: int = Field(0, description="Number of booked appointments")
+    rank: Optional[int] = Field(None, description="Rank among CSRs (1-based)")
+    total_csrs: int = Field(0, description="Total CSRs in company")
+    top_objections: List[ObjectionCoachingNeed] = Field(default_factory=list, description="Top 3 objection-based coaching needs")
+    booking_rate_trend: List[Dict[str, Any]] = Field(default_factory=list, description="Booking rate trend over time")
+
+
+class StrengthsAndIssuesResponse(BaseModel):
+    """Unified response combining Shunya coaching profile + our DB metrics."""
+    # Rep info
+    rep_id: str
+    rep_name: str
+    company_id: str
+
+    # Time window (from Shunya)
+    window_start: str
+    window_end: str
+    calls_analyzed: int
+
+    # Shunya coaching data
+    top_weaknesses: List[CoachingBucket]
+    top_strengths: List[CoachingBucket]
+    all_weakness_buckets: List[CoachingBucket]
+    all_strength_buckets: List[CoachingBucket]
+
+    # Our DB metrics (what Shunya doesn't provide)
+    db_performance_metrics: DBPerformanceMetrics
+
+    # Metadata
+    calculated_at: str
+    data_sources: List[str] = Field(default_factory=lambda: ["shunya_coaching_profile", "otto_db_metrics"])
+
+
 class CSRProfileResponse(BaseModel):
     """CSR profile with all metrics and insights."""
     # User info

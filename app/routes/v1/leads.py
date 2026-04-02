@@ -562,8 +562,12 @@ async def get_pipeline_view(
         None,
         min_length=1,
         max_length=200,
-        description="Filter by contact first name, last name, full name, or phone (case-insensitive). "
-        "Matches across all pipeline stages; space-separated terms are all required (AND).",
+        description="Filter by name (first/last/full, email), phone (primary/secondary), or "
+        "address (street, city, state, zip, property_snapshot JSON text), case-insensitive. "
+        "Single search terms use three DB lookups in sequence (name / phone / address), merged by lead id; "
+        "multi-word search uses one combined query. Scoped to leads in the pipeline (pipeline_stage set), "
+        "not every contact card without a pipeline lead. "
+        "Space-separated terms are all required (AND).",
     ),
     user: User = Depends(require_manager_or_csr),  # RBAC DISABLED - Returns dummy user
 ) -> Dict[str, List[Lead]]:
@@ -574,8 +578,9 @@ async def get_pipeline_view(
     (qualified, unqualified, service_not_offered, booked, appointment, appointment_ran, won, lost, review),
     each containing an array of leads in that stage (capped by `limit`).
 
-    Use `search` to return only leads whose contact name or phone matches; results are still
-    grouped by stage so you see matching leads wherever they sit in the pipeline.
+    Use `search` to return leads whose contact name, phone, or address matches; filtering is
+    done in SQL across all company pipeline leads, then up to `limit` matches per stage
+    (name/phone hits are ordered above address-only hits). Results stay grouped by stage.
 
     Access: EXECUTIVE, CSR
     """

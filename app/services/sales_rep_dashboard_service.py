@@ -37,6 +37,7 @@ from app.services.metrics_service import MetricsService
 from app.core.datetime_utils import isoformat_utc
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.call import CallORM
+from app.infrastructure.database.models.contact import ContactCardORM
 from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
 from app.infrastructure.repositories.appointment import AppointmentRepository
@@ -146,6 +147,8 @@ class SalesRepDashboardService:
         Get main dashboard: ridealongs_list (up to 9 today) and sales_team_stats (up to 3).
         Also includes objections in the same format as /metrics/objections/top.
         """
+        import asyncio as _asyncio
+
         today = date.today()
         today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
         today_end = datetime.combine(today, datetime.max.time()).replace(tzinfo=timezone.utc)
@@ -164,26 +167,42 @@ class SalesRepDashboardService:
         today_result = await self.session.execute(today_query)
         appointments = today_result.scalars().all()
 
+        # Batch-fetch contacts and users for ridealongs (avoid N+1)
+        contact_ids = list({a.contact_card_id for a in appointments if a.contact_card_id})
+        rep_ids_today = list({a.assigned_rep_id for a in appointments if a.assigned_rep_id})
+
+        contacts_map: Dict = {}
+        if contact_ids:
+            contacts_result = await self.session.execute(
+                select(ContactCardORM).where(ContactCardORM.id.in_(contact_ids))
+            )
+            contacts_map = {c.id: c for c in contacts_result.scalars().all()}
+
+        reps_map_today: Dict = {}
+        if rep_ids_today:
+            reps_result = await self.session.execute(
+                select(UserORM).where(UserORM.id.in_(rep_ids_today))
+            )
+            reps_map_today = {u.id: u for u in reps_result.scalars().all()}
+
         ridealongs: List[RidealongEntry] = []
         for apt in appointments:
+            contact = contacts_map.get(apt.contact_card_id)
             contact_name = ""
-            if apt.contact_card_id:
-                contact = await self.contact_repo.get_by_id(apt.contact_card_id)
-                if contact:
-                    first = contact.first_name or ""
-                    last = contact.last_name or ""
-                    contact_name = f"{first} {last}".strip() or "Unknown"
+            if contact:
+                first = contact.first_name or ""
+                last = contact.last_name or ""
+                contact_name = f"{first} {last}".strip() or "Unknown"
 
             rep_name = ""
             ghost_mode = False
-            if apt.assigned_rep_id:
-                user = await self.user_repo.get_by_id(apt.assigned_rep_id)
-                if user:
-                    first = user.first_name or ""
-                    last = user.last_name or ""
-                    rep_name = f"{first} {last}".strip() or "Unknown"
-                    extra = user.extra_metadata or {}
-                    ghost_mode = extra.get("ghost_mode_active", False) is True
+            user = reps_map_today.get(apt.assigned_rep_id)
+            if user:
+                first = user.first_name or ""
+                last = user.last_name or ""
+                rep_name = f"{first} {last}".strip() or "Unknown"
+                extra = user.extra_metadata or {}
+                ghost_mode = extra.get("ghost_mode_active", False) is True
 
             entry = await self._enrich_ridealong(
                 appointment=apt,
@@ -193,18 +212,20 @@ class SalesRepDashboardService:
             )
             ridealongs.append(entry)
 
-        sales_team_stats = await self._get_sales_team_stats(company_id, skip=0, limit=3)
-
-        # Get objections in the same format as /metrics/objections/top
-        objections = await self._get_objections(company_id, start_date=start_date, end_date=end_date, limit=10)
-        sales_overview = await self._get_sales_overview(company_id, start_date=start_date, end_date=end_date)
-        team_coaching_metrics = await self._get_team_coaching_metrics(
-            company_id, objections, sales_team_stats
+        # Fire independent sub-queries in parallel
+        (
+            sales_team_stats,
+            objections,
+            sales_overview,
+        ) = await _asyncio.gather(
+            self._get_sales_team_stats(company_id, skip=0, limit=3),
+            self._get_objections(company_id, start_date=start_date, end_date=end_date, limit=10),
+            self._get_sales_overview(company_id, start_date=start_date, end_date=end_date),
         )
 
-        # Most coaching opportunities for sales reps (mirrors /metrics/most_coaching_opportunities)
-        most_coaching_opportunities = await self._get_most_coaching_opportunities_for_sales_reps(
-            company_id=company_id, start_date=start_date, end_date=end_date
+        # team_coaching_metrics depends on objections + sales_team_stats
+        team_coaching_metrics = await self._get_team_coaching_metrics(
+            company_id, objections, sales_team_stats
         )
 
         return SalesRepDashboardResponse(
@@ -213,7 +234,6 @@ class SalesRepDashboardService:
             objections=objections,
             sales_overview=sales_overview,
             team_coaching_metrics=team_coaching_metrics,
-            most_coaching_opportunities=most_coaching_opportunities,
         )
 
     async def get_ridealongs_list(
@@ -300,34 +320,32 @@ class SalesRepDashboardService:
         rep_ids = [r.id for r in sales_reps]
         rep_names = {r.id: f"{(r.first_name or '')} {(r.last_name or '')}".strip() or "Unknown" for r in sales_reps}
 
-        # Total recordings count (same logic as SalesRepStatService)
+        # Total recordings count (from appointments assigned to rep)
         total_recordings_result = await self.session.execute(
             select(
-                CallORM.handled_by_user_id,
-                func.count(CallORM.id).label("total_recordings"),
+                AppointmentORM.assigned_rep_id,
+                func.count(AppointmentORM.id).label("total_recordings"),
             )
             .where(
-                CallORM.company_id == company_id,
-                CallORM.handled_by_user_id.in_(rep_ids),
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id.in_(rep_ids),
             )
-            .group_by(CallORM.handled_by_user_id)
+            .group_by(AppointmentORM.assigned_rep_id)
         )
         recordings_map = {r[0]: r[1] for r in total_recordings_result.all()}
 
-        # SOP compliance (process score) from call analyses
+        # SOP compliance (process score) from appointments
         process_result = await self.session.execute(
             select(
-                CallORM.handled_by_user_id,
-                func.avg(CallAnalysisORM.sop_compliance_score).label("avg_sop"),
+                AppointmentORM.assigned_rep_id,
+                func.avg(AppointmentORM.sop_compliance_score).label("avg_sop"),
             )
-            .select_from(CallORM)
-            .join(CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
             .where(
-                CallORM.company_id == company_id,
-                CallORM.handled_by_user_id.in_(rep_ids),
-                CallAnalysisORM.sop_compliance_score.isnot(None),
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id.in_(rep_ids),
+                AppointmentORM.sop_compliance_score.isnot(None),
             )
-            .group_by(CallORM.handled_by_user_id)
+            .group_by(AppointmentORM.assigned_rep_id)
         )
         process_map = {r[0]: r[1] for r in process_result.all()}
 
@@ -372,18 +390,34 @@ class SalesRepDashboardService:
         )
         conv_count_map = {r[0]: r[1] for r in conv_count_result.all()}
 
+        # Batch win_rate: won / resolved appointments per rep (avoids N+1 KPI calls)
+        win_rate_result = await self.session.execute(
+            select(
+                AppointmentORM.assigned_rep_id,
+                func.count(case(
+                    (AppointmentORM.outcome == "won", AppointmentORM.id)
+                )).label("won"),
+                func.count(case(
+                    (AppointmentORM.outcome.in_(["won", "lost", "no_show"]), AppointmentORM.id)
+                )).label("resolved"),
+            )
+            .where(
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id.in_(rep_ids),
+            )
+            .group_by(AppointmentORM.assigned_rep_id)
+        )
+        win_rate_map: Dict = {}
+        for r in win_rate_result.all():
+            win_rate_map[r.assigned_rep_id] = round(
+                (r.won / r.resolved), 4
+            ) if r.resolved > 0 else 0.0
+
         entries: List[SalesTeamStatsEntry] = []
         for rep in sales_reps:
             rep_id = rep.id
             total_recordings = int(recordings_map.get(rep_id, 0) or 0)
-
-            # Win rate: use the same KPI logic as SalesRepStatService / MetricsService
-            try:
-                kpi = await self.metrics_service.get_sales_rep_kpi(user_id=rep_id)
-                win_rate = kpi.get("win_rate", 0.0) or 0.0
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"Failed to compute KPI win_rate for rep {rep_id}: {e}")
-                win_rate = 0.0
+            win_rate = win_rate_map.get(rep_id, 0.0)
 
             avg_sop = process_map.get(rep_id)
             process_score = round(float(avg_sop * 10), 2) if avg_sop is not None else 0.0
@@ -420,14 +454,17 @@ class SalesRepDashboardService:
         Only includes appointments assigned to a sales_rep, and excludes objections tied to a
         CSR phone interaction (csr_call or handler role csr) when an interaction call exists.
 
-        Returns a list of ObjectionAppointmentEntry-like dicts:
+        Response structure aligned with /metrics/objections/top:
         {
-           objection_type, count, affected_appointments_count, appointment_logs: [...]
+           objection_type, count, affected_leads_count, affected_appointments_count,
+           booking_rate, booked, unbooked, booking_rate_trend,
+           most_coaching_needs, call_logs, appointment_logs
         }
         """
         try:
             from datetime import timedelta
             from sqlalchemy import select
+            from app.domain.objection_classifier import ObjectionClassifier
 
             # Compute internal date range (align with sales overview)
             if end_date:
@@ -442,15 +479,6 @@ class SalesRepDashboardService:
             assigned_rep = aliased(UserORM)
             call_handler = aliased(UserORM)
 
-            # Appointment must be owned by a sales rep; optional call + analysis for log context
-            csr_linked_interaction = and_(
-                CallORM.id.isnot(None),
-                or_(
-                    CallORM.call_type == CallType.CSR_CALL.value,
-                    call_handler.role == UserRole.CSR.value,
-                ),
-            )
-
             query = select(
                 AppointmentORM.id.label("appointment_id"),
                 AppointmentORM.lead_id,
@@ -460,8 +488,12 @@ class SalesRepDashboardService:
                 AppointmentORM.duration_seconds,
                 AppointmentORM.created_at.label("created_at"),
                 AppointmentORM.qualification_status,
+                AppointmentORM.booking_status.label("appt_booking_status"),
                 AppointmentORM.objections,
                 AppointmentORM.summary,
+                AppointmentORM.transcript,
+                AppointmentORM.key_points,
+                AppointmentORM.assigned_rep_id,
                 CallORM.id.label("call_id"),
                 CallORM.phone_number,
                 CallORM.call_type,
@@ -474,98 +506,258 @@ class SalesRepDashboardService:
             ).outerjoin(
                 call_handler,
                 CallORM.handled_by_user_id == call_handler.id,
-            ).outerjoin(
-                CallAnalysisORM,
-                CallORM.id == CallAnalysisORM.call_id,
             ).where(
                 AppointmentORM.company_id == company_id,
                 AppointmentORM.scheduled_start >= _start_dt,
                 AppointmentORM.scheduled_start <= _end_dt,
                 assigned_rep.role == UserRole.SALES_REP.value,
-                not_(csr_linked_interaction),
+                # Exclude appointments whose linked call is a CSR interaction.
+                # Allow through: no linked call (NULL), or call that is NOT CSR.
+                or_(
+                    CallORM.id.is_(None),
+                    and_(
+                        or_(CallORM.call_type.is_(None), CallORM.call_type != CallType.CSR_CALL.value),
+                        or_(call_handler.role.is_(None), call_handler.role != UserRole.CSR.value),
+                    ),
+                ),
             )
 
             result = await self.session.execute(query)
             rows = result.all()
 
-            # Aggregate by objection
-            obj_map: Dict[str, Dict[str, Any]] = {}
+            # Pre-fetch all assigned reps for coaching needs
+            rep_ids = list({r.assigned_rep_id for r in rows if r.assigned_rep_id})
+            reps_map: Dict[UUID, UserORM] = {}
+            if rep_ids:
+                reps_result = await self.session.execute(
+                    select(UserORM).where(UserORM.id.in_(rep_ids))
+                )
+                reps_map = {u.id: u for u in reps_result.scalars().all()}
+
+            # Aggregate by classified objection category
+            obj_data: Dict[str, Dict[str, Any]] = {}
+            # Sub-grouping for "other" category (same as CSR /objections/top)
+            other_sub_data: Dict[str, Dict[str, Any]] = {}
             contact_cache: Dict = {}
 
             for row in rows:
-                appointment_id = row.appointment_id
-                lead_id = row.lead_id
-                contact_card_id = row.contact_card_id
-                outcome = row.outcome
-                call_id = row.call_id
-                phone_number = row.phone_number
-                audio_url = row.audio_url
-                duration_seconds = row.duration_seconds
-                created_at = isoformat_utc(row.created_at) if row.created_at else None
-                call_type = row.call_type
-                qualification_status = row.qualification_status
                 objections_field = row.objections
-                summary = row.summary
+                if not objections_field:
+                    continue
+
+                # Normalize raw objections list
+                if isinstance(objections_field, str):
+                    raw_items = [o.strip() for o in objections_field.split(",") if o.strip()]
+                else:
+                    raw_items = [str(o).strip() for o in objections_field if o]
+
+                if not raw_items:
+                    continue
+
+                # Classify objections using ObjectionClassifier (same as CSR metrics)
+                classified_pairs = ObjectionClassifier.classify_and_deduplicate_with_raw(raw_items)
 
                 # Resolve contact name (cache)
                 contact_name = "Unknown"
-                if contact_card_id:
-                    if contact_card_id in contact_cache:
-                        contact_name = contact_cache[contact_card_id]
+                if row.contact_card_id:
+                    if row.contact_card_id in contact_cache:
+                        contact_name = contact_cache[row.contact_card_id]
                     else:
-                        contact = await self.contact_repo.get_by_id(contact_card_id)
+                        contact = await self.contact_repo.get_by_id(row.contact_card_id)
                         if contact:
                             first = getattr(contact, "first_name", "") or ""
                             last = getattr(contact, "last_name", "") or ""
                             contact_name = f"{first} {last}".strip() or "Unknown"
-                        contact_cache[contact_card_id] = contact_name
+                        contact_cache[row.contact_card_id] = contact_name
 
-                # Normalize objections list
-                if not objections_field:
-                    continue
-                if isinstance(objections_field, str):
-                    items = [o.strip() for o in objections_field.split(",") if o.strip()]
-                else:
-                    items = [str(o).strip() for o in objections_field if o]
+                created_at = isoformat_utc(row.created_at) if row.created_at else None
+                booking_status = row.appt_booking_status
 
-                for obj in items:
-                    if not obj:
+                # Build log entry (appointment-based, aligned with CSR structure)
+                log = {
+                    "appointment_id": str(row.appointment_id),
+                    "lead_id": str(row.lead_id) if row.lead_id else None,
+                    "contact_name": contact_name,
+                    "phone_number": row.phone_number or "",
+                    "audio_url": row.audio_url,
+                    "call_type": row.call_type or "meeting",
+                    "duration_seconds": int(row.duration_seconds) if row.duration_seconds is not None else None,
+                    "created_at": created_at,
+                    "qualification_status": row.qualification_status,
+                    "booking_status": booking_status,
+                    "transcript": row.transcript,
+                    "summary": row.summary,
+                    "key_points": list(row.key_points) if row.key_points else [],
+                }
+
+                for category, raw_text in classified_pairs:
+                    if not category or not str(category).strip():
                         continue
-                    entry = obj_map.setdefault(obj, {"count": 0, "appointments": set(), "logs": []})
-                    entry["count"] += 1
-                    entry["appointments"].add(str(appointment_id))
+                    cat = str(category).strip()
 
-                    # build appointment log
-                    log = {
-                        "call_id": str(call_id) if call_id else None,
-                        "appointment_id": str(appointment_id) if appointment_id else None,
-                        "lead_id": str(lead_id) if lead_id else None,
-                        "contact_name": contact_name,
-                        "phone_number": phone_number or "",
-                        "audio_url": audio_url,
-                        "call_type": call_type,
-                        "duration_seconds": int(duration_seconds) if duration_seconds is not None else None,
-                        "created_at": created_at,
-                        "appointment_status": qualification_status or (outcome if outcome is not None else None),
-                        "transcript": None,
-                        "summary": summary,
-                    }
-                    # keep up to 10 logs per objection
+                    entry = obj_data.setdefault(cat, {
+                        "count": 0,
+                        "appointments": set(),
+                        "leads": set(),
+                        "booked": 0,
+                        "logs": [],
+                        "rep_rows": {},  # rep_id -> list of logs
+                    })
+                    entry["count"] += 1
+                    entry["appointments"].add(str(row.appointment_id))
+                    if row.lead_id:
+                        entry["leads"].add(row.lead_id)
+                    if booking_status and str(booking_status).lower() == "booked":
+                        entry["booked"] += 1
+
                     if len(entry["logs"]) < 10:
                         entry["logs"].append(log)
 
-            # Convert to list sorted by count desc
-            items = sorted(obj_map.items(), key=lambda x: x[1]["count"], reverse=True)[:limit]
+                    # Track per-rep for coaching needs
+                    if row.assigned_rep_id:
+                        rep_logs = entry["rep_rows"].setdefault(row.assigned_rep_id, [])
+                        if len(rep_logs) < 10:
+                            rep_logs.append((log, booking_status))
+
+                    # Track sub-grouping for "other" (same as CSR)
+                    if cat == "other" and raw_text:
+                        raw_normalized = raw_text.strip()
+                        if raw_normalized:
+                            sub = other_sub_data.setdefault(raw_normalized, {
+                                "count": 0, "appointments": set(), "leads": set(),
+                                "booked": 0, "logs": [], "rep_rows": {},
+                            })
+                            sub["count"] += 1
+                            sub["appointments"].add(str(row.appointment_id))
+                            if row.lead_id:
+                                sub["leads"].add(row.lead_id)
+                            if booking_status and str(booking_status).lower() == "booked":
+                                sub["booked"] += 1
+                            if len(sub["logs"]) < 10:
+                                sub["logs"].append(log)
+                            if row.assigned_rep_id:
+                                sub_rep = sub["rep_rows"].setdefault(row.assigned_rep_id, [])
+                                if len(sub_rep) < 10:
+                                    sub_rep.append((log, booking_status))
+
+            # Build response sorted by count desc
+            sorted_items = sorted(obj_data.items(), key=lambda x: x[1]["count"], reverse=True)[:limit]
             objections_list = []
-            for obj_type, data in items:
-                objections_list.append(
-                    {
-                        "objection_type": obj_type,
-                        "count": data["count"],
-                        "affected_appointments_count": len(data["appointments"]),
-                        "appointment_logs": data["logs"],
-                    }
-                )
+
+            for obj_type, data in sorted_items:
+                count = data["count"]
+                booked = data["booked"]
+                unbooked = count - booked
+                booking_rate = round((booked / count * 100), 2) if count > 0 else None
+
+                # Booking rate trend (weekly)
+                # Group logs by week
+                trend: List[Dict[str, Any]] = []
+                week_buckets: Dict[date, List[Dict]] = {}
+                for log_entry in data["logs"]:
+                    if log_entry.get("created_at"):
+                        try:
+                            dt = datetime.fromisoformat(log_entry["created_at"])
+                            d = dt.date()
+                            week_start = d - timedelta(days=d.weekday())
+                            week_buckets.setdefault(week_start, []).append(log_entry)
+                        except (ValueError, TypeError):
+                            pass
+
+                for week_start in sorted(week_buckets.keys()):
+                    w_logs = week_buckets[week_start]
+                    w_booked = sum(
+                        1 for l in w_logs
+                        if l.get("booking_status") and str(l["booking_status"]).lower() == "booked"
+                    )
+                    w_total = len(w_logs)
+                    w_rate = round((w_booked / w_total * 100), 2) if w_total else 0
+                    trend.append({
+                        "period_start": week_start.isoformat(),
+                        "period_end": (week_start + timedelta(days=6)).isoformat(),
+                        "booking_rate": w_rate,
+                        "booked": w_booked,
+                        "unbooked": w_total - w_booked,
+                    })
+
+                # Most coaching needs (per rep)
+                most_coaching_needs: List[Dict[str, Any]] = []
+                for rep_id, rep_log_pairs in data["rep_rows"].items():
+                    rep_user = reps_map.get(rep_id)
+                    rep_name = "Unknown"
+                    rep_email = None
+                    if rep_user:
+                        rep_name = " ".join(filter(None, [rep_user.first_name, rep_user.last_name])) or rep_user.email or "Unknown"
+                        rep_email = rep_user.email
+
+                    rep_unbooked = sum(
+                        1 for _, bs in rep_log_pairs
+                        if not (bs and str(bs).lower() == "booked")
+                    )
+                    rep_call_logs = [lg for lg, _ in rep_log_pairs]
+                    rep_call_logs.sort(key=lambda x: (x.get("created_at") or ""), reverse=True)
+
+                    most_coaching_needs.append({
+                        "user_id": str(rep_id),
+                        "user_name": rep_name,
+                        "email": rep_email,
+                        "unbooked_count": rep_unbooked,
+                        "call_logs": rep_call_logs,
+                    })
+                most_coaching_needs.sort(key=lambda x: x["unbooked_count"], reverse=True)
+
+                logs_sorted = sorted(data["logs"], key=lambda x: (x.get("created_at") or ""), reverse=True)
+
+                item = {
+                    "objection_type": obj_type,
+                    "count": count,
+                    "affected_leads_count": len(data["leads"]),
+                    "affected_appointments_count": len(data["appointments"]),
+                    "booking_rate": booking_rate,
+                    "booked": booked,
+                    "unbooked": unbooked,
+                    "booking_rate_trend": trend,
+                    "most_coaching_needs": most_coaching_needs,
+                    "call_logs": logs_sorted,
+                    "appointment_logs": logs_sorted,
+                }
+
+                # For "other", add sub_objections breakdown (same as CSR /objections/top)
+                if obj_type == "other" and other_sub_data:
+                    sub_objections = []
+                    for sub_type in sorted(other_sub_data.keys(), key=lambda k: other_sub_data[k]["count"], reverse=True):
+                        sd = other_sub_data[sub_type]
+                        s_count = sd["count"]
+                        s_booked = sd["booked"]
+                        s_unbooked = s_count - s_booked
+                        s_logs = sorted(sd["logs"], key=lambda x: (x.get("created_at") or ""), reverse=True)
+                        # Sub coaching needs
+                        s_coaching = []
+                        for s_rep_id, s_pairs in sd["rep_rows"].items():
+                            s_user = reps_map.get(s_rep_id)
+                            s_name = " ".join(filter(None, [s_user.first_name, s_user.last_name])) if s_user else "Unknown"
+                            s_coaching.append({
+                                "user_id": str(s_rep_id),
+                                "user_name": s_name,
+                                "email": s_user.email if s_user else None,
+                                "unbooked_count": sum(1 for _, bs in s_pairs if not (bs and str(bs).lower() == "booked")),
+                                "call_logs": [lg for lg, _ in s_pairs],
+                            })
+                        s_coaching.sort(key=lambda x: x["unbooked_count"], reverse=True)
+                        sub_objections.append({
+                            "objection_type": sub_type,
+                            "count": s_count,
+                            "affected_leads_count": len(sd["leads"]),
+                            "affected_appointments_count": len(sd["appointments"]),
+                            "booking_rate": round((s_booked / s_count * 100), 2) if s_count > 0 else None,
+                            "booked": s_booked,
+                            "unbooked": s_unbooked,
+                            "most_coaching_needs": s_coaching,
+                            "call_logs": s_logs,
+                        })
+                    item["sub_objections"] = sub_objections
+
+                objections_list.append(item)
 
             return objections_list
         except Exception as e:
@@ -611,25 +803,26 @@ class SalesRepDashboardService:
             prev_start = _start_dt - timedelta(days=period_days)
             prev_end = _start_dt
 
-            # --- Total conversations & avg recording duration (from appointments) ---
-            # For sales inside dashboard, conversations refer to appointments.
-            appt_calls_result = await self.session.execute(
+            # --- Combined appointment stats (total, avg_dur, won) in ONE query ---
+            appt_stats = await self.session.execute(
                 select(
                     func.count(AppointmentORM.id).label("total"),
                     func.avg(AppointmentORM.duration_seconds).label("avg_dur"),
+                    func.count(case(
+                        (AppointmentORM.outcome == "won", AppointmentORM.id)
+                    )).label("won"),
                 ).where(
                     AppointmentORM.company_id == company_id,
                     AppointmentORM.scheduled_start >= _start_dt,
                     AppointmentORM.scheduled_start <= _end_dt,
                 )
             )
-            appt_calls_row = appt_calls_result.one()
-            total_appointments = int(appt_calls_row.total or 0)
-            avg_sec = float(appt_calls_row.avg_dur or 0)
-            avg_recording_duration = self._format_duration_as_hm(avg_sec)
+            appt_row = appt_stats.one()
+            total_appointments = int(appt_row.total or 0)
+            avg_recording_duration = self._format_duration_as_hm(float(appt_row.avg_dur or 0))
+            team_win_rate = round((appt_row.won / appt_row.total * 100), 2) if appt_row.total > 0 else 0.0
 
             # --- Revenue & avg deal size ---
-            # Compute revenue for the selected period (align with other KPIs)
             revenue_result = await self.session.execute(
                 select(
                     func.coalesce(func.sum(LeadORM.deal_size), 0.0).label("total_revenue"),
@@ -676,63 +869,36 @@ class SalesRepDashboardService:
                 revenue = float(apt_row.total_revenue or 0)
                 avg_deal_size = float(apt_row.avg_deal or 0)
 
-            # --- Team win rate (won / total appointments) ---
-            appt_result = await self.session.execute(
+            # --- First touch + follow-up win rates in ONE query ---
+            touch_result = await self.session.execute(
                 select(
-                    func.count(AppointmentORM.id).label("total"),
+                    # First touch (fresh_sales)
                     func.count(case(
-                        (AppointmentORM.outcome == "won", AppointmentORM.id)
-                    )).label("won"),
-                ).where(
-                    AppointmentORM.company_id == company_id,
-                    AppointmentORM.scheduled_start >= _start_dt,
-                    AppointmentORM.scheduled_start <= _end_dt,
-                )
-            )
-            appt_row = appt_result.one()
-            team_win_rate = round((appt_row.won / appt_row.total * 100), 2) if appt_row.total > 0 else 0.0
-
-            # --- First touch win rate (fresh_sales via call analysis) ---
-            first_touch_result = await self.session.execute(
-                select(
-                    func.count(AppointmentORM.id).label("total"),
+                        (CallAnalysisORM.detected_call_type == "fresh_sales", AppointmentORM.id)
+                    )).label("ft_total"),
                     func.count(case(
-                        (AppointmentORM.outcome == "won", AppointmentORM.id)
-                    )).label("won"),
+                        (and_(CallAnalysisORM.detected_call_type == "fresh_sales", AppointmentORM.outcome == "won"), AppointmentORM.id)
+                    )).label("ft_won"),
+                    # Follow-up (follow_up_inquiry)
+                    func.count(case(
+                        (CallAnalysisORM.detected_call_type == "follow_up_inquiry", AppointmentORM.id)
+                    )).label("fu_total"),
+                    func.count(case(
+                        (and_(CallAnalysisORM.detected_call_type == "follow_up_inquiry", AppointmentORM.outcome == "won"), AppointmentORM.id)
+                    )).label("fu_won"),
                 )
                 .select_from(AppointmentORM)
                 .join(CallORM, AppointmentORM.interaction_id == CallORM.id)
                 .join(CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
                 .where(
                     AppointmentORM.company_id == company_id,
-                    CallAnalysisORM.detected_call_type == "fresh_sales",
                     AppointmentORM.scheduled_start >= _start_dt,
                     AppointmentORM.scheduled_start <= _end_dt,
                 )
             )
-            ft_row = first_touch_result.one()
-            first_touch_win_rate = round((ft_row.won / ft_row.total * 100), 2) if ft_row.total > 0 else 0.0
-
-            # --- Follow-up win rate (follow_up_inquiry via call analysis) ---
-            follow_up_wr_result = await self.session.execute(
-                select(
-                    func.count(AppointmentORM.id).label("total"),
-                    func.count(case(
-                        (AppointmentORM.outcome == "won", AppointmentORM.id)
-                    )).label("won"),
-                )
-                .select_from(AppointmentORM)
-                .join(CallORM, AppointmentORM.interaction_id == CallORM.id)
-                .join(CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
-                .where(
-                    AppointmentORM.company_id == company_id,
-                    CallAnalysisORM.detected_call_type == "follow_up_inquiry",
-                    AppointmentORM.scheduled_start >= _start_dt,
-                    AppointmentORM.scheduled_start <= _end_dt,
-                )
-            )
-            fu_row = follow_up_wr_result.one()
-            follow_up_win_rate = round((fu_row.won / fu_row.total * 100), 2) if fu_row.total > 0 else 0.0
+            t_row = touch_result.one()
+            first_touch_win_rate = round((t_row.ft_won / t_row.ft_total * 100), 2) if t_row.ft_total > 0 else 0.0
+            follow_up_win_rate = round((t_row.fu_won / t_row.fu_total * 100), 2) if t_row.fu_total > 0 else 0.0
 
             # --- Follow-up rate: % of analyzed calls requiring follow-up ---
             follow_up_stats_result = await self.session.execute(
@@ -793,9 +959,10 @@ class SalesRepDashboardService:
             close_rate_series = []
             sales_increase = None
             try:
+                day_col = func.date_trunc('day', AppointmentORM.scheduled_start).label("day")
                 daily_stats_result = await self.session.execute(
                     select(
-                        func.date_trunc('day', AppointmentORM.scheduled_start).label("day"),
+                        day_col,
                         func.count(AppointmentORM.id).label("total"),
                         func.count(case(
                             (AppointmentORM.outcome == "won", AppointmentORM.id)
@@ -807,8 +974,8 @@ class SalesRepDashboardService:
                         AppointmentORM.scheduled_start >= _start_dt,
                         AppointmentORM.scheduled_start <= _end_dt,
                     )
-                    .group_by(func.date_trunc('day', AppointmentORM.scheduled_start))
-                    .order_by(func.date_trunc('day', AppointmentORM.scheduled_start))
+                    .group_by(day_col)
+                    .order_by(day_col)
                 )
                 daily_rows = daily_stats_result.all()
 

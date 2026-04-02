@@ -24,6 +24,7 @@ from app.domain.schemas.settings import (
     CreateIntegrationRequest,
     UpdateDocumentRequest,
     SettingsResponse,
+    FollowUpManualReviewPatch,
 )
 from app.services.company_service import CompanyService
 
@@ -58,11 +59,24 @@ async def get_settings(
 ):
     """
     Get complete settings for a company (integrations and documents).
-    
+
     - **company_id**: Company UUID
-    
-    Returns integrations and documents for the company.
-    
+
+    Returns integrations, documents, and **follow_up_manual_review_enabled** (contextual follow-up draft-before-send).
+
+    **Example response (200)** — shape only; lists may contain real integration/document objects:
+
+    ```json
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "created_at": "2026-03-27T12:00:00",
+      "updated_at": null,
+      "integrations": [],
+      "documents": [],
+      "follow_up_manual_review_enabled": false
+    }
+    ```
+
     Required role: EXECUTIVE
     """
     try:
@@ -177,12 +191,79 @@ async def get_settings(
                     uploaded_by=sales_meta.get("uploaded_by"),
                 ))
         
+        follow_up_manual_review_enabled = (
+            bool(company.follow_up_manual_review_enabled) if company else False
+        )
+
         return SettingsResponse(
             integrations=integrations,
             documents=documents,
+            follow_up_manual_review_enabled=follow_up_manual_review_enabled,
         )
     except Exception as e:
         logger.error(f"Error getting settings: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.patch(
+    "/follow-up-manual-review",
+    response_model=FollowUpManualReviewPatch,
+    responses=RESPONSES,
+)
+async def patch_follow_up_manual_review(
+    company_id: UUID = Query(..., description="Company UUID"),
+    body: FollowUpManualReviewPatch = ...,
+    db: DbSession = ...,
+    current_user: User = Depends(require_executive),
+):
+    """
+    Turn contextual follow-up manual review (draft before send) on or off for a company.
+
+    **Example request body**
+
+    ```json
+    { "follow_up_manual_review_enabled": true }
+    ```
+
+    **Example response (200)**
+
+    ```json
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "created_at": "2026-03-27T12:00:00",
+      "updated_at": null,
+      "follow_up_manual_review_enabled": true
+    }
+    ```
+    """
+    try:
+        service = CompanyService(db)
+        company = await service.get_company_by_id(company_id)
+        if not company:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Company not found",
+            )
+        updated = await service.update_company(
+            company_id,
+            follow_up_manual_review_enabled=body.follow_up_manual_review_enabled,
+        )
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update company",
+            )
+        return FollowUpManualReviewPatch(
+            follow_up_manual_review_enabled=body.follow_up_manual_review_enabled,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error patching follow-up manual review: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1,19 +1,26 @@
 """
 Lead repository.
 """
-from typing import Optional, List
+import asyncio
+import re
+from typing import Optional, List, Any
 from uuid import UUID
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
-from sqlalchemy import select, or_, and_, func, case, text
+from sqlalchemy import select, or_, and_, func, case, text, cast, Text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.inspection import inspect
 
 from app.core.logging import get_logger
 from app.domain.models.lead import Lead
-from app.domain.models.lead_detail import LeadDetail, ContactInfo, AgentInfo, OverallEngagement, Conversation
-from app.domain.enums import DealStatus
+from app.domain.models.lead_detail import (
+    LeadDetail, ContactInfo, AgentInfo, OverallEngagement, Conversation,
+    PipelineLeadDetail, PipelineLeadTab, PipelineEngagement, PipelineConversation,
+    AppointmentTab, AppointmentDetails, SalesRepInfo, ResultTab,
+    FollowUpTask, FollowUpTracking,
+)
+from app.domain.enums import DealStatus, PipelineStage
 from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.lead_status_change import LeadStatusChangeORM
 from app.infrastructure.database.models.contact import ContactCardORM
@@ -21,10 +28,96 @@ from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.database.models.analysis import CallAnalysisORM
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.pending_action import PendingActionORM
+from app.infrastructure.database.models.follow_up_otto import FollowUpOttoORM
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.repositories.base import BaseRepository
+from app.infrastructure.integrations.shoonya import get_shoonya_client
 
 logger = get_logger(__name__)
+
+# List endpoints (pipeline / CRM) sort keys after normalization
+LEAD_SORT_CREATED_DESC = "created_desc"
+LEAD_SORT_CREATED_ASC = "created_asc"
+LEAD_SORT_NAME_ASC = "name_asc"
+LEAD_SORT_NAME_DESC = "name_desc"
+LEAD_SORT_PRIORITY = "priority"
+
+
+def normalize_lead_list_sort(sort: Optional[str]) -> str:
+    """
+    Map client `sort` query values to internal sort keys.
+
+    Accepts common UI/API spellings (snake_case, kebab-case, labels, camelCase).
+    Unknown values fall back to most-recent-first (created_desc).
+    """
+    if sort is None or not str(sort).strip():
+        return LEAD_SORT_CREATED_DESC
+    raw = str(sort).strip()
+    raw = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", raw)
+    s = raw.lower().replace(" ", "_").replace("-", "_")
+    aliases = {
+        LEAD_SORT_PRIORITY: LEAD_SORT_PRIORITY,
+        "priority": LEAD_SORT_PRIORITY,
+        LEAD_SORT_NAME_ASC: LEAD_SORT_NAME_ASC,
+        "name_a_z": LEAD_SORT_NAME_ASC,
+        "name_az": LEAD_SORT_NAME_ASC,
+        "a_z": LEAD_SORT_NAME_ASC,
+        "contact_name_asc": LEAD_SORT_NAME_ASC,
+        LEAD_SORT_NAME_DESC: LEAD_SORT_NAME_DESC,
+        "name_z_a": LEAD_SORT_NAME_DESC,
+        "name_za": LEAD_SORT_NAME_DESC,
+        "z_a": LEAD_SORT_NAME_DESC,
+        "contact_name_desc": LEAD_SORT_NAME_DESC,
+        LEAD_SORT_CREATED_DESC: LEAD_SORT_CREATED_DESC,
+        "most_recent": LEAD_SORT_CREATED_DESC,
+        "recent": LEAD_SORT_CREATED_DESC,
+        "newest": LEAD_SORT_CREATED_DESC,
+        "date_desc": LEAD_SORT_CREATED_DESC,
+        LEAD_SORT_CREATED_ASC: LEAD_SORT_CREATED_ASC,
+        "oldest_first": LEAD_SORT_CREATED_ASC,
+        "oldest": LEAD_SORT_CREATED_ASC,
+        "date_asc": LEAD_SORT_CREATED_ASC,
+    }
+    return aliases.get(s, LEAD_SORT_CREATED_DESC)
+
+
+def _apply_lead_list_sort(query, sort: str):
+    """Apply ORDER BY for company lead list queries; may outerjoin contact_cards for name sorts."""
+    if sort == LEAD_SORT_PRIORITY:
+        return query.order_by(
+            case(
+                (LeadORM.status == "hot", 1),
+                (LeadORM.status == "warm", 2),
+                (LeadORM.status == "new", 3),
+                else_=4,
+            ),
+            LeadORM.created_at.desc(),
+        )
+    if sort == LEAD_SORT_NAME_ASC:
+        query = query.outerjoin(
+            ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
+        )
+        fn = func.lower(func.coalesce(ContactCardORM.first_name, ""))
+        ln = func.lower(func.coalesce(ContactCardORM.last_name, ""))
+        return query.order_by(fn.asc(), ln.asc(), LeadORM.id.asc())
+    if sort == LEAD_SORT_NAME_DESC:
+        query = query.outerjoin(
+            ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id
+        )
+        fn = func.lower(func.coalesce(ContactCardORM.first_name, ""))
+        ln = func.lower(func.coalesce(ContactCardORM.last_name, ""))
+        return query.order_by(fn.desc(), ln.desc(), LeadORM.id.desc())
+    if sort == LEAD_SORT_CREATED_ASC:
+        return query.order_by(
+            LeadORM.created_at.asc().nulls_last(),
+            LeadORM.updated_at.asc().nulls_last(),
+            LeadORM.id.asc(),
+        )
+    return query.order_by(
+        LeadORM.created_at.desc().nulls_last(),
+        LeadORM.updated_at.desc().nulls_last(),
+        LeadORM.id.desc(),
+    )
 
 
 class LeadRepository(BaseRepository[LeadORM, Lead]):
@@ -44,10 +137,14 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "reason_not_booked",  # Computed from call analyses
             "objection",  # Computed from call analyses
             "response",  # Computed from call analyses
+            "appointment_id",  # Computed from appointments relationship
         }
         data = domain_obj.model_dump(
             exclude=exclude_fields | ({"id"} if domain_obj.id else set())
         )
+        # appointment_id is used only for domain convenience and does not exist
+        # as a column on LeadORM, so drop it to avoid constructor errors.
+        data.pop("appointment_id", None)
         return self.orm_model(**data)
 
     async def get_by_id(self, id: UUID) -> Optional[Lead]:
@@ -69,7 +166,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             logger.error(f"Error getting lead by ID: {e}")
             raise e
 
-    def _to_domain(self, orm_obj: LeadORM) -> Lead:
+    def _to_domain(self, orm_obj: LeadORM, appointment_id: UUID = None) -> Lead:
         """Convert ORM model to domain model with call audio URLs."""
         # Extract audio URLs from associated calls
         # Check if the relationship is loaded to avoid lazy loading issues in async context
@@ -115,6 +212,19 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     phone_number = contact.primary_phone
         except (AttributeError, KeyError, TypeError) as e:
             logger.debug(f"Could not access contact_card relationship for lead {orm_obj.id}: {e}")
+
+        # Get lead_source: prefer persisted ORM value, fall back to most recent call
+        lead_source = getattr(orm_obj, "lead_source", None)
+        if not lead_source:
+            try:
+                if calls:
+                    sorted_calls_for_source = sorted(calls, key=lambda c: c.created_at if c.created_at else datetime.min, reverse=True)
+                    for call in sorted_calls_for_source:
+                        if getattr(call, "lead_source", None):
+                            lead_source = call.lead_source
+                            break
+            except (AttributeError, KeyError, TypeError) as e:
+                logger.debug(f"Could not access lead_source for lead {orm_obj.id}: {e}")
 
         # Extract reason_not_booked, objection, and response from call analyses
         reason_not_booked = None
@@ -174,6 +284,18 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 )
                 deal_status = None
 
+        # Validate and convert pipeline_stage
+        pipeline_stage = None
+        if orm_obj.pipeline_stage:
+            try:
+                pipeline_stage = PipelineStage(orm_obj.pipeline_stage)
+            except ValueError:
+                logger.warning(
+                    f"Invalid pipeline_stage value: {orm_obj.pipeline_stage} for lead {orm_obj.id}, "
+                    "setting to None"
+                )
+                pipeline_stage = None
+
         # Convert to domain model
         lead_data = {
             "id": orm_obj.id,
@@ -181,6 +303,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "contact_card_id": orm_obj.contact_card_id,
             "status": orm_obj.status,
             "deal_status": deal_status,
+            "pipeline_stage": pipeline_stage,
             "assigned_rep_id": orm_obj.assigned_rep_id,
             "deal_size": orm_obj.deal_size,
             "closed_at": orm_obj.closed_at,
@@ -193,27 +316,96 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             "reason_not_booked": reason_not_booked,
             "objection": objection,
             "response": response,
+            "lead_source": lead_source,
+            "appointment_id": appointment_id,
         }
         return Lead(**lead_data)
+
+    def _to_domain_light(
+        self,
+        orm_obj: LeadORM,
+        appointment_id: UUID = None,
+        call_audio_urls: list = None,
+        lead_source_fallback: str = None,
+        reason_not_booked: str = None,
+        objection: str = None,
+        response: str = None,
+    ) -> Lead:
+        """Convert ORM to domain model using pre-fetched supplementary data (no calls eager load)."""
+        # Contact info
+        name = None
+        phone_number = None
+        try:
+            mapper = inspect(orm_obj)
+            contact_attr = mapper.attrs.get('contact_card')
+            if contact_attr and contact_attr.loaded_value is not None:
+                contact = contact_attr.loaded_value
+                if contact:
+                    first_name = contact.first_name or ""
+                    last_name = contact.last_name or ""
+                    name = f"{first_name} {last_name}".strip() or None
+                    phone_number = contact.primary_phone
+        except (AttributeError, KeyError, TypeError):
+            pass
+
+        lead_source = getattr(orm_obj, "lead_source", None) or lead_source_fallback
+
+        deal_status = None
+        if orm_obj.deal_status:
+            try:
+                deal_status = DealStatus(orm_obj.deal_status)
+            except ValueError:
+                deal_status = None
+
+        pipeline_stage = None
+        if orm_obj.pipeline_stage:
+            try:
+                pipeline_stage = PipelineStage(orm_obj.pipeline_stage)
+            except ValueError:
+                pipeline_stage = None
+
+        return Lead(
+            id=orm_obj.id,
+            company_id=orm_obj.company_id,
+            contact_card_id=orm_obj.contact_card_id,
+            status=orm_obj.status,
+            deal_status=deal_status,
+            pipeline_stage=pipeline_stage,
+            assigned_rep_id=orm_obj.assigned_rep_id,
+            deal_size=orm_obj.deal_size,
+            closed_at=orm_obj.closed_at,
+            extra_metadata=orm_obj.extra_metadata,
+            call_audio_urls=call_audio_urls or None,
+            created_at=orm_obj.created_at,
+            updated_at=orm_obj.updated_at,
+            name=name,
+            phone_number=phone_number,
+            reason_not_booked=reason_not_booked,
+            objection=objection,
+            response=response,
+            lead_source=lead_source,
+            appointment_id=appointment_id,
+        )
 
     async def get_by_company(
         self,
         company_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get all leads for a company."""
         try:
-            result = await self.session.execute(
+            q = (
                 select(LeadORM)
                 .options(
                     selectinload(LeadORM.contact_card),
-                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
                 )
                 .where(LeadORM.company_id == company_id)
-                .offset(skip)
-                .limit(limit)
             )
+            q = _apply_lead_list_sort(q, sort)
+            result = await self.session.execute(q.offset(skip).limit(limit))
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:
@@ -229,6 +421,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         statuses: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get leads for a company with optional date range, search (name/phone), and status filters."""
         try:
@@ -247,17 +440,46 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             if statuses:
                 query = query.where(LeadORM.status.in_(statuses))
             if search and search.strip():
+                # Build subquery to get lead IDs matching contact search to avoid DISTINCT over JSON columns
                 search_term = f"%{search.strip().lower()}%"
-                query = query.outerjoin(ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id).where(
-                    or_(
-                        func.lower(ContactCardORM.first_name).like(search_term),
-                        func.lower(ContactCardORM.last_name).like(search_term),
-                        func.lower(ContactCardORM.primary_phone).like(search_term),
+                subq = (
+                    select(LeadORM.id)
+                    .outerjoin(ContactCardORM, LeadORM.contact_card_id == ContactCardORM.id)
+                    .where(
+                        LeadORM.company_id == company_id,
+                        or_(
+                            func.lower(ContactCardORM.first_name).like(search_term),
+                            func.lower(ContactCardORM.last_name).like(search_term),
+                            func.lower(ContactCardORM.primary_phone).like(search_term),
+                        ),
                     )
-                ).distinct()
-            result = await self.session.execute(
-                query.order_by(LeadORM.created_at.desc()).offset(skip).limit(limit)
-            )
+                    .distinct()
+                    .subquery()
+                )
+
+                # Final query selects leads by id in subquery (avoids DISTINCT on whole row)
+                final_q = (
+                    select(LeadORM)
+                    .options(
+                        selectinload(LeadORM.contact_card),
+                        selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                    )
+                    .where(LeadORM.company_id == company_id, LeadORM.id.in_(select(subq.c.id)))
+                )
+                if start_date is not None:
+                    final_q = final_q.where(LeadORM.created_at >= datetime.combine(start_date, datetime.min.time()))
+                if end_date is not None:
+                    final_q = final_q.where(LeadORM.created_at <= datetime.combine(end_date, datetime.max.time()))
+                if statuses:
+                    final_q = final_q.where(LeadORM.status.in_(statuses))
+
+                result = await self.session.execute(
+                    _apply_lead_list_sort(final_q, sort).offset(skip).limit(limit)
+                )
+            else:
+                result = await self.session.execute(
+                    _apply_lead_list_sort(query, sort).offset(skip).limit(limit)
+                )
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:
@@ -270,20 +492,23 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         statuses: List[str],
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get leads by multiple status values."""
         try:
-            result = await self.session.execute(
+            q = (
                 select(LeadORM)
                 .options(
                     selectinload(LeadORM.contact_card),
-                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
                 )
                 .where(
                     LeadORM.company_id == company_id,
                     LeadORM.status.in_(statuses),
-                ).offset(skip).limit(limit)
+                )
             )
+            q = _apply_lead_list_sort(q, sort)
+            result = await self.session.execute(q.offset(skip).limit(limit))
             orm_objs = result.scalars().all()
             return [self._to_domain(obj) for obj in orm_objs]
         except Exception as e:
@@ -500,6 +725,339 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             logger.error(f"Error counting leads by statuses: {e}")
             raise e
 
+    async def get_by_pipeline_stages(
+        self,
+        company_id: UUID,
+        search: Optional[str] = None,
+        limit_per_stage: int = 20,
+    ) -> List[Lead]:
+        """Get leads for a company grouped by pipeline_stage, limited per stage.
+
+        Uses a window function (row_number partitioned by pipeline_stage) to fetch
+        at most ``limit_per_stage`` leads per stage in a single query, avoiding
+        loading the entire leads table into memory.
+
+        When ``search`` is set, only leads whose contact matches name (incl. email), phone, or
+        address (incl. property_snapshot JSON as text) are returned (case-insensitive, AND
+        across whitespace-separated tokens). Single-token searches run as **three SQL queries**
+        (name / phone / address paths), executed **sequentially** on this session, then union lead ids;
+        multi-token searches use one combined SQL id query (mixed-field AND semantics).
+        """
+        try:
+            raw = (search or "").strip()
+            company_stage_base = [
+                LeadORM.company_id == company_id,
+                LeadORM.pipeline_stage.isnot(None),
+                ContactCardORM.company_id == company_id,
+            ]
+
+            def _like_pattern(tok: str) -> str:
+                esc = (
+                    tok.replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")
+                )
+                return f"%{esc}%"
+
+            partition_order: list
+            candidate_lead_ids: Optional[set[UUID]] = None
+
+            if raw:
+                tokens = [t for t in re.split(r"\s+", raw) if t]
+                full_name_expr = func.trim(
+                    func.concat(
+                        func.coalesce(ContactCardORM.first_name, ""),
+                        " ",
+                        func.coalesce(ContactCardORM.last_name, ""),
+                    )
+                )
+                property_snapshot_txt = cast(ContactCardORM.property_snapshot, Text)
+
+                def _name_match(p: str):
+                    return or_(
+                        ContactCardORM.first_name.ilike(p, escape="\\"),
+                        ContactCardORM.last_name.ilike(p, escape="\\"),
+                        full_name_expr.ilike(p, escape="\\"),
+                        ContactCardORM.email.ilike(p, escape="\\"),
+                    )
+
+                def _phone_match(p: str):
+                    return or_(
+                        ContactCardORM.primary_phone.ilike(p, escape="\\"),
+                        ContactCardORM.secondary_phone.ilike(p, escape="\\"),
+                    )
+
+                def _addr_match(p: str):
+                    return or_(
+                        ContactCardORM.address.ilike(p, escape="\\"),
+                        ContactCardORM.city.ilike(p, escape="\\"),
+                        ContactCardORM.state.ilike(p, escape="\\"),
+                        ContactCardORM.postal_code.ilike(p, escape="\\"),
+                        property_snapshot_txt.ilike(p, escape="\\"),
+                    )
+
+                async def _lead_ids_matching(expr) -> set[UUID]:
+                    stmt = (
+                        select(LeadORM.id)
+                        .select_from(LeadORM)
+                        .join(
+                            ContactCardORM,
+                            LeadORM.contact_card_id == ContactCardORM.id,
+                        )
+                        .where(*company_stage_base, expr)
+                    )
+                    res = await self.session.execute(stmt)
+                    return {row[0] for row in res.all()}
+
+                if len(tokens) == 1:
+                    p0 = _like_pattern(tokens[0])
+                    # Same AsyncSession cannot run concurrent executes (SQLAlchemy isce).
+                    id_name = await _lead_ids_matching(_name_match(p0))
+                    id_phone = await _lead_ids_matching(_phone_match(p0))
+                    id_addr = await _lead_ids_matching(_addr_match(p0))
+                    candidate_lead_ids = id_name | id_phone | id_addr
+                else:
+                    token_filters = []
+                    for tok in tokens:
+                        p = _like_pattern(tok)
+                        token_filters.append(
+                            or_(_name_match(p), _phone_match(p), _addr_match(p))
+                        )
+                    stmt_ids = (
+                        select(LeadORM.id)
+                        .select_from(LeadORM)
+                        .join(
+                            ContactCardORM,
+                            LeadORM.contact_card_id == ContactCardORM.id,
+                        )
+                        .where(*company_stage_base, *token_filters)
+                    )
+                    res_ids = await self.session.execute(stmt_ids)
+                    candidate_lead_ids = {row[0] for row in res_ids.all()}
+
+                if not candidate_lead_ids:
+                    return []
+
+                p_rank = _like_pattern(raw)
+                name_phone_match = or_(
+                    ContactCardORM.first_name.ilike(p_rank, escape="\\"),
+                    ContactCardORM.last_name.ilike(p_rank, escape="\\"),
+                    full_name_expr.ilike(p_rank, escape="\\"),
+                    ContactCardORM.email.ilike(p_rank, escape="\\"),
+                    ContactCardORM.primary_phone.ilike(p_rank, escape="\\"),
+                    ContactCardORM.secondary_phone.ilike(p_rank, escape="\\"),
+                )
+                address_match = or_(
+                    ContactCardORM.address.ilike(p_rank, escape="\\"),
+                    ContactCardORM.city.ilike(p_rank, escape="\\"),
+                    ContactCardORM.state.ilike(p_rank, escape="\\"),
+                    ContactCardORM.postal_code.ilike(p_rank, escape="\\"),
+                    property_snapshot_txt.ilike(p_rank, escape="\\"),
+                )
+                partition_order = [
+                    case((name_phone_match, 0), (address_match, 1), else_=2).asc(),
+                    LeadORM.created_at.desc(),
+                ]
+            else:
+                partition_order = [LeadORM.created_at.desc()]
+
+            row_num = func.row_number().over(
+                partition_by=LeadORM.pipeline_stage,
+                order_by=partition_order,
+            ).label("rn")
+
+            if candidate_lead_ids is not None:
+                sub = (
+                    select(LeadORM.id, row_num)
+                    .join(
+                        ContactCardORM,
+                        LeadORM.contact_card_id == ContactCardORM.id,
+                    )
+                    .where(
+                        LeadORM.company_id == company_id,
+                        LeadORM.pipeline_stage.isnot(None),
+                        ContactCardORM.company_id == company_id,
+                        LeadORM.id.in_(candidate_lead_ids),
+                    )
+                    .subquery()
+                )
+            else:
+                sub = (
+                    select(LeadORM.id, row_num)
+                    .where(
+                        LeadORM.company_id == company_id,
+                        LeadORM.pipeline_stage.isnot(None),
+                    )
+                    .subquery()
+                )
+
+            # Main query: only fetch leads with rn <= limit_per_stage (contact_card only, NO calls eager load)
+            stmt = (
+                select(LeadORM)
+                .join(sub, LeadORM.id == sub.c.id)
+                .where(sub.c.rn <= limit_per_stage)
+                .options(selectinload(LeadORM.contact_card))
+                # Match window ordering per stage (search: name/phone before address; then recency)
+                .order_by(LeadORM.pipeline_stage, sub.c.rn)
+            )
+
+            result = await self.session.execute(stmt)
+            orm_objs = result.scalars().all()
+            lead_ids = [obj.id for obj in orm_objs]
+
+            if not lead_ids:
+                return []
+
+            # --- Lightweight targeted queries instead of eager-loading all calls + analyses ---
+
+            # 1. Audio URLs per lead (simple column select, no ORM hydration)
+            audio_result = await self.session.execute(
+                select(CallORM.lead_id, CallORM.audio_url)
+                .where(
+                    CallORM.lead_id.in_(lead_ids),
+                    CallORM.audio_url.isnot(None),
+                )
+            )
+            lead_audio_map: dict[UUID, list[str]] = {}
+            for lid, url in audio_result.all():
+                lead_audio_map.setdefault(lid, []).append(url)
+
+            # 2. Lead source fallback: most recent call with lead_source per lead
+            lead_source_result = await self.session.execute(
+                select(CallORM.lead_id, CallORM.lead_source)
+                .where(
+                    CallORM.lead_id.in_(lead_ids),
+                    CallORM.lead_source.isnot(None),
+                )
+                .order_by(CallORM.created_at.desc())
+            )
+            lead_source_map: dict[UUID, str] = {}
+            for lid, src in lead_source_result.all():
+                if lid not in lead_source_map:
+                    lead_source_map[lid] = src
+
+            # 3. Most recent analysis per lead (objection, response, reason_not_booked)
+            # Use row_number to get latest analysis per lead
+            analysis_rn = func.row_number().over(
+                partition_by=CallORM.lead_id,
+                order_by=CallORM.created_at.desc(),
+            ).label("a_rn")
+            analysis_sub = (
+                select(
+                    CallORM.lead_id,
+                    CallAnalysisORM.objections,
+                    CallAnalysisORM.objection_texts,
+                    CallAnalysisORM.booking_status,
+                    analysis_rn,
+                )
+                .join(CallAnalysisORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(CallORM.lead_id.in_(lead_ids))
+                .subquery()
+            )
+            analysis_result = await self.session.execute(
+                select(
+                    analysis_sub.c.lead_id,
+                    analysis_sub.c.objections,
+                    analysis_sub.c.objection_texts,
+                    analysis_sub.c.booking_status,
+                ).where(analysis_sub.c.a_rn == 1)
+            )
+            lead_analysis_map: dict[UUID, dict] = {}
+            for row in analysis_result.all():
+                objection = None
+                response = None
+                reason_not_booked = None
+                if row.objections and len(row.objections) > 0:
+                    objection = str(row.objections[0])
+                if row.objection_texts and len(row.objection_texts) > 0:
+                    response = row.objection_texts[0]
+                if row.booking_status:
+                    bs = row.booking_status.lower()
+                    if bs in ("not_booked", "unbooked", "qualified_unbooked"):
+                        reason_not_booked = response or objection or row.booking_status
+                lead_analysis_map[row.lead_id] = {
+                    "objection": objection,
+                    "response": response,
+                    "reason_not_booked": reason_not_booked,
+                }
+
+            # 4. Appointment IDs for relevant stages
+            appointment_stages = {"booked", "appointment", "appointment_ran", "won", "lost", "review"}
+            lead_ids_needing_appt = [
+                obj.id for obj in orm_objs
+                if obj.pipeline_stage in appointment_stages
+            ]
+
+            lead_appointment_map: dict[UUID, UUID] = {}
+            if lead_ids_needing_appt:
+                appt_result = await self.session.execute(
+                    select(AppointmentORM.lead_id, AppointmentORM.id)
+                    .where(AppointmentORM.lead_id.in_(lead_ids_needing_appt))
+                    .order_by(AppointmentORM.scheduled_start.desc())
+                )
+                for lead_id, appt_id in appt_result.all():
+                    if lead_id not in lead_appointment_map:
+                        lead_appointment_map[lead_id] = appt_id
+
+            # Build domain objects without relying on calls eager load
+            results = []
+            for obj in orm_objs:
+                oid = obj.id
+                analysis_data = lead_analysis_map.get(oid, {})
+                lead = self._to_domain_light(
+                    orm_obj=obj,
+                    appointment_id=lead_appointment_map.get(oid),
+                    call_audio_urls=lead_audio_map.get(oid),
+                    lead_source_fallback=lead_source_map.get(oid),
+                    reason_not_booked=analysis_data.get("reason_not_booked"),
+                    objection=analysis_data.get("objection"),
+                    response=analysis_data.get("response"),
+                )
+                results.append(lead)
+            return results
+        except Exception as e:
+            logger.error(f"Error getting leads by pipeline stages: {e}")
+            raise e
+
+    async def _live_phases_by_call_ids(
+        self,
+        call_ids: List[UUID],
+        company_id: UUID,
+    ) -> dict[UUID, Any]:
+        """
+        Fetch Shoonya conversation phases for each call id.
+        Returns a map call_id → phases dict (or None if client off / request failed).
+        """
+        out: dict[UUID, Any] = {}
+        if not call_ids:
+            return out
+        unique = list(dict.fromkeys(call_ids))
+        shoonya = get_shoonya_client()
+        if not shoonya.is_available():
+            for cid in unique:
+                out[cid] = None
+            return out
+
+        async def _fetch_one(call_id: UUID) -> tuple[UUID, Any]:
+            try:
+                payload = await shoonya.get_call_conversation_phases_no_retry(
+                    call_id=str(call_id),
+                    company_id=str(company_id),
+                )
+                phases = payload.get("phases")
+                return call_id, (phases if phases is not None else payload)
+            except Exception as e:
+                logger.warning(f"Could not fetch live phases for call {call_id}: {e}")
+                return call_id, None
+
+        phase_results = await asyncio.gather(
+            *(_fetch_one(cid) for cid in unique),
+            return_exceptions=False,
+        )
+        for cid, phases in phase_results:
+            out[cid] = phases
+        return out
+
     async def get_detail_by_id(self, lead_id: UUID) -> Optional[LeadDetail]:
         """Get detailed lead information for lead details page."""
         try:
@@ -610,6 +1168,10 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             if calls:
                 # Sort calls by created_at descending (most recent first)
                 sorted_calls = sorted(calls, key=lambda c: c.created_at, reverse=True)
+                live_phases_by_call = await self._live_phases_by_call_ids(
+                    [c.id for c in sorted_calls],
+                    lead_orm.company_id,
+                )
 
                 for call in sorted_calls:
                     # Get analysis for this call - it's already loaded via selectinload
@@ -620,6 +1182,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     conversation = Conversation(
                         id=call.id,
                         call_type=call.call_type,
+                        lead_source=getattr(call, "lead_source", None),
                         phone_number=call.phone_number,
                         duration_seconds=call.duration_seconds,
                         missed_call=call.missed_call,
@@ -634,6 +1197,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                         sop_compliance_score=analysis.sop_compliance_score if analysis else None,
                         qualification_status=analysis.qualification_status if analysis else None,
                         booking_status=analysis.booking_status if analysis else None,
+                        phases=live_phases_by_call.get(call.id),
                     )
                     conversations.append(conversation)
 
@@ -642,6 +1206,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 company_id=lead_orm.company_id,
                 status=lead_orm.status,
                 deal_status=lead_orm.deal_status,
+                pipeline_stage=lead_orm.pipeline_stage,
                 deal_size=lead_orm.deal_size,
                 created_at=lead_orm.created_at,
                 updated_at=lead_orm.updated_at,
@@ -652,6 +1217,1052 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             )
         except Exception as e:
             logger.error(f"Error getting lead detail: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
+
+    async def _build_follow_up_tracking(
+        self,
+        lead_id: UUID,
+        follow_up_actions: List[PendingActionORM],
+    ) -> FollowUpTracking:
+        """
+        Merge `follow_up_otto` (GoMotto agent) with `pending_actions`.
+        Pending actions referenced by `follow_up_otto.pending_action_id` are omitted
+        from the pending_action list to avoid duplicates.
+        """
+        otto_result = await self.session.execute(
+            select(FollowUpOttoORM)
+            .where(FollowUpOttoORM.lead_id == lead_id)
+            .order_by(FollowUpOttoORM.created_at.desc())
+        )
+        otto_rows = list(otto_result.scalars().all())
+
+        linked_pa_ids = {r.pending_action_id for r in otto_rows if r.pending_action_id}
+        standalone_pa = [pa for pa in follow_up_actions if pa.id not in linked_pa_ids]
+
+        otto_tasks: List[FollowUpTask] = []
+
+        def _clean_rep_nudge_message_content(raw: Optional[str]) -> Optional[str]:
+            """
+            Remove agenda-style section labels from old rep nudge formatting.
+            This keeps only the content blocks so the UI can show/send directly.
+            """
+            if not raw:
+                return raw
+            import re
+
+            # Fallback sanitizer used only when structured columns are empty.
+            # We keep it generic and conservative.
+            lines = raw.splitlines()
+            out: List[str] = []
+            skip_section = False
+
+            for line in lines:
+                stripped = line.strip()
+
+                # Drop the top-level agenda title
+                if stripped.startswith("Follow-up call agenda for "):
+                    continue
+
+                # If we ever encounter explicit key talking points, drop until blank line
+                if stripped.startswith("Key talking points:"):
+                    skip_section = True
+                    continue
+                if skip_section:
+                    if stripped == "" or stripped.startswith("Close:"):
+                        skip_section = False
+                    else:
+                        continue
+
+                # Remove simple labels if present
+                if stripped.startswith("Opening:"):
+                    out.append(stripped[len("Opening:") :].strip())
+                    continue
+                if stripped.startswith("Close:"):
+                    out.append(stripped[len("Close:") :].strip())
+                    continue
+                if stripped.startswith("Objections to address:"):
+                    continue
+                if stripped.startswith("Response:"):
+                    out.append(stripped[len("Response:") :].strip())
+                    continue
+
+                out.append(line)
+
+            cleaned = "\n".join(out)
+            cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+            return cleaned
+
+        def _compose_rep_nudge_customer_message(
+            *,
+            opening_line: Optional[str],
+            objections_raw: Any,
+            close_approach: Optional[str],
+        ) -> Optional[str]:
+            """
+            Build a customer-ready message from structured columns.
+
+            This is more robust than regex-stripping the old `message_content`
+            because we completely omit the "key talking points" section.
+            """
+            parts: List[str] = []
+
+            opening = (opening_line or "").strip()
+            if opening:
+                parts.append(opening)
+
+            # objections_raw is stored as JSONB; we normalize to a list of dicts
+            objection_items: List[dict] = []
+            if isinstance(objections_raw, list):
+                objection_items = [o for o in objections_raw if isinstance(o, dict)]
+            elif isinstance(objections_raw, dict):
+                objection_items = [objections_raw]
+
+            objection_blocks: List[str] = []
+            for o in objection_items:
+                ob = (o.get("objection") or "").strip()
+                resp = (o.get("suggested_response") or o.get("response") or "").strip()
+                if ob and resp:
+                    objection_blocks.append(f"\"{ob}\"\n{resp}")
+                elif resp:
+                    objection_blocks.append(resp)
+                elif ob:
+                    objection_blocks.append(ob)
+
+            if objection_blocks:
+                parts.append("\n\n".join(objection_blocks))
+
+            close = (close_approach or "").strip()
+            if close:
+                parts.append(close)
+
+            composed = "\n\n".join(parts).strip()
+            return composed or None
+
+        for row in otto_rows:
+            ktp = row.key_talking_points
+            ktp_norm: Optional[list] = ktp if isinstance(ktp, list) else None
+            objections = row.objections
+            if isinstance(objections, list):
+                obj_norm = objections
+            elif isinstance(objections, dict):
+                obj_norm = [objections]
+            else:
+                obj_norm = None
+
+            cleaned_message = row.message_content
+            if row.action_type == "nudge_sales_rep":
+                composed = _compose_rep_nudge_customer_message(
+                    opening_line=row.opening_line,
+                    objections_raw=row.objections,
+                    close_approach=row.close_approach,
+                )
+                # If structured columns are missing for some reason, fallback to stripping.
+                cleaned_message = composed or _clean_rep_nudge_message_content(row.message_content)
+
+            otto_tasks.append(
+                FollowUpTask(
+                    id=row.id,
+                    action_type=row.action_type,
+                    raw_text=cleaned_message,
+                    status=row.status,
+                    due_at=row.scheduled_at,
+                    priority=None,
+                    source="follow_up_otto",
+                    message_content=cleaned_message,
+                    scheduled_at=row.scheduled_at,
+                    sent_at=row.sent_at,
+                    external_message_id=row.external_message_id,
+                    attempt_number=row.attempt_number,
+                    queue_type=row.queue_type,
+                    company_id=row.company_id,
+                    assigned_rep_id=row.assigned_rep_id,
+                    pending_action_id=row.pending_action_id,
+                    opening_line=row.opening_line,
+                    close_approach=row.close_approach,
+                    objections=obj_norm,
+                    key_talking_points=ktp_norm,
+                    error_message=row.error_message,
+                    ai_reasoning=row.ai_reasoning,
+                )
+            )
+
+        pa_tasks = [
+            FollowUpTask(
+                id=pa.id,
+                action_type=pa.action_type,
+                raw_text=pa.raw_text,
+                status=pa.status,
+                due_at=pa.due_at,
+                scheduled_at=pa.due_at,
+                priority=pa.priority,
+                source="pending_action",
+            )
+            for pa in standalone_pa
+        ]
+
+        tasks = otto_tasks + pa_tasks
+        now_utc = datetime.now(timezone.utc)
+        pending_like_otto = {"proposed", "pending", "scheduled"}
+
+        completed_count = sum(1 for pa in standalone_pa if pa.status == "completed")
+        pending_count = sum(1 for pa in standalone_pa if pa.status in ("pending", "in_progress"))
+        follow_up_attempts = len(otto_rows) + completed_count + pending_count
+
+        touch_times: List[datetime] = []
+        for r in otto_rows:
+            touch_times.append(r.sent_at or r.updated_at or r.created_at)
+        for pa in follow_up_actions:
+            touch_times.append(pa.updated_at or pa.created_at)
+        last_touched = max(touch_times, default=None)
+
+        is_overdue_otto = any(
+            r.scheduled_at
+            and r.scheduled_at < now_utc
+            and r.status in pending_like_otto
+            for r in otto_rows
+        )
+        is_overdue_pa = any(
+            pa.due_at
+            and pa.due_at < now_utc
+            and pa.status in ("pending", "in_progress")
+            for pa in follow_up_actions
+        )
+        is_overdue = is_overdue_otto or is_overdue_pa
+
+        future_otto = [
+            r.scheduled_at
+            for r in otto_rows
+            if r.scheduled_at
+            and r.scheduled_at >= now_utc
+            and r.status in pending_like_otto
+        ]
+        future_pa = [
+            pa.due_at
+            for pa in follow_up_actions
+            if pa.due_at
+            and pa.due_at >= now_utc
+            and pa.status in ("pending", "in_progress")
+        ]
+        next_follow_up = min(future_otto + future_pa, default=None)
+
+        min_dt = datetime.min.replace(tzinfo=timezone.utc)
+
+        def _content_sort_ts(t: FollowUpTask) -> datetime:
+            return t.sent_at or t.scheduled_at or t.due_at or min_dt
+
+        follow_up_content = sorted(tasks, key=_content_sort_ts, reverse=True)
+
+        return FollowUpTracking(
+            follow_up_attempts=follow_up_attempts,
+            last_touched=last_touched,
+            is_overdue=is_overdue,
+            next_follow_up=next_follow_up,
+            follow_up_content=follow_up_content,
+        )
+
+    async def get_pipeline_detail_by_id(self, lead_id: UUID) -> Optional[PipelineLeadDetail]:
+        """
+        Get 3-tab pipeline lead detail:
+          - lead tab:        CSR stage — all inbound calls + their analyses
+          - appointment tab: appointment details (if any)
+          - result tab:      appointment outcome + its call analysis (if conducted)
+        """
+        try:
+            # ── 1. Load lead with contact_card and calls (with analysis) ─────────
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                )
+                .where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if not lead_orm:
+                return None
+
+            # ── 2. Calls — sort most recent first ────────────────────────────────
+            try:
+                mapper = inspect(lead_orm)
+                calls_attr = mapper.attrs.get("calls")
+                raw_calls = (calls_attr.loaded_value or []) if calls_attr else []
+            except Exception:
+                raw_calls = []
+            sorted_calls = sorted(raw_calls, key=lambda c: c.created_at, reverse=True)
+
+            # ── 3. Most recent appointment (needed for interaction_id before Shoonya phase fetch)
+            appt_result = await self.session.execute(
+                select(AppointmentORM)
+                .where(AppointmentORM.lead_id == lead_id)
+                .order_by(AppointmentORM.scheduled_start.desc())
+                .limit(1)
+            )
+            appt_orm = appt_result.scalar_one_or_none()
+
+            call_ids_for_phases = list(dict.fromkeys(c.id for c in sorted_calls))
+            if appt_orm and appt_orm.interaction_id:
+                if appt_orm.interaction_id not in call_ids_for_phases:
+                    call_ids_for_phases.append(appt_orm.interaction_id)
+            phases_map = await self._live_phases_by_call_ids(
+                call_ids_for_phases,
+                lead_orm.company_id,
+            )
+
+            # ── 4. Build Lead tab ─────────────────────────────────────────────────
+            lead_conversations: List[PipelineConversation] = []
+            summaries: List[str] = []
+            all_key_points: List[str] = []
+            last_touched = None
+            next_move = None
+
+            for call in sorted_calls:
+                analysis = getattr(call, "analysis", None)
+                if call.created_at and (last_touched is None or call.created_at > last_touched):
+                    last_touched = call.created_at
+                # Take next_move from the most recent call that has next_steps
+                if next_move is None and analysis and analysis.next_steps:
+                    next_move = analysis.next_steps[0] if isinstance(analysis.next_steps, list) else str(analysis.next_steps)
+
+                if analysis and analysis.summary:
+                    summaries.append(analysis.summary)
+                if analysis and analysis.key_points:
+                    all_key_points.extend(analysis.key_points)
+
+                lead_conversations.append(
+                    PipelineConversation(
+                        id=call.id,
+                        call_type=call.call_type,
+                        lead_source=getattr(call, "lead_source", None),
+                        duration_seconds=call.duration_seconds,
+                        created_at=call.created_at,
+                        booking_status=analysis.booking_status if analysis else None,
+                        qualification_status=analysis.qualification_status if analysis else None,
+                        summary=analysis.summary if analysis else None,
+                        key_points=list(analysis.key_points) if analysis and analysis.key_points else [],
+                        objections=list(analysis.objections) if analysis and analysis.objections else [],
+                        call_recording_url=call.audio_url,
+                        phases=phases_map.get(call.id),
+                    )
+                )
+
+            lead_tab = PipelineLeadTab(
+                id=lead_orm.id,
+                status=lead_orm.status,
+                overall_engagement=PipelineEngagement(
+                    last_touched=last_touched,
+                    next_move=next_move,
+                    summary=" ".join(summaries) if summaries else None,
+                    key_points=list(dict.fromkeys(all_key_points)),  # dedupe, preserve order
+                ),
+                conversations=lead_conversations,
+            )
+
+            # ── 5. Appointment / result tabs (appt_orm already loaded) ─────────
+
+            appointment_tab: Optional[AppointmentTab] = None
+            result_tab: Optional[ResultTab] = None
+
+            if appt_orm:
+                # Contact name from contact_card
+                contact_name = "Unknown"
+                if lead_orm.contact_card:
+                    first = lead_orm.contact_card.first_name or ""
+                    last = lead_orm.contact_card.last_name or ""
+                    contact_name = f"{first} {last}".strip() or "Unknown"
+
+                # Sales rep info
+                sales_rep_info: Optional[SalesRepInfo] = None
+                if appt_orm.assigned_rep_id:
+                    rep_result = await self.session.execute(
+                        select(UserORM).where(UserORM.id == appt_orm.assigned_rep_id)
+                    )
+                    rep_orm = rep_result.scalar_one_or_none()
+                    if rep_orm:
+                        sales_rep_info = SalesRepInfo(
+                            id=rep_orm.id,
+                            first_name=rep_orm.first_name,
+                            last_name=rep_orm.last_name,
+                        )
+
+                # Appointment status
+                appt_status = appt_orm.outcome or "scheduled"
+
+                # Meeting URL from extra_metadata if present
+                meeting_url = None
+                if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                    meeting_url = appt_orm.extra_metadata.get("meeting_url") or appt_orm.extra_metadata.get("join_url")
+
+                # ── 4b. Follow-up: follow_up_otto (GoMotto) + pending_actions ─────
+                follow_up_result = await self.session.execute(
+                    select(PendingActionORM)
+                    .where(PendingActionORM.lead_id == lead_id)
+                    .order_by(PendingActionORM.due_at.asc().nullslast())
+                )
+                follow_up_actions = list(follow_up_result.scalars().all())
+                follow_up_tracking = await self._build_follow_up_tracking(
+                    lead_id, follow_up_actions
+                )
+
+                # Build appointment details sub-section
+                appt_details = AppointmentDetails(
+                    id=appt_orm.id,
+                    contact_name=contact_name,
+                    sales_rep=sales_rep_info,
+                    status=appt_status,
+                    outcome=appt_orm.outcome,
+                    location_address=appt_orm.location_address,
+                    scheduled_start=appt_orm.scheduled_start,
+                    scheduled_end=appt_orm.scheduled_end,
+                    meeting_url=meeting_url,
+                    deal_size=lead_orm.deal_size,
+                    audio_url=appt_orm.audio_url,
+                    transcript=appt_orm.transcript,
+                    duration_seconds=appt_orm.duration_seconds,
+                    summary=appt_orm.summary,
+                    key_points=list(appt_orm.key_points) if appt_orm.key_points else [],
+                    objections=list(appt_orm.objections) if appt_orm.objections else [],
+                )
+
+                # Build sales rep full name for top-level summary
+                sales_rep_name = None
+                if sales_rep_info:
+                    first = sales_rep_info.first_name or ""
+                    last = sales_rep_info.last_name or ""
+                    sales_rep_name = f"{first} {last}".strip() or None
+
+                # Extract title and arrival_time from extra_metadata if present
+                appt_title = None
+                appt_arrival_time = None
+                if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                    appt_title = appt_orm.extra_metadata.get("title")
+                    appt_arrival_time_str = appt_orm.extra_metadata.get("arrival_time")
+                    if appt_arrival_time_str:
+                        try:
+                            from dateutil.parser import parse as parse_dt
+                            appt_arrival_time = parse_dt(appt_arrival_time_str)
+                        except Exception:
+                            pass
+
+                appointment_tab = AppointmentTab(
+                    title=appt_title,
+                    location_address=appt_orm.location_address,
+                    sales_rep_name=sales_rep_name,
+                    deal_size=lead_orm.deal_size,
+                    status=appt_status,
+                    scheduled_start=appt_orm.scheduled_start,
+                    arrival_time=appt_arrival_time,
+                    details=appt_details,
+                    follow_up=follow_up_tracking,
+                )
+
+                # ── 5. Result tab — only if appointment has been conducted ─────────
+                has_result = bool(
+                    appt_orm.summary
+                    or appt_orm.outcome
+                    or appt_orm.audio_url
+                    or appt_orm.qualification_status
+                )
+                if has_result:
+                    # Build result conversation from appointment interaction call (if any)
+                    result_conversations: List[PipelineConversation] = []
+                    result_last_touched = None
+                    result_next_move = None
+                    result_summaries: List[str] = []
+                    result_key_points: List[str] = []
+
+                    if appt_orm.interaction_id:
+                        interaction_result = await self.session.execute(
+                            select(CallORM)
+                            .options(selectinload(CallORM.analysis))
+                            .where(CallORM.id == appt_orm.interaction_id)
+                        )
+                        interaction_call = interaction_result.scalar_one_or_none()
+                        if interaction_call:
+                            ia = getattr(interaction_call, "analysis", None)
+                            result_last_touched = interaction_call.created_at
+                            if ia and ia.next_steps:
+                                result_next_move = ia.next_steps[0] if isinstance(ia.next_steps, list) else str(ia.next_steps)
+                            if ia and ia.summary:
+                                result_summaries.append(ia.summary)
+                            if ia and ia.key_points:
+                                result_key_points.extend(ia.key_points)
+                            result_conversations.append(
+                                PipelineConversation(
+                                    id=interaction_call.id,
+                                    call_type=interaction_call.call_type,
+                                    lead_source=getattr(interaction_call, "lead_source", None),
+                                    duration_seconds=interaction_call.duration_seconds,
+                                    created_at=interaction_call.created_at,
+                                    booking_status=ia.booking_status if ia else appt_orm.booking_status,
+                                    qualification_status=ia.qualification_status if ia else appt_orm.qualification_status,
+                                    summary=ia.summary if ia else appt_orm.summary,
+                                    key_points=list(ia.key_points) if ia and ia.key_points else [],
+                                    objections=list(ia.objections) if ia and ia.objections else (list(appt_orm.objections) if appt_orm.objections else []),
+                                    call_recording_url=interaction_call.audio_url or appt_orm.audio_url,
+                                    phases=phases_map.get(interaction_call.id),
+                                )
+                            )
+
+                    # If no interaction call, use appointment's own analysis fields
+                    if not result_conversations and (appt_orm.summary or appt_orm.qualification_status):
+                        result_last_touched = appt_orm.updated_at or appt_orm.created_at
+                        if appt_orm.summary:
+                            result_summaries.append(appt_orm.summary)
+
+                    # Extract key_lesson from extra_metadata
+                    key_lesson = None
+                    if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                        key_lesson = appt_orm.extra_metadata.get("key_lesson")
+
+                    result_tab = ResultTab(
+                        outcome=appt_orm.outcome,
+                        outcome_summary=appt_orm.summary,
+                        deal_size=lead_orm.deal_size,
+                        key_lesson=key_lesson,
+                        overall_engagement=PipelineEngagement(
+                            last_touched=result_last_touched,
+                            next_move=result_next_move,
+                            summary=" ".join(result_summaries) if result_summaries else None,
+                            key_points=list(dict.fromkeys(result_key_points)),
+                        ),
+                        conversations=result_conversations,
+                    )
+
+            # Leads without an appointment row still get GoMotto / pending follow-ups here
+            root_follow_up: Optional[FollowUpTracking] = None
+            if appointment_tab is None:
+                fu_result = await self.session.execute(
+                    select(PendingActionORM)
+                    .where(PendingActionORM.lead_id == lead_id)
+                    .order_by(PendingActionORM.due_at.asc().nullslast())
+                )
+                fu_actions = list(fu_result.scalars().all())
+                root_follow_up = await self._build_follow_up_tracking(lead_id, fu_actions)
+
+            return PipelineLeadDetail(
+                pipeline_stage=lead_orm.pipeline_stage,
+                lead=lead_tab,
+                appointment=appointment_tab,
+                result=result_tab,
+                follow_up=root_follow_up,
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting pipeline lead detail: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
+
+    async def get_customer_card(self, lead_id: UUID):
+        """
+        Build the full customer card payload for a lead.
+
+        Returns a CustomerCard domain model or None if the lead doesn't exist.
+        """
+        from app.domain.models.customer_card import (
+            CustomerCard, CardContact, CardRepInfo, PipelineStageInfo,
+            CardEngagement, CardConversation, SOPChecklistItem,
+            CardLeadTab, CardAppointmentTab, CardResultTab,
+            CardFollowUpTracking, CardFollowUpTask,
+            CardPost, CardPostAuthor,
+        )
+        from app.domain.enums import PipelineStage, PIPELINE_STAGE_ORDER
+        from app.infrastructure.database.models.post import PostORM
+
+        try:
+            # ── 1. Load lead with contact_card and calls (+ analysis) ─────────
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis),
+                )
+                .where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if not lead_orm:
+                return None
+
+            # ── 2. Contact info ───────────────────────────────────────────────
+            contact = lead_orm.contact_card
+            first = contact.first_name or "" if contact else ""
+            last = contact.last_name or "" if contact else ""
+            full_name = f"{first} {last}".strip() or None
+            initials = (
+                (first[:1] + last[:1]).upper()
+                if (first or last) else None
+            )
+
+            # Build address string
+            address_parts = []
+            if contact:
+                if contact.address:
+                    address_parts.append(contact.address)
+                loc_parts = ", ".join(filter(None, [
+                    contact.city, contact.state, contact.postal_code
+                ]))
+                if loc_parts:
+                    address_parts.append(loc_parts)
+
+            card_contact = CardContact(
+                id=contact.id if contact else lead_orm.contact_card_id,
+                first_name=first or None,
+                last_name=last or None,
+                full_name=full_name,
+                initials=initials,
+                primary_phone=contact.primary_phone if contact else "",
+                email=contact.email if contact else None,
+                address=contact.address if contact else None,
+                city=contact.city if contact else None,
+                state=contact.state if contact else None,
+                postal_code=contact.postal_code if contact else None,
+            )
+
+            # ── 3. Assigned rep info ──────────────────────────────────────────
+            assigned_rep: CardRepInfo | None = None
+            if lead_orm.assigned_rep_id:
+                rep_result = await self.session.execute(
+                    select(UserORM).where(UserORM.id == lead_orm.assigned_rep_id)
+                )
+                rep_orm = rep_result.scalar_one_or_none()
+                if rep_orm:
+                    rf = rep_orm.first_name or ""
+                    rl = rep_orm.last_name or ""
+                    assigned_rep = CardRepInfo(
+                        id=rep_orm.id,
+                        first_name=rf or None,
+                        last_name=rl or None,
+                        full_name=f"{rf} {rl}".strip() or None,
+                    )
+
+            # ── 4. Pipeline progress bar ──────────────────────────────────────
+            # Display order for the progress bar (separate from PIPELINE_STAGE_ORDER
+            # which is used for move validation). "review" is visually last.
+            display_stages = [
+                ("unqualified", "Unqualified", 0),
+                ("qualified", "Qualified", 1),
+                ("booked", "Booked", 2),
+                ("appointment", "Appt Sched", 3),
+                ("appointment_ran", "Appt Ran", 4),
+                ("won", "Outcome", 5),
+                ("review", "Review", 6),
+            ]
+            current_stage = lead_orm.pipeline_stage
+            # Map current stage to its display order
+            display_order_map = {name: order for name, _, order in display_stages}
+            display_order_map["lost"] = 5  # lost shares the outcome position
+            display_order_map["service_not_offered"] = 0
+            current_display_order = display_order_map.get(current_stage, -1)
+
+            pipeline_stages: list[PipelineStageInfo] = []
+            for idx, (stage_name, stage_label, disp_order) in enumerate(display_stages):
+                if stage_name == current_stage or (
+                    stage_name in ("won", "lost") and current_stage in ("won", "lost")
+                ):
+                    s = "active"
+                elif disp_order < current_display_order:
+                    s = "done"
+                else:
+                    s = "future"
+                pipeline_stages.append(PipelineStageInfo(
+                    name=stage_name, label=stage_label, status=s, order=idx + 1,
+                ))
+
+            # ── 5. Calls — sort most recent first ─────────────────────────────
+            try:
+                mapper = inspect(lead_orm)
+                calls_attr = mapper.attrs.get("calls")
+                raw_calls = (calls_attr.loaded_value or []) if calls_attr else []
+            except Exception:
+                raw_calls = []
+            sorted_calls = sorted(raw_calls, key=lambda c: c.created_at, reverse=True)
+
+            # ── 6. Build Lead tab ─────────────────────────────────────────────
+            lead_conversations: list[CardConversation] = []
+            summaries: list[str] = []
+            all_key_points: list[str] = []
+            all_action_items: list[str] = []
+            last_touched = None
+            next_move = None
+
+            for call in sorted_calls:
+                analysis = getattr(call, "analysis", None)
+                if call.created_at and (last_touched is None or call.created_at > last_touched):
+                    last_touched = call.created_at
+                if next_move is None and analysis and analysis.next_steps:
+                    next_move = analysis.next_steps[0] if isinstance(analysis.next_steps, list) else str(analysis.next_steps)
+
+                if analysis and analysis.summary:
+                    summaries.append(analysis.summary)
+                if analysis and analysis.key_points:
+                    all_key_points.extend(analysis.key_points)
+                if analysis and analysis.action_items:
+                    all_action_items.extend(analysis.action_items)
+
+                # SOP checklist from call analysis
+                sop_checklist: list[SOPChecklistItem] = []
+                if analysis:
+                    for stage_name in (analysis.sop_stages_completed or []):
+                        sop_checklist.append(SOPChecklistItem(stage_name=stage_name, status="completed"))
+                    for stage_name in (analysis.sop_stages_missed or []):
+                        sop_checklist.append(SOPChecklistItem(stage_name=stage_name, status="missed"))
+
+                lead_conversations.append(CardConversation(
+                    id=call.id,
+                    call_type=call.call_type,
+                    phone_number=call.phone_number,
+                    duration_seconds=call.duration_seconds,
+                    missed_call=call.missed_call,
+                    created_at=call.created_at,
+                    answered_at=call.answered_at,
+                    call_recording_url=call.audio_url,
+                    booking_status=analysis.booking_status if analysis else None,
+                    qualification_status=analysis.qualification_status if analysis else None,
+                    summary=analysis.summary if analysis else None,
+                    key_points=list(analysis.key_points) if analysis and analysis.key_points else [],
+                    objections=list(analysis.objections) if analysis and analysis.objections else [],
+                    sentiment_score=analysis.sentiment_score if analysis else None,
+                    sop_compliance_score=analysis.sop_compliance_score if analysis else None,
+                    sop_compliance_rate=analysis.sop_compliance_rate if analysis else None,
+                    sop_checklist=sop_checklist,
+                    sop_compliance_issues=list(analysis.sop_compliance_issues) if analysis and analysis.sop_compliance_issues else [],
+                    sop_compliance_positive_behaviors=list(analysis.sop_compliance_positive_behaviors) if analysis and analysis.sop_compliance_positive_behaviors else [],
+                    compliance_target_role=analysis.compliance_target_role if analysis else None,
+                ))
+
+            lead_tab = CardLeadTab(
+                id=lead_orm.id,
+                status=lead_orm.status,
+                overall_engagement=CardEngagement(
+                    last_touched=last_touched,
+                    next_move=next_move,
+                    summary=" ".join(summaries) if summaries else None,
+                    key_points=list(dict.fromkeys(all_key_points)),
+                    action_items=list(dict.fromkeys(all_action_items)),
+                ),
+                conversations=lead_conversations,
+                coaching_tips=lead_orm.coaching_tips if hasattr(lead_orm, 'coaching_tips') else None,
+            )
+
+            # ── 7. Load appointment ───────────────────────────────────────────
+            appt_result = await self.session.execute(
+                select(AppointmentORM)
+                .where(AppointmentORM.lead_id == lead_id)
+                .order_by(AppointmentORM.scheduled_start.desc())
+                .limit(1)
+            )
+            appt_orm = appt_result.scalar_one_or_none()
+
+            appointment_tab: CardAppointmentTab | None = None
+            result_tab: CardResultTab | None = None
+
+            if appt_orm:
+                # Contact name
+                contact_name = full_name or "Unknown"
+
+                # Sales rep for appointment
+                appt_rep: CardRepInfo | None = None
+                rep_to_check = appt_orm.assigned_rep_id or lead_orm.assigned_rep_id
+                if rep_to_check:
+                    if assigned_rep and rep_to_check == lead_orm.assigned_rep_id:
+                        appt_rep = assigned_rep
+                    else:
+                        rep_r = await self.session.execute(
+                            select(UserORM).where(UserORM.id == rep_to_check)
+                        )
+                        rep_o = rep_r.scalar_one_or_none()
+                        if rep_o:
+                            rf2 = rep_o.first_name or ""
+                            rl2 = rep_o.last_name or ""
+                            appt_rep = CardRepInfo(
+                                id=rep_o.id, first_name=rf2 or None, last_name=rl2 or None,
+                                full_name=f"{rf2} {rl2}".strip() or None,
+                            )
+
+                appt_status = appt_orm.outcome or "scheduled"
+                meeting_url = None
+                if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                    meeting_url = appt_orm.extra_metadata.get("meeting_url") or appt_orm.extra_metadata.get("join_url")
+
+                # SOP checklist for appointment
+                appt_sop_checklist: list[SOPChecklistItem] = []
+
+                # First try: appointment's own SOP columns
+                if appt_orm.sop_stages_completed or appt_orm.sop_stages_missed:
+                    for sn in (appt_orm.sop_stages_completed or []):
+                        appt_sop_checklist.append(SOPChecklistItem(stage_name=sn, status="completed"))
+                    for sn in (appt_orm.sop_stages_missed or []):
+                        appt_sop_checklist.append(SOPChecklistItem(stage_name=sn, status="missed"))
+
+                # Fallback: use interaction call's analysis
+                appt_analysis_summary = appt_orm.summary
+                appt_analysis_key_points = list(appt_orm.key_points or []) if hasattr(appt_orm, 'key_points') and appt_orm.key_points else []
+                appt_sop_score = appt_orm.sop_compliance_score if hasattr(appt_orm, 'sop_compliance_score') else None
+                appt_sop_rate = appt_orm.sop_compliance_rate if hasattr(appt_orm, 'sop_compliance_rate') else None
+                appt_sop_issues = list(appt_orm.sop_compliance_issues or []) if hasattr(appt_orm, 'sop_compliance_issues') and appt_orm.sop_compliance_issues else []
+                appt_sop_positives = list(appt_orm.sop_compliance_positive_behaviors or []) if hasattr(appt_orm, 'sop_compliance_positive_behaviors') and appt_orm.sop_compliance_positive_behaviors else []
+                appt_compliance_role = appt_orm.compliance_target_role if hasattr(appt_orm, 'compliance_target_role') else None
+
+                if appt_orm.interaction_id and not appt_sop_checklist:
+                    interaction_result = await self.session.execute(
+                        select(CallORM)
+                        .options(selectinload(CallORM.analysis))
+                        .where(CallORM.id == appt_orm.interaction_id)
+                    )
+                    interaction_call = interaction_result.scalar_one_or_none()
+                    if interaction_call:
+                        ia = getattr(interaction_call, "analysis", None)
+                        if ia:
+                            for sn in (ia.sop_stages_completed or []):
+                                appt_sop_checklist.append(SOPChecklistItem(stage_name=sn, status="completed"))
+                            for sn in (ia.sop_stages_missed or []):
+                                appt_sop_checklist.append(SOPChecklistItem(stage_name=sn, status="missed"))
+                            if not appt_analysis_summary:
+                                appt_analysis_summary = ia.summary
+                            if not appt_analysis_key_points and ia.key_points:
+                                appt_analysis_key_points = list(ia.key_points)
+                            if appt_sop_score is None:
+                                appt_sop_score = ia.sop_compliance_score
+                            if appt_sop_rate is None:
+                                appt_sop_rate = ia.sop_compliance_rate
+                            if not appt_sop_issues and ia.sop_compliance_issues:
+                                appt_sop_issues = list(ia.sop_compliance_issues)
+                            if not appt_sop_positives and ia.sop_compliance_positive_behaviors:
+                                appt_sop_positives = list(ia.sop_compliance_positive_behaviors)
+                            if not appt_compliance_role:
+                                appt_compliance_role = ia.compliance_target_role
+
+                # Load posts/comments for this appointment
+                posts_result = await self.session.execute(
+                    select(PostORM)
+                    .where(PostORM.appointment_id == appt_orm.id)
+                    .order_by(PostORM.created_at.desc())
+                )
+                posts_orms = posts_result.scalars().all()
+
+                # Batch-load poster users
+                poster_ids = list({p.poster_id for p in posts_orms})
+                poster_map: dict = {}
+                if poster_ids:
+                    poster_result = await self.session.execute(
+                        select(UserORM).where(UserORM.id.in_(poster_ids))
+                    )
+                    for u in poster_result.scalars().all():
+                        pf = u.first_name or ""
+                        pl = u.last_name or ""
+                        poster_map[u.id] = CardPostAuthor(
+                            id=u.id,
+                            first_name=pf or None,
+                            last_name=pl or None,
+                            full_name=f"{pf} {pl}".strip() or None,
+                            initials=(pf[:1] + pl[:1]).upper() if (pf or pl) else None,
+                        )
+
+                card_posts = [
+                    CardPost(
+                        id=p.id,
+                        author=poster_map.get(p.poster_id),
+                        note=p.note,
+                        tags=p.tags.value if p.tags else None,
+                        likes=p.likes or 0,
+                        created_at=p.created_at,
+                    )
+                    for p in posts_orms
+                ]
+
+                # Extract title and arrival_time from extra_metadata
+                card_appt_title = None
+                card_appt_arrival_time = None
+                if appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                    card_appt_title = appt_orm.extra_metadata.get("title")
+                    card_arrival_str = appt_orm.extra_metadata.get("arrival_time")
+                    if card_arrival_str:
+                        try:
+                            from dateutil.parser import parse as parse_dt
+                            card_appt_arrival_time = parse_dt(card_arrival_str)
+                        except Exception:
+                            pass
+
+                appointment_tab = CardAppointmentTab(
+                    id=appt_orm.id,
+                    contact_name=contact_name,
+                    sales_rep=appt_rep,
+                    status=appt_status,
+                    outcome=appt_orm.outcome,
+                    location_address=appt_orm.location_address,
+                    scheduled_start=appt_orm.scheduled_start,
+                    scheduled_end=appt_orm.scheduled_end,
+                    meeting_url=meeting_url,
+                    deal_size=lead_orm.deal_size,
+                    title=card_appt_title,
+                    arrival_time=card_appt_arrival_time,
+                    audio_url=appt_orm.audio_url,
+                    transcript=appt_orm.transcript,
+                    duration_seconds=appt_orm.duration_seconds,
+                    summary=appt_analysis_summary,
+                    key_points=appt_analysis_key_points,
+                    objections=list(appt_orm.objections or []),
+                    objection_texts=list(appt_orm.objection_texts or []),
+                    sop_compliance_score=appt_sop_score,
+                    sop_compliance_rate=appt_sop_rate,
+                    sop_checklist=appt_sop_checklist,
+                    sop_compliance_issues=appt_sop_issues,
+                    sop_compliance_positive_behaviors=appt_sop_positives,
+                    compliance_target_role=appt_compliance_role,
+                    posts=card_posts,
+                )
+
+                # ── 8. Result tab ─────────────────────────────────────────────
+                has_result = bool(
+                    appt_orm.summary or appt_orm.outcome or appt_orm.audio_url
+                    or appt_orm.qualification_status
+                )
+                if has_result:
+                    result_convos: list[CardConversation] = []
+                    result_last_touched = None
+                    result_next_move = None
+                    result_summaries: list[str] = []
+                    result_key_points: list[str] = []
+                    result_action_items: list[str] = []
+
+                    if appt_orm.interaction_id:
+                        ir = await self.session.execute(
+                            select(CallORM)
+                            .options(selectinload(CallORM.analysis))
+                            .where(CallORM.id == appt_orm.interaction_id)
+                        )
+                        ic = ir.scalar_one_or_none()
+                        if ic:
+                            ia2 = getattr(ic, "analysis", None)
+                            result_last_touched = ic.created_at
+                            if ia2 and ia2.next_steps:
+                                result_next_move = ia2.next_steps[0] if isinstance(ia2.next_steps, list) else str(ia2.next_steps)
+                            if ia2 and ia2.summary:
+                                result_summaries.append(ia2.summary)
+                            if ia2 and ia2.key_points:
+                                result_key_points.extend(ia2.key_points)
+                            if ia2 and ia2.action_items:
+                                result_action_items.extend(ia2.action_items)
+
+                            sop_ck2: list[SOPChecklistItem] = []
+                            if ia2:
+                                for sn in (ia2.sop_stages_completed or []):
+                                    sop_ck2.append(SOPChecklistItem(stage_name=sn, status="completed"))
+                                for sn in (ia2.sop_stages_missed or []):
+                                    sop_ck2.append(SOPChecklistItem(stage_name=sn, status="missed"))
+
+                            result_convos.append(CardConversation(
+                                id=ic.id,
+                                call_type=ic.call_type,
+                                phone_number=ic.phone_number,
+                                duration_seconds=ic.duration_seconds,
+                                missed_call=ic.missed_call,
+                                created_at=ic.created_at,
+                                answered_at=ic.answered_at,
+                                call_recording_url=ic.audio_url or appt_orm.audio_url,
+                                booking_status=ia2.booking_status if ia2 else appt_orm.booking_status,
+                                qualification_status=ia2.qualification_status if ia2 else appt_orm.qualification_status,
+                                summary=ia2.summary if ia2 else appt_orm.summary,
+                                key_points=list(ia2.key_points) if ia2 and ia2.key_points else [],
+                                objections=list(ia2.objections) if ia2 and ia2.objections else list(appt_orm.objections or []),
+                                sentiment_score=ia2.sentiment_score if ia2 else None,
+                                sop_compliance_score=ia2.sop_compliance_score if ia2 else None,
+                                sop_compliance_rate=ia2.sop_compliance_rate if ia2 else None,
+                                sop_checklist=sop_ck2,
+                                sop_compliance_issues=list(ia2.sop_compliance_issues) if ia2 and ia2.sop_compliance_issues else [],
+                                sop_compliance_positive_behaviors=list(ia2.sop_compliance_positive_behaviors) if ia2 and ia2.sop_compliance_positive_behaviors else [],
+                                compliance_target_role=ia2.compliance_target_role if ia2 else None,
+                            ))
+
+                    if not result_convos and appt_orm.summary:
+                        result_last_touched = appt_orm.updated_at or appt_orm.created_at
+                        result_summaries.append(appt_orm.summary)
+
+                    # Key lesson from coaching_tips on lead or from extra_metadata
+                    key_lesson = None
+                    if hasattr(lead_orm, 'coaching_tips') and lead_orm.coaching_tips:
+                        key_lesson = lead_orm.coaching_tips
+                    elif appt_orm.extra_metadata and isinstance(appt_orm.extra_metadata, dict):
+                        key_lesson = appt_orm.extra_metadata.get("key_lesson")
+
+                    # ── Follow-up tracking ────────────────────────────────────
+                    pending_result = await self.session.execute(
+                        select(PendingActionORM)
+                        .where(PendingActionORM.lead_id == lead_id)
+                        .order_by(PendingActionORM.due_at.asc().nullslast())
+                    )
+                    pending_actions = pending_result.scalars().all()
+
+                    from datetime import timezone
+                    now = datetime.now(timezone.utc)
+                    follow_up_tasks = [
+                        CardFollowUpTask(
+                            id=pa.id,
+                            action_type=pa.action_type,
+                            raw_text=pa.raw_text,
+                            status=pa.status,
+                            due_at=pa.due_at,
+                            priority=pa.priority,
+                        )
+                        for pa in pending_actions
+                    ]
+                    pending_count = sum(1 for pa in pending_actions if pa.status == "pending")
+                    completed_count = sum(1 for pa in pending_actions if pa.status == "completed")
+                    overdue = any(
+                        pa.status == "pending" and pa.due_at and pa.due_at < now
+                        for pa in pending_actions
+                    )
+                    next_fu = None
+                    for pa in pending_actions:
+                        if pa.status == "pending" and pa.due_at and pa.due_at >= now:
+                            next_fu = pa.due_at
+                            break
+
+                    fu_last_touched = result_last_touched or lead_orm.updated_at or lead_orm.created_at
+
+                    result_tab = CardResultTab(
+                        outcome=appt_orm.outcome,
+                        outcome_summary=appt_orm.summary,
+                        deal_size=lead_orm.deal_size,
+                        key_lesson=key_lesson,
+                        overall_engagement=CardEngagement(
+                            last_touched=result_last_touched,
+                            next_move=result_next_move,
+                            summary=" ".join(result_summaries) if result_summaries else None,
+                            key_points=list(dict.fromkeys(result_key_points)),
+                            action_items=list(dict.fromkeys(result_action_items)),
+                        ),
+                        conversations=result_convos,
+                        follow_up=CardFollowUpTracking(
+                            follow_up_attempts=completed_count + pending_count,
+                            last_touched=fu_last_touched,
+                            is_overdue=overdue,
+                            next_follow_up=next_fu,
+                            tasks=follow_up_tasks,
+                        ),
+                    )
+
+            return CustomerCard(
+                id=lead_orm.id,
+                company_id=lead_orm.company_id,
+                status=lead_orm.status,
+                deal_status=lead_orm.deal_status,
+                pipeline_stage=lead_orm.pipeline_stage,
+                deal_size=lead_orm.deal_size,
+                created_at=lead_orm.created_at,
+                updated_at=lead_orm.updated_at,
+                contact=card_contact,
+                assigned_rep=assigned_rep,
+                pipeline_stages=pipeline_stages,
+                lead=lead_tab,
+                appointment=appointment_tab,
+                result=result_tab,
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting customer card: {e}")
             import traceback
             traceback.print_exc()
             raise e
@@ -679,15 +2290,26 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             # Update assignment
             lead_orm.assigned_rep_id = sales_rep_id
 
+            # Transition pipeline_stage: booked -> appointment when rep is assigned
+            from app.domain.enums import PipelineStage
+            if lead_orm.pipeline_stage == PipelineStage.BOOKED.value:
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
+                logger.info(
+                    f"Transitioned lead pipeline_stage from booked to appointment",
+                    lead_id=str(lead_id),
+                    assigned_rep_id=str(sales_rep_id),
+                )
+
             # Update extra_metadata to track assignment history
             if lead_orm.extra_metadata is None:
                 lead_orm.extra_metadata = {}
 
             # Store assignment info
             from datetime import datetime, timezone
+            from app.core.datetime_utils import isoformat_utc
             assignment_info = {
                 "assigned_by": str(assigned_by_user_id),
-                "assigned_at": datetime.now(timezone.utc).isoformat(),
+                "assigned_at": isoformat_utc(datetime.now(timezone.utc)),
                 "previous_rep_id": str(previous_rep_id) if previous_rep_id else None,
             }
 
@@ -697,6 +2319,19 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
 
             lead_orm.extra_metadata["assignment_history"].append(assignment_info)
             lead_orm.extra_metadata["last_assignment"] = assignment_info
+
+            # Update any existing appointments for this lead so their assigned_rep_id matches
+            try:
+                from app.infrastructure.database.models.appointment import AppointmentORM
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                appts = appt_result.scalars().all()
+                for ap in appts:
+                    ap.assigned_rep_id = sales_rep_id
+            except Exception:
+                # Non-fatal: log and continue; assignment of lead is primary
+                logger.debug(f"Failed to update appointments for lead {lead_id} when assigning to {sales_rep_id}")
 
             await self.session.commit()
 
@@ -727,8 +2362,9 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         status: str,
         changed_by_user_id: Optional[UUID] = None,
         reason: Optional[str] = None,
+        pipeline_stage: Optional[str] = None,
     ) -> Optional[Lead]:
-        """Update lead status and optionally log to lead_status_changes audit table."""
+        """Update lead status, pipeline_stage, and optionally log to lead_status_changes audit table."""
         try:
             result = await self.session.execute(
                 select(LeadORM).where(LeadORM.id == lead_id)
@@ -743,6 +2379,8 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             company_id = lead_orm.company_id
 
             lead_orm.status = status
+            if pipeline_stage is not None:
+                lead_orm.pipeline_stage = pipeline_stage
             new_deal_status = lead_orm.deal_status
 
             if changed_by_user_id is not None:
@@ -776,6 +2414,178 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             return self._to_domain(lead_orm)
         except Exception as e:
             logger.error(f"Error updating lead status: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
+
+    async def move_pipeline_stage(
+        self,
+        lead_id: UUID,
+        target_stage: "PipelineStage",
+        changed_by_user_id: UUID,
+        scheduled_start=None,
+        scheduled_end=None,
+        location_address: str = None,
+        assigned_rep_id: UUID = None,
+        deal_size: float = None,
+        reason: str = None,
+    ) -> dict:
+        """
+        Move lead to a new pipeline stage, update related fields,
+        handle appointment side effects, and log an audit trail.
+        """
+        from app.domain.enums import LeadStatus, AppointmentOutcome
+        from uuid import uuid4
+        from datetime import timezone
+
+        try:
+            result = await self.session.execute(
+                select(LeadORM).where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            if not lead_orm:
+                raise ValueError("Lead not found")
+
+            # Capture old values for audit
+            old_status = lead_orm.status
+            old_deal_status = lead_orm.deal_status
+            previous_stage = lead_orm.pipeline_stage
+
+            appointment_created = False
+            appointment_updated = False
+
+            # --- Apply changes per target stage ---
+            if target_stage == PipelineStage.QUALIFIED:
+                lead_orm.status = LeadStatus.QUALIFIED_UNBOOKED.value
+                lead_orm.deal_status = DealStatus.NURTURING.value
+                lead_orm.pipeline_stage = PipelineStage.QUALIFIED.value
+
+            elif target_stage == PipelineStage.BOOKED:
+                lead_orm.status = LeadStatus.QUALIFIED_BOOKED.value
+                lead_orm.deal_status = DealStatus.BOOKED.value
+                lead_orm.pipeline_stage = PipelineStage.BOOKED.value
+                # Create appointment if none exists
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if not existing_appt:
+                    new_appt = AppointmentORM(
+                        id=uuid4(),
+                        company_id=lead_orm.company_id,
+                        lead_id=lead_id,
+                        contact_card_id=lead_orm.contact_card_id,
+                        scheduled_start=scheduled_start,
+                        scheduled_end=scheduled_end,
+                        location_address=location_address,
+                        outcome=AppointmentOutcome.PENDING.value,
+                    )
+                    self.session.add(new_appt)
+                    appointment_created = True
+
+            elif target_stage == PipelineStage.APPOINTMENT:
+                lead_orm.status = LeadStatus.QUALIFIED_BOOKED.value
+                lead_orm.deal_status = DealStatus.BOOKED.value
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
+                lead_orm.assigned_rep_id = assigned_rep_id
+                # Create or update appointment(s)
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appts = appt_result.scalars().all()
+                if existing_appts:
+                    for existing_appt in existing_appts:
+                        existing_appt.assigned_rep_id = assigned_rep_id
+                        if scheduled_start:
+                            existing_appt.scheduled_start = scheduled_start
+                        if scheduled_end:
+                            existing_appt.scheduled_end = scheduled_end
+                        if location_address:
+                            existing_appt.location_address = location_address
+                    appointment_updated = True
+                else:
+                    new_appt = AppointmentORM(
+                        id=uuid4(),
+                        company_id=lead_orm.company_id,
+                        lead_id=lead_id,
+                        contact_card_id=lead_orm.contact_card_id,
+                        scheduled_start=scheduled_start,
+                        scheduled_end=scheduled_end,
+                        location_address=location_address,
+                        assigned_rep_id=assigned_rep_id,
+                        outcome=AppointmentOutcome.PENDING.value,
+                    )
+                    self.session.add(new_appt)
+                    appointment_created = True
+
+            elif target_stage == PipelineStage.APPOINTMENT_RAN:
+                lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
+
+            elif target_stage == PipelineStage.WON:
+                lead_orm.status = LeadStatus.CLOSED_WON.value
+                lead_orm.deal_status = DealStatus.WON.value
+                lead_orm.pipeline_stage = PipelineStage.WON.value
+                lead_orm.deal_size = deal_size
+                lead_orm.closed_at = datetime.now(timezone.utc)
+                # Update appointment outcome if exists
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if existing_appt:
+                    existing_appt.outcome = AppointmentOutcome.WON.value
+                    appointment_updated = True
+
+            elif target_stage == PipelineStage.LOST:
+                lead_orm.status = LeadStatus.CLOSED_LOST.value
+                lead_orm.deal_status = DealStatus.LOST.value
+                lead_orm.pipeline_stage = PipelineStage.LOST.value
+                lead_orm.closed_at = datetime.now(timezone.utc)
+                # Update appointment outcome if exists
+                appt_result = await self.session.execute(
+                    select(AppointmentORM).where(AppointmentORM.lead_id == lead_id)
+                )
+                existing_appt = appt_result.scalar_one_or_none()
+                if existing_appt:
+                    existing_appt.outcome = AppointmentOutcome.LOST.value
+                    appointment_updated = True
+
+            # Always log audit trail
+            audit = LeadStatusChangeORM(
+                lead_id=lead_id,
+                company_id=lead_orm.company_id,
+                changed_by_user_id=changed_by_user_id,
+                old_status=old_status,
+                new_status=lead_orm.status,
+                old_deal_status=old_deal_status,
+                new_deal_status=lead_orm.deal_status,
+                reason=reason or f"Pipeline stage moved to {target_stage.value}",
+            )
+            self.session.add(audit)
+
+            await self.session.commit()
+
+            # Reload lead with relationships
+            result = await self.session.execute(
+                select(LeadORM)
+                .options(
+                    selectinload(LeadORM.contact_card),
+                    selectinload(LeadORM.calls).selectinload(CallORM.analysis)
+                )
+                .where(LeadORM.id == lead_id)
+            )
+            lead_orm = result.scalar_one_or_none()
+            lead_domain = self._to_domain(lead_orm) if lead_orm else None
+
+            return {
+                "lead": lead_domain,
+                "previous_stage": previous_stage,
+                "new_stage": target_stage.value,
+                "appointment_created": appointment_created,
+                "appointment_updated": appointment_updated,
+            }
+        except Exception as e:
+            logger.error(f"Error moving lead pipeline stage: {e}")
             import traceback
             traceback.print_exc()
             raise e

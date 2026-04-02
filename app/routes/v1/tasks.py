@@ -41,8 +41,9 @@ RESPONSES = {
 
 @router.get("", response_model=TaskListResponse, responses=RESPONSES)
 async def list_tasks(
+    db: DbSession,
     company_id: UUID = Query(..., description="Company ID"),
-    status: Optional[str] = Query(None, description="Filter by status: pending, in_progress, completed, cancelled"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by status: pending, in_progress, completed, cancelled"),
     priority: Optional[int] = Query(None, description="Filter by priority (integer)"),
     assignee_id: Optional[UUID] = Query(None, description="Filter by assignee (owner) user ID"),
     search: Optional[str] = Query(None, description="Search in task title/description (raw_text) or customer name/phone/email from source call"),
@@ -53,7 +54,6 @@ async def list_tasks(
     skip: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(100, ge=1, le=500, description="Page size"),
     user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
-    db: DbSession = None,
 ):
     """
     List tasks (action items) for the company with summary counts.
@@ -66,7 +66,7 @@ async def list_tasks(
         service = PendingActionService(db)
         result = await service.list_tasks_with_summary(
             company_id=company_id,
-            status=status,
+            status=status_filter,
             priority=priority,
             assignee_id=assignee_id,
             search=search,
@@ -77,8 +77,12 @@ async def list_tasks(
             skip=skip,
             limit=limit,
         )
+        summary = result["summary"]
+        total_tasks = summary.total_tasks
+        completion_rate = round((summary.completed / total_tasks) * 100, 2) if total_tasks > 0 else 0.0
         return TaskListResponse(
-            summary=result["summary"],
+            completion_rate=completion_rate,
+            summary=summary,
             tasks=result["tasks"],
             total=result["total"],
             skip=result["skip"],
@@ -87,7 +91,7 @@ async def list_tasks(
     except Exception as e:
         logger.error(f"Error listing tasks: {e}")
         traceback.print_exc()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{task_id}", response_model=TaskDetailResponse, responses=RESPONSES)

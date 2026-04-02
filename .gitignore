@@ -230,6 +230,13 @@ __marimo__/
 .vscode/settings.json
 .vscode/settings.json
 
+# Claude settings
+.claude/
+
 # miscelleaneous
 context.md
 CLAUDE.md
+memory
+service_titan_docs
+seed_realistic_test_data.sql
+test_shunya.py

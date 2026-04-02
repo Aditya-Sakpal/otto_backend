@@ -8,30 +8,67 @@ from pydantic import BaseModel, Field
 
 
 class CompanyOverviewResponse(BaseModel):
-    """Company overview metrics."""
-    total_leads: int
-    active_leads: int
-    qualified_leads: Optional[int] = None
-    total_calls: int
-    missed_calls: int
-    total_appointments: int
-    conversion_rate: float
-    booked_leads: Optional[int] = None
-    total_revenue: float
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    """Company overview metrics.
+
+    Qualified leads include leads with status: qualified_booked, qualified_unbooked,
+    or qualified_service_not_offered.
+    """
+    total_leads: int = Field(..., description="Total number of leads in date range")
+    active_leads: int = Field(..., description="Number of active (non-closed) leads")
+    qualified_leads: Optional[int] = Field(None, description="Number of qualified leads (qualified_booked + qualified_unbooked + qualified_service_not_offered)")
+    total_calls: int = Field(..., description="Total number of calls in date range")
+    missed_calls: int = Field(..., description="Number of missed calls")
+    total_appointments: int = Field(..., description="Total appointments in date range")
+    conversion_rate: float = Field(..., description="Lead-to-sale conversion rate (0-100)")
+    booked_leads: Optional[int] = Field(None, description="Number of leads with booked appointments")
+    total_revenue: float = Field(..., description="Total revenue from closed-won deals")
+    start_date: Optional[str] = Field(None, description="Start of date range (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End of date range (YYYY-MM-DD)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "total_leads": 250,
+                "active_leads": 180,
+                "qualified_leads": 95,
+                "total_calls": 420,
+                "missed_calls": 35,
+                "total_appointments": 65,
+                "conversion_rate": 18.5,
+                "booked_leads": 42,
+                "total_revenue": 125000.00,
+                "start_date": "2026-02-20",
+                "end_date": "2026-03-20",
+            }
+        }
+    }
 
 
 class CSRDashboardResponse(BaseModel):
     """CSR dashboard metrics."""
-    total_calls: int
-    missed_calls: int
-    calls_today: int
-    avg_call_duration: float
-    leads_assigned: int
-    appointments_scheduled: int
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    total_calls: int = Field(..., description="Total calls handled by this CSR")
+    missed_calls: int = Field(..., description="Number of missed calls")
+    calls_today: int = Field(..., description="Calls handled today")
+    avg_call_duration: float = Field(..., description="Average call duration in seconds")
+    leads_assigned: int = Field(..., description="Number of leads assigned to this CSR")
+    appointments_scheduled: int = Field(..., description="Number of appointments scheduled by this CSR")
+    start_date: Optional[str] = Field(None, description="Start of date range (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End of date range (YYYY-MM-DD)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "total_calls": 85,
+                "missed_calls": 5,
+                "calls_today": 12,
+                "avg_call_duration": 145.5,
+                "leads_assigned": 30,
+                "appointments_scheduled": 15,
+                "start_date": "2026-02-20",
+                "end_date": "2026-03-20",
+            }
+        }
+    }
 
 
 class BookingRateImprovementResponse(BaseModel):
@@ -53,7 +90,7 @@ class BookingRateImprovementResponse(BaseModel):
     period_a: Optional[Dict[str, Any]] = None
     period_b: Optional[Dict[str, Any]] = None
     x_axis: Optional[List[str]] = None
-    y_axis: Optional[List[int]] = None
+    y_axis: Optional[List[float]] = None
 
 
 class CloseRateTrendsResponse(BaseModel):
@@ -74,38 +111,50 @@ class CloseRateTrendsResponse(BaseModel):
     period_a: Optional[Dict[str, Any]] = None
     period_b: Optional[Dict[str, Any]] = None
     x_axis: Optional[List[str]] = None
-    # Top-level y_axis ticks (nice round numbers) aligned with x_axis positions
-    y_axis: Optional[List[int]] = None
-    period_a: Optional[Dict[str, Any]] = None
-    period_b: Optional[Dict[str, Any]] = None
-    x_axis: Optional[List[str]] = None
-    # Top-level y_axis ticks (nice round numbers) aligned with x_axis positions
-    y_axis: Optional[List[int]] = None
+    y_axis: Optional[List[float]] = None
 
 
 class TopObjectionResponse(BaseModel):
     """Top objection data."""
-    objection_type: str
-    count: int
-    percentage: float
+    objection_type: str = Field(..., description="Objection type from CSRObjectionType enum (e.g. 'service_fee_concerns', 'scheduling_conflicts')")
+    count: int = Field(..., description="Number of calls with this objection")
+    percentage: float = Field(..., description="Percentage of total calls with objections (0-100)")
 
 
 class TopObjectionsResponse(BaseModel):
     """Top objections list."""
-    objections: List[TopObjectionResponse]
-    total_calls_with_objections: int
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    objections: List[TopObjectionResponse] = Field(..., description="List of top objections sorted by frequency")
+    total_calls_with_objections: int = Field(..., description="Total number of calls that had at least one objection")
+    start_date: Optional[str] = Field(None, description="Start of date range (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End of date range (YYYY-MM-DD)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "objections": [
+                    {"objection_type": "service_fee_concerns", "count": 28, "percentage": 35.0},
+                    {"objection_type": "scheduling_conflicts", "count": 20, "percentage": 25.0},
+                    {"objection_type": "customer_needs_time_to_decide", "count": 15, "percentage": 18.75},
+                ],
+                "total_calls_with_objections": 80,
+                "start_date": "2026-02-20",
+                "end_date": "2026-03-20",
+            }
+        }
+    }
 
 
 class MissedCallsResponse(BaseModel):
     """Missed calls metrics."""
-    missed_calls: int
-    total_calls: int
-    miss_rate: float
-    recent_missed: List[Dict[str, Any]] = Field(default_factory=list)
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    missed_calls: int = Field(..., description="Number of missed calls")
+    total_calls: int = Field(..., description="Total number of calls")
+    miss_rate: float = Field(..., description="Missed call rate (0-100)")
+    picked_up: int = Field(0, description="Number of missed calls that were later picked up")
+    booked: int = Field(0, description="Number of missed calls that resulted in bookings")
+    booking_percentage: float = Field(0.0, description="Booking percentage from missed calls (0-100)")
+    recent_missed: List[Dict[str, Any]] = Field(default_factory=list, description="List of recent missed call details")
+    start_date: Optional[str] = Field(None, description="Start of date range (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End of date range (YYYY-MM-DD)")
 
 
 class CoachingOpportunityResponse(BaseModel):

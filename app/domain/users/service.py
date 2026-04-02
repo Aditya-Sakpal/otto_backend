@@ -18,6 +18,10 @@ from app.domain.enums import UserRole
 logger = get_logger(__name__)
 
 
+class InactiveAccountError(Exception):
+    """Valid credentials but the user account is not active."""
+
+
 class UserService:
     """Service for User business logic."""
 
@@ -80,10 +84,6 @@ class UserService:
                 logger.warning(f"Authentication failed: User not found - {email}")
                 return None
 
-            if not user_orm.is_active:
-                logger.warning(f"Authentication failed: User inactive - {email}")
-                return None
-
             # Check if user has a password
             if not user_orm.password_hash:
                 logger.warning(f"Authentication failed: User has no password set - {email}")
@@ -93,7 +93,13 @@ class UserService:
                 logger.warning(f"Authentication failed: Invalid password - {email}")
                 return None
 
+            if not user_orm.is_active:
+                logger.warning(f"Authentication failed: User inactive - {email}")
+                raise InactiveAccountError()
+
             return self.user_repo._to_domain(user_orm)
+        except InactiveAccountError:
+            raise
         except Exception as e:
             logger.error(f"Error authenticating user: {e}")
             raise e
@@ -248,5 +254,32 @@ class UserService:
             return await self.user_repo.delete(user_id)
         except Exception as e:
             logger.error(f"Error deleting user: {e}")
+            raise e
+
+    async def deactivate_sales_rep(self, sales_rep_id: UUID) -> Optional[User]:
+        """
+        Soft-delete a sales rep by setting is_active to False.
+
+        Returns:
+            Updated user, or None if no user with that ID exists.
+
+        Raises:
+            ValueError: If the user exists but is not a sales_rep.
+        """
+        try:
+            user_orm = await self.session.get(self.user_repo.orm_model, sales_rep_id)
+            if not user_orm:
+                return None
+            role = self.user_repo._normalize_user_role(user_orm.role)
+            if role != UserRole.SALES_REP:
+                raise ValueError("Target user is not a sales rep")
+            user_orm.is_active = False
+            await self.session.flush()
+            await self.session.refresh(user_orm)
+            return self.user_repo._to_domain(user_orm)
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Error deactivating sales rep: {e}")
             raise e
 

@@ -29,6 +29,27 @@ def _metrics_exclude_existing_and_service_not_offered():
             CallAnalysisORM.service_not_offered_reason == "",
         ),
     )
+def _compute_percentage_ticks(values: List[float], max_ticks: int = 6) -> List[float]:
+    """Compute y-axis ticks for percentage data (0-100 range)."""
+    if not values or max(values) <= 0:
+        return [0.0]
+    max_v = max(values)
+    nice_steps = [1, 2, 5, 10, 20, 25, 50]
+    best_step = 20  # default
+    for step in nice_steps:
+        n_ticks = int(max_v // step) + 2
+        if 3 <= n_ticks <= max_ticks + 1:
+            best_step = step
+            break
+    high = min(((int(max_v) // best_step) + 1) * best_step, 100)
+    ticks: List[float] = []
+    v = 0.0
+    while v <= high:
+        ticks.append(v)
+        v += best_step
+    return ticks
+
+
 from app.infrastructure.database.models.call import CallORM
 from app.infrastructure.database.models.lead import LeadORM
 from app.infrastructure.database.models.appointment import AppointmentORM
@@ -81,15 +102,15 @@ class MetricsService:
         If not provided, defaults to last 30 days.
         """
         if end_date:
-            end_dt = datetime.combine(end_date, datetime.max.time())
+            end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
         else:
-            end_dt = datetime.utcnow()
-        
+            end_dt = datetime.now(timezone.utc)
+
         if start_date:
-            start_dt = datetime.combine(start_date, datetime.min.time())
+            start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
         else:
             start_dt = end_dt - timedelta(days=30)
-        
+
         return start_dt, end_dt
     
     async def get_company_overview(
@@ -104,12 +125,14 @@ class MetricsService:
             # Resolution rules:
             # - If user_id is provided: prefer user_id and derive company_id from user
             # - Else: company_id must be provided
+            user_role = None
             if user_id:
                 user_result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
                 user = user_result.scalar_one_or_none()
                 if not user or not user.company_id:
                     raise ValueError("Either provide company_id, or provide user_id that belongs to a user with a company_id")
                 company_id = user.company_id
+                user_role = user.role
             elif not company_id:
                 raise ValueError("Either company_id or user_id is required")
 
@@ -152,13 +175,9 @@ class MetricsService:
             active_leads_count = active_leads.scalar() or 0
             
             # Qualified leads in date range
-            # Count leads with deal_status = "qualified" OR status in qualified statuses
-            # This handles both the deal_status field and the status field for qualification
+            # Count leads whose status is one of the qualified statuses
             qualified_leads_filters = lead_filters + [
-                or_(
-                    LeadORM.deal_status == "qualified",
-                    LeadORM.status.in_(["qualified_booked", "qualified_unbooked", "qualified_service_not_offered"])
-                )
+                LeadORM.status.in_(["qualified_booked", "qualified_unbooked"])
             ]
             qualified_leads = await self.session.execute(
                 select(func.count(LeadORM.id)).where(*qualified_leads_filters)
@@ -183,47 +202,97 @@ class MetricsService:
                 select(func.count(AppointmentORM.id)).where(*appointment_filters)
             )
             total_appointments_count = total_appointments.scalar() or 0
-            
-            # Conversion rate: booked leads (in period) / total leads created in period.
-            # "Booked" = status qualified_booked (case-insensitive) OR deal_status booked (trim + lower).
-            # Include leads that became booked *during* the period: created_at in range OR updated_at in range.
-            is_booked = or_(
-                func.lower(LeadORM.status) == "qualified_booked",
-                and_(
-                    LeadORM.deal_status.isnot(None),
-                    func.lower(func.trim(LeadORM.deal_status)) == "booked",
-                ),
-            )
-            # Booked in period = currently booked AND (created in range OR updated in range)
-            booked_in_period_filters = [
-                LeadORM.company_id == company_id,
-                is_booked,
-                or_(
-                    and_(
-                        LeadORM.created_at >= start_dt,
-                        LeadORM.created_at <= end_dt,
-                    ),
-                    and_(
-                        LeadORM.updated_at.isnot(None),
-                        LeadORM.updated_at >= start_dt,
-                        LeadORM.updated_at <= end_dt,
-                    ),
-                ),
+
+            # Booked appointments (lead-count): number of leads with status == 'qualified_booked'
+            booked_leads_filters = lead_filters + [
+                LeadORM.status == "qualified_booked"
             ]
             if user_id:
-                booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
-            booked_leads = await self.session.execute(
-                select(func.count(LeadORM.id)).where(*booked_in_period_filters)
+                booked_leads_filters.append(LeadORM.assigned_rep_id == user_id)
+            booked_leads_result = await self.session.execute(
+                select(func.count(LeadORM.id)).where(*booked_leads_filters)
             )
-            booked_count = booked_leads.scalar() or 0
-            conversion_rate = (booked_count / total_leads_count * 100) if total_leads_count > 0 else 0.0
+            booked_leads_value = booked_leads_result.scalar() or 0
 
-            # Total revenue: sum deal_size for leads that are booked (same is_booked def) and in period
-            revenue_filters = booked_in_period_filters
-            total_revenue = await self.session.execute(
-                select(func.sum(LeadORM.deal_size)).where(*revenue_filters)
-            )
-            revenue = total_revenue.scalar() or 0.0
+            # For sales reps: show close rate (won appointments / total appointments)
+            # For CSRs/company-wide: show booking rate (booked_leads / qualified_leads)
+            is_sales_rep = user_role == "sales_rep"
+
+            if is_sales_rep:
+                # Close rate: won appointments / total appointments
+                won_appts_result = await self.session.execute(
+                    select(func.count(AppointmentORM.id)).where(
+                        *appointment_filters,
+                        AppointmentORM.outcome == "won",
+                    )
+                )
+                won_appts_count = won_appts_result.scalar() or 0
+                conversion_rate = (won_appts_count / total_appointments_count * 100) if total_appointments_count > 0 else 0.0
+            else:
+                # Booking rate: (booked_leads / qualified_leads) * 100
+                if qualified_leads_count > 0:
+                    booking_rate = (booked_leads_value / qualified_leads_count) * 100
+                else:
+                    booking_rate = 0.0
+                conversion_rate = booking_rate
+
+            # Total revenue: for sales reps use won deals, for others use booked deals.
+            if is_sales_rep:
+                won_revenue_filters = [
+                    LeadORM.company_id == company_id,
+                    LeadORM.assigned_rep_id == user_id,
+                    LeadORM.deal_size.isnot(None),
+                    LeadORM.deal_size > 0,
+                    or_(
+                        LeadORM.status == "closed_won",
+                        func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
+                    ),
+                    or_(
+                        and_(
+                            LeadORM.closed_at.isnot(None),
+                            LeadORM.closed_at >= start_dt,
+                            LeadORM.closed_at <= end_dt,
+                        ),
+                        and_(
+                            LeadORM.updated_at.isnot(None),
+                            LeadORM.updated_at >= start_dt,
+                            LeadORM.updated_at <= end_dt,
+                        ),
+                    ),
+                ]
+                total_revenue = await self.session.execute(
+                    select(func.coalesce(func.sum(LeadORM.deal_size), 0.0)).where(*won_revenue_filters)
+                )
+                revenue = float(total_revenue.scalar() or 0.0)
+            else:
+                is_booked = or_(
+                    func.lower(LeadORM.status) == "qualified_booked",
+                    and_(
+                        LeadORM.deal_status.isnot(None),
+                        func.lower(func.trim(LeadORM.deal_status)) == "booked",
+                    ),
+                )
+                lead_booked_in_period_filters = [
+                    LeadORM.company_id == company_id,
+                    is_booked,
+                    or_(
+                        and_(
+                            LeadORM.created_at >= start_dt,
+                            LeadORM.created_at <= end_dt,
+                        ),
+                        and_(
+                            LeadORM.updated_at.isnot(None),
+                            LeadORM.updated_at >= start_dt,
+                            LeadORM.updated_at <= end_dt,
+                        ),
+                    ),
+                ]
+                if user_id:
+                    lead_booked_in_period_filters.append(LeadORM.assigned_rep_id == user_id)
+                total_revenue = await self.session.execute(
+                    select(func.sum(LeadORM.deal_size)).where(*lead_booked_in_period_filters)
+                )
+                revenue = total_revenue.scalar() or 0.0
 
             return {
                 "total_leads": total_leads_count,
@@ -231,9 +300,9 @@ class MetricsService:
                 "qualified_leads": qualified_leads_count,
                 "total_calls": total_calls_count,
                 "missed_calls": missed_calls_count,
-                "total_appointments": total_appointments_count,
+                "total_appointments": total_appointments_count if is_sales_rep else booked_leads_value,
                 "conversion_rate": round(conversion_rate, 2),
-                "booked_leads": booked_count,
+                "booked_leads": booked_leads_value,
                 "total_revenue": round(revenue, 2),
                 "start_date": start_dt.isoformat(),
                 "end_date": end_dt.isoformat(),
@@ -379,6 +448,35 @@ class MetricsService:
             )
             total_count = total_calls.scalar() or 0
             
+            # Picked up: missed calls that were followed up (have a lead)
+            picked_up_result = await self.session.execute(
+                select(func.count(CallORM.id)).where(
+                    CallORM.company_id == company_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == True,
+                    CallORM.lead_id.isnot(None),
+                )
+            )
+            picked_up_count = picked_up_result.scalar() or 0
+
+            # Booked: missed calls linked to a qualified_booked lead
+            from sqlalchemy import join as sa_join
+            booked_result = await self.session.execute(
+                select(func.count(CallORM.id))
+                .select_from(
+                    sa_join(CallORM, LeadORM, CallORM.lead_id == LeadORM.id)
+                )
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == True,
+                    LeadORM.status == "qualified_booked",
+                )
+            )
+            booked_count = booked_result.scalar() or 0
+
             # Recent missed calls in date range
             recent_missed = await self.session.execute(
                 select(CallORM).where(
@@ -389,18 +487,23 @@ class MetricsService:
                 ).order_by(CallORM.created_at.desc()).limit(10)
             )
             recent_missed_list = recent_missed.scalars().all()
-            
+
             miss_rate = (missed_count / total_count * 100) if total_count > 0 else 0.0
-            
+            booking_percentage = round((booked_count / missed_count * 100), 2) if missed_count > 0 else 0.0
+
             return {
                 "missed_calls": missed_count,
                 "total_calls": total_count,
                 "miss_rate": round(miss_rate, 2),
+                "picked_up": picked_up_count,
+                "booked": booked_count,
+                "booking_percentage": booking_percentage,
                 "recent_missed": [
                     {
                         "id": str(call.id),
                         "phone_number": call.phone_number,
                         "created_at": call.created_at.isoformat() if call.created_at else None,
+                        "lead_id": str(call.lead_id) if call.lead_id else None,
                     }
                     for call in recent_missed_list
                 ],
@@ -456,15 +559,21 @@ class MetricsService:
 
                 from datetime import timedelta as _td, time as _time
 
-                async def counts_by_day(s: date, e: date) -> Dict[str, int]:
-                    counts: Dict[str, int] = {}
+                async def rates_by_day(s: date, e: date) -> Dict[str, float]:
+                    """Compute booking rate percentage per day: (booked / qualified) * 100."""
+                    rates: Dict[str, float] = {}
                     current = s
                     while current <= e:
                         day_start = datetime.combine(current, _time.min).replace(tzinfo=timezone.utc)
                         day_end = datetime.combine(current, _time.max).replace(tzinfo=timezone.utc)
-                        q = select(func.count(LeadORM.id)).where(
+
+                        # Single query: count all qualified leads and conditionally count booked ones
+                        q = select(
+                            func.count(LeadORM.id).label("total_qualified"),
+                            func.count(case((is_booked, LeadORM.id))).label("total_booked"),
+                        ).where(
                             LeadORM.company_id == company_id,
-                            is_booked,
+                            LeadORM.status.in_(["qualified_booked", "qualified_unbooked"]),
                             or_(
                                 and_(LeadORM.created_at >= day_start, LeadORM.created_at <= day_end),
                                 and_(LeadORM.updated_at >= day_start, LeadORM.updated_at <= day_end),
@@ -472,33 +581,17 @@ class MetricsService:
                         )
                         if user_id:
                             q = q.where(LeadORM.assigned_rep_id == user_id)
-                        res = await self.session.execute(q)
-                        cnt = res.scalar() or 0
-                        counts[current.isoformat()] = int(cnt)
+
+                        row = (await self.session.execute(q)).one()
+                        qualified = row.total_qualified or 0
+                        booked = row.total_booked or 0
+                        rate = round((booked / qualified) * 100, 2) if qualified > 0 else 0.0
+                        rates[current.isoformat()] = rate
                         current = current + _td(days=1)
-                    return counts
+                    return rates
 
-                a_counts = await counts_by_day(start_a, end_a)
-                b_counts = await counts_by_day(start_b, end_b)
-
-                # Convert counts dicts to ordered daily lists for each period
-                def dict_to_ordered_list(counts_dict: Dict[str, int], start: date, end: date) -> List[int]:
-                    lst: List[int] = []
-                    cur = start
-                    from datetime import timedelta as __td
-                    while cur <= end:
-                        lst.append(counts_dict.get(cur.isoformat(), 0))
-                        cur = cur + __td(days=1)
-                    return lst
-
-                a_daily = dict_to_ordered_list(a_counts, start_a, end_a)
-                b_daily = dict_to_ordered_list(b_counts, start_b, end_b)
-
-                len_a = len(a_daily)
-                len_b = len(b_daily)
-                max_len = max(len_a, len_b, 1)
-                # Limit to at most 10 points
-                K = min(max_len, 10)
+                a_rates = await rates_by_day(start_a, end_a)
+                b_rates = await rates_by_day(start_b, end_b)
 
                 # Prepare date lists for each day in the periods
                 def dates_list(start: date, end: date) -> List[str]:
@@ -513,84 +606,36 @@ class MetricsService:
                 a_dates = dates_list(start_a, end_a)
                 b_dates = dates_list(start_b, end_b)
 
-                # Build per-day ordered lists (no bucketing, no 10-point limit)
-                a_vals = [a_counts.get(d, 0) for d in a_dates]
-                b_vals = [b_counts.get(d, 0) for d in b_dates]
+                # Build per-day ordered lists of rate percentages
+                a_vals = [a_rates.get(d, 0.0) for d in a_dates]
+                b_vals = [b_rates.get(d, 0.0) for d in b_dates]
 
                 len_a = len(a_vals)
                 len_b = len(b_vals)
                 K = max(len_a, len_b, 1)
 
-                # series: x = actual ISO date (or empty), y = value (0 if missing)
-                series_a = [{"x": a_dates[i] if i < len_a else "", "y": a_vals[i] if i < len_a else 0} for i in range(K)]
-                series_b = [{"x": b_dates[i] if i < len_b else "", "y": b_vals[i] if i < len_b else 0} for i in range(K)]
+                # series: x = actual ISO date (or empty), y = booking rate percentage
+                series_a = [{"x": a_dates[i] if i < len_a else "", "y": a_vals[i] if i < len_a else 0.0} for i in range(K)]
+                series_b = [{"x": b_dates[i] if i < len_b else "", "y": b_vals[i] if i < len_b else 0.0} for i in range(K)]
 
                 # x_axis: "periodA_date/periodB_date"
                 x_axis = [f"{(a_dates[i] if i < len_a else '')}/{(b_dates[i] if i < len_b else '')}" for i in range(K)]
 
-                # Compute smart y-axis ticks (nice round numbers) with no hard cap on ticks;
-                # allow ticks up to max(10, number of distinct combined points)
-                def compute_ticks(values: List[int], max_ticks: int = None) -> List[int]:
-                    import math
-
-                    if not values:
-                        return [0]
-                    max_v = max(values)
-                    min_v = min([v for v in values if v is not None] or [0])
-                    if max_v <= 0:
-                        return [0]
-
-                    if max_ticks is None:
-                        # allow more ticks as data size increases; base on unique values count
-                        max_ticks = max(10, len(set(values)))
-
-                    # search for "nice" step sizes (1,2,5 * 10^exp) that give tick count between 2 and max_ticks
-                    exp_min = int(math.floor(math.log10(max_v))) - 3
-                    exp_max = int(math.floor(math.log10(max_v))) + 1
-                    candidates = []
-                    for exp in range(exp_min, exp_max + 1):
-                        for m in [1, 2, 5, 10]:
-                            step_f = m * (10 ** exp)
-                            step = max(1, int(round(step_f)))
-                            low_tick = (min_v // step) * step
-                            high_tick = int(math.ceil(max_v / step)) * step
-                            n_ticks = ((high_tick - low_tick) // step) + 1 if step > 0 else float("inf")
-                            candidates.append((int(n_ticks), int(low_tick), int(high_tick), int(step)))
-
-                    # filter candidates with acceptable number of ticks
-                    valid = [c for c in candidates if 2 <= c[0] <= max_ticks]
-                    preferred_target = min(6, max_ticks)
-                    chosen = None
-                    if valid:
-                        valid.sort(key=lambda x: (abs(x[0] - preferred_target), x[3]))
-                        chosen = valid[0]
-                    else:
-                        if not candidates:
-                            return [0]
-                        candidates.sort(key=lambda x: (abs(x[0] - max_ticks), x[3]))
-                        chosen = candidates[0]
-
-                    n_ticks, low_tick, high_tick, step = chosen
-                    if low_tick < 0:
-                        low_tick = 0
-                    step = max(1, int(step))
-                    ticks = list(range(int(low_tick), int(high_tick) + 1, int(step)))
-                    return ticks
-
+                # Compute percentage y-axis ticks
                 combined_vals = a_vals + b_vals
-                ticks = compute_ticks([int(v) for v in combined_vals], max_ticks=None)
+                ticks = _compute_percentage_ticks(combined_vals)
 
                 return {
                     "period_a": {
                         "start": start_a.isoformat(),
                         "end": end_a.isoformat(),
-                        "total_booked": sum(a_vals),
+                        "average_booking_rate": round(sum(a_vals) / len(a_vals), 2) if a_vals else 0.0,
                         "series": series_a,
                     },
                     "period_b": {
                         "start": start_b.isoformat(),
                         "end": end_b.isoformat(),
-                        "total_booked": sum(b_vals),
+                        "average_booking_rate": round(sum(b_vals) / len(b_vals), 2) if b_vals else 0.0,
                         "series": series_b,
                     },
                     "x_axis": x_axis,
@@ -764,79 +809,42 @@ class MetricsService:
                 if not company_id:
                     raise ValueError("company_id or user_id (with company) is required for dual-period mode")
 
-                # Define closed/won condition for leads and appointments
-                is_closed_won_lead = or_(
-                    func.lower(LeadORM.status) == "closed_won",
-                    and_(
-                        LeadORM.deal_status.isnot(None),
-                        func.lower(func.trim(LeadORM.deal_status)) == "won",
-                    ),
-                )
-
-                is_won_appointment = func.lower(AppointmentORM.outcome) == "won"
-
                 from datetime import timedelta as _td, time as _time
 
-                async def counts_by_day(s: date, e: date) -> Dict[str, int]:
-                    """Count closed/won deals per day in the given date range."""
-                    counts: Dict[str, int] = {}
+                async def rates_by_day(s: date, e: date) -> Dict[str, float]:
+                    """Compute close rate percentage per day: (won appointments / total appointments) * 100."""
+                    rates: Dict[str, float] = {}
                     current = s
                     while current <= e:
                         day_start = datetime.combine(current, _time.min).replace(tzinfo=timezone.utc)
                         day_end = datetime.combine(current, _time.max).replace(tzinfo=timezone.utc)
 
-                        # Count closed won leads
-                        q_leads = select(func.count(LeadORM.id)).where(
-                            LeadORM.company_id == company_id,
-                            is_closed_won_lead,
-                            or_(
-                                and_(LeadORM.created_at >= day_start, LeadORM.created_at <= day_end),
-                                and_(LeadORM.updated_at >= day_start, LeadORM.updated_at <= day_end),
-                                and_(LeadORM.closed_at >= day_start, LeadORM.closed_at <= day_end),
-                            )
-                        )
-                        if user_id:
-                            q_leads = q_leads.where(LeadORM.assigned_rep_id == user_id)
-
-                        # Count won appointments
-                        q_appts = select(func.count(AppointmentORM.id)).where(
+                        # Single query: count all appointments and conditionally count won ones
+                        q = select(
+                            func.count(AppointmentORM.id).label("total_appointments"),
+                            func.count(case(
+                                (func.lower(AppointmentORM.outcome) == "won", AppointmentORM.id)
+                            )).label("won_appointments"),
+                        ).where(
                             AppointmentORM.company_id == company_id,
-                            is_won_appointment,
                             or_(
                                 and_(AppointmentORM.created_at >= day_start, AppointmentORM.created_at <= day_end),
                                 and_(AppointmentORM.updated_at >= day_start, AppointmentORM.updated_at <= day_end),
                             )
                         )
                         if user_id:
-                            q_appts = q_appts.where(AppointmentORM.assigned_rep_id == user_id)
+                            q = q.where(AppointmentORM.assigned_rep_id == user_id)
 
-                        res_leads = await self.session.execute(q_leads)
-                        cnt_leads = res_leads.scalar() or 0
-
-                        res_appts = await self.session.execute(q_appts)
-                        cnt_appts = res_appts.scalar() or 0
-
-                        # Total closed = leads + appointments
-                        total_closed = int(cnt_leads) + int(cnt_appts)
-                        counts[current.isoformat()] = total_closed
+                        row = (await self.session.execute(q)).one()
+                        total = row.total_appointments or 0
+                        won = row.won_appointments or 0
+                        rate = round((won / total) * 100, 2) if total > 0 else 0.0
+                        rates[current.isoformat()] = rate
                         current = current + _td(days=1)
-                    return counts
+                    return rates
 
-                a_counts = await counts_by_day(start_a, end_a)
-                b_counts = await counts_by_day(start_b, end_b)
-
-                # Convert counts dicts to ordered daily lists for each period
-                def dict_to_ordered_list(counts_dict: Dict[str, int], start: date, end: date) -> List[int]:
-                    lst: List[int] = []
-                    cur = start
-                    from datetime import timedelta as __td
-                    while cur <= end:
-                        lst.append(counts_dict.get(cur.isoformat(), 0))
-                        cur = cur + __td(days=1)
-                    return lst
-
-                a_daily = dict_to_ordered_list(a_counts, start_a, end_a)
-                b_daily = dict_to_ordered_list(b_counts, start_b, end_b)
+                a_rates = await rates_by_day(start_a, end_a)
+                b_rates = await rates_by_day(start_b, end_b)
 
                 # Prepare date lists for each day in the periods
                 def dates_list(start: date, end: date) -> List[str]:
@@ -851,80 +859,36 @@ class MetricsService:
                 a_dates = dates_list(start_a, end_a)
                 b_dates = dates_list(start_b, end_b)
 
-                # Build per-day ordered lists
-                a_vals = [a_counts.get(d, 0) for d in a_dates]
-                b_vals = [b_counts.get(d, 0) for d in b_dates]
+                # Build per-day ordered lists of rate percentages
+                a_vals = [a_rates.get(d, 0.0) for d in a_dates]
+                b_vals = [b_rates.get(d, 0.0) for d in b_dates]
 
                 len_a = len(a_vals)
                 len_b = len(b_vals)
                 K = max(len_a, len_b, 1)
 
-                # series: x = actual ISO date (or empty), y = value (0 if missing)
-                series_a = [{"x": a_dates[i] if i < len_a else "", "y": a_vals[i] if i < len_a else 0} for i in range(K)]
-                series_b = [{"x": b_dates[i] if i < len_b else "", "y": b_vals[i] if i < len_b else 0} for i in range(K)]
+                # series: x = actual ISO date (or empty), y = close rate percentage
+                series_a = [{"x": a_dates[i] if i < len_a else "", "y": a_vals[i] if i < len_a else 0.0} for i in range(K)]
+                series_b = [{"x": b_dates[i] if i < len_b else "", "y": b_vals[i] if i < len_b else 0.0} for i in range(K)]
 
                 # x_axis: "periodA_date/periodB_date"
                 x_axis = [f"{(a_dates[i] if i < len_a else '')}/{(b_dates[i] if i < len_b else '')}" for i in range(K)]
 
-                # Compute smart y-axis ticks (same logic as booking rate improvement)
-                def compute_ticks(values: List[int], max_ticks: int = None) -> List[int]:
-                    import math
-
-                    if not values:
-                        return [0]
-                    max_v = max(values)
-                    min_v = min([v for v in values if v is not None] or [0])
-                    if max_v <= 0:
-                        return [0]
-
-                    if max_ticks is None:
-                        max_ticks = max(10, len(set(values)))
-
-                    exp_min = int(math.floor(math.log10(max_v))) - 3
-                    exp_max = int(math.floor(math.log10(max_v))) + 1
-                    candidates = []
-                    for exp in range(exp_min, exp_max + 1):
-                        for m in [1, 2, 5, 10]:
-                            step_f = m * (10 ** exp)
-                            step = max(1, int(round(step_f)))
-                            low_tick = (min_v // step) * step
-                            high_tick = int(math.ceil(max_v / step)) * step
-                            n_ticks = ((high_tick - low_tick) // step) + 1 if step > 0 else float("inf")
-                            candidates.append((int(n_ticks), int(low_tick), int(high_tick), int(step)))
-
-                    valid = [c for c in candidates if 2 <= c[0] <= max_ticks]
-                    preferred_target = min(6, max_ticks)
-                    chosen = None
-                    if valid:
-                        valid.sort(key=lambda x: (abs(x[0] - preferred_target), x[3]))
-                        chosen = valid[0]
-                    else:
-                        if not candidates:
-                            return [0]
-                        candidates.sort(key=lambda x: (abs(x[0] - max_ticks), x[3]))
-                        chosen = candidates[0]
-
-                    n_ticks, low_tick, high_tick, step = chosen
-                    if low_tick < 0:
-                        low_tick = 0
-                    step = max(1, int(step))
-                    ticks = list(range(int(low_tick), int(high_tick) + 1, int(step)))
-                    return ticks
-
+                # Compute percentage y-axis ticks
                 combined_vals = a_vals + b_vals
-                ticks = compute_ticks([int(v) for v in combined_vals], max_ticks=None)
+                ticks = _compute_percentage_ticks(combined_vals)
 
                 return {
                     "period_a": {
                         "start": start_a.isoformat(),
                         "end": end_a.isoformat(),
-                        "total_closed": sum(a_vals),
+                        "average_close_rate": round(sum(a_vals) / len(a_vals), 2) if a_vals else 0.0,
                         "series": series_a,
                     },
                     "period_b": {
                         "start": start_b.isoformat(),
                         "end": end_b.isoformat(),
-                        "total_closed": sum(b_vals),
+                        "average_close_rate": round(sum(b_vals) / len(b_vals), 2) if b_vals else 0.0,
                         "series": series_b,
                     },
                     "x_axis": x_axis,
@@ -1185,9 +1149,10 @@ class MetricsService:
                 CallAnalysisORM,
                 CallORM,
                 CallAnalysisORM.call_id == CallORM.id
-            )
-            
+            ).join(UserORM, CallORM.handled_by_user_id == UserORM.id)
+
             # Get all analyses with calls for this company (use CallORM.created_at for date range)
+            # Only include sales_rep users, not CSRs
             analyses_query = select(
                 CallORM.handled_by_user_id,
                 CallAnalysisORM.qualification_status,
@@ -1198,7 +1163,8 @@ class MetricsService:
                 CallAnalysisORM.company_id == company_id,
                 CallORM.created_at >= start_dt,
                 CallORM.created_at <= end_dt,
-                CallORM.handled_by_user_id.isnot(None),  # Only include calls with assigned users
+                CallORM.handled_by_user_id.isnot(None),
+                UserORM.role == 'sales_rep',
                 _metrics_exclude_existing_and_service_not_offered(),
             )
             
@@ -1303,11 +1269,12 @@ class MetricsService:
             employee_results.sort(key=lambda x: x['success_rate'])
             top_5_employees = employee_results[:5]
             
-            # Get user details for the top 5 employees
+            # Get user details for the top 5 employees — only sales_rep role
             user_ids = [UUID(emp['user_id']) for emp in top_5_employees]
             users_query = select(UserORM).where(
                 UserORM.id.in_(user_ids),
-                UserORM.company_id == company_id
+                UserORM.company_id == company_id,
+                UserORM.role == 'sales_rep',
             )
             users_result = await self.session.execute(users_query)
             users_list = users_result.scalars().all()
@@ -2074,59 +2041,97 @@ class MetricsService:
         try:
             from sqlalchemy.orm import selectinload
             from app.infrastructure.database.models.contact import ContactCardORM
-            
+            from app.infrastructure.database.models.call import CallORM
+            from app.infrastructure.database.models.analysis import CallAnalysisORM
+
             start_dt, end_dt = self._get_date_range(start_date, end_date)
-            
-            # Get hot, warm, new leads prioritized in date range with contact_card loaded
-            leads = await self.session.execute(
-                select(LeadORM)
-                .options(selectinload(LeadORM.contact_card))
+
+            # Get missed calls in date range with contact_card loaded
+            missed_calls_query = await self.session.execute(
+                select(CallORM)
+                .options(selectinload(CallORM.contact_card))
                 .where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    LeadORM.status.in_(["hot", "warm", "new"])
-                ).order_by(
-                    case(
-                        (LeadORM.status == "hot", 1),
-                        (LeadORM.status == "warm", 2),
-                        (LeadORM.status == "new", 3),
-                        else_=4,
-                    ),
-                    LeadORM.created_at.desc()
-                ).limit(limit)
+                    CallORM.company_id == company_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    CallORM.missed_call == True,
+                )
+                .order_by(CallORM.created_at.desc())
+                .limit(limit)
             )
-            leads_list = leads.scalars().all()
-            
-            # Count by status
-            hot_count = sum(1 for l in leads_list if l.status == "hot")
-            warm_count = sum(1 for l in leads_list if l.status == "warm")
-            new_count = sum(1 for l in leads_list if l.status == "new")
-            
-            # Convert to dict with contact_card info
+            missed_calls = missed_calls_query.scalars().all()
+
+            # Fetch lead info for calls that have lead_id
+            lead_ids = [c.lead_id for c in missed_calls if c.lead_id]
+            leads_map: Dict[str, Any] = {}
+            if lead_ids:
+                leads_result = await self.session.execute(
+                    select(LeadORM).where(LeadORM.id.in_(lead_ids))
+                )
+                for lead in leads_result.scalars().all():
+                    leads_map[str(lead.id)] = lead
+
+            # Fetch service_requested from call_analyses
+            call_ids = [c.id for c in missed_calls]
+            service_map: Dict[str, str] = {}
+            if call_ids:
+                ca_rows = await self.session.execute(
+                    select(CallAnalysisORM.call_id, CallAnalysisORM.service_requested)
+                    .where(
+                        CallAnalysisORM.call_id.in_(call_ids),
+                        CallAnalysisORM.service_requested.isnot(None),
+                        CallAnalysisORM.service_requested != "",
+                    )
+                )
+                for row in ca_rows.all():
+                    service_map[str(row.call_id)] = row.service_requested
+
+            # Count leads by status from missed calls
+            hot_count = 0
+            warm_count = 0
+            new_count = 0
+            for c in missed_calls:
+                if c.lead_id and str(c.lead_id) in leads_map:
+                    status = leads_map[str(c.lead_id)].status
+                    if status == "hot":
+                        hot_count += 1
+                    elif status == "warm":
+                        warm_count += 1
+                    elif status == "new":
+                        new_count += 1
+
+            # Build response
             leads_data = []
-            for lead in leads_list:
-                lead_dict = {
-                    "id": str(lead.id),
-                    "contact_card_id": str(lead.contact_card_id),
-                    "status": lead.status,
-                    "deal_size": lead.deal_size,
-                    "assigned_rep_id": str(lead.assigned_rep_id) if lead.assigned_rep_id else None,
-                    "created_at": lead.created_at.isoformat() if lead.created_at else None,
+            for call in missed_calls:
+                lead = leads_map.get(str(call.lead_id)) if call.lead_id else None
+                call_dict = {
+                    "id": str(call.id),
+                    "contact_card_id": str(call.contact_card_id) if call.contact_card_id else None,
+                    "lead_id": str(call.lead_id) if call.lead_id else None,
+                    "phone_number": call.phone_number,
+                    "call_type": call.call_type,
+                    "created_at": call.created_at.isoformat() if call.created_at else None,
+                    "service_requested": service_map.get(str(call.id)),
+                    "status": lead.status if lead else None,
+                    "deal_size": lead.deal_size if lead else None,
+                    "assigned_rep_id": str(lead.assigned_rep_id) if lead and lead.assigned_rep_id else None,
                 }
                 # Add contact_card info if available
-                if lead.contact_card:
-                    lead_dict["contact_card"] = {
-                        "id": str(lead.contact_card.id),
-                        "first_name": lead.contact_card.first_name,
-                        "last_name": lead.contact_card.last_name,
-                        "primary_phone": lead.contact_card.primary_phone,
-                        "email": lead.contact_card.email,
+                if call.contact_card:
+                    call_dict["contact_card"] = {
+                        "id": str(call.contact_card.id),
+                        "first_name": call.contact_card.first_name,
+                        "last_name": call.contact_card.last_name,
+                        "primary_phone": call.contact_card.primary_phone,
+                        "email": call.contact_card.email,
+                        "address": call.contact_card.address,
+                        "city": call.contact_card.city,
+                        "state": call.contact_card.state,
                     }
-                leads_data.append(lead_dict)
-            
+                leads_data.append(call_dict)
+
             return {
-                "total": len(leads_list),
+                "total": len(missed_calls),
                 "hot_leads": hot_count,
                 "warm_leads": warm_count,
                 "new_leads": new_count,
@@ -2168,8 +2173,9 @@ class MetricsService:
             if not user:
                 raise ValueError(f"User {user_id} not found")
             
-            if user.role != UserRole.CSR.value:
-                raise ValueError(f"User {user_id} is not a CSR")
+            # Allow non-CSR callers for /metrics/csr/{user_id}/profile (e.g. exec viewing any user).
+            # if user.role != UserRole.CSR.value:
+            #     raise ValueError(f"User {user_id} is not a CSR")
             
             if not user.company_id:
                 raise ValueError(f"User {user_id} has no company_id")
@@ -2259,33 +2265,24 @@ class MetricsService:
             )
             total_leads = total_leads_result.scalar() or 0
             
-            # Qualified leads
+            # Qualified leads (from call_analyses: qualification_status in hot/warm/cold)
             qualified_leads_result = await self.session.execute(
-                select(func.count(LeadORM.id)).where(
-                    LeadORM.assigned_rep_id == user_id,
-                    LeadORM.created_at >= start_dt,
-                    LeadORM.created_at <= end_dt,
-                    or_(
-                        LeadORM.status.like('qualified_%'),
-                        LeadORM.deal_status == 'qualified'
-                    )
+                select(func.count(func.distinct(CallAnalysisORM.id)))
+                .select_from(CallAnalysisORM)
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.handled_by_user_id == user_id,
+                    CallORM.created_at >= start_dt,
+                    CallORM.created_at <= end_dt,
+                    func.lower(CallAnalysisORM.qualification_status).in_(["hot", "warm", "cold"]),
                 )
             )
             qualified_leads = qualified_leads_result.scalar() or 0
             
             # ===== APPOINTMENT METRICS =====
-            # Booked appointments
+            # Booked appointments (from call_analyses where booking_status = 'booked')
             booked_appointments_result = await self.session.execute(
-                select(func.count(AppointmentORM.id)).where(
-                    AppointmentORM.assigned_rep_id == user_id,
-                    AppointmentORM.created_at >= start_dt,
-                    AppointmentORM.created_at <= end_dt,
-                )
-            )
-            booked_appointments = booked_appointments_result.scalar() or 0
-            
-            # Booked calls (from call_analyses, case-insensitive booking_status) for this user
-            booked_calls_result = await self.session.execute(
                 select(func.count(CallAnalysisORM.id))
                 .select_from(CallAnalysisORM)
                 .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
@@ -2294,16 +2291,13 @@ class MetricsService:
                     CallORM.handled_by_user_id == user_id,
                     CallORM.created_at >= start_dt,
                     CallORM.created_at <= end_dt,
-                    CallAnalysisORM.booking_status.isnot(None),
                     func.lower(CallAnalysisORM.booking_status) == "booked",
-                    _metrics_exclude_existing_and_service_not_offered(),
                 )
             )
-            booked_calls = booked_calls_result.scalar() or 0
-            
-            # Booking rate: (appointments + booked calls) / qualified leads
-            total_booked = booked_appointments + booked_calls
-            booking_rate = (total_booked / qualified_leads * 100) if qualified_leads > 0 else 0.0
+            booked_appointments = booked_appointments_result.scalar() or 0
+
+            # Booking rate: booked appointments / qualified leads
+            booking_rate = (booked_appointments / qualified_leads * 100) if qualified_leads > 0 else 0.0
             
             # ===== CONVERSION RATE =====
             # Conversion rate: appointments with outcome='won' / qualified_leads
@@ -2361,7 +2355,9 @@ class MetricsService:
             # 1. Objection Handling
             # Get objection handling improvement (exclude existing customer & service not offered)
             current_month_objections = await self.session.execute(
-                select(func.count(CallAnalysisORM.id)).where(
+                select(func.count(CallAnalysisORM.id))
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
                     CallAnalysisORM.company_id == company_id,
                     CallORM.handled_by_user_id == user_id,
                     CallAnalysisORM.created_at >= start_dt,
@@ -2369,14 +2365,16 @@ class MetricsService:
                     CallAnalysisORM.objections.isnot(None),
                     func.array_length(CallAnalysisORM.objections, 1) > 0,
                     _metrics_exclude_existing_and_service_not_offered(),
-                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                )
             )
             current_objections = current_month_objections.scalar() or 0
             
             # Compare with previous period
             prev_start_dt = start_dt - (end_dt - start_dt)
             prev_objections_result = await self.session.execute(
-                select(func.count(CallAnalysisORM.id)).where(
+                select(func.count(CallAnalysisORM.id))
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
                     CallAnalysisORM.company_id == company_id,
                     CallORM.handled_by_user_id == user_id,
                     CallAnalysisORM.created_at >= prev_start_dt,
@@ -2384,7 +2382,7 @@ class MetricsService:
                     CallAnalysisORM.objections.isnot(None),
                     func.array_length(CallAnalysisORM.objections, 1) > 0,
                     _metrics_exclude_existing_and_service_not_offered(),
-                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                )
             )
             prev_objections = prev_objections_result.scalar() or 0
             
@@ -2482,7 +2480,6 @@ class MetricsService:
                 "missed_calls": missed_calls,
                 "missed_calls_status": missed_calls_status,
                 "booked_appointments": booked_appointments,
-                "booked_calls": booked_calls,
                 "total_leads": total_leads,
                 "qualified_leads": qualified_leads,
                 "booking_rate": round(booking_rate, 1),
@@ -2563,7 +2560,7 @@ class MetricsService:
                 )
             )
             resolved_count = resolved.scalar() or 0
-            win_rate = (won_appts / resolved_count * 100) if resolved_count > 0 else 0.0
+            win_rate = (won_appts / resolved_count) if resolved_count > 0 else 0.0
 
             # First-touch vs follow-up win rates: join appointments -> calls -> call_analyses
             from sqlalchemy import join
@@ -2599,7 +2596,7 @@ class MetricsService:
             first_touch_total = await self.session.execute(first_touch_base)
             first_touch_total_count = first_touch_total.scalar() or 0
             first_touch_win_rate = (
-                (first_touch_won_count / first_touch_total_count * 100)
+                (first_touch_won_count / first_touch_total_count)
                 if first_touch_total_count > 0
                 else 0.0
             )
@@ -2625,7 +2622,7 @@ class MetricsService:
             follow_up_total = await self.session.execute(follow_up_base)
             follow_up_total_count = follow_up_total.scalar() or 0
             follow_up_win_rate = (
-                (follow_up_won_count / follow_up_total_count * 100)
+                (follow_up_won_count / follow_up_total_count)
                 if follow_up_total_count > 0
                 else 0.0
             )
@@ -2638,7 +2635,7 @@ class MetricsService:
             )
             no_show_count = no_show_count_result.scalar() or 0
             attendance = (
-                ((total_appts - no_show_count) / total_appts * 100) if total_appts > 0 else 0.0
+                ((total_appts - no_show_count) / total_appts) if total_appts > 0 else 0.0
             )
 
             # Average deal size: closed_won leads
@@ -2679,10 +2676,10 @@ class MetricsService:
                 )
 
             return {
-                "win_rate": round(win_rate, 2),
-                "first_touch_win_rate": round(first_touch_win_rate, 2),
-                "follow_up_win_rate": round(follow_up_win_rate, 2),
-                "attendance": round(attendance, 2),
+                "win_rate": round(win_rate, 4),
+                "first_touch_win_rate": round(first_touch_win_rate, 4),
+                "follow_up_win_rate": round(follow_up_win_rate, 4),
+                "attendance": round(attendance, 4),
                 "average_deal_size": round(average_deal_size, 2),
                 "average_follow_up_per_deal": round(average_follow_up_per_deal, 2),
                 "start_date": start_dt.isoformat(),

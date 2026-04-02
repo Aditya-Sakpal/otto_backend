@@ -218,14 +218,15 @@ class SalesRepDashboardService:
             objections,
             sales_overview,
         ) = await _asyncio.gather(
-            self._get_sales_team_stats(company_id, skip=0, limit=3),
+            self._get_sales_team_stats(company_id, skip=0, limit=3, start_date=start_date, end_date=end_date),
             self._get_objections(company_id, start_date=start_date, end_date=end_date, limit=10),
             self._get_sales_overview(company_id, start_date=start_date, end_date=end_date),
         )
 
         # team_coaching_metrics depends on objections + sales_team_stats
         team_coaching_metrics = await self._get_team_coaching_metrics(
-            company_id, objections, sales_team_stats
+            company_id, objections, sales_team_stats,
+            start_date=start_date, end_date=end_date,
         )
 
         return SalesRepDashboardResponse(
@@ -300,12 +301,25 @@ class SalesRepDashboardService:
         company_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
     ) -> List[SalesTeamStatsEntry]:
         """
         Get sales team stats: rep_name, total_recordings, win_rate,
         process_score, skills_score, otto_usage_hours.
+        All scoped to start_date/end_date.
         """
+        from datetime import timedelta
         from app.domain.enums import UserRole
+
+        if end_date:
+            _end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+        else:
+            _end_dt = datetime.now(timezone.utc)
+        if start_date:
+            _start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        else:
+            _start_dt = _end_dt - timedelta(days=30)
 
         sales_reps = await self.user_repo.get_by_role(
             role=UserRole.SALES_REP,
@@ -320,16 +334,20 @@ class SalesRepDashboardService:
         rep_ids = [r.id for r in sales_reps]
         rep_names = {r.id: f"{(r.first_name or '')} {(r.last_name or '')}".strip() or "Unknown" for r in sales_reps}
 
+        appt_date_filters = [
+            AppointmentORM.company_id == company_id,
+            AppointmentORM.assigned_rep_id.in_(rep_ids),
+            AppointmentORM.scheduled_start >= _start_dt,
+            AppointmentORM.scheduled_start <= _end_dt,
+        ]
+
         # Total recordings count (from appointments assigned to rep)
         total_recordings_result = await self.session.execute(
             select(
                 AppointmentORM.assigned_rep_id,
                 func.count(AppointmentORM.id).label("total_recordings"),
             )
-            .where(
-                AppointmentORM.company_id == company_id,
-                AppointmentORM.assigned_rep_id.in_(rep_ids),
-            )
+            .where(*appt_date_filters)
             .group_by(AppointmentORM.assigned_rep_id)
         )
         recordings_map = {r[0]: r[1] for r in total_recordings_result.all()}
@@ -341,8 +359,7 @@ class SalesRepDashboardService:
                 func.avg(AppointmentORM.sop_compliance_score).label("avg_sop"),
             )
             .where(
-                AppointmentORM.company_id == company_id,
-                AppointmentORM.assigned_rep_id.in_(rep_ids),
+                *appt_date_filters,
                 AppointmentORM.sop_compliance_score.isnot(None),
             )
             .group_by(AppointmentORM.assigned_rep_id)
@@ -363,6 +380,8 @@ class SalesRepDashboardService:
             .where(
                 AskOttoConversationORM.company_id == company_id,
                 AskOttoConversationORM.user_id.in_(rep_ids),
+                AskOttoConversationORM.created_at >= _start_dt,
+                AskOttoConversationORM.created_at <= _end_dt,
             )
             .group_by(AskOttoConversationORM.id, AskOttoConversationORM.user_id)
         ).subquery()
@@ -385,12 +404,14 @@ class SalesRepDashboardService:
             .where(
                 AskOttoConversationORM.company_id == company_id,
                 AskOttoConversationORM.user_id.in_(rep_ids),
+                AskOttoConversationORM.created_at >= _start_dt,
+                AskOttoConversationORM.created_at <= _end_dt,
             )
             .group_by(AskOttoConversationORM.user_id)
         )
         conv_count_map = {r[0]: r[1] for r in conv_count_result.all()}
 
-        # Batch win_rate: won / resolved appointments per rep (avoids N+1 KPI calls)
+        # Batch win_rate: won / resolved appointments per rep
         win_rate_result = await self.session.execute(
             select(
                 AppointmentORM.assigned_rep_id,
@@ -401,10 +422,7 @@ class SalesRepDashboardService:
                     (AppointmentORM.outcome.in_(["won", "lost", "no_show"]), AppointmentORM.id)
                 )).label("resolved"),
             )
-            .where(
-                AppointmentORM.company_id == company_id,
-                AppointmentORM.assigned_rep_id.in_(rep_ids),
-            )
+            .where(*appt_date_filters)
             .group_by(AppointmentORM.assigned_rep_id)
         )
         win_rate_map: Dict = {}
@@ -900,20 +918,21 @@ class SalesRepDashboardService:
             first_touch_win_rate = round((t_row.ft_won / t_row.ft_total * 100), 2) if t_row.ft_total > 0 else 0.0
             follow_up_win_rate = round((t_row.fu_won / t_row.fu_total * 100), 2) if t_row.fu_total > 0 else 0.0
 
-            # --- Follow-up rate: % of analyzed calls requiring follow-up ---
+            # --- Follow-up rate: % of appointments with follow_up_required (via linked call analysis) ---
             follow_up_stats_result = await self.session.execute(
                 select(
-                    func.count(CallAnalysisORM.id).label("total_analyzed"),
+                    func.count(AppointmentORM.id).label("total_analyzed"),
                     func.count(case(
-                        (CallAnalysisORM.follow_up_required == True, CallAnalysisORM.id)
+                        (CallAnalysisORM.follow_up_required == True, AppointmentORM.id)
                     )).label("follow_up_count"),
                 )
-                .select_from(CallORM)
+                .select_from(AppointmentORM)
+                .join(CallORM, AppointmentORM.interaction_id == CallORM.id)
                 .join(CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
                 .where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= _start_dt,
-                    CallORM.created_at <= _end_dt,
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.scheduled_start >= _start_dt,
+                    AppointmentORM.scheduled_start <= _end_dt,
                 )
             )
             fu_stats = follow_up_stats_result.one()
@@ -924,17 +943,18 @@ class SalesRepDashboardService:
             # --- Follow-up growth: compare with previous period ---
             prev_fu_stats_result = await self.session.execute(
                 select(
-                    func.count(CallAnalysisORM.id).label("total_analyzed"),
+                    func.count(AppointmentORM.id).label("total_analyzed"),
                     func.count(case(
-                        (CallAnalysisORM.follow_up_required == True, CallAnalysisORM.id)
+                        (CallAnalysisORM.follow_up_required == True, AppointmentORM.id)
                     )).label("follow_up_count"),
                 )
-                .select_from(CallORM)
+                .select_from(AppointmentORM)
+                .join(CallORM, AppointmentORM.interaction_id == CallORM.id)
                 .join(CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
                 .where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= prev_start,
-                    CallORM.created_at < prev_end,
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.scheduled_start >= prev_start,
+                    AppointmentORM.scheduled_start < prev_end,
                 )
             )
             prev_fu_stats = prev_fu_stats_result.one()
@@ -1092,9 +1112,22 @@ class SalesRepDashboardService:
         company_id: UUID,
         objections: List[ObjectionEntry],
         sales_team_stats: List[SalesTeamStatsEntry],
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
     ) -> Optional[TeamCoachingMetrics]:
         """Build team_coaching_metrics from objections, SOP, Otto usage, attendance."""
         try:
+            from datetime import timedelta
+
+            if end_date:
+                _end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+            else:
+                _end_dt = datetime.now(timezone.utc)
+            if start_date:
+                _start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            else:
+                _start_dt = _end_dt - timedelta(days=30)
+
             # Calculate common_objection_peak from objections count
             common_objection_peak = 0.0
             if objections:
@@ -1107,10 +1140,12 @@ class SalesRepDashboardService:
 
             script_adherence = 0.0
             avg_sop = await self.session.execute(
-                select(func.avg(CallAnalysisORM.sop_compliance_score)).where(
-                    CallAnalysisORM.company_id == company_id,
-                    CallAnalysisORM.sop_compliance_score.isnot(None),
-                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                select(func.avg(AppointmentORM.sop_compliance_score)).where(
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.sop_compliance_score.isnot(None),
+                    AppointmentORM.scheduled_start >= _start_dt,
+                    AppointmentORM.scheduled_start <= _end_dt,
+                )
             )
             sop_val = avg_sop.scalar()
             if sop_val is not None:
@@ -1129,6 +1164,8 @@ class SalesRepDashboardService:
                     )).label("no_show"),
                 ).where(
                     AppointmentORM.company_id == company_id,
+                    AppointmentORM.scheduled_start >= _start_dt,
+                    AppointmentORM.scheduled_start <= _end_dt,
                 )
             )
             att_row = attendance_result.one()
@@ -1162,10 +1199,18 @@ class SalesRepDashboardService:
                 .where(
                     AskOttoConversationORM.company_id == company_id,
                     AskOttoConversationORM.user_id.isnot(None),
+                    AskOttoConversationORM.created_at >= _start_dt,
+                    AskOttoConversationORM.created_at <= _end_dt,
                 )
                 .distinct()
             )
             otto_user_ids = set(r[0] for r in otto_users_result.all())
+
+            appt_date_filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= _start_dt,
+                AppointmentORM.scheduled_start <= _end_dt,
+            ]
 
             win_rate_lift = 0.0
             otto_assisted_sales = OttoAssistedSales(deals_count=0, revenue_saved=0.0)
@@ -1174,7 +1219,7 @@ class SalesRepDashboardService:
                 # Otto-assisted win rate
                 otto_won_result = await self.session.execute(
                     select(func.count(AppointmentORM.id)).where(
-                        AppointmentORM.company_id == company_id,
+                        *appt_date_filters,
                         AppointmentORM.assigned_rep_id.in_(otto_user_ids),
                         AppointmentORM.outcome == "won",
                     )
@@ -1183,7 +1228,7 @@ class SalesRepDashboardService:
 
                 otto_resolved_result = await self.session.execute(
                     select(func.count(AppointmentORM.id)).where(
-                        AppointmentORM.company_id == company_id,
+                        *appt_date_filters,
                         AppointmentORM.assigned_rep_id.in_(otto_user_ids),
                         AppointmentORM.outcome.in_(["won", "lost", "no_show"]),
                     )
@@ -1194,7 +1239,7 @@ class SalesRepDashboardService:
                 # Non-Otto win rate
                 non_otto_won_result = await self.session.execute(
                     select(func.count(AppointmentORM.id)).where(
-                        AppointmentORM.company_id == company_id,
+                        *appt_date_filters,
                         AppointmentORM.assigned_rep_id.notin_(otto_user_ids),
                         AppointmentORM.assigned_rep_id.isnot(None),
                         AppointmentORM.outcome == "won",
@@ -1204,7 +1249,7 @@ class SalesRepDashboardService:
 
                 non_otto_resolved_result = await self.session.execute(
                     select(func.count(AppointmentORM.id)).where(
-                        AppointmentORM.company_id == company_id,
+                        *appt_date_filters,
                         AppointmentORM.assigned_rep_id.notin_(otto_user_ids),
                         AppointmentORM.assigned_rep_id.isnot(None),
                         AppointmentORM.outcome.in_(["won", "lost", "no_show"]),
@@ -1224,6 +1269,10 @@ class SalesRepDashboardService:
                         LeadORM.assigned_rep_id.in_(otto_user_ids),
                         LeadORM.status == "closed_won",
                         LeadORM.deal_size.isnot(None),
+                        or_(
+                            LeadORM.closed_at.between(_start_dt, _end_dt),
+                            LeadORM.updated_at.between(_start_dt, _end_dt),
+                        ),
                     )
                 )
                 otto_revenue = float(otto_revenue_result.scalar() or 0.0)

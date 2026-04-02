@@ -15,7 +15,7 @@ from app.core.dependencies import DbSession
 from app.core.security import create_access_token, create_refresh_token, get_user_id_from_token
 from app.core.auth import get_current_user
 from app.core.logging import get_logger
-from app.domain.users.service import UserService
+from app.domain.users.service import InactiveAccountError, UserService
 from app.domain.users.schemas import (
     SignupRequest,
     UserCreate,
@@ -121,11 +121,17 @@ async def login(
     try:
         user_service = UserService(db)
 
-        # Authenticate user
-        user = await user_service.authenticate(
-            email=login_data.email,
-            password=login_data.password,
-        )
+        # Authenticate user (inactive accounts with valid password get 403)
+        try:
+            user = await user_service.authenticate(
+                email=login_data.email,
+                password=login_data.password,
+            )
+        except InactiveAccountError:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is inactive",
+            )
 
         if not user:
             raise HTTPException(

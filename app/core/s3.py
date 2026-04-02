@@ -218,6 +218,7 @@ class S3Service:
         content_type: Optional[str] = None,
         metadata: Optional[dict] = None,
         bucket_type: Optional[BucketType] = None,
+        headers: Optional[dict] = None,
     ) -> str:
         try:
             if bucket_type is None:
@@ -226,7 +227,7 @@ class S3Service:
 
             # 1. Use follow_redirects=True (Crucial for CTM)
             async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
-                async with client.stream('GET', url) as response:
+                async with client.stream('GET', url, headers=headers) as response:
                     # If CTM returns 404 or 403, this will catch it
                     response.raise_for_status()
 
@@ -250,7 +251,7 @@ class S3Service:
                     )
 
             s3_url = f"https://{bucket_name}.s3.{self.region}.amazonaws.com/{s3_key}"
-            logger.info(f"Successfully moved CTM recording to S3: {s3_key}")
+            logger.info(f"Successfully moved recording to S3: {s3_key}")
             return s3_url
 
         except httpx.HTTPStatusError as e:
@@ -280,7 +281,7 @@ class S3Service:
     def generate_presigned_url(
         self,
         s3_key: str,
-        expiration: int = 3600,
+        expiration: int = 14400,
         content_type: Optional[str] = None,
         bucket_type: Optional[BucketType] = None,
     ) -> str:

@@ -13,7 +13,9 @@ import json
 import traceback
 from typing import Any, Dict, Optional, Set
 from uuid import UUID
+
 from fastapi import APIRouter, Header, Request, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -27,6 +29,8 @@ from app.infrastructure.repositories.company_integration import CompanyIntegrati
 from app.services.call_service import CallService, transform_summary_to_analysis_data
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
+from app.services.servicetitan_service import ServiceTitanService
+from app.services.intent_to_action_service import record_twilio_inbound_sms
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -198,21 +202,28 @@ async def shoonya_job_complete_webhook(
         # In NEW FLOW, call may not exist yet
         call = await service.call_repo.get_by_id(call_id)
 
-        # Get company_id from call if exists, otherwise from payload
+        # Always check appointments table — Shunya uses the same webhook for both
+        from app.infrastructure.repositories.appointment import AppointmentRepository
+        appointment_repo = AppointmentRepository(db)
+        found_appointment = await appointment_repo.get_by_id(call_id)
+
+        # Get company_id from call/appointment if exists, otherwise from payload
         if call:
-            # OLD FLOW: Call record exists
             if not company_id:
                 company_id = str(call.company_id)
             logger.info(f"Found existing call record for {call_id}")
+        elif found_appointment:
+            if not company_id:
+                company_id = str(found_appointment.company_id)
+            logger.info(f"Found appointment record for {call_id}")
         else:
-            # NEW FLOW: Call record doesn't exist yet (direct Shunya submission)
             if not company_id:
                 logger.warning(f"Call {call_id} not found and no company_id in payload")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Call {call_id} not found and company_id not provided",
                 )
-            logger.info(f"No existing call record for {call_id}, will create from Shunya results (NEW FLOW)")
+            logger.info(f"No existing call/appointment record for {call_id}, will create from Shunya results")
 
         # CRITICAL: Always fetch complete call summary from Shunya Summary API
         # The webhook payload only contains URLs (summary_url at top level or in results), not the actual data
@@ -234,6 +245,27 @@ async def shoonya_job_complete_webhook(
                 # Extract transcript from summary if available
                 transcript = complete_summary_data.get("transcript")
 
+                # If no transcript in summary, fetch from call detail endpoint
+                if not transcript:
+                    try:
+                        logger.info(f"Fetching transcript from Shunya Call Detail API for call {call_id}")
+                        call_detail = await shoonya.get_call_detail(
+                            call_id=str(call_id),
+                            company_id=company_id,
+                            include_transcript=True,
+                            include_segments=False,
+                        )
+                        transcript = call_detail.get("transcript")
+                        if transcript:
+                            logger.info(f"Successfully fetched transcript from Call Detail API for call {call_id}")
+                        else:
+                            logger.warning(f"No transcript available from Call Detail API for call {call_id}")
+                    except Exception as detail_err:
+                        logger.warning(
+                            f"Failed to fetch transcript from Call Detail API: {detail_err}",
+                            call_id=str(call_id),
+                        )
+
             except Exception as e:
                 logger.error(
                     f"Failed to fetch complete summary from Shunya Summary API: {e}",
@@ -249,10 +281,17 @@ async def shoonya_job_complete_webhook(
                         complete_summary_data = analysis_data
 
                 if not complete_summary_data:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to fetch summary from Shunya API and no fallback data available: {str(e)}",
+                    # Return 200 so Shunya stops retrying — the call will remain unanalyzed
+                    logger.error(
+                        f"Shunya summary unavailable for call {call_id} and no fallback data in payload. "
+                        f"Call will remain unanalyzed. Shunya error: {e}",
+                        call_id=str(call_id),
                     )
+                    return {
+                        "status": "acknowledged",
+                        "call_id": str(call_id),
+                        "warning": "Summary unavailable from Shunya — call stored without analysis",
+                    }
         else:
             # Shunya not configured - try to use webhook payload data
             logger.warning("Shunya client not available, attempting to use webhook payload data")
@@ -275,6 +314,139 @@ async def shoonya_job_complete_webhook(
 
         # Process analysis with complete data from Summary API
         logger.info(f"Processing analysis for call {call_id} with complete summary data")
+
+        # Check if this is an appointment recording (not a call)
+        # Use our DB lookup first, fall back to Shunya metadata
+        metadata = complete_summary_data.get("metadata", {}) if complete_summary_data else {}
+        is_appointment = found_appointment is not None or metadata.get("is_appointment", False)
+
+        if is_appointment:
+            # APPOINTMENT FLOW: Write analysis directly to appointments table
+            appointment_id_str = metadata.get("appointment_id") or str(call_id)
+            appointment = found_appointment or await appointment_repo.get_by_id(UUID(appointment_id_str))
+
+            if not appointment:
+                logger.error(f"Appointment {appointment_id_str} not found for Shunya analysis")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Appointment {appointment_id_str} not found",
+                )
+
+            # Extract analysis fields from Shunya summary
+            summary_section = complete_summary_data.get("summary", {})
+            qualification = complete_summary_data.get("qualification", {})
+            compliance = complete_summary_data.get("compliance", {})
+            objection_section = complete_summary_data.get("objections", {})
+
+            # Summary fields
+            if isinstance(summary_section, dict):
+                appointment.summary = summary_section.get("summary")
+                appointment.key_points = summary_section.get("key_points", [])
+                appointment.action_items = summary_section.get("action_items", [])
+                appointment.next_steps = summary_section.get("next_steps", [])
+                pending_actions = summary_section.get("pending_actions")
+                appointment.pending_actions_data = pending_actions if isinstance(pending_actions, dict) else None
+                appointment.sentiment_score = summary_section.get("sentiment_score")
+
+            # Objections
+            if isinstance(objection_section, dict):
+                raw_objections = objection_section.get("objections", [])
+                appointment.objection_texts = [
+                    o.get("text", "") if isinstance(o, dict) else str(o)
+                    for o in raw_objections
+                ]
+                appointment.objections = [
+                    o.get("category_text", "") if isinstance(o, dict) else str(o)
+                    for o in raw_objections
+                ]
+                appointment.objections_total_count = objection_section.get("total_count", len(raw_objections))
+            elif isinstance(objection_section, list):
+                appointment.objections = [
+                    o.get("category_text", "") if isinstance(o, dict) else str(o)
+                    for o in objection_section
+                ]
+                appointment.objections_total_count = len(objection_section)
+
+            # SOP Compliance
+            if isinstance(compliance, dict):
+                appointment.sop_stages_completed = compliance.get("stages_completed", [])
+                appointment.sop_stages_missed = compliance.get("stages_missed", [])
+                appointment.sop_stages_total = compliance.get("stages_total")
+                appointment.sop_compliance_score = compliance.get("compliance_score")
+                appointment.sop_compliance_rate = compliance.get("compliance_rate")
+                appointment.sop_compliance_confidence = compliance.get("confidence")
+                appointment.sop_compliance_issues = compliance.get("issues", [])
+                appointment.sop_compliance_positive_behaviors = compliance.get("positive_behaviors", [])
+                appointment.compliance_target_role = compliance.get("target_role")
+
+            # Qualification / status
+            follow_up_required = False
+            follow_up_reason = None
+            if isinstance(qualification, dict):
+                appointment.qualification_status = qualification.get("qualification_status")
+                appointment.booking_status = qualification.get("booking_status")
+                follow_up_required = qualification.get("follow_up_required", False)
+                follow_up_reason = qualification.get("follow_up_reason")
+
+            # Transcript and recording metadata
+            if transcript:
+                appointment.transcript = transcript
+            appointment.analysis_status = "completed"
+
+            appointment.mark_updated()
+            await appointment_repo.update(appointment.id, appointment)
+
+            # Create follow-up pending action if Shunya flagged follow_up_required
+            if follow_up_required:
+                try:
+                    from app.infrastructure.database.models.pending_action import PendingActionORM
+                    from app.domain.enums import PendingActionStatus
+
+                    pending_action = PendingActionORM(
+                        company_id=appointment.company_id,
+                        lead_id=appointment.lead_id,
+                        call_id=appointment.interaction_id,
+                        action_type="follow_up",
+                        raw_text=follow_up_reason or "Follow up required based on appointment analysis",
+                        status=PendingActionStatus.PENDING.value,
+                        owner_id=appointment.assigned_rep_id,
+                        source="ai_analysis",
+                        extra_metadata={
+                            "appointment_id": str(appointment.id),
+                            "follow_up_reason": follow_up_reason,
+                        },
+                    )
+                    db.add(pending_action)
+                    logger.info(
+                        "Created follow-up pending action from appointment analysis",
+                        appointment_id=str(appointment.id),
+                        owner_id=str(appointment.assigned_rep_id) if appointment.assigned_rep_id else None,
+                    )
+                except Exception as pa_err:
+                    logger.warning(f"Failed to create follow-up pending action: {pa_err}")
+
+            await db.commit()
+
+            logger.info(
+                "Shunya webhook processed for appointment",
+                appointment_id=appointment_id_str,
+                job_id=payload.get("job_id") or payload.get("shunya_job_id"),
+                follow_up_required=follow_up_required,
+            )
+            return {
+                "status": "success",
+                "appointment_id": appointment_id_str,
+                "follow_up_created": follow_up_required,
+            }
+
+        # CALL FLOW: Existing call analysis path
+        # Ensure company_id is available in metadata for NEW FLOW (call record creation)
+        # Shunya summary has company_id at root level, but process_analysis looks under metadata
+        if company_id and complete_summary_data:
+            if "metadata" not in complete_summary_data:
+                complete_summary_data["metadata"] = {}
+            if isinstance(complete_summary_data.get("metadata"), dict):
+                complete_summary_data["metadata"]["company_id"] = str(company_id)
 
         analysis = await service.process_analysis(
             call_id=call_id,
@@ -336,7 +508,7 @@ async def ghl_message(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     event = GHLService.extract_event_payload(body)
-    
+
     logger.info("GHL message webhook received", payload=body, extracted_event=event)
 
     # Normalize outbound webhook format to standard GHL format
@@ -363,7 +535,9 @@ async def ghl_message(
     is_call_event = (
         message_type == "CALL" or
         webhook_type in ("INBOUNDMESSAGE", "OUTBOUNDMESSAGE") or
-        (has_call_fields and event.get("status", "").lower() in ("completed", "answered"))
+        (has_call_fields and event.get("status", "").lower() in (
+            "completed", "answered", "no-answer", "no answer", "busy", "voicemail", "failed", "missed"
+        ))
     )
 
     if is_call_event:
@@ -646,12 +820,39 @@ async def ctm_call_webhook(
             )
 
         company_id = await integration_repo.get_company_id_by_voip_company_id(voip_company_id)
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No company integration found for CTM account_id {voip_company_id}",
+            )
+
+        if not isinstance(company_id, UUID):
+            company_id = UUID(str(company_id))
+
+        # Decrypt CTM credentials for authenticated audio download
+        ctm_access_key = None
+        ctm_secret_key = None
+        try:
+            voip_api_encrypted_key = await integration_repo.get_voip_api_encrypted_key_by_voip_company_id(
+                voip_company_id
+            )
+            voip_access_key_encrypted = await integration_repo.get_voip_access_key_encrypted_by_voip_company_id(
+                voip_company_id
+            )
+            if voip_api_encrypted_key:
+                ctm_secret_key = decrypt_api_key(voip_api_encrypted_key)
+            if voip_access_key_encrypted:
+                ctm_access_key = decrypt_api_key(voip_access_key_encrypted)
+        except Exception as e:
+            logger.warning(f"Could not decrypt CTM credentials for audio download: {e}")
 
         # Process CTM webhook
         service = CTMService(db)
         call = await service.process_webhook(
             payload=payload,
             company_id=company_id,
+            ctm_access_key=ctm_access_key,
+            ctm_secret_key=ctm_secret_key,
         )
 
         return {
@@ -675,3 +876,168 @@ async def ctm_call_webhook(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
+
+
+def _verify_worker_secret(x_worker_secret: str | None) -> None:
+    """Validate the shared secret sent by the ST poller worker."""
+    expected = settings.ST_WORKER_SECRET
+    if expected and x_worker_secret != expected:
+        raise HTTPException(status_code=401, detail="Invalid worker secret")
+
+
+@router.post("/servicetitan/calls")
+async def servicetitan_calls_webhook(
+    request: Request,
+    db: DbSession,
+    x_worker_secret: Optional[str] = Header(default=None),
+):
+    """
+    Receive batched ServiceTitan call records from the ST poller worker.
+
+    Payload: { "tenant_id": "...", "calls": [...], "poll_timestamp": "..." }
+    """
+    _verify_worker_secret(x_worker_secret)
+
+    try:
+        payload = await request.json()
+        logger.info("ST calls payload received", payload=payload)
+        logger.info("ST calls webhook received", tenant_id=payload.get("tenant_id"))
+
+        tenant_id = payload.get("tenant_id")
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="tenant_id required")
+
+        integration_repo = CompanyIntegrationRepository(db)
+        company_id = await integration_repo.get_company_id_by_st_tenant_id(str(tenant_id))
+        if not company_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No company found for ST tenant_id {tenant_id}",
+            )
+
+        if not isinstance(company_id, UUID):
+            company_id = UUID(str(company_id))
+
+        service = ServiceTitanService(db)
+        result = await service.process_calls_webhook(payload, company_id)
+        await db.commit()
+
+        return {"status": "success", **result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing ST calls webhook: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/servicetitan/crm")
+async def servicetitan_crm_webhook(
+    request: Request,
+    db: DbSession,
+    x_worker_secret: Optional[str] = Header(default=None),
+):
+    """
+    Receive batched ServiceTitan CRM records from the ST poller worker.
+
+    Payload: {
+        "tenant_id": "...",
+        "customers": [...],
+        "customer_contacts": [...],
+        "leads": [...],
+        "bookings": [...]
+    }
+    """
+    _verify_worker_secret(x_worker_secret)
+
+    try:
+        payload = await request.json()
+        logger.info("ST CRM payload received", payload=payload)
+        logger.info("ST CRM webhook received", tenant_id=payload.get("tenant_id"))
+
+        tenant_id = payload.get("tenant_id")
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="tenant_id required")
+
+        integration_repo = CompanyIntegrationRepository(db)
+        company_id = await integration_repo.get_company_id_by_st_tenant_id(str(tenant_id))
+        if not company_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No company found for ST tenant_id {tenant_id}",
+            )
+
+        if not isinstance(company_id, UUID):
+            company_id = UUID(str(company_id))
+
+        service = ServiceTitanService(db)
+        result = await service.process_crm_webhook(payload, company_id)
+        await db.commit()
+
+        return {"status": "success", **result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing ST CRM webhook: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/twilio/messaging/inbound")
+async def twilio_inbound_sms_webhook(request: Request, db: DbSession):
+    """
+    Twilio Status Callback / inbound SMS webhook (application/x-www-form-urlencoded).
+
+    Configure Twilio to POST here when an SMS is received on a proxy number.
+    Resolves `proxy_sessions` + `proxy_numbers`, inserts `masked_communications`,
+    and stores intent_label + confidence_score (Intent-to-Action).
+
+    Validates `X-Twilio-Signature` when TWILIO_AUTH_TOKEN is set.
+    """
+    form = await request.form()
+    params = {k: v for k, v in form.multi_items()}
+
+    if settings.TWILIO_AUTH_TOKEN:
+        try:
+            from twilio.request_validator import RequestValidator
+
+            validator = RequestValidator(settings.TWILIO_AUTH_TOKEN)
+            signature = request.headers.get("X-Twilio-Signature") or ""
+            url = str(request.url)
+            if not validator.validate(url, params, signature):
+                raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Twilio signature validation error", error=str(e))
+            raise HTTPException(status_code=500, detail="Webhook validation failed")
+
+    from_number = (params.get("From") or "").strip()
+    to_number = (params.get("To") or "").strip()
+    body = params.get("Body") or ""
+    message_sid = (params.get("MessageSid") or "").strip() or None
+
+    if not from_number or not to_number:
+        raise HTTPException(status_code=400, detail="From and To are required")
+
+    try:
+        new_id = await record_twilio_inbound_sms(
+            db,
+            from_number=from_number,
+            to_number=to_number,
+            body=body,
+            message_sid=message_sid,
+        )
+        await db.commit()
+    except Exception as e:
+        logger.error("twilio inbound SMS webhook failed", error=str(e), exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Twilio expects 2xx and optional empty TwiML
+    logger.info(
+        "twilio inbound SMS processed",
+        new_id=str(new_id) if new_id else None,
+        message_sid=message_sid,
+    )
+    return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="application/xml")

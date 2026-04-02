@@ -14,7 +14,17 @@ class InvitationCreate(BaseModel):
     """Schema for creating a new invitation."""
     email: EmailStr = Field(..., description="Email address to send invitation to")
     company_id: UUID = Field(..., description="Company ID to invite user to")
-    role: UserRole = Field(default=UserRole.CSR, description="Role for the invited user")
+    role: UserRole = Field(default=UserRole.CSR, description="Role for the invited user. Allowed: csr, sales_rep, executive")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "email": "newuser@example.com",
+                "company_id": "6d40b509-82bc-4d21-9614-de91cc25dc1b",
+                "role": "csr",
+            }
+        }
+    }
 
 
 class InvitationResponse(BaseModel):

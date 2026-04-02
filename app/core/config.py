@@ -11,8 +11,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True)
 
+print("ENV DATABASE_URL =", os.getenv("DATABASE_URL"))
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -33,7 +34,7 @@ class Settings(BaseSettings):
 
     # Database (optional for development - can use SQLite)
     DATABASE_URL: str = Field(
-        default=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./otto.db"),
+        default=os.getenv("DATABASE_URL"),
         description="Database connection string (PostgreSQL with asyncpg or SQLite with aiosqlite)"
     )
 
@@ -53,6 +54,16 @@ class Settings(BaseSettings):
 
     # OpenAI (fallback LLM)
     OPENAI_API_KEY: str = Field(default=os.getenv("OPENAI_API_KEY", ""), description="OpenAI API key")
+    INTENT_CLASSIFICATION_MODEL: str = Field(
+        default=os.getenv("INTENT_CLASSIFICATION_MODEL", "gpt-4o-mini"),
+        description="OpenAI model for inbound SMS intent classification",
+    )
+
+    # Twilio (webhook signature validation for inbound SMS)
+    TWILIO_AUTH_TOKEN: str = Field(
+        default=os.getenv("TWILIO_AUTH_TOKEN", ""),
+        description="Twilio auth token; used to validate inbound SMS webhooks when set",
+    )
 
     # Vector DB Configuration
     VECTOR_DB_PROVIDER: str = Field(
@@ -128,6 +139,26 @@ class Settings(BaseSettings):
 
     # GoHighLevel Configuration
     GHL_PUBLIC_KEY: str = Field(default=os.getenv("GHL_PUBLIC_KEY", ""), description="GoHighLevel public key")
+
+    # ServiceTitan
+    ST_APP_KEY: str = Field(
+        default=os.getenv("ST_APP_KEY", ""),
+        description="ServiceTitan platform app key (shared across all tenants)",
+    )
+    ST_ENV: str = Field(
+        default=os.getenv("ST_ENV", "production"),
+        description="ServiceTitan environment: production or integration (shared across all tenants)",
+    )
+    ST_WORKER_SECRET: str = Field(
+        default=os.getenv("ST_WORKER_SECRET", ""),
+        description="Shared secret for ST worker → webhook auth",
+    )
+
+    # Twilio (Masked Communications)
+    TWILIO_ACCOUNT_SID: str = Field(default=os.getenv("TWILIO_ACCOUNT_SID", ""), description="Twilio Account SID")
+    TWILIO_AUTH_TOKEN: str = Field(default=os.getenv("TWILIO_AUTH_TOKEN", ""), description="Twilio Auth Token")
+    TWILIO_SYSTEM_NUMBER: str = Field(default=os.getenv("TWILIO_SYSTEM_NUMBER", ""), description="Twilio system number for OTP")
+
     # Feature Flags
     ENABLE_CELERY: bool = Field(default=os.getenv("ENABLE_CELERY", "False").lower() == "true", description="Enable Celery for background jobs")
     ENABLE_VECTOR_DB: bool = Field(default=os.getenv("ENABLE_VECTOR_DB", "True").lower() == "true", description="Enable vector DB for RAG")

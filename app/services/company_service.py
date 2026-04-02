@@ -64,8 +64,12 @@ class CompanyService:
         crm_company_id: str | None = None,
         voip_provider: str | None = None,
         voip_api_key: str | None = None,
+        voip_access_key: str | None = None,
         voip_company_id: str | None = None,
         extra_metadata: dict | None = None,
+        st_tenant_id: str | None = None,
+        st_client_id: str | None = None,
+        st_client_secret: str | None = None,
     ) -> CompanyIntegrationORM | None:
         """
         Create a company integration record with encrypted API keys.
@@ -88,8 +92,9 @@ class CompanyService:
         # Check if any integration data is provided
         has_crm = bool(crm_provider and crm_api_key)
         has_voip = bool(voip_provider and voip_api_key)
+        has_st = bool(st_tenant_id and st_client_id and st_client_secret)
 
-        if not has_crm and not has_voip:
+        if not has_crm and not has_voip and not has_st:
             logger.info(f"No integration data provided for company {company_id}, skipping integration creation")
             return None
 
@@ -101,8 +106,12 @@ class CompanyService:
             crm_company_id=crm_company_id,
             voip_provider=voip_provider,
             voip_api_key=voip_api_key,
+            voip_access_key=voip_access_key,
             voip_company_id=voip_company_id,
-            extra_metadata=extra_metadata
+            extra_metadata=extra_metadata,
+            st_tenant_id=st_tenant_id,
+            st_client_id=st_client_id,
+            st_client_secret=st_client_secret,
         )
 
     async def get_company_by_id(self, company_id: UUID) -> CompanyORM | None:
@@ -140,6 +149,7 @@ class CompanyService:
         csr_sop_doc_url: str | None = None,
         sales_sop_doc_url: str | None = None,
         extra_metadata: dict | None = None,
+        follow_up_manual_review_enabled: bool | None = None,
     ) -> CompanyORM | None:
         """
         Update a company.
@@ -154,6 +164,7 @@ class CompanyService:
             csr_sop_doc_url: URL to CSR SOP document (optional)
             sales_sop_doc_url: URL to Sales SOP document (optional)
             extra_metadata: Additional metadata (optional)
+            follow_up_manual_review_enabled: Contextual follow-up draft-before-send toggle (optional)
 
         Returns:
             Updated CompanyORM instance or None if not found
@@ -167,7 +178,8 @@ class CompanyService:
             sop_doc_url=sop_doc_url,
             csr_sop_doc_url=csr_sop_doc_url,
             sales_sop_doc_url=sales_sop_doc_url,
-            extra_metadata=extra_metadata
+            extra_metadata=extra_metadata,
+            follow_up_manual_review_enabled=follow_up_manual_review_enabled,
         )
 
     async def update_company_integration(

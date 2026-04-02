@@ -41,6 +41,32 @@ class DealStatus(str, Enum):
     LOST = "lost"
 
 
+class PipelineStage(str, Enum):
+    """Pipeline stage - tracks where the lead is in the sales pipeline."""
+    QUALIFIED = "qualified"
+    UNQUALIFIED = "unqualified"
+    SERVICE_NOT_OFFERED = "service_not_offered"
+    BOOKED = "booked"
+    APPOINTMENT = "appointment"
+    APPOINTMENT_RAN = "appointment_ran"
+    WON = "won"
+    LOST = "lost"
+    REVIEW = "review"
+
+
+PIPELINE_STAGE_ORDER: dict[str, int] = {
+    PipelineStage.UNQUALIFIED.value: 0,
+    PipelineStage.SERVICE_NOT_OFFERED.value: 0,
+    PipelineStage.REVIEW.value: 0,
+    PipelineStage.QUALIFIED.value: 1,
+    PipelineStage.BOOKED.value: 2,
+    PipelineStage.APPOINTMENT.value: 3,
+    PipelineStage.APPOINTMENT_RAN.value: 4,
+    PipelineStage.WON.value: 5,
+    PipelineStage.LOST.value: 5,
+}
+
+
 class AppointmentOutcome(str, Enum):
     """Appointment outcome."""
     PENDING = "pending"
@@ -50,8 +76,8 @@ class AppointmentOutcome(str, Enum):
     RESCHEDULED = "rescheduled"
 
 
-class ObjectionType(str, Enum):
-    """Type of objection raised."""
+class CSRObjectionType(str, Enum):
+    """CSR objection categories (IDs 1-15)."""
     IMMEDIATE_SERVICE_UNAVAILABILITY = "immediate_service_unavailability"
     PHONE_CONNECTION_ISSUES = "phone_connection_issues"
     CUSTOMER_NEEDS_TIME_TO_DECIDE = "customer_needs_time_to_decide"
@@ -60,8 +86,17 @@ class ObjectionType(str, Enum):
     IN_PERSON_ESTIMATES_ONLY = "in_person_estimates_only"
     INEFFICIENT_AGENT_COMMUNICATION = "inefficient_agent_communication"
     CUSTOMER_DATA_PRIVACY_CONCERNS = "customer_data_privacy_concerns"
-    SERVICE_NOT_CATERED = "service_not_catered"
+    INSURANCE_RELATED = "insurance_related"
+    TRUST_CREDIBILITY_CONCERNS = "trust_credibility_concerns"
+    NOT_THE_DECISION_MAKER = "not_the_decision_maker"
+    WORKMANSHIP_QUALITY_COMPLAINTS = "workmanship_quality_complaints"
     OTHER = "other"
+    SERVICE_NOT_CATERED = "service_not_catered"
+    COMPETITOR_RELATED_CONCERNS = "competitor_related_concerns"
+
+
+# Backward-compatibility alias
+ObjectionType = CSRObjectionType
 
 
 class SOPStage(str, Enum):
@@ -156,3 +191,36 @@ class LeaderboardPeriod(str, Enum):
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"
     YEARLY = "yearly"
+
+
+class CallScope(str, Enum):
+    """Whether a call is in-scope or out-of-scope based on Shunya classification."""
+    IN = "in"
+    OUT = "out"
+
+
+class ProxySessionStatus(str, Enum):
+    """Proxy session status for masked communications."""
+    ACTIVE = "active"
+    CLOSED = "closed"
+
+
+class ProxySessionClosedReason(str, Enum):
+    """Reason a proxy session was closed."""
+    DEAL_WON = "deal_won"
+    DEAL_LOST = "deal_lost"
+    MANUAL = "manual"
+    EXPIRED = "expired"
+
+
+class MaskedCommType(str, Enum):
+    """Type of masked communication."""
+    SMS = "sms"
+    CALL = "call"
+    RECORDING = "recording"
+
+
+class MaskedCommDirection(str, Enum):
+    """Direction of masked communication."""
+    HOMEOWNER_TO_REP = "homeowner_to_rep"
+    REP_TO_HOMEOWNER = "rep_to_homeowner"

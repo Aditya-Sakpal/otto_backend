@@ -37,11 +37,23 @@ logger = get_logger(__name__)
 
 class CreateActionItemRequest(BaseModel):
     """Request to create an action item from a call (executive assigning to CSR)."""
-    owner_id: UUID = Field(..., description="User to assign the action to (CSR)")
-    action_type: str = Field(..., description="Type of action (e.g. follow_up_call, send_quote)")
-    raw_text: Optional[str] = Field(None, description="Optional description")
-    due_at: Optional[datetime] = Field(None, description="When the action is due")
-    priority: Optional[int] = Field(None, description="Priority (higher = more urgent)")
+    owner_id: UUID = Field(..., description="User UUID to assign the action to (CSR or Sales Rep)")
+    action_type: str = Field(..., description="Type of action (e.g. follow_up_call, send_quote, schedule_appointment)")
+    raw_text: Optional[str] = Field(None, description="Optional description/notes for the action item")
+    due_at: Optional[datetime] = Field(None, description="When the action is due (ISO 8601)")
+    priority: Optional[int] = Field(None, description="Priority level (higher = more urgent, e.g. 1=low, 5=critical)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+                "action_type": "follow_up_call",
+                "raw_text": "Follow up with customer about the pricing concern",
+                "due_at": "2026-03-22T14:00:00Z",
+                "priority": 3,
+            }
+        }
+    }
 
 
 @router.get("", response_model=List[Call], responses=RESPONSES)
@@ -93,6 +105,8 @@ async def get_call_logs(
     booking_filter: Optional[str] = Query(None, description="Filter by booking status (booked/unbooked/all)"),
     existing_customer: Optional[bool] = Query(None, description="Filter by existing customer (true=only existing, false=only non-existing, omit=all)"),
     quick_filter: Optional[str] = Query(None, description="Quick filter (hot_lead, qualified_unbooked, qualified_booked, abandoned, residential, commercial, etc.)"),
+    scope_filter: Optional[str] = Query(None, description="Filter by scope (in_scope/out_scope/all). Defaults to in_scope if not provided."),
+    objection_filter: Optional[str] = Query(None, description="Filter by CSR objection (e.g. 'service_fee_concerns', 'scheduling_conflicts'). Matches any call where the objections array contains this value."),
     skip: int = Query(0, ge=0, description="Number of records to skip (for pagination)"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
 ):
@@ -171,6 +185,8 @@ async def get_call_logs(
             booking_filter=booking_filter,
             existing_customer=existing_customer,
             quick_filter=quick_filter,
+            scope_filter=scope_filter,
+            objection_filter=objection_filter,
             skip=skip,
             limit=limit,
             current_user=user,
@@ -269,7 +285,7 @@ async def get_call(
 async def get_calls_by_objection_self(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),
-    user: User = Depends(require_any_role([UserRole.CSR, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
+    user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     objection: str = Query(..., description="Objection type (e.g., authority, price, timing)"),
     company_id: Optional[UUID] = Query(None, description="Company UUID"),
 ):
@@ -279,13 +295,16 @@ async def get_calls_by_objection_self(
     Returns data for three tabs:
     1. Calls: List of calls with that objection (with contact name and recording URL)
     2. Unbooked leads: Leads that are unbooked and have that objection
-    3. Most coaching need: CSRs with unbooked calls for that objection
+    3. Most coaching need: CSRs/Sales Reps with unbooked calls for that objection
 
     Query Parameters:
     - objection: Objection type (required) - e.g., 'authority', 'price', 'timing', 'competitor', 'need'
     - company_id: Company UUID (optional, defaults to user's company)
 
-    Access: CSR, EXECUTIVE
+    Access: CSR, SALES_REP, EXECUTIVE
+    
+    Note: For CSR and SALES_REP roles, results are filtered to the current user's calls only.
+    For EXECUTIVE role, results show company-wide data.
     """
     try:
         # Use company_id from query or fall back to current user's company
@@ -299,10 +318,22 @@ async def get_calls_by_objection_self(
             )
 
         service = AnalyticsService(db)
+        # Filter by user if CSR or SALES_REP, otherwise show company-wide data
+        user_id = None
+        user_role = None
+        if user.role in [UserRole.CSR, UserRole.SALES_REP]:
+            user_id = user.id
+            # Safely get role value - handle both enum and string cases
+            if hasattr(user.role, 'value'):
+                user_role = user.role.value
+            else:
+                user_role = str(user.role)
+        
         result = await service.get_calls_by_objection_self(
             company_id=company_id,
             objection=objection,
-            user_id=user.id if user.role == UserRole.CSR else None,  # Filter by user if CSR
+            user_id=user_id,
+            user_role=user_role,
         )
 
         return result

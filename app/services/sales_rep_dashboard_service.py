@@ -900,20 +900,21 @@ class SalesRepDashboardService:
             first_touch_win_rate = round((t_row.ft_won / t_row.ft_total * 100), 2) if t_row.ft_total > 0 else 0.0
             follow_up_win_rate = round((t_row.fu_won / t_row.fu_total * 100), 2) if t_row.fu_total > 0 else 0.0
 
-            # --- Follow-up rate: % of analyzed calls requiring follow-up ---
+            # --- Follow-up rate: % of appointments with follow_up_required (via linked call analysis) ---
             follow_up_stats_result = await self.session.execute(
                 select(
-                    func.count(CallAnalysisORM.id).label("total_analyzed"),
+                    func.count(AppointmentORM.id).label("total_analyzed"),
                     func.count(case(
-                        (CallAnalysisORM.follow_up_required == True, CallAnalysisORM.id)
+                        (CallAnalysisORM.follow_up_required == True, AppointmentORM.id)
                     )).label("follow_up_count"),
                 )
-                .select_from(CallORM)
+                .select_from(AppointmentORM)
+                .join(CallORM, AppointmentORM.interaction_id == CallORM.id)
                 .join(CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
                 .where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= _start_dt,
-                    CallORM.created_at <= _end_dt,
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.scheduled_start >= _start_dt,
+                    AppointmentORM.scheduled_start <= _end_dt,
                 )
             )
             fu_stats = follow_up_stats_result.one()
@@ -924,17 +925,18 @@ class SalesRepDashboardService:
             # --- Follow-up growth: compare with previous period ---
             prev_fu_stats_result = await self.session.execute(
                 select(
-                    func.count(CallAnalysisORM.id).label("total_analyzed"),
+                    func.count(AppointmentORM.id).label("total_analyzed"),
                     func.count(case(
-                        (CallAnalysisORM.follow_up_required == True, CallAnalysisORM.id)
+                        (CallAnalysisORM.follow_up_required == True, AppointmentORM.id)
                     )).label("follow_up_count"),
                 )
-                .select_from(CallORM)
+                .select_from(AppointmentORM)
+                .join(CallORM, AppointmentORM.interaction_id == CallORM.id)
                 .join(CallAnalysisORM, CallORM.id == CallAnalysisORM.call_id)
                 .where(
-                    CallORM.company_id == company_id,
-                    CallORM.created_at >= prev_start,
-                    CallORM.created_at < prev_end,
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.scheduled_start >= prev_start,
+                    AppointmentORM.scheduled_start < prev_end,
                 )
             )
             prev_fu_stats = prev_fu_stats_result.one()
@@ -1107,10 +1109,10 @@ class SalesRepDashboardService:
 
             script_adherence = 0.0
             avg_sop = await self.session.execute(
-                select(func.avg(CallAnalysisORM.sop_compliance_score)).where(
-                    CallAnalysisORM.company_id == company_id,
-                    CallAnalysisORM.sop_compliance_score.isnot(None),
-                ).join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                select(func.avg(AppointmentORM.sop_compliance_score)).where(
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.sop_compliance_score.isnot(None),
+                )
             )
             sop_val = avg_sop.scalar()
             if sop_val is not None:

@@ -380,9 +380,13 @@ async def shoonya_job_complete_webhook(
                 appointment.compliance_target_role = compliance.get("target_role")
 
             # Qualification / status
+            follow_up_required = False
+            follow_up_reason = None
             if isinstance(qualification, dict):
                 appointment.qualification_status = qualification.get("qualification_status")
                 appointment.booking_status = qualification.get("booking_status")
+                follow_up_required = qualification.get("follow_up_required", False)
+                follow_up_reason = qualification.get("follow_up_reason")
 
             # Transcript and recording metadata
             if transcript:
@@ -391,16 +395,48 @@ async def shoonya_job_complete_webhook(
 
             appointment.mark_updated()
             await appointment_repo.update(appointment.id, appointment)
+
+            # Create follow-up pending action if Shunya flagged follow_up_required
+            if follow_up_required:
+                try:
+                    from app.infrastructure.database.models.pending_action import PendingActionORM
+                    from app.domain.enums import PendingActionStatus
+
+                    pending_action = PendingActionORM(
+                        company_id=appointment.company_id,
+                        lead_id=appointment.lead_id,
+                        call_id=appointment.interaction_id,
+                        action_type="follow_up",
+                        raw_text=follow_up_reason or "Follow up required based on appointment analysis",
+                        status=PendingActionStatus.PENDING.value,
+                        owner_id=appointment.assigned_rep_id,
+                        source="ai_analysis",
+                        extra_metadata={
+                            "appointment_id": str(appointment.id),
+                            "follow_up_reason": follow_up_reason,
+                        },
+                    )
+                    db.add(pending_action)
+                    logger.info(
+                        "Created follow-up pending action from appointment analysis",
+                        appointment_id=str(appointment.id),
+                        owner_id=str(appointment.assigned_rep_id) if appointment.assigned_rep_id else None,
+                    )
+                except Exception as pa_err:
+                    logger.warning(f"Failed to create follow-up pending action: {pa_err}")
+
             await db.commit()
 
             logger.info(
                 "Shunya webhook processed for appointment",
                 appointment_id=appointment_id_str,
                 job_id=payload.get("job_id") or payload.get("shunya_job_id"),
+                follow_up_required=follow_up_required,
             )
             return {
                 "status": "success",
                 "appointment_id": appointment_id_str,
+                "follow_up_created": follow_up_required,
             }
 
         # CALL FLOW: Existing call analysis path

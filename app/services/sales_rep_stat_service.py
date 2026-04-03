@@ -67,13 +67,14 @@ class SalesRepStatService:
         else:
             _start_dt = _end_dt - timedelta(days=30)
 
-        # Total recordings from appointments (not calls)
+        # Total recordings from appointments that have an actual recording
         total_recordings_result = await self.session.execute(
             select(func.count(AppointmentORM.id)).where(
                 AppointmentORM.company_id == company_id,
                 AppointmentORM.assigned_rep_id == sales_rep_id,
                 AppointmentORM.scheduled_start >= _start_dt,
                 AppointmentORM.scheduled_start <= _end_dt,
+                AppointmentORM.audio_url.isnot(None),
             )
         )
         total_recordings = total_recordings_result.scalar() or 0

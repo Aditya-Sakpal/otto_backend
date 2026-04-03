@@ -341,13 +341,13 @@ class SalesRepDashboardService:
             AppointmentORM.scheduled_start <= _end_dt,
         ]
 
-        # Total recordings count (from appointments assigned to rep)
+        # Total recordings count (only appointments with an actual recording)
         total_recordings_result = await self.session.execute(
             select(
                 AppointmentORM.assigned_rep_id,
                 func.count(AppointmentORM.id).label("total_recordings"),
             )
-            .where(*appt_date_filters)
+            .where(*appt_date_filters, AppointmentORM.audio_url.isnot(None))
             .group_by(AppointmentORM.assigned_rep_id)
         )
         recordings_map = {r[0]: r[1] for r in total_recordings_result.all()}

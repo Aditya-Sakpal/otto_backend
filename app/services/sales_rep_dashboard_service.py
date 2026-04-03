@@ -841,6 +841,8 @@ class SalesRepDashboardService:
             team_win_rate = round((appt_row.won / appt_row.total * 100), 2) if appt_row.total > 0 else 0.0
 
             # --- Revenue & avg deal size ---
+            # Use closed_at if available, fall back to updated_at, then created_at
+            deal_closed_dt = func.coalesce(LeadORM.closed_at, LeadORM.updated_at)
             revenue_result = await self.session.execute(
                 select(
                     func.coalesce(func.sum(LeadORM.deal_size), 0.0).label("total_revenue"),
@@ -854,10 +856,7 @@ class SalesRepDashboardService:
                         LeadORM.status == "closed_won",
                         func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
                     ),
-                    or_(
-                        LeadORM.closed_at.between(_start_dt, _end_dt),
-                        LeadORM.updated_at.between(_start_dt, _end_dt),
-                    ),
+                    deal_closed_dt.between(_start_dt, _end_dt),
                 )
             )
             rev_row = revenue_result.one()
@@ -1012,6 +1011,7 @@ class SalesRepDashboardService:
                     close_rate_series.append(CloseRatePoint(date=day_str, value=rate))
 
                 # Sales increase: revenue comparison current vs previous period
+                rev_closed_dt = func.coalesce(LeadORM.closed_at, LeadORM.updated_at)
                 current_rev_result = await self.session.execute(
                     select(func.coalesce(func.sum(LeadORM.deal_size), 0.0)).where(
                         LeadORM.company_id == company_id,
@@ -1021,10 +1021,7 @@ class SalesRepDashboardService:
                             LeadORM.status == "closed_won",
                             func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
                         ),
-                        or_(
-                            LeadORM.closed_at.between(_start_dt, _end_dt),
-                            LeadORM.updated_at.between(_start_dt, _end_dt),
-                        ),
+                        rev_closed_dt.between(_start_dt, _end_dt),
                     )
                 )
                 current_period_revenue = float(current_rev_result.scalar() or 0.0)
@@ -1038,10 +1035,7 @@ class SalesRepDashboardService:
                             LeadORM.status == "closed_won",
                             func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
                         ),
-                        or_(
-                            LeadORM.closed_at.between(prev_start, prev_end),
-                            LeadORM.updated_at.between(prev_start, prev_end),
-                        ),
+                        rev_closed_dt.between(prev_start, prev_end),
                     )
                 )
                 prev_period_revenue = float(prev_rev_result.scalar() or 0.0)
@@ -1054,9 +1048,10 @@ class SalesRepDashboardService:
                         2,
                     )
 
+                    weekly_closed_dt = func.coalesce(LeadORM.closed_at, LeadORM.updated_at)
                     weekly_data_result = await self.session.execute(
                         select(
-                            func.date_trunc('week', LeadORM.closed_at).label("week"),
+                            func.date_trunc('week', weekly_closed_dt).label("week"),
                             func.coalesce(func.sum(LeadORM.deal_size), 0.0).label("revenue"),
                         )
                         .where(
@@ -1067,11 +1062,11 @@ class SalesRepDashboardService:
                                 LeadORM.status == "closed_won",
                                 func.lower(func.coalesce(LeadORM.deal_status, "")) == "won",
                             ),
-                            LeadORM.closed_at >= _start_dt,
-                            LeadORM.closed_at <= _end_dt,
+                            weekly_closed_dt >= _start_dt,
+                            weekly_closed_dt <= _end_dt,
                         )
-                        .group_by(func.date_trunc('week', LeadORM.closed_at))
-                        .order_by(func.date_trunc('week', LeadORM.closed_at))
+                        .group_by(func.date_trunc('week', weekly_closed_dt))
+                        .order_by(func.date_trunc('week', weekly_closed_dt))
                     )
                     weekly_data = [float(r.revenue) for r in weekly_data_result.all()]
 
@@ -1263,16 +1258,14 @@ class SalesRepDashboardService:
                 # --- Otto-assisted sales: won deals + revenue for Otto-using reps ---
                 otto_deals_count = otto_won  # reuse from above
 
+                otto_closed_dt = func.coalesce(LeadORM.closed_at, LeadORM.updated_at)
                 otto_revenue_result = await self.session.execute(
                     select(func.coalesce(func.sum(LeadORM.deal_size), 0.0)).where(
                         LeadORM.company_id == company_id,
                         LeadORM.assigned_rep_id.in_(otto_user_ids),
                         LeadORM.status == "closed_won",
                         LeadORM.deal_size.isnot(None),
-                        or_(
-                            LeadORM.closed_at.between(_start_dt, _end_dt),
-                            LeadORM.updated_at.between(_start_dt, _end_dt),
-                        ),
+                        otto_closed_dt.between(_start_dt, _end_dt),
                     )
                 )
                 otto_revenue = float(otto_revenue_result.scalar() or 0.0)

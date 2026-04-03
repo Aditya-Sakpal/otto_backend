@@ -2532,10 +2532,11 @@ class MetricsService:
                 AppointmentORM.scheduled_start >= start_dt,
                 AppointmentORM.scheduled_start <= end_dt,
             ]
+            lead_closed_dt = func.coalesce(LeadORM.closed_at, LeadORM.updated_at)
             lead_filters = [
                 LeadORM.company_id == company_id,
-                LeadORM.created_at >= start_dt,
-                LeadORM.created_at <= end_dt,
+                lead_closed_dt.isnot(None),
+                lead_closed_dt.between(start_dt, end_dt),
             ]
             if user_id:
                 appointment_filters.append(AppointmentORM.assigned_rep_id == user_id)
@@ -2638,10 +2639,13 @@ class MetricsService:
                 ((total_appts - no_show_count) / total_appts) if total_appts > 0 else 0.0
             )
 
-            # Average deal size: closed_won leads
+            # Average deal size: closed_won leads with actual deal values
             avg_deal_result = await self.session.execute(
                 select(func.avg(LeadORM.deal_size)).where(
-                    *lead_filters, LeadORM.status == "closed_won", LeadORM.deal_size.isnot(None)
+                    *lead_filters,
+                    LeadORM.status == "closed_won",
+                    LeadORM.deal_size.isnot(None),
+                    LeadORM.deal_size > 0,
                 )
             )
             average_deal_size = float(avg_deal_result.scalar() or 0.0)

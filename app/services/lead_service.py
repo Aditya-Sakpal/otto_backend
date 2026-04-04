@@ -68,17 +68,19 @@ class LeadService:
         end_date: Optional[date] = None,
         search: Optional[str] = None,
         statuses: Optional[List[str]] = None,
+        pipeline_stages: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
         sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
-        """Get leads with optional date range, search (name/phone), and status filters."""
+        """Get leads with optional date range, search (name/phone), status, and pipeline stage filters."""
         return await self.lead_repo.get_list_with_filters(
             company_id=company_id,
             start_date=start_date,
             end_date=end_date,
             search=search,
             statuses=statuses,
+            pipeline_stages=pipeline_stages,
             skip=skip,
             limit=limit,
             sort=sort,
@@ -87,15 +89,17 @@ class LeadService:
     async def get_by_statuses(
         self,
         company_id: UUID,
-        statuses: List[str],
+        statuses: Optional[List[str]] = None,
+        pipeline_stages: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
         sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
-        """Get leads by status filter."""
+        """Get leads by status and/or pipeline stage filter."""
         return await self.lead_repo.get_by_statuses(
             company_id=company_id,
             statuses=statuses,
+            pipeline_stages=pipeline_stages,
             skip=skip,
             limit=limit,
             sort=sort,
@@ -131,6 +135,7 @@ class LeadService:
         self,
         company_id: UUID,
         statuses: Optional[List[str]] = None,
+        pipeline_stages: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
         sort: str = LEAD_SORT_CREATED_DESC,
@@ -141,6 +146,7 @@ class LeadService:
         return await self.lead_repo.get_by_statuses(
             company_id=company_id,
             statuses=statuses,
+            pipeline_stages=pipeline_stages,
             skip=skip,
             limit=limit,
             sort=sort,
@@ -334,7 +340,11 @@ class LeadService:
             transcript_id = None
             if appt:
                 scheduled_for = appt.scheduled_start
-                if appt.interaction_id:
+                # Prefer appointment's own audio (sales rep recording) over linked call audio
+                if appt.audio_url:
+                    recording_url = appt.audio_url
+                    transcript_id = str(appt.id)
+                elif appt.interaction_id:
                     call_for_appt = next(
                         (c for c in calls if c.id == appt.interaction_id),
                         None,

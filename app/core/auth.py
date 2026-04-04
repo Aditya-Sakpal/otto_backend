@@ -87,6 +87,7 @@ async def get_current_user(
         # Get user from database
         # Create a new session (we can't inject db here due to circular dependency)
         # In routes, we'll need to pass db explicitly or create a wrapper
+        # Get user from database
         from app.infrastructure.database.session import AsyncSessionLocal
         async with AsyncSessionLocal() as session:
             user_service = UserService(session)

@@ -36,10 +36,16 @@ class SalesRepStatService:
     async def get_sales_rep_stat(
         self,
         sales_rep_id: UUID,
+        start_date=None,
+        end_date=None,
     ) -> SalesRepStatResponse:
         """
         Get sales rep stat: personal stats and pending leads.
+        All metrics scoped to start_date/end_date.
         """
+        from datetime import datetime, timezone, timedelta
+        from app.infrastructure.database.models.appointment import AppointmentORM
+
         user_result = await self.session.execute(
             select(UserORM).where(UserORM.id == sales_rep_id)
         )
@@ -52,16 +58,31 @@ class SalesRepStatService:
         company_id = user.company_id
         rep_name = f"{(user.first_name or '')} {(user.last_name or '')}".strip() or "Unknown"
 
+        if end_date:
+            _end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+        else:
+            _end_dt = datetime.now(timezone.utc)
+        if start_date:
+            _start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        else:
+            _start_dt = _end_dt - timedelta(days=30)
+
+        # Total recordings from appointments that have an actual recording
         total_recordings_result = await self.session.execute(
-            select(func.count(CallORM.id)).where(
-                CallORM.company_id == company_id,
-                CallORM.handled_by_user_id == sales_rep_id,
+            select(func.count(AppointmentORM.id)).where(
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id == sales_rep_id,
+                AppointmentORM.scheduled_start >= _start_dt,
+                AppointmentORM.scheduled_start <= _end_dt,
+                AppointmentORM.audio_url.isnot(None),
             )
         )
         total_recordings = total_recordings_result.scalar() or 0
 
         kpi = await self.metrics_service.get_sales_rep_kpi(
             user_id=sales_rep_id,
+            start_date=start_date,
+            end_date=end_date,
         )
 
         tardiness = 0

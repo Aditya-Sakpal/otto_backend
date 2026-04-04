@@ -1625,6 +1625,53 @@ class ShoonyaClient:
             traceback.print_exc()
             raise
 
+    async def get_coaching_profile(
+        self,
+        rep_id: str,
+        company_id: str,
+        force_refresh: bool = False,
+        window_days: int = 30,
+    ) -> Dict[str, Any]:
+        """
+        Get the full coaching profile for a rep from Shunya.
+
+        Returns strengths, weaknesses bucketed into 15 canonical categories
+        with counts, severity distributions, and representative examples.
+        """
+        if not self.is_available():
+            raise RuntimeError("Shoonya not configured")
+
+        url = f"{self.base_url}/api/v1/coaching/reps/{rep_id}/profile"
+        params = {
+            "company_id": company_id,
+            "force_refresh": str(force_refresh).lower(),
+            "window_days": window_days,
+        }
+
+        logger.info(f"Fetching coaching profile from Shunya: {url}")
+
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                response = await client.get(
+                    url,
+                    params=params,
+                    headers=self._get_headers(company_id),
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error fetching coaching profile: {e.response.status_code}",
+                url=url,
+                response_text=e.response.text[:500] if e.response.text else None,
+            )
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            logger.error(f"Error fetching coaching profile: {e}")
+            traceback.print_exc()
+            raise
+
     # ============================================================================
     # Coaching & Progression APIs
     # ============================================================================

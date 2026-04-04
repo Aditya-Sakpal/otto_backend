@@ -626,7 +626,7 @@ async def get_strengths_and_issues(
             shunya_profile = await shoonya.get_coaching_profile(
                 rep_id=str(user_id),
                 company_id=str(company_id),
-                force_refresh=force_refresh,
+                force_refresh=False,
                 window_days=window_days,
             )
         except Exception as e:

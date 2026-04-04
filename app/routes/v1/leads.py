@@ -460,7 +460,7 @@ async def list_leads(
     start_date: Optional[str] = Query(None, description="Filter leads created on or after this date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="Filter leads created on or before this date (YYYY-MM-DD)"),
     search: Optional[str] = Query(None, description="Search by contact name or phone number"),
-    pipeline_stage: Optional[str] = Query(None, description="Filter by pipeline stage (comma-separated, e.g., 'qualified,booked')"),
+    pipeline_stage: Optional[str] = Query(None, description="Filter by pipeline stage (comma-separated). Allowed values: `qualified`, `unqualified`, `service_not_offered`, `booked`, `appointment`, `appointment_ran`, `won`, `lost`, `review`"),
     skip: int = 0,
     limit: int = 100,
 ) -> List[Lead]:
@@ -477,7 +477,7 @@ async def list_leads(
     - start_date: Filter leads created on or after this date (YYYY-MM-DD)
     - end_date: Filter leads created on or before this date (YYYY-MM-DD)
     - search: Search by contact name or phone number
-    - pipeline_stage: Filter by pipeline stage (comma-separated, e.g., "qualified,booked,appointment")
+    - pipeline_stage: Filter by pipeline stage (comma-separated). Allowed values: `qualified`, `unqualified`, `service_not_offered`, `booked`, `appointment`, `appointment_ran`, `won`, `lost`, `review`
     """
     try:
         from datetime import date as date_type

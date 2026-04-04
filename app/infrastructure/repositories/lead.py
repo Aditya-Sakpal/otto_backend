@@ -419,11 +419,12 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
         end_date: Optional[date] = None,
         search: Optional[str] = None,
         statuses: Optional[List[str]] = None,
+        pipeline_stages: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
         sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
-        """Get leads for a company with optional date range, search (name/phone), and status filters."""
+        """Get leads for a company with optional date range, search (name/phone), status, and pipeline stage filters."""
         try:
             query = (
                 select(LeadORM)
@@ -439,6 +440,8 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                 query = query.where(LeadORM.created_at <= datetime.combine(end_date, datetime.max.time()))
             if statuses:
                 query = query.where(LeadORM.status.in_(statuses))
+            if pipeline_stages:
+                query = query.where(LeadORM.pipeline_stage.in_(pipeline_stages))
             if search and search.strip():
                 # Build subquery to get lead IDs matching contact search to avoid DISTINCT over JSON columns
                 search_term = f"%{search.strip().lower()}%"
@@ -472,6 +475,8 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     final_q = final_q.where(LeadORM.created_at <= datetime.combine(end_date, datetime.max.time()))
                 if statuses:
                     final_q = final_q.where(LeadORM.status.in_(statuses))
+                if pipeline_stages:
+                    final_q = final_q.where(LeadORM.pipeline_stage.in_(pipeline_stages))
 
                 result = await self.session.execute(
                     _apply_lead_list_sort(final_q, sort).offset(skip).limit(limit)
@@ -489,12 +494,13 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
     async def get_by_statuses(
         self,
         company_id: UUID,
-        statuses: List[str],
+        statuses: Optional[List[str]] = None,
+        pipeline_stages: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
         sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
-        """Get leads by multiple status values."""
+        """Get leads by multiple status values and/or pipeline stages."""
         try:
             q = (
                 select(LeadORM)
@@ -502,11 +508,12 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     selectinload(LeadORM.contact_card),
                     selectinload(LeadORM.calls).selectinload(CallORM.analysis),
                 )
-                .where(
-                    LeadORM.company_id == company_id,
-                    LeadORM.status.in_(statuses),
-                )
+                .where(LeadORM.company_id == company_id)
             )
+            if statuses:
+                q = q.where(LeadORM.status.in_(statuses))
+            if pipeline_stages:
+                q = q.where(LeadORM.pipeline_stage.in_(pipeline_stages))
             q = _apply_lead_list_sort(q, sort)
             result = await self.session.execute(q.offset(skip).limit(limit))
             orm_objs = result.scalars().all()

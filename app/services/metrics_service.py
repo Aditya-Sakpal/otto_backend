@@ -2816,7 +2816,7 @@ class MetricsService:
             )
             avg_sop = sop_q.scalar() or 0.0
 
-            # Rank among CSRs
+            # Rank among CSRs — single batched query instead of N+1
             all_csrs_q = await self.session.execute(
                 select(UserORM.id).where(
                     UserORM.company_id == company_id,
@@ -2827,25 +2827,37 @@ class MetricsService:
             all_csr_ids = [r[0] for r in all_csrs_q.all()]
             total_csrs = len(all_csr_ids)
 
+            # Batch: qualified leads per CSR
+            qual_q = await self.session.execute(
+                select(
+                    LeadORM.assigned_rep_id,
+                    func.count(LeadORM.id).label("cnt"),
+                ).where(
+                    LeadORM.assigned_rep_id.in_(all_csr_ids),
+                    LeadORM.created_at >= start_dt,
+                    LeadORM.created_at <= end_dt,
+                    or_(LeadORM.status.like('qualified_%'), LeadORM.deal_status == 'qualified'),
+                ).group_by(LeadORM.assigned_rep_id)
+            )
+            csr_qual_map = {row.assigned_rep_id: row.cnt for row in qual_q}
+
+            # Batch: appointments per CSR
+            appt_q = await self.session.execute(
+                select(
+                    AppointmentORM.assigned_rep_id,
+                    func.count(AppointmentORM.id).label("cnt"),
+                ).where(
+                    AppointmentORM.assigned_rep_id.in_(all_csr_ids),
+                    AppointmentORM.created_at >= start_dt,
+                    AppointmentORM.created_at <= end_dt,
+                ).group_by(AppointmentORM.assigned_rep_id)
+            )
+            csr_appt_map = {row.assigned_rep_id: row.cnt for row in appt_q}
+
             csr_booking_rates = {}
             for csr_id in all_csr_ids:
-                cq = await self.session.execute(
-                    select(func.count(LeadORM.id)).where(
-                        LeadORM.assigned_rep_id == csr_id,
-                        LeadORM.created_at >= start_dt,
-                        LeadORM.created_at <= end_dt,
-                        or_(LeadORM.status.like('qualified_%'), LeadORM.deal_status == 'qualified'),
-                    )
-                )
-                csr_qual = cq.scalar() or 0
-                aq = await self.session.execute(
-                    select(func.count(AppointmentORM.id)).where(
-                        AppointmentORM.assigned_rep_id == csr_id,
-                        AppointmentORM.created_at >= start_dt,
-                        AppointmentORM.created_at <= end_dt,
-                    )
-                )
-                csr_appt = aq.scalar() or 0
+                csr_qual = csr_qual_map.get(csr_id, 0)
+                csr_appt = csr_appt_map.get(csr_id, 0)
                 csr_booking_rates[csr_id] = (csr_appt / csr_qual * 100) if csr_qual > 0 else 0.0
 
             sorted_csrs = sorted(csr_booking_rates.items(), key=lambda x: x[1], reverse=True)

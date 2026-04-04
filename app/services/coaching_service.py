@@ -734,6 +734,25 @@ class CoachingService:
         )
         sessions = result.scalars().all()
 
+        # Fetch Shunya impact data for each session in parallel
+        shunya_impacts: Dict[str, Dict[str, Any]] = {}
+        if sessions and self.shoonya.is_available():
+            async def _fetch_impact(session_id: str) -> tuple:
+                try:
+                    data = await self.shoonya.get_shunya_coaching_impact(session_id)
+                    return session_id, data
+                except Exception as e:
+                    logger.debug(f"Shunya impact unavailable for session {session_id}: {e}")
+                    return session_id, None
+
+            impact_results = await asyncio.gather(
+                *[_fetch_impact(str(s.id)) for s in sessions],
+                return_exceptions=True,
+            )
+            for item in impact_results:
+                if isinstance(item, tuple) and item[1] is not None:
+                    shunya_impacts[item[0]] = item[1]
+
         session_summaries = []
         now = datetime.now(timezone.utc)
         for s in sessions:
@@ -741,6 +760,28 @@ class CoachingService:
             if s.follow_up_end_date and s.coached_at:
                 elapsed = now - s.coached_at.replace(tzinfo=timezone.utc) if s.coached_at.tzinfo is None else now - s.coached_at
                 days_into = max(0, elapsed.days)
+
+            # Enrich with Shunya impact data if available
+            shunya = shunya_impacts.get(str(s.id))
+            impact_scores = s.impact_scores
+            overall_improved = s.overall_improved
+            improvement_pct = s.improvement_pct
+            targets_met = s.targets_met
+
+            if shunya:
+                impact_scores = shunya.get("current_scores", impact_scores)
+                overall_improved = shunya.get("overall_improved", overall_improved)
+                targets_met = shunya.get("targets_met", targets_met)
+                # Compute improvement from Shunya improvements dict
+                improvements = shunya.get("improvements", {})
+                if improvements:
+                    pct_changes = [
+                        v.get("percentage_change", 0)
+                        for v in improvements.values()
+                        if isinstance(v, dict)
+                    ]
+                    if pct_changes:
+                        improvement_pct = round(sum(pct_changes) / len(pct_changes), 1)
 
             session_summaries.append(
                 CoachingSessionSummary(
@@ -751,10 +792,10 @@ class CoachingService:
                     follow_up_days=s.follow_up_days,
                     follow_up_end_date=s.follow_up_end_date,
                     baseline_scores=s.baseline_scores,
-                    impact_scores=s.impact_scores,
-                    overall_improved=s.overall_improved,
-                    improvement_pct=s.improvement_pct,
-                    targets_met=s.targets_met,
+                    impact_scores=impact_scores,
+                    overall_improved=overall_improved,
+                    improvement_pct=improvement_pct,
+                    targets_met=targets_met,
                     days_into_follow_up=days_into,
                 )
             )
@@ -787,7 +828,7 @@ class CoachingService:
         user = await self.session.get(UserORM, user_id)
         rep_name = f"{user.first_name or ''} {user.last_name or ''}".strip() if user else "Unknown"
 
-        # Get rep's objections grouped by category
+        # Get rep's objections grouped by category from DB
         rep_objections = await self.session.execute(
             select(
                 CallObjectionDetailORM.category_text,
@@ -806,38 +847,62 @@ class CoachingService:
         )
         rep_data = {row.category_text: {"total": row.total, "overcome": row.overcome} for row in rep_objections}
 
-        # Get team averages
-        team_objections = await self.session.execute(
-            select(
-                CallObjectionDetailORM.category_text,
-                func.count(CallObjectionDetailORM.id).label("total"),
-                func.count(
-                    case((CallObjectionDetailORM.overcome == True, 1))
-                ).label("overcome"),
+        # Use Shunya objection insights for team-level data (overcome rates, trends)
+        shunya_team_data: Dict[str, float] = {}
+        if self.shoonya.is_available():
+            try:
+                shunya_objections = await self.shoonya.get_objection_insights(
+                    company_id=str(company_id),
+                )
+                for obj in shunya_objections.get("objections", []):
+                    cat_name = obj.get("category_text") or obj.get("category_name", "")
+                    if cat_name:
+                        # Shunya returns overcome_rate on 0-1 scale
+                        shunya_team_data[cat_name] = obj.get("overcome_rate", 0)
+            except Exception as e:
+                logger.debug(f"Shunya objection insights unavailable, falling back to DB: {e}")
+
+        # Fall back to DB for team averages if Shunya unavailable
+        if not shunya_team_data:
+            team_objections = await self.session.execute(
+                select(
+                    CallObjectionDetailORM.category_text,
+                    func.count(CallObjectionDetailORM.id).label("total"),
+                    func.count(
+                        case((CallObjectionDetailORM.overcome == True, 1))
+                    ).label("overcome"),
+                )
+                .where(
+                    CallObjectionDetailORM.company_id == company_id,
+                    CallObjectionDetailORM.created_at >= start_dt,
+                    CallObjectionDetailORM.created_at <= end_dt,
+                )
+                .group_by(CallObjectionDetailORM.category_text)
             )
-            .where(
-                CallObjectionDetailORM.company_id == company_id,
-                CallObjectionDetailORM.created_at >= start_dt,
-                CallObjectionDetailORM.created_at <= end_dt,
-            )
-            .group_by(CallObjectionDetailORM.category_text)
-        )
-        team_data = {row.category_text: {"total": row.total, "overcome": row.overcome} for row in team_objections}
+            for row in team_objections:
+                rate = row.overcome / row.total if row.total > 0 else 0
+                shunya_team_data[row.category_text] = rate
 
         # Build categories
         categories = []
         total_objections = 0
-        all_categories = set(rep_data.keys()) | set(team_data.keys())
 
-        for cat in sorted(all_categories):
-            rep = rep_data.get(cat, {"total": 0, "overcome": 0})
-            team = team_data.get(cat, {"total": 0, "overcome": 0})
-
+        for cat in sorted(rep_data.keys()):
+            rep = rep_data[cat]
             if rep["total"] == 0:
                 continue
 
             rep_rate = rep["overcome"] / rep["total"] if rep["total"] > 0 else 0
-            team_rate = team["overcome"] / team["total"] if team["total"] > 0 else 0
+            # Match Shunya category name (try exact, then case-insensitive)
+            team_rate = shunya_team_data.get(cat)
+            if team_rate is None:
+                cat_lower = cat.lower().replace("_", " ")
+                for k, v in shunya_team_data.items():
+                    if k.lower().replace("_", " ") == cat_lower:
+                        team_rate = v
+                        break
+            if team_rate is None:
+                team_rate = 0
             total_objections += rep["total"]
 
             categories.append(
@@ -920,7 +985,41 @@ class CoachingService:
                     )
                 )
 
-        # 3. Compliance trend nudge
+        # 3. Shunya customer insights -> actionable nudges for this rep's customers
+        if self.shoonya.is_available():
+            try:
+                customer_insights = await self.shoonya.get_customer_insights(
+                    company_id=str(company_id),
+                    week_start=start_date.isoformat(),
+                    priority="high",
+                    limit=10,
+                )
+                for customer in customer_insights.get("customers", []):
+                    data = customer.get("data", {})
+                    customer_name = customer.get("customer_name", "Customer")
+                    priority = data.get("priority", "medium")
+                    recommendation = data.get("recommendation", "")
+                    heading = data.get("recommendation_heading", "")
+                    if recommendation:
+                        nudges.append(
+                            SmartNudge(
+                                title=f"{heading or customer_name}"[:80],
+                                message=recommendation,
+                                priority=priority if priority in ("high", "medium", "low") else "medium",
+                                timing="pre_call",
+                                source="customer_insights",
+                                related_data={
+                                    "customer_name": customer_name,
+                                    "customer_id": customer.get("customer_id"),
+                                    "engagement_score": data.get("engagement_score"),
+                                    "current_status": data.get("current_status"),
+                                },
+                            )
+                        )
+            except Exception as e:
+                logger.debug(f"Shunya customer insights unavailable: {e}")
+
+        # 4. Compliance trend nudge
         start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
         end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
         trend = await self._compute_trend(user_id, company_id, start_dt, end_dt)

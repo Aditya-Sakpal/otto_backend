@@ -1651,14 +1651,14 @@ class ShoonyaClient:
         logger.info(f"Fetching coaching profile from Shunya: {url}")
 
         try:
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                response = await client.get(
-                    url,
-                    params=params,
-                    headers=self._get_headers(company_id),
-                )
-                response.raise_for_status()
-                return response.json()
+            response = await self._http_client.get(
+                url,
+                params=params,
+                headers=self._get_headers(company_id),
+                timeout=90.0,
+            )
+            response.raise_for_status()
+            return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"HTTP error fetching coaching profile: {e.response.status_code}",

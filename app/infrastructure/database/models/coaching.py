@@ -3,7 +3,7 @@ Coaching ORM models.
 
 Tables for coaching dashboard: issues, strengths, objection details, and sessions.
 """
-from sqlalchemy import String, Text, Float, Boolean, Integer, ForeignKey, JSON, DateTime, ARRAY
+from sqlalchemy import String, Text, Float, Boolean, Integer, ForeignKey, JSON, DateTime, ARRAY, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -16,6 +16,9 @@ class CoachingIssueORM(Base):
     """Per-call coaching issue extracted from Shunya analysis."""
 
     __tablename__ = "coaching_issues"
+    __table_args__ = (
+        Index("ix_coaching_issues_user_company_created", "user_id", "company_id", "created_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     call_analysis_id: Mapped[UUID] = mapped_column(
@@ -48,6 +51,9 @@ class CoachingStrengthORM(Base):
     """Per-call coaching strength extracted from Shunya analysis."""
 
     __tablename__ = "coaching_strengths"
+    __table_args__ = (
+        Index("ix_coaching_strengths_user_company_created", "user_id", "company_id", "created_at"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     call_analysis_id: Mapped[UUID] = mapped_column(

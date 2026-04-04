@@ -1047,20 +1047,37 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
 
         async def _fetch_one(call_id: UUID) -> tuple[UUID, Any]:
             try:
-                payload = await shoonya.get_call_conversation_phases_no_retry(
-                    call_id=str(call_id),
-                    company_id=str(company_id),
+                payload = await asyncio.wait_for(
+                    shoonya.get_call_conversation_phases_no_retry(
+                        call_id=str(call_id),
+                        company_id=str(company_id),
+                    ),
+                    timeout=15,  # Cap per-call to stay within Heroku 30s
                 )
                 phases = payload.get("phases")
                 return call_id, (phases if phases is not None else payload)
+            except asyncio.TimeoutError:
+                logger.warning(f"Phases fetch timed out for call {call_id}")
+                return call_id, None
             except Exception as e:
                 logger.warning(f"Could not fetch live phases for call {call_id}: {e}")
                 return call_id, None
 
-        phase_results = await asyncio.gather(
-            *(_fetch_one(cid) for cid in unique),
-            return_exceptions=False,
-        )
+        # Cap the entire batch at 20s
+        try:
+            phase_results = await asyncio.wait_for(
+                asyncio.gather(
+                    *(_fetch_one(cid) for cid in unique),
+                    return_exceptions=False,
+                ),
+                timeout=20,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Batch phases fetch timed out for {len(unique)} calls")
+            for cid in unique:
+                if cid not in out:
+                    out[cid] = None
+            return out
         for cid, phases in phase_results:
             out[cid] = phases
         return out
@@ -1680,12 +1697,11 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     result_key_points: List[str] = []
 
                     if appt_orm.interaction_id:
-                        interaction_result = await self.session.execute(
-                            select(CallORM)
-                            .options(selectinload(CallORM.analysis))
-                            .where(CallORM.id == appt_orm.interaction_id)
+                        # Reuse call already loaded in step 1 instead of redundant query
+                        interaction_call = next(
+                            (c for c in sorted_calls if c.id == appt_orm.interaction_id),
+                            None,
                         )
-                        interaction_call = interaction_result.scalar_one_or_none()
                         if interaction_call:
                             ia = getattr(interaction_call, "analysis", None)
                             result_last_touched = interaction_call.created_at

@@ -2328,7 +2328,7 @@ class ShoonyaClient:
             "window_days": window_days,
         }
         if force_refresh:
-            params["force_refresh"] = "true"
+            params["force_refresh"] = "false"
 
         logger.info(f"Calling Shunya API: {url}")
 

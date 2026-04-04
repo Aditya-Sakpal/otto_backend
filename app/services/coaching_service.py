@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
-from sqlalchemy import select, func, case, and_, or_
+from sqlalchemy import select, func, case, and_, or_, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -98,7 +98,7 @@ class CoachingService:
         strengths = await _safe(self.get_rep_strengths(user_id, company_id, start_date, end_date), "strengths")
         impact = await _safe(self.get_rep_impact(user_id, company_id), "impact")
         objections = await _safe(self.get_rep_objections(user_id, company_id, start_date, end_date), "objections")
-        nudges = await _safe(self.get_rep_nudges(user_id, company_id, start_date, end_date), "nudges")
+        nudges = await _safe(self.get_rep_nudges(user_id, company_id, start_date, end_date, _issues=issues, _objections=objections), "nudges")
 
         # 2. Run external Shunya API calls in parallel (no DB session needed)
         progression, peer_benchmark = await asyncio.gather(
@@ -157,7 +157,10 @@ class CoachingService:
 
         DB-dependent sections run sequentially (AsyncSession is not safe for
         concurrent use), while external Shunya API calls run in parallel.
+        Shunya calls are capped at 20s to stay within Heroku's 30s timeout.
         """
+
+        _SHUNYA_TIMEOUT = 20  # seconds — must finish before Heroku kills request
 
         async def _safe(coro, label: str):
             try:
@@ -166,18 +169,38 @@ class CoachingService:
                 logger.warning(f"Individual dashboard section '{label}' failed: {e}")
                 return None
 
-        # 1. Run DB-dependent sections sequentially (same session)
+        async def _safe_timed(coro, label: str, timeout: int = _SHUNYA_TIMEOUT):
+            try:
+                return await asyncio.wait_for(coro, timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warning(f"Individual dashboard section '{label}' timed out after {timeout}s")
+                return None
+            except Exception as e:
+                logger.warning(f"Individual dashboard section '{label}' failed: {e}")
+                return None
+
+        # 1. Fire Shunya API calls immediately (no DB session needed)
+        progression_task = asyncio.create_task(
+            _safe_timed(self.get_rep_progression(user_id, company_id, weeks), "progression")
+        )
+        peer_benchmark_task = asyncio.create_task(
+            _safe_timed(self.get_rep_peer_benchmark(user_id, company_id, days), "peer_benchmark")
+        )
+
+        # 2. Run DB-dependent sections sequentially while Shunya calls run
         issues = await _safe(self.get_rep_issues(user_id, company_id, start_date, end_date), "issues")
         strengths = await _safe(self.get_rep_strengths(user_id, company_id, start_date, end_date), "strengths")
         impact = await _safe(self.get_rep_impact(user_id, company_id), "impact")
         objections = await _safe(self.get_rep_objections(user_id, company_id, start_date, end_date), "objections")
-        nudges = await _safe(self.get_rep_nudges(user_id, company_id, start_date, end_date), "nudges")
-
-        # 2. Run external Shunya API calls in parallel (no DB session needed)
-        progression, peer_benchmark = await asyncio.gather(
-            _safe(self.get_rep_progression(user_id, company_id, weeks), "progression"),
-            _safe(self.get_rep_peer_benchmark(user_id, company_id, days), "peer_benchmark"),
+        # Pass already-fetched data to avoid re-querying issues + objections
+        nudges = await _safe(
+            self.get_rep_nudges(user_id, company_id, start_date, end_date, _issues=issues, _objections=objections),
+            "nudges",
         )
+
+        # 3. Collect Shunya results (should already be done or close to it)
+        progression = await progression_task
+        peer_benchmark = await peer_benchmark_task
 
         return IndividualDashboardResponse(
             issues=issues,
@@ -482,54 +505,64 @@ class CoachingService:
         user = await self.session.get(UserORM, user_id)
         rep_name = f"{user.first_name or ''} {user.last_name or ''}".strip() if user else "Unknown"
 
-        # Query all coaching issues for this user in date range
-        result = await self.session.execute(
-            select(CoachingIssueORM)
+        # Step 1: Lightweight count query — only issue text + call_id (no heavy columns)
+        count_result = await self.session.execute(
+            select(
+                CoachingIssueORM.issue,
+                CoachingIssueORM.call_id,
+            )
             .where(
                 CoachingIssueORM.user_id == user_id,
                 CoachingIssueORM.company_id == company_id,
                 CoachingIssueORM.created_at >= start_dt,
                 CoachingIssueORM.created_at <= end_dt,
             )
-            .order_by(CoachingIssueORM.created_at.desc())
         )
-        issues_rows = result.scalars().all()
 
-        # Group by issue text (normalized)
         grouped: Dict[str, Dict[str, Any]] = {}
-        for row in issues_rows:
+        for row in count_result:
             key = row.issue.strip().lower()
             if key not in grouped:
-                grouped[key] = {
-                    "issue": row.issue,
-                    "severity": row.severity,
-                    "why_it_matters": row.why_it_matters,
-                    "how_to_fix": row.how_to_fix,
-                    "example_language": row.example_language,
-                    "related_sop_metric": row.related_sop_metric,
-                    "transcript_evidence": [],
-                    "call_ids": [],
-                    "count": 0,
-                }
+                grouped[key] = {"issue": row.issue, "call_ids": set(), "count": 0}
             grouped[key]["count"] += 1
-            if row.transcript_evidence:
-                grouped[key]["transcript_evidence"].append(row.transcript_evidence)
-            grouped[key]["call_ids"].append(str(row.call_id))
+            grouped[key]["call_ids"].add(str(row.call_id))
 
-        # Convert to response, sorted by frequency desc
+        # Step 2: For top issues, fetch metadata from a single representative row
+        sorted_groups = sorted(grouped.values(), key=lambda x: x["count"], reverse=True)
+        top_issue_texts = [g["issue"] for g in sorted_groups[:50]]
+
+        metadata_map: Dict[str, Any] = {}
+        if top_issue_texts:
+            meta_result = await self.session.execute(
+                select(
+                    CoachingIssueORM.issue,
+                    CoachingIssueORM.severity,
+                    CoachingIssueORM.why_it_matters,
+                    CoachingIssueORM.how_to_fix,
+                    CoachingIssueORM.example_language,
+                    CoachingIssueORM.related_sop_metric,
+                )
+                .where(CoachingIssueORM.issue.in_(top_issue_texts))
+                .distinct(CoachingIssueORM.issue)
+                .limit(50)
+            )
+            for row in meta_result:
+                metadata_map[row.issue] = row
+
         issues = []
-        for data in sorted(grouped.values(), key=lambda x: x["count"], reverse=True):
+        for data in sorted_groups:
+            meta = metadata_map.get(data["issue"])
             issues.append(
                 CoachingIssueResponse(
                     issue=data["issue"],
-                    severity=data["severity"],
+                    severity=meta.severity if meta else "medium",
                     frequency=data["count"],
-                    why_it_matters=data["why_it_matters"],
-                    how_to_fix=data["how_to_fix"],
-                    example_language=data["example_language"],
-                    transcript_evidence=data["transcript_evidence"][:5],
-                    related_sop_metric=data["related_sop_metric"],
-                    call_ids=list(set(data["call_ids"]))[:10],
+                    why_it_matters=meta.why_it_matters if meta else None,
+                    how_to_fix=meta.how_to_fix if meta else None,
+                    example_language=meta.example_language if meta else None,
+                    transcript_evidence=[],
+                    related_sop_metric=meta.related_sop_metric if meta else None,
+                    call_ids=list(data["call_ids"])[:10],
                 )
             )
 
@@ -562,45 +595,58 @@ class CoachingService:
         user = await self.session.get(UserORM, user_id)
         rep_name = f"{user.first_name or ''} {user.last_name or ''}".strip() if user else "Unknown"
 
-        result = await self.session.execute(
-            select(CoachingStrengthORM)
+        # Step 1: Lightweight count query — only behavior + call_id
+        count_result = await self.session.execute(
+            select(
+                CoachingStrengthORM.behavior,
+                CoachingStrengthORM.call_id,
+            )
             .where(
                 CoachingStrengthORM.user_id == user_id,
                 CoachingStrengthORM.company_id == company_id,
                 CoachingStrengthORM.created_at >= start_dt,
                 CoachingStrengthORM.created_at <= end_dt,
             )
-            .order_by(CoachingStrengthORM.created_at.desc())
         )
-        strengths_rows = result.scalars().all()
 
         grouped: Dict[str, Dict[str, Any]] = {}
-        for row in strengths_rows:
+        for row in count_result:
             key = row.behavior.strip().lower()
             if key not in grouped:
-                grouped[key] = {
-                    "behavior": row.behavior,
-                    "why_effective": row.why_effective,
-                    "related_sop_metric": row.related_sop_metric,
-                    "transcript_evidence": [],
-                    "call_ids": [],
-                    "count": 0,
-                }
+                grouped[key] = {"behavior": row.behavior, "call_ids": set(), "count": 0}
             grouped[key]["count"] += 1
-            if row.transcript_evidence:
-                grouped[key]["transcript_evidence"].append(row.transcript_evidence)
-            grouped[key]["call_ids"].append(str(row.call_id))
+            grouped[key]["call_ids"].add(str(row.call_id))
+
+        # Step 2: Fetch metadata for top behaviors
+        sorted_groups = sorted(grouped.values(), key=lambda x: x["count"], reverse=True)
+        top_behaviors = [g["behavior"] for g in sorted_groups[:50]]
+
+        metadata_map: Dict[str, Any] = {}
+        if top_behaviors:
+            meta_result = await self.session.execute(
+                select(
+                    CoachingStrengthORM.behavior,
+                    CoachingStrengthORM.why_effective,
+                    CoachingStrengthORM.related_sop_metric,
+                )
+                .where(CoachingStrengthORM.behavior.in_(top_behaviors))
+                .distinct(CoachingStrengthORM.behavior)
+                .limit(50)
+            )
+            for row in meta_result:
+                metadata_map[row.behavior] = row
 
         strengths = []
-        for data in sorted(grouped.values(), key=lambda x: x["count"], reverse=True):
+        for data in sorted_groups:
+            meta = metadata_map.get(data["behavior"])
             strengths.append(
                 CoachingStrengthResponse(
                     behavior=data["behavior"],
                     frequency=data["count"],
-                    why_effective=data["why_effective"],
-                    transcript_evidence=data["transcript_evidence"][:5],
-                    related_sop_metric=data["related_sop_metric"],
-                    call_ids=list(set(data["call_ids"]))[:10],
+                    why_effective=meta.why_effective if meta else None,
+                    transcript_evidence=[],
+                    related_sop_metric=meta.related_sop_metric if meta else None,
+                    call_ids=list(data["call_ids"])[:10],
                 )
             )
 
@@ -936,15 +982,17 @@ class CoachingService:
         company_id: UUID,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
+        _issues: Optional[RepIssuesResponse] = None,
+        _objections: Optional[RepObjectionsResponse] = None,
     ) -> RepSmartNudgesResponse:
         if not start_date:
             start_date = date.today() - timedelta(days=30)
         if not end_date:
             end_date = date.today()
 
-        # Fetch issues and objections sequentially (AsyncSession not safe for concurrent use)
-        issues_resp = await self.get_rep_issues(user_id, company_id, start_date, end_date)
-        objections_resp = await self.get_rep_objections(user_id, company_id, start_date, end_date)
+        # Reuse pre-fetched data if available, otherwise query
+        issues_resp = _issues or await self.get_rep_issues(user_id, company_id, start_date, end_date)
+        objections_resp = _objections or await self.get_rep_objections(user_id, company_id, start_date, end_date)
         rep_name = issues_resp.rep_name
 
         nudges: List[SmartNudge] = []

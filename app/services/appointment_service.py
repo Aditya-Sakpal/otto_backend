@@ -892,10 +892,23 @@ class AppointmentService:
             return None
 
         # Fire phases fetch early — it runs ~14s on Shunya, so start it now
+        # Cap at 20s to stay within Heroku's 30s timeout
         phase_call_id = appointment.interaction_id or appointment.id
-        phases_task = asyncio.create_task(
-            self._fetch_phases(phase_call_id, appointment.company_id)
-        )
+
+        async def _fetch_phases_with_timeout():
+            try:
+                return await asyncio.wait_for(
+                    self._fetch_phases(phase_call_id, appointment.company_id),
+                    timeout=20,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Phases fetch timed out for call {phase_call_id}")
+                return None
+            except Exception as e:
+                logger.warning(f"Phases fetch failed: {e}")
+                return None
+
+        phases_task = asyncio.create_task(_fetch_phases_with_timeout())
 
         # 2. Get lead (required)
         lead = await self.lead_repo.get_by_id(appointment.lead_id)
@@ -923,30 +936,36 @@ class AppointmentService:
         # 5. Get all calls for this lead
         calls = await self.call_repo.get_by_lead_id(lead.id)
 
-        # 6. Batch fetch call analyses
+        # 6. Batch fetch call analyses — single query instead of N+1
         call_ids = [call.id for call in calls]
         analyses_map = {}
         if call_ids:
-            for call_id in call_ids:
-                analysis = await self.analysis_repo.get_by_call_id(call_id)
-                if analysis:
-                    analyses_map[call_id] = analysis
+            from app.infrastructure.database.models.analysis import CallAnalysisORM
+            analyses_result = await self.session.execute(
+                select(CallAnalysisORM).where(CallAnalysisORM.call_id.in_(call_ids))
+            )
+            for a in analyses_result.scalars().all():
+                analyses_map[a.call_id] = a
 
-        # 7. Build conversation history
+        # 7. Batch fetch handler names — single query instead of N+1
+        handler_ids = list({call.handled_by_user_id for call in calls if call.handled_by_user_id})
+        handlers_map = {}
+        if handler_ids:
+            from app.infrastructure.database.models.user import UserORM
+            handlers_result = await self.session.execute(
+                select(UserORM).where(UserORM.id.in_(handler_ids))
+            )
+            for u in handlers_result.scalars().all():
+                handlers_map[u.id] = f"{u.first_name or ''} {u.last_name or ''}".strip() or None
+
+        # 8. Build conversation history
         conversation_history = []
         all_objections = []
 
         for call in calls:
             analysis = analyses_map.get(call.id)
+            handler_name = handlers_map.get(call.handled_by_user_id) if call.handled_by_user_id else None
 
-            # Get handler name
-            handler_name = None
-            if call.handled_by_user_id:
-                handler = await self.user_repo.get_by_id(call.handled_by_user_id)
-                if handler:
-                    handler_name = f"{handler.first_name or ''} {handler.last_name or ''}".strip() or None
-
-            # Build call summary item
             call_item = CallSummaryItem(
                 call_id=call.id,
                 call_type=call.call_type.value if hasattr(call.call_type, 'value') else str(call.call_type),
@@ -961,14 +980,12 @@ class AppointmentService:
             )
             conversation_history.append(call_item)
 
-            # Collect objections
             if analysis and analysis.objections:
                 all_objections.extend(analysis.objections)
 
-        # Sort conversation history by date (most recent first)
         conversation_history.sort(key=lambda x: x.call_date, reverse=True)
 
-        # 8. Aggregate objections
+        # 9. Aggregate objections
         objection_counts = {}
         for obj in all_objections:
             obj_str = obj.value if hasattr(obj, 'value') else str(obj)
@@ -983,27 +1000,31 @@ class AppointmentService:
             top_objections=top_objections,
         )
 
-        # 9. Get pending actions for this lead
+        # 10. Get pending actions — batch fetch owner names
         pending_actions_domain = await self.pending_action_repo.get_by_lead(
             lead_id=lead.id,
             status=PendingActionStatus.PENDING,
         )
 
-        pending_actions = []
-        for action in pending_actions_domain[:5]:  # Limit to 5 most urgent
-            owner_name = None
-            if action.owner_id:
-                owner = await self.user_repo.get_by_id(action.owner_id)
-                if owner:
-                    owner_name = f"{owner.first_name or ''} {owner.last_name or ''}".strip() or None
+        owner_ids = list({a.owner_id for a in pending_actions_domain[:5] if a.owner_id})
+        owners_map = {}
+        if owner_ids:
+            from app.infrastructure.database.models.user import UserORM
+            owners_result = await self.session.execute(
+                select(UserORM).where(UserORM.id.in_(owner_ids))
+            )
+            for u in owners_result.scalars().all():
+                owners_map[u.id] = f"{u.first_name or ''} {u.last_name or ''}".strip() or None
 
+        pending_actions = []
+        for action in pending_actions_domain[:5]:
             pending_actions.append(PendingActionItem(
                 id=action.id,
                 raw_text=action.raw_text or "",
                 priority=action.priority,
                 status=action.status.value if hasattr(action.status, 'value') else str(action.status),
                 due_at=action.due_at,
-                owner_name=owner_name,
+                owner_name=owners_map.get(action.owner_id) if action.owner_id else None,
             ))
 
         # 10. Generate AI briefing

@@ -12,13 +12,13 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Peer-comparison can be slow on Shunya (heavy aggregates); shared client default is 30s read.
-# httpx.Timeout requires either one default or all of connect/read/write/pool (see httpx._config).
+# Peer-comparison can be slow on Shunya (heavy aggregates).
+# Capped at 15s read to stay within Heroku's 30s request timeout.
 _PEER_COMPARISON_TIMEOUT = httpx.Timeout(
-    connect=20.0,
-    read=120.0,
-    write=30.0,
-    pool=30.0,
+    connect=5.0,
+    read=15.0,
+    write=10.0,
+    pool=5.0,
 )
 
 
@@ -1931,7 +1931,7 @@ class ShoonyaClient:
             response = await self._http_client.get(
                 url,
                 headers=self._get_headers(company_id),
-                timeout=60.0,  # Phases API can take ~15s; use extended timeout
+                timeout=15.0,  # Phases API typically ~14s; cap to avoid Heroku 30s timeout
             )
             response.raise_for_status()
             return response.json()

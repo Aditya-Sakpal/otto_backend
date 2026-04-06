@@ -4,6 +4,7 @@ Sales rep stat service.
 Provides GET /sales_rep/stat/{sales_rep_id} response with
 personal stats and pending leads.
 """
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import select, func
@@ -36,12 +37,14 @@ class SalesRepStatService:
     async def get_sales_rep_stat(
         self,
         sales_rep_id: UUID,
-        start_date=None,
-        end_date=None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> SalesRepStatResponse:
         """
         Get sales rep stat: personal stats and pending leads.
-        All metrics scoped to start_date/end_date.
+
+        ``start_date`` / ``end_date`` align KPI metrics and the recordings count
+        (calls with ``handled_by_user_id`` == rep in that UTC window).
         """
         from datetime import datetime, timezone, timedelta
         from app.infrastructure.database.models.appointment import AppointmentORM
@@ -58,16 +61,8 @@ class SalesRepStatService:
         company_id = user.company_id
         rep_name = f"{(user.first_name or '')} {(user.last_name or '')}".strip() or "Unknown"
 
-        if end_date:
-            _end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
-        else:
-            _end_dt = datetime.now(timezone.utc)
-        if start_date:
-            _start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-        else:
-            _start_dt = _end_dt - timedelta(days=30)
+        start_dt, end_dt = self.metrics_service._get_date_range(start_date, end_date)
 
-        # Total recordings from appointments that have an actual recording
         total_recordings_result = await self.session.execute(
             select(func.count(AppointmentORM.id)).where(
                 AppointmentORM.company_id == company_id,
@@ -75,6 +70,8 @@ class SalesRepStatService:
                 AppointmentORM.scheduled_start >= _start_dt,
                 AppointmentORM.scheduled_start <= _end_dt,
                 AppointmentORM.audio_url.isnot(None),
+                CallORM.created_at >= start_dt,
+                CallORM.created_at <= end_dt,
             )
         )
         total_recordings = total_recordings_result.scalar() or 0

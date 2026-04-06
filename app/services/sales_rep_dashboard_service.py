@@ -6,7 +6,7 @@ Provides business logic for /sales_rep/dashboard endpoints:
 - Filtered ridealongs list
 - Sales team stats with pagination
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
@@ -225,8 +225,16 @@ class SalesRepDashboardService:
 
         # team_coaching_metrics depends on objections + sales_team_stats
         team_coaching_metrics = await self._get_team_coaching_metrics(
-            company_id, objections, sales_team_stats,
-            start_date=start_date, end_date=end_date,
+            company_id,
+            objections,
+            sales_team_stats,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        # Most coaching opportunities for sales reps (mirrors /metrics/most_coaching_opportunities)
+        most_coaching_opportunities = await self._get_most_coaching_opportunities_for_sales_reps(
+            company_id=company_id, start_date=start_date, end_date=end_date
         )
 
         return SalesRepDashboardResponse(
@@ -1112,14 +1120,18 @@ class SalesRepDashboardService:
     ) -> Optional[TeamCoachingMetrics]:
         """Build team_coaching_metrics from objections, SOP, Otto usage, attendance."""
         try:
-            from datetime import timedelta
+            from app.domain.enums import UserRole
 
             if end_date:
-                _end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+                _end_dt = datetime.combine(end_date, datetime.max.time()).replace(
+                    tzinfo=timezone.utc
+                )
             else:
                 _end_dt = datetime.now(timezone.utc)
             if start_date:
-                _start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+                _start_dt = datetime.combine(start_date, datetime.min.time()).replace(
+                    tzinfo=timezone.utc
+                )
             else:
                 _start_dt = _end_dt - timedelta(days=30)
 
@@ -1134,15 +1146,19 @@ class SalesRepDashboardService:
                         common_objection_peak = round((max_count / total_count) * 100, 2)
 
             script_adherence = 0.0
-            avg_sop = await self.session.execute(
-                select(func.avg(AppointmentORM.sop_compliance_score)).where(
-                    AppointmentORM.company_id == company_id,
-                    AppointmentORM.sop_compliance_score.isnot(None),
-                    AppointmentORM.scheduled_start >= _start_dt,
-                    AppointmentORM.scheduled_start <= _end_dt,
+            sop_stmt = (
+                select(func.avg(CallAnalysisORM.sop_compliance_score))
+                .select_from(CallAnalysisORM)
+                .join(CallORM, CallAnalysisORM.call_id == CallORM.id)
+                .where(
+                    CallAnalysisORM.company_id == company_id,
+                    CallORM.company_id == company_id,
+                    CallAnalysisORM.sop_compliance_score.isnot(None),
+                    CallORM.created_at >= _start_dt,
+                    CallORM.created_at <= _end_dt,
                 )
             )
-            sop_val = avg_sop.scalar()
+            sop_val = (await self.session.execute(sop_stmt)).scalar_one_or_none()
             if sop_val is not None:
                 script_adherence = round(float(sop_val) * 100, 2)
                 if script_adherence > 100:
@@ -1169,7 +1185,6 @@ class SalesRepDashboardService:
             ) if att_row.total > 0 else 0.0
 
             avg_tardiness_min = 0
-            from app.domain.enums import UserRole
             sales_reps = await self.user_repo.get_by_role(
                 role=UserRole.SALES_REP,
                 company_id=company_id,

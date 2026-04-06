@@ -117,6 +117,14 @@ async def get_pending_leads(
 async def get_sales_rep_stat(
     sales_rep_id: UUID,
     db: DbSession,
+    start_date: Optional[date] = Query(
+        None,
+        description="Inclusive start date for stats (YYYY-MM-DD). Defaults to 30 days before end_date or now.",
+    ),
+    end_date: Optional[date] = Query(
+        None,
+        description="Inclusive end date for stats (YYYY-MM-DD). Defaults to today (UTC).",
+    ),
     current_user: User = Depends(
         require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])
     ),
@@ -125,7 +133,11 @@ async def get_sales_rep_stat(
 ) -> SalesRepStatResponse:
     """
     Get sales rep stat: personal stats (recordings, win rates, attendance, etc.)
-    and pending leads. All metrics scoped to start_date/end_date (default last 30 days).
+    and pending leads.
+
+    When ``start_date`` / ``end_date`` are omitted, the same default window is used
+    as for KPI metrics (last 30 days in UTC). Recordings counts calls in that window
+    where ``handled_by_user_id`` matches the rep.
     """
     try:
         from datetime import date as date_type
@@ -134,8 +146,8 @@ async def get_sales_rep_stat(
         service = SalesRepStatService(db)
         return await service.get_sales_rep_stat(
             sales_rep_id=sales_rep_id,
-            start_date=start_d,
-            end_date=end_d,
+            start_date=start_date,
+            end_date=end_date,
         )
     except ValueError as e:
         raise HTTPException(

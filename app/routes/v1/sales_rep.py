@@ -128,21 +128,12 @@ async def get_sales_rep_stat(
     current_user: User = Depends(
         require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])
     ),
-    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
 ) -> SalesRepStatResponse:
     """
     Get sales rep stat: personal stats (recordings, win rates, attendance, etc.)
-    and pending leads.
-
-    When ``start_date`` / ``end_date`` are omitted, the same default window is used
-    as for KPI metrics (last 30 days in UTC). Recordings counts calls in that window
-    where ``handled_by_user_id`` matches the rep.
+    and pending leads. All metrics scoped to start_date/end_date (default last 30 days).
     """
     try:
-        from datetime import date as date_type
-        start_d = date_type.fromisoformat(start_date) if start_date else None
-        end_d = date_type.fromisoformat(end_date) if end_date else None
         service = SalesRepStatService(db)
         return await service.get_sales_rep_stat(
             sales_rep_id=sales_rep_id,

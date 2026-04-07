@@ -131,11 +131,7 @@ async def get_sales_rep_stat(
 ) -> SalesRepStatResponse:
     """
     Get sales rep stat: personal stats (recordings, win rates, attendance, etc.)
-    and pending leads.
-
-    When ``start_date`` / ``end_date`` are omitted, the same default window is used
-    as for KPI metrics (last 30 days in UTC). Recordings counts calls in that window
-    where ``handled_by_user_id`` matches the rep.
+    and pending leads. All metrics scoped to start_date/end_date (default last 30 days).
     """
     try:
         service = SalesRepStatService(db)

@@ -829,7 +829,7 @@ class SalesRepDashboardService:
             prev_start = _start_dt - timedelta(days=period_days)
             prev_end = _start_dt
 
-            # --- Combined appointment stats (total, avg_dur, won) in ONE query ---
+            # --- Combined appointment stats (total, avg_dur, won, resolved) in ONE query ---
             appt_stats = await self.session.execute(
                 select(
                     func.count(AppointmentORM.id).label("total"),
@@ -837,6 +837,9 @@ class SalesRepDashboardService:
                     func.count(case(
                         (AppointmentORM.outcome == "won", AppointmentORM.id)
                     )).label("won"),
+                    func.count(case(
+                        (AppointmentORM.outcome.in_(["won", "lost", "no_show"]), AppointmentORM.id)
+                    )).label("resolved"),
                 ).where(
                     AppointmentORM.company_id == company_id,
                     AppointmentORM.scheduled_start >= _start_dt,
@@ -846,7 +849,7 @@ class SalesRepDashboardService:
             appt_row = appt_stats.one()
             total_appointments = int(appt_row.total or 0)
             avg_recording_duration = self._format_duration_as_hm(float(appt_row.avg_dur or 0))
-            team_win_rate = round((appt_row.won / appt_row.total * 100), 2) if appt_row.total > 0 else 0.0
+            team_win_rate = round((appt_row.won / appt_row.resolved * 100), 2) if appt_row.resolved > 0 else 0.0
 
             # --- Revenue & avg deal size ---
             # Use closed_at if available, fall back to updated_at, then created_at

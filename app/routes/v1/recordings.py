@@ -206,7 +206,9 @@ async def complete_recording(
         # Trigger Shunya processing with appointment_id as tracker
         processing_job_id = None
         shoonya = get_shoonya_client()
-        if shoonya.is_available():
+        shoonya_available = shoonya.is_available()
+        submission_error: Optional[str] = None
+        if shoonya_available:
             try:
                 from datetime import datetime
 
@@ -243,11 +245,47 @@ async def complete_recording(
                     f"Triggered Shunya processing for appointment {request.appointment_id}, job_id={processing_job_id}"
                 )
             except Exception as e:
+                submission_error = str(e)
                 logger.error(f"Failed to trigger Shunya processing: {e}", exc_info=True)
+
+        # CL-44 parity for sales audio: if we either couldn't reach Shunya or
+        # the submission raised, record the failure explicitly so the
+        # appointment doesn't sit in whatever state the recording-upload step
+        # last left it. Frontend + operators key off analysis_status="failed"
+        # to show "Analysis failed — retry?" instead of a permanent spinner.
+        if not shoonya_available or submission_error is not None:
+            try:
+                appointment.analysis_status = "failed"
+                existing_meta = dict(appointment.extra_metadata or {})
+                existing_meta["analysis_failure"] = {
+                    "source": "recordings_complete_submission",
+                    "detail": (
+                        submission_error
+                        if submission_error
+                        else "shoonya_client_unavailable"
+                    )[:500],
+                    "recorded_at": __import__("datetime").datetime.utcnow().isoformat(),
+                }
+                appointment.extra_metadata = existing_meta
+                appointment.mark_updated()
+                await appointment_repo.update(request.appointment_id, appointment)
+                await db.commit()
+            except Exception as mark_err:
+                logger.warning(
+                    f"Could not mark appointment {request.appointment_id} analysis_status=failed: {mark_err}"
+                )
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
 
         return RecordingCompleteResponse(
             appointment_id=request.appointment_id,
-            status="processing",
+            status=(
+                "failed"
+                if (not shoonya_available or submission_error is not None)
+                else "processing"
+            ),
             processing_job_id=processing_job_id,
         )
 
@@ -311,7 +349,17 @@ async def get_recording_analysis(
                 detail=f"Appointment not found: {appointment_id}",
             )
 
-        if not appointment.analysis_status or appointment.analysis_status != "completed":
+        # Sales-audio failure visibility: "failed" is now a first-class
+        # terminal state (set by /recordings/complete when Shunya submission
+        # fails, or by the Shunya webhook when summary fetch / extraction
+        # fails). Return 200 with the existing schema — all analytical
+        # fields are already Optional on the response, so the payload is
+        # structurally valid, and clients that look at analysis_status can
+        # render a "retry?" affordance instead of spinning on 404.
+        if not appointment.analysis_status or appointment.analysis_status not in (
+            "completed",
+            "failed",
+        ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Recording analysis not yet available for appointment {appointment_id}",

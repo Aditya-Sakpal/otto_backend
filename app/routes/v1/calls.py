@@ -269,6 +269,29 @@ async def get_call(
                 detail="Call not found",
             )
 
+        # CL-44 parity: surface the Shoonya analysis state directly on the
+        # Call detail response so the frontend can distinguish "analysis
+        # missing" from "call genuinely has no data". Non-blocking lookup —
+        # on error we leave analysis_status None and still return the call.
+        try:
+            analysis = await service.analysis_repo.get_by_call_id(call_id)
+            if analysis is None:
+                call.analysis_status = "not_analyzed"
+            else:
+                raw_status = getattr(analysis, "status", None)
+                if raw_status is None or str(raw_status).strip() == "":
+                    call.analysis_status = "completed"
+                else:
+                    call.analysis_status = (
+                        raw_status.value if hasattr(raw_status, "value") else str(raw_status)
+                    ).lower()
+        except Exception as analysis_err:
+            logger.warning(
+                "Could not resolve analysis_status for call",
+                call_id=str(call_id),
+                error=str(analysis_err),
+            )
+
         return call
     except HTTPException:
         raise

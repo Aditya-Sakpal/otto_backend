@@ -1081,6 +1081,21 @@ class CallService:
         """
         Create or update an appointment from a call with booking_status=booked.
         Populates the appointments table for companies without GoHighLevel integration.
+
+        Pipeline → Appointment List View audit fixes wired in here:
+          * #36 — assigned_rep_id is inherited from the lead when the lead
+            already has one (CSR-ATTR), so brand-new appointments don't all
+            render as "Unassigned".
+          * #38 — scheduled_start outside business hours is annotated with
+            ``extra_metadata.time_quality = "low_confidence"`` instead of
+            being silently accepted as a real 1-AM appointment.
+          * #39 — before creating a new row we look for an existing
+            appointment for the same lead within ±2h of the resolved time,
+            so two calls about the same booking don't produce duplicates.
+          * #40 — generic state-only addresses ("AZ, US") are dropped from
+            ``location_address`` and flagged via
+            ``extra_metadata.location_quality = "low"`` so the UI doesn't
+            render misleading values.
         """
         try:
             if not call.lead_id or not call.contact_card_id:
@@ -1089,6 +1104,12 @@ class CallService:
                     call_id=str(call.id),
                 )
                 return
+
+            from app.services.appointment_quality import (
+                check_location_quality,
+                check_time_quality,
+                merge_quality_metadata,
+            )
 
             # Resolve scheduled_start from analysis or call
             scheduled_start = (
@@ -1104,32 +1125,58 @@ class CallService:
             # Optional: scheduled_end (leave None or set default duration)
             scheduled_end = None
 
-            # Location from analysis
-            location_address = getattr(analysis, "service_address_raw", None)
-            if not location_address and getattr(analysis, "service_address_structured", None):
-                addr = analysis.service_address_structured
-                if isinstance(addr, dict):
-                    parts = [
-                        addr.get("line1") or addr.get("address"),
-                        addr.get("city"),
-                        addr.get("state"),
-                        addr.get("postal_code"),
-                        addr.get("country"),
-                    ]
-                    location_address = ", ".join(p for p in parts if p) or None
+            # #38: tag impossible-looking times for review without rejecting
+            # the row outright. Operators see the flag in extra_metadata; the
+            # raw scheduled_start stays as Shoonya extracted it.
+            time_quality = check_time_quality(scheduled_start)
 
-            # Fallback: build from contact card if analysis gave no address
-            if not location_address and call.contact_card_id:
+            # #40: build a street-level address or drop it. Pull contact card
+            # parts as a structured fallback so the helper can choose the
+            # best source.
+            contact_parts = None
+            if call.contact_card_id:
                 try:
                     contact = await self.contact_repo.get_by_id(call.contact_card_id)
                     if contact:
-                        parts = [contact.address, contact.city, contact.state, contact.postal_code]
-                        location_address = ", ".join(p for p in parts if p) or None
+                        contact_parts = (
+                            contact.address,
+                            contact.city,
+                            contact.state,
+                            contact.postal_code,
+                        )
                 except Exception:
-                    pass
+                    contact_parts = None
+
+            location_address, location_quality = check_location_quality(
+                raw_address=getattr(analysis, "service_address_raw", None),
+                structured_address=getattr(analysis, "service_address_structured", None),
+                contact_address_parts=contact_parts,
+            )
+
+            # #36: inherit the sales rep from the lead when one exists.
+            # Otherwise fall back to whoever handled the call (often a CSR,
+            # but better than ``None`` for attribution downstream). The
+            # update branch below preserves any rep that was set later.
+            inherited_rep_id = None
+            try:
+                lead = await self.lead_repo.get_by_id(call.lead_id)
+                if lead and getattr(lead, "assigned_rep_id", None):
+                    inherited_rep_id = lead.assigned_rep_id
+            except Exception:
+                inherited_rep_id = None
 
             # Outcome: pending for call-created appointments
             outcome = AppointmentOutcome.PENDING
+
+            base_metadata = {
+                "created_from_call": str(call.id),
+                "source": "call_analysis",
+            }
+            quality_metadata = merge_quality_metadata(
+                base_metadata,
+                time_quality=time_quality,
+                location_quality=location_quality,
+            )
 
             appointment_data = {
                 "company_id": call.company_id,
@@ -1139,19 +1186,40 @@ class CallService:
                 "scheduled_end": scheduled_end,
                 "location_address": location_address,
                 "outcome": outcome,
-                "assigned_rep_id": None,  # Sales rep assigned later via pipeline stage movement
+                "assigned_rep_id": inherited_rep_id,
                 "interaction_id": call.id,
-                "extra_metadata": {
-                    "created_from_call": str(call.id),
-                    "source": "call_analysis",
-                },
+                "extra_metadata": quality_metadata,
             }
 
+            # #39: dedup. Look at the strongest signal first (interaction_id
+            # already on a row), then widen to "any appointment for this lead
+            # within ±2h of the resolved time". The window catches the audit
+            # case where two distinct calls about the same booking each tried
+            # to create their own appointment row.
             existing = await self.appointment_repo.get_by_interaction_id(call.id)
+            if existing is None:
+                try:
+                    existing = await self.appointment_repo.find_for_lead_within_window(
+                        lead_id=call.lead_id,
+                        scheduled_start=scheduled_start,
+                        window_minutes=120,
+                    )
+                except Exception:
+                    existing = None
             if existing:
                 for key, value in appointment_data.items():
                     if key == "assigned_rep_id" and existing.assigned_rep_id is not None:
                         continue  # Don't overwrite an already-assigned sales rep
+                    if key == "extra_metadata":
+                        # Preserve any existing keys (geocoding flags, etc.)
+                        # while still refreshing the quality flags.
+                        merged = merge_quality_metadata(
+                            existing.extra_metadata,
+                            time_quality=time_quality,
+                            location_quality=location_quality,
+                        )
+                        existing.extra_metadata = merged
+                        continue
                     if hasattr(existing, key):
                         setattr(existing, key, value)
                 await self.appointment_repo.update(existing.id, existing)
@@ -1159,6 +1227,7 @@ class CallService:
                     "Updated appointment from call",
                     call_id=str(call.id),
                     appointment_id=str(existing.id),
+                    deduped=existing.interaction_id != call.id,
                 )
                 appt_id = existing.id
             else:
@@ -1686,10 +1755,44 @@ class CallService:
                         if len(clean_phone) == 10:
                             formatted_phone = f"({clean_phone[:3]}) {clean_phone[3:6]}-{clean_phone[6:]}"
 
-                # Get qualification and booking status
-                # Qualified statuses: hot, cold, warm, qualified
-                is_qualified = analysis and is_qualified_status(analysis.qualification_status) if analysis else False
-                is_booked = analysis and analysis.booking_status and str(analysis.booking_status).lower() == "booked" if analysis else False
+                # CL-44 (PDF #44): surface an explicit analysis_status so the
+                # frontend can distinguish "analysis pending / failed" from
+                # "analysis complete, caller not booked".
+                #   - no analysis row              -> "not_analyzed"
+                #   - analysis row w/ status       -> that status string
+                #     (pending | processing | completed | failed)
+                #   - analysis row w/o status      -> fall back to "completed"
+                #     (defensive for rows written before CL-44)
+                if analysis is None:
+                    analysis_status_val = "not_analyzed"
+                else:
+                    raw_status = getattr(analysis, "status", None)
+                    if raw_status is None or str(raw_status).strip() == "":
+                        analysis_status_val = "completed"
+                    else:
+                        analysis_status_val = (
+                            raw_status.value if hasattr(raw_status, "value") else str(raw_status)
+                        ).lower()
+
+                # Booking / qualification booleans follow the explicit state.
+                # Contract is Optional[bool]; returning None lets callers that
+                # opt into analysis_status render a pending/failed pill, while
+                # existing truthy-check callers keep today's behaviour.
+                analysis_complete = analysis_status_val == "completed"
+                if not analysis_complete:
+                    is_qualified = None
+                    is_booked = None
+                else:
+                    is_qualified = (
+                        is_qualified_status(analysis.qualification_status)
+                        if analysis.qualification_status
+                        else None
+                    )
+                    booking_raw = analysis.booking_status
+                    if booking_raw is None or str(booking_raw).strip() == "":
+                        is_booked = None
+                    else:
+                        is_booked = str(booking_raw).strip().lower() == "booked"
 
                 # Get score (use SOP compliance score or sentiment score)
                 # Both sop_compliance_score and sentiment_score are stored as 0-1 decimals from Shunya
@@ -1703,14 +1806,25 @@ class CallService:
                         score = round(raw * 100, 1) if raw <= 1.0 else round(raw, 1)
 
                 # Get objections (REQ-032: never blank when analysis exists; no detections → explicit label)
+                # CL-42 (PDF #42): fall back to raw `objection_texts` when the
+                # classified `objections` array is empty. Shoonya sometimes
+                # populates only the raw array; Lead Details (lead_service.py)
+                # already uses this fallback, which is why the Lead Insights
+                # page shows objections while Call Logs shows "None Detected"
+                # for the same call. Fix aligns the two paths.
                 objections = None
-                if analysis:
-                    if analysis.objections:
-                        from app.domain.objection_classifier import ObjectionClassifier
+                if analysis and analysis_status_val == "completed":
+                    from app.domain.objection_classifier import ObjectionClassifier
 
-                        classified = ObjectionClassifier.classify_and_deduplicate(
-                            analysis.objections
-                        )
+                    # Prefer the classified array; fall back to raw text.
+                    raw_list = None
+                    if analysis.objections and len(analysis.objections) > 0:
+                        raw_list = analysis.objections
+                    elif analysis.objection_texts and len(analysis.objection_texts) > 0:
+                        raw_list = analysis.objection_texts
+
+                    if raw_list:
+                        classified = ObjectionClassifier.classify_and_deduplicate(raw_list)
                         if classified:
                             objections = ", ".join(classified[:3])
                             if len(classified) > 3:
@@ -1720,6 +1834,9 @@ class CallService:
                     else:
                         objections = "None Detected"
                 else:
+                    # No analysis or analysis pending/failed — stay explicit
+                    # so the frontend (via analysis_status) can decide how to
+                    # render. Existing consumers keep seeing "None Detected".
                     objections = "None Detected"
 
                 # Derive call_outcome from call-level data
@@ -1820,6 +1937,8 @@ class CallService:
                     "is_booked": is_booked,
                     "booking_status": booking_status_raw,
                     "is_service_offered": is_service_offered,
+                    # CL-44 (PDF #44) — explicit analysis state; additive field
+                    "analysis_status": analysis_status_val,
                     "is_existing_customer": bool(analysis.is_existing_customer) if analysis else None,
                     "lead_source": getattr(call, "lead_source", None) or None,
                     "audio_url": audio_url,

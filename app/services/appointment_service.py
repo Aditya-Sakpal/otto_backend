@@ -67,6 +67,13 @@ OUTCOME_TO_STATUS = {
 class AppointmentService:
     """Service for appointment-related operations."""
 
+    # Pipeline → Appointments List View, audit issue #37 (APPT-STAGE):
+    # how long after a scheduled appointment's start (or end) do we wait
+    # before assuming a still-"pending" outcome with no recording is a
+    # no_show. 24h is conservative — covers reps who finish late, drop
+    # the recording the next morning, etc.
+    STALE_PENDING_GRACE_HOURS = 24
+
     def __init__(self, session: AsyncSession):
         self.session = session
         self.appointment_repo = AppointmentRepository(session)
@@ -76,6 +83,82 @@ class AppointmentService:
         self.call_repo = CallRepository(session)
         self.lead_repo = LeadRepository(session)
         self.pending_action_repo = PendingActionRepository(session)
+
+    async def transition_stale_pending_appointments(
+        self,
+        company_id: UUID,
+        grace_hours: int = STALE_PENDING_GRACE_HOURS,
+    ) -> int:
+        """
+        Sweep stale "pending" appointments to ``no_show`` for a single tenant.
+
+        Resolves audit issue #37 (Pipeline → Appointments List View):
+        appointments with ``outcome == "pending"`` whose scheduled time is
+        more than ``grace_hours`` in the past, and which have no recording
+        uploaded, are flipped to ``no_show``. Appointments that have a
+        recording (``recording_status``) or whose analysis is still in
+        flight / failed are intentionally left alone — those are operator-
+        triage cases, not silent no-shows.
+
+        Returns the number of rows updated.
+
+        Designed to be safe to call repeatedly (the WHERE clause is the
+        idempotency gate). The list endpoints invoke this opportunistically
+        so the UI converges without waiting for a separate cron worker.
+        """
+        from datetime import timedelta, timezone as _tz
+        from sqlalchemy import update, or_, and_
+
+        from app.infrastructure.database.models.appointment import AppointmentORM
+
+        cutoff = datetime.now(_tz.utc) - timedelta(hours=grace_hours)
+
+        try:
+            stmt = (
+                update(AppointmentORM)
+                .where(
+                    AppointmentORM.company_id == company_id,
+                    AppointmentORM.outcome == AppointmentOutcome.PENDING.value,
+                    AppointmentORM.scheduled_start < cutoff,
+                    or_(
+                        AppointmentORM.recording_status.is_(None),
+                        AppointmentORM.recording_status == "",
+                    ),
+                    or_(
+                        AppointmentORM.analysis_status.is_(None),
+                        and_(
+                            AppointmentORM.analysis_status != "completed",
+                            AppointmentORM.analysis_status != "failed",
+                            AppointmentORM.analysis_status != "processing",
+                        ),
+                    ),
+                )
+                .values(outcome=AppointmentOutcome.NO_SHOW.value)
+            )
+            result = await self.session.execute(stmt)
+            updated = result.rowcount or 0
+            if updated:
+                await self.session.commit()
+                logger.info(
+                    "Transitioned stale-pending appointments to no_show",
+                    company_id=str(company_id),
+                    updated=updated,
+                )
+            return updated
+        except Exception as e:
+            # Maintenance must never break the list endpoint. Roll back the
+            # implicit transaction and continue — the list will still render,
+            # just without the cleanup pass for this request.
+            logger.warning(
+                "Could not transition stale-pending appointments",
+                company_id=str(company_id),
+                error=str(e),
+            )
+            try:
+                await self.session.rollback()
+            except Exception:
+                pass
+            return 0
 
     async def get_by_id(self, appointment_id: UUID) -> Optional[Appointment]:
         """Get appointment by ID."""
@@ -535,6 +618,10 @@ class AppointmentService:
         Returns:
             List of enriched AppointmentResponse objects
         """
+        # #37: opportunistic stale-pending sweep before the read so the
+        # response reflects the freshest state. Idempotent + best-effort.
+        await self.transition_stale_pending_appointments(company_id=company_id)
+
         appointments = await self.appointment_repo.get_by_company(
             company_id=company_id,
             start_date=start_date,
@@ -580,6 +667,9 @@ class AppointmentService:
         Returns:
             List of enriched AppointmentResponse objects
         """
+        # #37: opportunistic stale-pending sweep before the read.
+        await self.transition_stale_pending_appointments(company_id=company_id)
+
         appointments = await self.appointment_repo.get_by_assigned_rep(
             company_id=company_id,
             assigned_rep_id=assigned_rep_id,

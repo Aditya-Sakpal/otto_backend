@@ -35,10 +35,23 @@ class CallLogEntry(BaseModel):
     answered_by_display: Optional[str] = Field(None, description="Display name of who answered the call")
     customer_name: Optional[str] = Field(None, description="Customer name (uppercase)")
     phone_number: Optional[str] = Field(None, description="Formatted phone number (e.g. '(555) 123-4567')")
-    is_qualified: Optional[bool] = Field(None, description="Whether call was qualified")
-    is_booked: Optional[bool] = Field(None, description="Whether call resulted in a booking")
+    is_qualified: Optional[bool] = Field(None, description="Whether call was qualified. None = analysis pending or failed; the frontend should prefer analysis_status for an explicit render decision.")
+    is_booked: Optional[bool] = Field(None, description="Whether call resulted in a booking. None = analysis pending or failed; the frontend should prefer analysis_status for an explicit render decision.")
     booking_status: Optional[str] = Field(None, description="Booking status text")
     is_service_offered: Optional[bool] = Field(None, description="Whether the service was offered")
+    # CL-44 (PDF #44): explicit analysis state so the frontend can distinguish
+    # "analysis failed / never ran" from "analysis complete, not booked". This
+    # is an additive field — existing consumers that ignore it see no change.
+    analysis_status: Optional[str] = Field(
+        None,
+        description=(
+            "State of the call's AI analysis. One of: "
+            "'not_analyzed' (no CallAnalysis row), "
+            "'pending', 'processing', 'completed', 'failed'. "
+            "When not 'completed', boolean fields like is_booked / is_qualified "
+            "should be treated as unknown rather than false."
+        ),
+    )
     is_existing_customer: Optional[bool] = Field(None, description="Whether this is an existing customer")
     lead_source: Optional[str] = Field(None, description="Lead source identifier")
     audio_url: Optional[str] = Field(None, description="URL to the call audio recording")

@@ -449,3 +449,206 @@ async def get_objection_details(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get objection details: {str(e)}",
         )
+
+
+class CallRetryResponse(BaseModel):
+    """Response for a call analysis retry submission."""
+    call_id: UUID = Field(..., description="Call ID")
+    analysis_status: str = Field(
+        ...,
+        description="New state after retry — 'processing' on success, 'failed' if Shoonya rejected the re-submission immediately.",
+    )
+    processing_job_id: Optional[str] = Field(
+        None,
+        description="Shunya job ID for the new retry submission (null if Shoonya immediately rejected).",
+    )
+
+
+@router.post(
+    "/{call_id}/retry",
+    response_model=CallRetryResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        **RESPONSES,
+        409: {"description": "Analysis already in progress for this call"},
+        503: {"description": "Shunya service not available"},
+    },
+)
+async def retry_call_analysis(
+    call_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+) -> CallRetryResponse:
+    """
+    Retry Shoonya analysis for a call.
+
+    Preconditions:
+    - Call exists and has an ``audio_url`` (404 otherwise — nothing to
+      re-submit).
+    - Current ``CallAnalysisORM.status`` is NOT ``"processing"``
+      (409 — would cause a duplicate in-flight Shunya job).
+    - Caller belongs to the same company as the call (403).
+    - Shoonya client is available (503).
+
+    Behavior:
+    - Resets the call's ``CallAnalysisORM.status`` to ``"pending"`` so the
+      next Shoonya webhook completion overwrites the failed row cleanly.
+    - Re-submits via ``CallService.trigger_analysis`` using the stored
+      ``audio_url`` and call metadata.
+    - Returns 202 with the new state.
+    """
+    try:
+        service = CallService(db)
+        call = await service.call_repo.get_by_id(call_id)
+        if not call:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Call not found",
+            )
+
+        # Tenant isolation — don't let a caller re-trigger another tenant's
+        # call analysis.
+        if current_user.company_id is not None and call.company_id != current_user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: cross-tenant request",
+            )
+
+        if not call.audio_url:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Call has no audio_url to retry against",
+            )
+
+        existing_analysis = await service.analysis_repo.get_by_call_id(call_id)
+        if existing_analysis is not None:
+            raw_status = getattr(existing_analysis, "status", None)
+            current_status = (
+                raw_status.value if hasattr(raw_status, "value") else str(raw_status)
+            ).lower() if raw_status is not None else None
+            if current_status == "processing":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Analysis is already in progress for this call",
+                )
+
+        from app.infrastructure.integrations.shoonya import get_shoonya_client
+
+        shoonya = get_shoonya_client()
+        if not shoonya.is_available():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service not available",
+            )
+
+        # Reset the existing analysis row to "pending" so the next Shoonya
+        # webhook completion overwrites it. We keep the row rather than
+        # delete it so foreign keys from other tables (coaching rows, etc.)
+        # remain intact.
+        if existing_analysis is not None:
+            from app.domain.enums import AnalysisStatus
+
+            existing_analysis.status = AnalysisStatus.PENDING
+            try:
+                await service.analysis_repo.update(existing_analysis.id, existing_analysis)
+                await db.commit()
+            except Exception as reset_err:
+                logger.warning(
+                    "Could not reset CallAnalysis status before retry",
+                    call_id=str(call_id),
+                    error=str(reset_err),
+                )
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+
+        # Re-submit via the existing trigger. Capture the new job_id via a
+        # small inline call to shoonya so the response can report it.
+        from datetime import datetime as _dt
+        from app.core.config import settings as _settings
+        from app.domain.enums import CallType
+
+        submission_error: Optional[str] = None
+        processing_job_id: Optional[str] = None
+        try:
+            call_type_str = "csr_call"
+            if call.call_type:
+                call_type_str = (
+                    call.call_type.value
+                    if hasattr(call.call_type, "value")
+                    else str(call.call_type)
+                )
+            call_metadata = {
+                "call_type": call_type_str,
+                **(call.extra_metadata or {}),
+                "retry": True,
+            }
+            call_metadata["agent"] = (
+                {"id": str(call.handled_by_user_id)} if call.handled_by_user_id else None
+            )
+
+            webhook_url = f"{_settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
+            result = await shoonya.process_call(
+                call_id=str(call.id),
+                company_id=str(call.company_id),
+                audio_url=call.audio_url,
+                phone_number=call.phone_number,
+                duration=call.duration_seconds or 0,
+                call_date=(
+                    call.created_at.isoformat()
+                    if call.created_at
+                    else _dt.utcnow().isoformat()
+                ),
+                webhook_url=webhook_url,
+                metadata=call_metadata,
+            )
+            processing_job_id = result.get("job_id")
+            logger.info(
+                "Call retry submitted to Shoonya",
+                call_id=str(call_id),
+                job_id=processing_job_id,
+            )
+        except Exception as e:
+            submission_error = str(e)
+            logger.error(
+                f"Retry submission to Shoonya failed for call {call_id}: {e}",
+                exc_info=True,
+            )
+
+        if submission_error is not None:
+            # Mark failed via the same helper the webhook uses, so the
+            # state is consistent regardless of which code path noticed it.
+            from app.routes.v1.webhooks import _mark_call_analysis_failed
+
+            await _mark_call_analysis_failed(
+                db=db,
+                call_id=call_id,
+                company_id=call.company_id,
+                error_detail=submission_error,
+            )
+            return CallRetryResponse(
+                call_id=call_id,
+                analysis_status="failed",
+                processing_job_id=None,
+            )
+
+        return CallRetryResponse(
+            call_id=call_id,
+            analysis_status="processing",
+            processing_job_id=processing_job_id,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrying call analysis: {e}")
+        traceback.print_exc()
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )

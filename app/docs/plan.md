@@ -113,13 +113,6 @@ The #44/#42 work also partially resolves the Unbooked Leads and Kanban Pending c
 
 The following items require frontend work. Backend will not touch these.
 
-### Required (frontend-only bugs)
-
-| PDF # | Task | Location | Recommended fix |
-|---|---|---|---|
-| **#41** | DD/MM/YYYY date format on Call Logs | [`Otto-Frontend/src/app/(executive)/executive/call-log/page.tsx:227`](../../Otto-Frontend/src/app/(executive)/executive/call-log/page.tsx#L227) | Change `date-fns` format string from `"dd/MM/yyyy h:mm a"` to `"MM/dd/yyyy h:mm a"` (or a locale-aware formatter). Backend already sends ISO 8601. |
-| **#46** | `DEFAULT_TEAM` placeholder leaks into prod when API is empty — shows Brandon Ludewig / Bradley Cohurst / Andrew Munoz on every empty tenant | [`Otto-Frontend/src/components/sections/SalesTeamStats.tsx:9-40, 88-90`](../../Otto-Frontend/src/components/sections/SalesTeamStats.tsx#L9-L40) | Remove the `DEFAULT_TEAM` constant (or gate behind `process.env.NODE_ENV !== "production"`). Render an empty-state UI when `stats.length === 0`. |
-
 ### Opt-in opportunities (backend added new additive data the frontend can surface)
 
 These are not blocking, but the backend work above created new signals the frontend can render to improve UX. Partial-fix behavior today is unchanged; opting in turns partial fixes into full fixes.
@@ -141,9 +134,16 @@ Backend contract summary:
 - `is_booked` will be `null` (not `false`) when the call's analysis is missing/pending/failed.
 - `analysis_status` is the authoritative state field.
 
-#### Sales Insights → Leads page — "None Detected" vs null objections
+### Closed as by-design — no backend or frontend change
 
-`leads/page.tsx:1592` renders the literal string `"None Detected"` when `lead.objection` is null. Once the Lead Insights page also exposes an analysis state (future work, not Sprint 1), the frontend should distinguish "analysis complete, no objections" from "analysis pending/failed". No change required today.
+Three audit items flagged as frontend fallbacks turned out to be intentional product behavior after review with @KT / @Subham Sharma:
+
+- **#12 — "None Detected" rendered on leads page when `lead.objection` is null** ([`leads/page.tsx:1592`](../../Otto-Frontend/src/app/(executive)/executive/leads/page.tsx#L1592)). Planned fallback — the string is shown on purpose when no objection exists. Not a bug.
+- **#17, #24 — "Unknown Lead" / "Unknown Customer" when the name is null** (`PipelinePage.tsx`, `leads/page.tsx`, `csr/page.tsx`). Planned fallback for null names. The upstream "name extraction failed" case is already captured under RC-2/RC-4 and will improve naturally as those land; the rendered string itself is fine.
+
+### Needs product decision — not currently scoped
+
+- **#14, #17, #18 — "Pending" column referenced in the audit.** No `"pending"` stage exists in [`PIPELINE_CONFIG`](../../Otto-Frontend/src/components/pipeline/dummyData.ts#L42-L120) or in the backend `PipelineStage` enum. Not part of the lead lifecycle we agreed on. If product wants a dedicated Pending column, @Aditya Sakpal needs to update the `PipelineStage` enum + pipeline config; until then this is out of scope.
 
 #### Sales Audio Analysis — handle the new 200 `failed` response (follow-through for CL-44 parity on sales audio)
 

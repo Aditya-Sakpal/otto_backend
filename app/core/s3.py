@@ -278,6 +278,41 @@ class S3Service:
         bucket_name = self._get_bucket_name(bucket_type)
         return f"https://{bucket_name}.s3.{self.region}.amazonaws.com/{s3_key}"
 
+    def generate_presigned_get_url_from_url(
+        self,
+        s3_url: str,
+        expiration: int = 14400,
+    ) -> str:
+        """Return a pre-signed GET URL for an existing public S3 URL.
+
+        Accepts virtual-hosted URLs (e.g. `https://<bucket>.s3.<region>.amazonaws.com/<key>`)
+        produced by `upload_file` and path-style URLs as a fallback. The returned URL lets a
+        third party (e.g. Shunya) download the object without the bucket needing public read.
+        """
+        from urllib.parse import urlparse, unquote
+
+        parsed = urlparse(s3_url)
+        host = parsed.netloc
+        path = parsed.path.lstrip("/")
+
+        if ".s3" in host and host.endswith(".amazonaws.com"):
+            bucket_name = host.split(".s3", 1)[0]
+            s3_key = unquote(path)
+        else:
+            parts = path.split("/", 1)
+            bucket_name = parts[0]
+            s3_key = unquote(parts[1]) if len(parts) > 1 else ""
+
+        url = self.s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket_name, "Key": s3_key},
+            ExpiresIn=expiration,
+        )
+        logger.info(
+            f"Generated pre-signed GET URL for S3 bucket '{bucket_name}': {s3_key}"
+        )
+        return url
+
     def generate_presigned_url(
         self,
         s3_key: str,

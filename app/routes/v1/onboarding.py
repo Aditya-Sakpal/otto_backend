@@ -225,8 +225,17 @@ async def _upload_sop_to_shoonya(
         elif target_role:
             api_target_role = target_role
 
+        # Shunya fetches the file server-side; presign so they can download
+        # without the document bucket needing public read access.
+        s3_service = get_s3_service()
+        download_url = (
+            s3_service.generate_presigned_get_url_from_url(s3_url)
+            if s3_service
+            else s3_url
+        )
+
         result = await shoonya.upload_sop_document(
-            file_url=s3_url,
+            file_url=download_url,
             company_id=company_id,
             sop_name=sop_name,
             target_role=api_target_role,

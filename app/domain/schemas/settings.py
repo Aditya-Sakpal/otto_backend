@@ -56,6 +56,9 @@ class UpdateIntegrationRequest(BaseModel):
     voip_company_id: Optional[str] = Field(None, description="VoIP company ID")
     location_id: Optional[str] = Field(None, description="Location ID (for GHL)")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
+    st_tenant_id: Optional[str] = Field(None, description="ServiceTitan tenant ID")
+    st_client_id: Optional[str] = Field(None, description="ServiceTitan client ID")
+    st_client_secret: Optional[str] = Field(None, description="ServiceTitan client secret (will be encrypted)")
 
 
 class CreateIntegrationRequest(BaseModel):

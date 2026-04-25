@@ -112,11 +112,18 @@ async def poll_tenant(integration, http_client: httpx.AsyncClient, session) -> N
     logger.debug(f"Polling ST tenant {tenant_id}")
 
     # 1. Decrypt credentials
-    client_secret = (
-        decrypt_api_key(integration.st_client_secret_encrypted)
-        if integration.st_client_secret_encrypted
-        else None
-    )
+    client_secret = None
+    if integration.st_client_secret_encrypted:
+        try:
+            client_secret = decrypt_api_key(integration.st_client_secret_encrypted)
+        except ValueError:
+            logger.error(
+                f"Tenant {tenant_id}: cannot decrypt client_secret — the stored value was "
+                f"encrypted with a different key. Re-save the ST credentials for this tenant "
+                f"to re-encrypt with the current ENCRYPTION_KEY."
+            )
+            return
+
     if not client_secret:
         logger.warning(f"No client_secret for tenant {tenant_id}, skipping")
         return

@@ -59,10 +59,10 @@ class CompanyIntegrationRepository:
             orm_obj = CompanyIntegrationORM(
                 company_id=company_id,
                 location_id=location_id or "",
-                crm_api_encrypted_key=crm_encrypted_key or "",
+                crm_api_encrypted_key=crm_encrypted_key,
                 crm_provider=crm_provider or "",
                 crm_company_id=crm_company_id,
-                voip_api_encrypted_key=voip_encrypted_key or "",
+                voip_api_encrypted_key=voip_encrypted_key,
                 voip_access_key_encrypted=voip_access_encrypted,
                 voip_provider=voip_provider or "",
                 voip_company_id=voip_company_id,

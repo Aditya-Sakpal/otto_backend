@@ -136,5 +136,8 @@ class BaseRepository(Generic[T, D]):
         # Previously this excluded the id when present which caused FK mismatches
         # when callers supplied a pre-generated UUID (e.g. creating a Call with a given id).
         data = domain_obj.model_dump(exclude=set() if domain_obj.id else {"id"})
+        # Drop domain-only computed fields that have no corresponding ORM column
+        # (mirrors the hasattr guard already used in update()).
+        data = {k: v for k, v in data.items() if hasattr(self.orm_model, k)}
         return self.orm_model(**data)
 

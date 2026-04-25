@@ -101,14 +101,14 @@ async def get_settings(
                     company_id=integration_orm.company_id,
                     provider=integration_orm.crm_provider,
                     provider_type="crm",
-                    status="connected" if integration_orm.crm_api_encrypted_key else "disconnected",
+                    status="connected" if _crm_connected(integration_orm) else "disconnected",
                     description=f"{integration_orm.crm_provider} CRM connection for lead and contact management",
                     last_sync=integration_orm.extra_metadata.get("crm_last_sync") if integration_orm.extra_metadata else None,
                     location_id=integration_orm.location_id,
                     company_id_external=integration_orm.crm_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-            
+
             # Build VoIP integration if exists
             if integration_orm.voip_provider:
                 integrations.append(IntegrationResponse(
@@ -123,7 +123,7 @@ async def get_settings(
                     company_id_external=integration_orm.voip_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-        
+
         # Get documents
         company = await service.get_company_by_id(company_id)
         documents = []

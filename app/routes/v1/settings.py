@@ -527,6 +527,9 @@ async def update_integration(
             voip_api_key=request.voip_api_key,
             voip_company_id=request.voip_company_id,
             extra_metadata=request.extra_metadata,
+            st_tenant_id=request.st_tenant_id,
+            st_client_id=request.st_client_id,
+            st_client_secret=request.st_client_secret,
         )
         
         if not updated_integration:

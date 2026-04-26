@@ -242,14 +242,12 @@ class ServiceTitanService:
         """
         st_call_id = str(st_call.get("id", ""))
 
-        # 1. Dedup check via extra_metadata.st_call_id
-        existing_calls = await self.call_repo.get_all(
-            filters={"company_id": company_id}
+        # 1. Resolve existing row by st_call_id (indexed JSON query — NOT get_all(limit=100)).
+        #    Companies can have thousands of calls; the old scan missed prior rows so ST
+        #    re-exports (e.g. type Unbooked → Booked) created duplicate calls + appointments.
+        existing_st_call = (
+            await self.call_repo.get_by_st_call_id(company_id, st_call_id) if st_call_id else None
         )
-        for c in existing_calls:
-            if c.extra_metadata and c.extra_metadata.get("st_call_id") == st_call_id:
-                logger.debug(f"ST call {st_call_id} already ingested — skipping")
-                return False
 
         # 2. Extract phone number — Export API has "from" at root level
         phone = st_call.get("from") or "anonymous"
@@ -336,7 +334,80 @@ class ServiceTitanService:
             st_call.get("agent"), company_id
         )
 
-        # 7. Create Call record
+        # 7a. Same ServiceTitan call id seen again — merge export onto one row (no second Call).
+        if existing_st_call:
+            old_meta = dict(existing_st_call.extra_metadata or {})
+            old_type = (old_meta.get("st_type") or "").lower()
+            new_type = call_type_raw
+            existing_st_call.extra_metadata = {
+                **old_meta,
+                "st_call_id": st_call_id,
+                "st_direction": st_call.get("direction"),
+                "st_type": call_type_raw,
+                "st_status": st_call.get("status"),
+                "st_agent": st_call.get("agent"),
+                "st_campaign": st_call.get("campaign"),
+            }
+            if contact_card:
+                existing_st_call.contact_card_id = contact_card.id
+            if duration_seconds is not None:
+                existing_st_call.duration_seconds = duration_seconds
+            if s3_audio_url:
+                existing_st_call.audio_url = s3_audio_url
+            if handled_by_user_id:
+                existing_st_call.handled_by_user_id = handled_by_user_id
+            existing_st_call.missed_call = is_missed
+            existing_st_call.call_type = CallType.MISSED_CALL if is_missed else CallType.CSR_CALL
+            if not existing_st_call.lead_source:
+                ls = (
+                    st_call.get("campaign", {}).get("name")
+                    if isinstance(st_call.get("campaign"), dict)
+                    else st_call.get("campaign")
+                )
+                if ls:
+                    existing_st_call.lead_source = ls
+            call = await self.call_repo.update(existing_st_call.id, existing_st_call)
+
+            if contact_card and not is_missed:
+                try:
+                    lead = await self._find_lead_by_contact(contact_card.id, company_id)
+                    if not lead:
+                        new_lead = Lead(
+                            company_id=company_id,
+                            contact_card_id=contact_card.id,
+                            status=LeadStatus.NEW,
+                            pipeline_stage=ST_PIPELINE_STAGE_MAP.get(LeadStatus.NEW),
+                            lead_source=st_call.get("campaign", {}).get("name")
+                            if isinstance(st_call.get("campaign"), dict)
+                            else st_call.get("campaign")
+                            or None,
+                            extra_metadata={"source": "st_call", "st_call_id": st_call_id},
+                        )
+                        lead = await self.lead_repo.create(new_lead)
+                        logger.info(f"Created lead from ST call {st_call_id}")
+                    if lead and lead.id and not call.lead_id:
+                        call.lead_id = lead.id
+                        call = await self.call_repo.update(call.id, call)
+                except Exception as e:
+                    logger.error(f"Failed to find/create/link lead for ST call {st_call_id}: {e}")
+
+            if s3_audio_url and not is_missed and new_type == "booked" and old_type != "booked":
+                try:
+                    call_service = CallService(self.session)
+                    await call_service.trigger_analysis(call.id)
+                except Exception as e:
+                    logger.error(f"Failed to trigger analysis after ST type→booked for {call.id}: {e}")
+
+            logger.info(
+                "Merged ServiceTitan export into existing call (dedupe by st_call_id)",
+                call_id=str(call.id),
+                st_call_id=st_call_id,
+                old_st_type=old_type,
+                new_st_type=new_type,
+            )
+            return False
+
+        # 7b. Create Call record
         from app.domain.models.call import Call
 
         call = Call(

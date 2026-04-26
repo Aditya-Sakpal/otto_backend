@@ -209,6 +209,10 @@ class PipelineLeadTab(_SlimModel):
     """Lead tab — CSR stage data."""
     id: UUID
     status: str
+    csr_assigned: bool = Field(
+        False,
+        description="True when any CSR call on this lead has handled_by_user_id set.",
+    )
     overall_engagement: PipelineEngagement
     conversations: List[PipelineConversation] = Field(default_factory=list)
 

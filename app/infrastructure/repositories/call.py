@@ -74,3 +74,29 @@ class CallRepository(BaseRepository[CallORM, Call]):
             logger.error(f"Error getting calls by lead: {e}")
             raise e
 
+    async def get_by_st_call_id(self, company_id: UUID, st_call_id: str) -> Optional[Call]:
+        """
+        Find a call ingested from ServiceTitan Export by st_call_id in extra_metadata.
+
+        Used for deduplication. Do not use get_all(limit=100): companies can have
+        thousands of calls, so in-memory scans miss prior rows and ST re-sends create
+        duplicate calls (same recording, same st_call_id).
+        """
+        if not st_call_id:
+            return None
+        try:
+            result = await self.session.execute(
+                select(CallORM)
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.extra_metadata["st_call_id"].as_string() == st_call_id,
+                )
+                .order_by(desc(CallORM.created_at))
+                .limit(1)
+            )
+            orm_obj = result.scalar_one_or_none()
+            return self._to_domain(orm_obj) if orm_obj else None
+        except Exception as e:
+            logger.error(f"Error getting call by st_call_id: {e}")
+            raise e
+

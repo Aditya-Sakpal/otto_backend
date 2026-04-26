@@ -1540,6 +1540,11 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             all_key_points: List[str] = []
             last_touched = None
             next_move = None
+            csr_assigned = any(
+                (str(getattr(call, "call_type", "")).lower() == "csr_call")
+                and (getattr(call, "handled_by_user_id", None) is not None)
+                for call in sorted_calls
+            )
 
             for call in sorted_calls:
                 analysis = getattr(call, "analysis", None)
@@ -1574,6 +1579,7 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
             lead_tab = PipelineLeadTab(
                 id=lead_orm.id,
                 status=lead_orm.status,
+                csr_assigned=csr_assigned,
                 overall_engagement=PipelineEngagement(
                     last_touched=last_touched,
                     next_move=next_move,

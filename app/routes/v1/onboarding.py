@@ -3,8 +3,10 @@ Onboarding API routes.
 
 Handles user/company creation, GHL integration, and document storage.
 """
+import json
+
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form, BackgroundTasks
-from pydantic import EmailStr
+from pydantic import EmailStr, ValidationError
 
 from app.core.dependencies import DbSession
 from app.core.logging import get_logger
@@ -12,6 +14,7 @@ from app.core.s3 import get_s3_service
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.domain.schemas.onboarding import (
     OnboardingCompleteResponse,
+    OnboardingTenantConfigPayload,
     ValidateGHLRequest,
     ValidateGHLResponse,
     ValidateCTMRequest,
@@ -97,7 +100,7 @@ async def complete_onboarding(
     email: EmailStr = Form(...),
     password: str = Form(...),
     companyName: str = Form(...),
-    reference_doc: UploadFile = File(...),
+    reference_doc: UploadFile | None = File(None),
     csr_sop_doc: UploadFile | None = File(None),
     sales_sop_doc: UploadFile | None = File(None),
     phone_number: str | None = Form(None),
@@ -114,18 +117,56 @@ async def complete_onboarding(
     st_client_id: str | None = Form(None),
     st_client_secret: str | None = Form(None),
     ghost_mode_enabled: bool = Form(False),
+    tenant_config_payload: str | None = Form(
+        None,
+        description=(
+            "Optional JSON object using the same tenant-config sections as "
+            "POST /api/v1/tenant-config (excluding company_id/company_name). "
+            "This value must be a JSON-encoded string in multipart form-data. "
+            "Service maps local payload shape to Shoonya tenant-config schema "
+            "(e.g. keyword categories/effect, service priorities, business hours)."
+        ),
+    ),
 ) -> OnboardingCompleteResponse:
     """
     Complete onboarding: create user, company, integration, tenant config, and return JWT.
 
     Idempotent — returns existing user with fresh tokens if already onboarded.
-    """
-    if not reference_doc.filename:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="reference_doc file is required")
 
-    s3_service = get_s3_service()
-    if not s3_service:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="S3 service is not configured")
+    **reference_doc** is optional. S3 is required only when at least one of
+    ``reference_doc``, ``csr_sop_doc``, or ``sales_sop_doc`` is uploaded with a filename.
+    """
+    def _has_upload_file(f: UploadFile | None) -> bool:
+        return f is not None and bool((f.filename or "").strip())
+
+    needs_s3_upload = (
+        _has_upload_file(reference_doc)
+        or _has_upload_file(csr_sop_doc)
+        or _has_upload_file(sales_sop_doc)
+    )
+    s3_service = get_s3_service() if needs_s3_upload else None
+    if needs_s3_upload and not s3_service:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="S3 service is not configured",
+        )
+
+    parsed_tenant_config_payload: dict | None = None
+    if tenant_config_payload and tenant_config_payload.strip():
+        try:
+            payload_obj = json.loads(tenant_config_payload)
+            validated = OnboardingTenantConfigPayload.model_validate(payload_obj)
+            parsed_tenant_config_payload = validated.model_dump(exclude_none=True)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"tenant_config_payload must be valid JSON: {e.msg}",
+            )
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=e.errors(),
+            )
 
     try:
         service = OnboardingService(db)
@@ -153,6 +194,7 @@ async def complete_onboarding(
             st_client_id=st_client_id,
             st_client_secret=st_client_secret,
             ghost_mode_enabled=ghost_mode_enabled,
+            tenant_config_payload=parsed_tenant_config_payload,
         )
 
         # Schedule background Shoonya SOP uploads for new users only

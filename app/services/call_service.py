@@ -1090,14 +1090,22 @@ class CallService:
                 )
                 return
 
-            # Resolve scheduled_start from analysis or call
+            # Resolve scheduled_start only from analysis fields Shunya extracts for bookings.
+            # Do not use call.created_at: that is ingestion time and reads as a false "appointment"
+            # in Pipeline / Appointments (e.g. 2am, random wall times).
             scheduled_start = (
                 getattr(analysis, "appointment_date", None)
                 or getattr(analysis, "original_appointment_datetime", None)
                 or getattr(analysis, "new_requested_time", None)
             )
             if not scheduled_start:
-                scheduled_start = getattr(call, "created_at", None) or datetime.now(timezone.utc)
+                logger.info(
+                    "Skipping appointment upsert — no appointment_date / original_appointment_datetime / "
+                    "new_requested_time on analysis (would not fabricate time from call.created_at)",
+                    call_id=str(call.id),
+                    lead_id=str(call.lead_id) if call.lead_id else None,
+                )
+                return
             if hasattr(scheduled_start, "tzinfo") and scheduled_start.tzinfo is None:
                 scheduled_start = scheduled_start.replace(tzinfo=timezone.utc)
 

@@ -16,7 +16,7 @@ class CompanyRepository:
     async def create(
         self,
         name: str,
-        reference_doc_url: str,
+        reference_doc_url: str | None = None,
         sop_doc_url: str | None = None,
         csr_sop_doc_url: str | None = None,
         sales_sop_doc_url: str | None = None,
@@ -29,7 +29,7 @@ class CompanyRepository:
 
         Args:
             name: Company name
-            reference_doc_url: URL to reference document in S3
+            reference_doc_url: URL to reference document in S3 (optional)
             sop_doc_url: URL to SOP document in S3 (optional)
             csr_sop_doc_url: URL to CSR SOP document in S3 (optional)
             sales_sop_doc_url: URL to Sales SOP document in S3 (optional)

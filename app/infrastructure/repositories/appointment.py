@@ -448,6 +448,47 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
             logger.error(f"Error getting appointment by interaction ID: {e}")
             raise e
 
+    async def find_for_lead_within_window(
+        self,
+        lead_id: UUID,
+        scheduled_start: datetime,
+        window_minutes: int = 120,
+    ) -> Optional[Appointment]:
+        """
+        Find an existing appointment for ``lead_id`` whose ``scheduled_start``
+        is within ``+/- window_minutes`` of the given timestamp.
+
+        Used by the call-driven appointment ingest path to avoid the audit's
+        #39 case where the same lead receives two calls (e.g., follow-up
+        confirmation) and ends up with two near-duplicate appointment rows.
+
+        If multiple matches exist the most recently updated one is returned.
+        """
+        try:
+            from datetime import timedelta as _td
+
+            window = _td(minutes=window_minutes)
+            lower = scheduled_start - window
+            upper = scheduled_start + window
+            result = await self.session.execute(
+                select(AppointmentORM)
+                .where(
+                    AppointmentORM.lead_id == lead_id,
+                    AppointmentORM.scheduled_start >= lower,
+                    AppointmentORM.scheduled_start <= upper,
+                )
+                .order_by(
+                    AppointmentORM.updated_at.desc().nullslast(),
+                    AppointmentORM.created_at.desc(),
+                )
+                .limit(1)
+            )
+            orm_obj = result.scalar_one_or_none()
+            return self._to_domain(orm_obj) if orm_obj else None
+        except Exception as e:
+            logger.error(f"Error finding appointment within window: {e}")
+            raise e
+
     async def get_ridealongs_filtered(
         self,
         company_id: UUID,

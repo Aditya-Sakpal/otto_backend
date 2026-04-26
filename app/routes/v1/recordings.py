@@ -206,7 +206,9 @@ async def complete_recording(
         # Trigger Shunya processing with appointment_id as tracker
         processing_job_id = None
         shoonya = get_shoonya_client()
-        if shoonya.is_available():
+        shoonya_available = shoonya.is_available()
+        submission_error: Optional[str] = None
+        if shoonya_available:
             try:
                 from datetime import datetime
 
@@ -243,11 +245,47 @@ async def complete_recording(
                     f"Triggered Shunya processing for appointment {request.appointment_id}, job_id={processing_job_id}"
                 )
             except Exception as e:
+                submission_error = str(e)
                 logger.error(f"Failed to trigger Shunya processing: {e}", exc_info=True)
+
+        # CL-44 parity for sales audio: if we either couldn't reach Shunya or
+        # the submission raised, record the failure explicitly so the
+        # appointment doesn't sit in whatever state the recording-upload step
+        # last left it. Frontend + operators key off analysis_status="failed"
+        # to show "Analysis failed — retry?" instead of a permanent spinner.
+        if not shoonya_available or submission_error is not None:
+            try:
+                appointment.analysis_status = "failed"
+                existing_meta = dict(appointment.extra_metadata or {})
+                existing_meta["analysis_failure"] = {
+                    "source": "recordings_complete_submission",
+                    "detail": (
+                        submission_error
+                        if submission_error
+                        else "shoonya_client_unavailable"
+                    )[:500],
+                    "recorded_at": __import__("datetime").datetime.utcnow().isoformat(),
+                }
+                appointment.extra_metadata = existing_meta
+                appointment.mark_updated()
+                await appointment_repo.update(request.appointment_id, appointment)
+                await db.commit()
+            except Exception as mark_err:
+                logger.warning(
+                    f"Could not mark appointment {request.appointment_id} analysis_status=failed: {mark_err}"
+                )
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
 
         return RecordingCompleteResponse(
             appointment_id=request.appointment_id,
-            status="processing",
+            status=(
+                "failed"
+                if (not shoonya_available or submission_error is not None)
+                else "processing"
+            ),
             processing_job_id=processing_job_id,
         )
 
@@ -257,6 +295,208 @@ async def complete_recording(
         logger.error(f"Error completing recording: {e}")
         traceback.print_exc()
         await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+class RecordingRetryResponse(BaseModel):
+    """Response for a retry submission."""
+    appointment_id: UUID = Field(..., description="Appointment ID")
+    analysis_status: str = Field(
+        ...,
+        description="New state after retry — 'processing' on success, 'failed' if Shoonya rejected the re-submission immediately.",
+    )
+    processing_job_id: Optional[str] = Field(
+        None,
+        description="Shunya job ID for the new retry submission (null if Shoonya immediately rejected).",
+    )
+
+
+@router.post(
+    "/{appointment_id}/retry",
+    response_model=RecordingRetryResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        **RESPONSES,
+        409: {"description": "Analysis already in progress for this appointment"},
+    },
+)
+async def retry_recording_analysis(
+    appointment_id: UUID,
+    db: DbSession,
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+) -> RecordingRetryResponse:
+    """
+    Retry Shoonya analysis for an appointment recording.
+
+    Preconditions:
+    - Appointment exists and has an ``audio_url`` (404 otherwise — nothing to
+      re-submit).
+    - Current ``analysis_status`` is NOT ``"processing"`` (409 — would cause a
+      duplicate in-flight Shunya job).
+    - Caller belongs to the same company as the appointment (403).
+    - Shoonya client is available (503).
+
+    Behavior:
+    - Clears ``extra_metadata.analysis_failure`` (if present).
+    - Sets ``analysis_status = "processing"`` and stores the new
+      ``shunya_job_id``.
+    - Re-submits the stored ``audio_url`` to Shoonya with the same metadata
+      shape used by ``POST /recordings/complete``.
+
+    On Shoonya submission failure the appointment is flipped to
+    ``analysis_status="failed"`` (same path as the original complete flow)
+    and the response body reflects the failed state so the frontend can
+    prompt another retry.
+    """
+    try:
+        appointment_repo = AppointmentRepository(db)
+        appointment = await appointment_repo.get_by_id(appointment_id)
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found",
+            )
+
+        # Tenant isolation — don't let a caller re-submit another tenant's
+        # recording. The audit's SI-45 fix closes this at the query layer;
+        # this is the parallel write-side guard.
+        if user.company_id is not None and appointment.company_id != user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: cross-tenant request",
+            )
+
+        if not appointment.audio_url:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment has no audio_url to retry against",
+            )
+
+        if appointment.analysis_status == "processing":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Analysis is already in progress for this appointment",
+            )
+
+        shoonya = get_shoonya_client()
+        if not shoonya.is_available():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service not available",
+            )
+
+        # Reset failure markers before we attempt the re-submission. Keep
+        # other extra_metadata keys (time_quality, location_quality,
+        # created_from_call, etc.) intact.
+        cleared_meta = dict(appointment.extra_metadata or {})
+        cleared_meta.pop("analysis_failure", None)
+        appointment.extra_metadata = cleared_meta or None
+        appointment.analysis_status = "processing"
+        appointment.mark_updated()
+        await appointment_repo.update(appointment_id, appointment)
+        await db.commit()
+
+        # Re-submit to Shoonya with the same metadata shape as the original
+        # complete_recording path.
+        from datetime import datetime as _dt
+
+        webhook_url = f"{settings.API_URL}/api/v1/webhooks/shoonya/job-complete"
+        submission_error: Optional[str] = None
+        processing_job_id: Optional[str] = None
+        try:
+            result = await shoonya.process_call(
+                call_id=str(appointment.id),
+                company_id=str(appointment.company_id),
+                audio_url=appointment.audio_url,
+                phone_number="",
+                duration=appointment.duration_seconds or 0,
+                call_date=(
+                    appointment.scheduled_start.isoformat()
+                    if appointment.scheduled_start
+                    else _dt.utcnow().isoformat()
+                ),
+                webhook_url=webhook_url,
+                metadata={
+                    "is_appointment": True,
+                    "appointment_id": str(appointment.id),
+                    "interaction_type": "meeting",
+                    "call_type": "sales_call",
+                    "role": "sales_rep",
+                    "lead_id": str(appointment.lead_id) if appointment.lead_id else None,
+                    "contact_card_id": (
+                        str(appointment.contact_card_id)
+                        if appointment.contact_card_id
+                        else None
+                    ),
+                    "retry": True,
+                },
+            )
+            processing_job_id = result.get("job_id")
+            appointment.shunya_job_id = processing_job_id
+            appointment.mark_updated()
+            await appointment_repo.update(appointment_id, appointment)
+            await db.commit()
+            logger.info(
+                "Retry submitted to Shoonya",
+                appointment_id=str(appointment_id),
+                job_id=processing_job_id,
+            )
+        except Exception as e:
+            submission_error = str(e)
+            logger.error(
+                f"Retry submission to Shoonya failed for appointment {appointment_id}: {e}",
+                exc_info=True,
+            )
+
+        if submission_error is not None:
+            # Mirror the complete_recording failure path — record the reason
+            # and return 202 with status="failed" so the FE can prompt
+            # another retry cleanly.
+            try:
+                appointment.analysis_status = "failed"
+                meta = dict(appointment.extra_metadata or {})
+                meta["analysis_failure"] = {
+                    "source": "recordings_retry_submission",
+                    "detail": submission_error[:500],
+                    "recorded_at": _dt.utcnow().isoformat(),
+                }
+                appointment.extra_metadata = meta
+                appointment.mark_updated()
+                await appointment_repo.update(appointment_id, appointment)
+                await db.commit()
+            except Exception as mark_err:
+                logger.warning(
+                    f"Could not mark appointment {appointment_id} analysis_status=failed after retry: {mark_err}"
+                )
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+
+            return RecordingRetryResponse(
+                appointment_id=appointment_id,
+                analysis_status="failed",
+                processing_job_id=None,
+            )
+
+        return RecordingRetryResponse(
+            appointment_id=appointment_id,
+            analysis_status="processing",
+            processing_job_id=processing_job_id,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrying recording analysis: {e}")
+        traceback.print_exc()
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -311,7 +551,17 @@ async def get_recording_analysis(
                 detail=f"Appointment not found: {appointment_id}",
             )
 
-        if not appointment.analysis_status or appointment.analysis_status != "completed":
+        # Sales-audio failure visibility: "failed" is now a first-class
+        # terminal state (set by /recordings/complete when Shunya submission
+        # fails, or by the Shunya webhook when summary fetch / extraction
+        # fails). Return 200 with the existing schema — all analytical
+        # fields are already Optional on the response, so the payload is
+        # structurally valid, and clients that look at analysis_status can
+        # render a "retry?" affordance instead of spinning on 404.
+        if not appointment.analysis_status or appointment.analysis_status not in (
+            "completed",
+            "failed",
+        ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Recording analysis not yet available for appointment {appointment_id}",

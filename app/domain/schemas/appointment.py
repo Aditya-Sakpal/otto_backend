@@ -236,6 +236,20 @@ class AppointmentResponse(AppointmentBase):
         None,
         description="Recording status (e.g. uploaded)",
     )
+    analysis_status: Optional[str] = Field(
+        None,
+        description=(
+            "State of Shoonya analysis for the appointment recording. One of: "
+            "'pending', 'processing', 'completed', 'failed', or null if no "
+            "recording has been uploaded yet. When 'failed' or absent, the "
+            "``insights`` block will be null/empty; the frontend should key off "
+            "this field to render a 'Retry analysis' affordance instead of "
+            "assuming the appointment simply has no data. Mirrors the "
+            "``analysis_status`` already returned by "
+            "``GET /api/v1/recordings/{appointment_id}/analysis`` and the "
+            "``analysis_status`` on Call Logs."
+        ),
+    )
     phases: Optional[dict] = Field(
         None,
         description="Live conversation phase detection from Shunya (greeting, problem_discovery, qualification, objection_handling, closing, post_close)",

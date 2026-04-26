@@ -829,7 +829,7 @@ class SalesRepDashboardService:
             prev_start = _start_dt - timedelta(days=period_days)
             prev_end = _start_dt
 
-            # --- Combined appointment stats (total, avg_dur, won) in ONE query ---
+            # --- Combined appointment stats (total, avg_dur, won, resolved) in ONE query ---
             appt_stats = await self.session.execute(
                 select(
                     func.count(AppointmentORM.id).label("total"),
@@ -837,6 +837,9 @@ class SalesRepDashboardService:
                     func.count(case(
                         (AppointmentORM.outcome == "won", AppointmentORM.id)
                     )).label("won"),
+                    func.count(case(
+                        (AppointmentORM.outcome.in_(["won", "lost", "no_show"]), AppointmentORM.id)
+                    )).label("resolved"),
                 ).where(
                     AppointmentORM.company_id == company_id,
                     AppointmentORM.scheduled_start >= _start_dt,
@@ -846,7 +849,7 @@ class SalesRepDashboardService:
             appt_row = appt_stats.one()
             total_appointments = int(appt_row.total or 0)
             avg_recording_duration = self._format_duration_as_hm(float(appt_row.avg_dur or 0))
-            team_win_rate = round((appt_row.won / appt_row.total * 100), 2) if appt_row.total > 0 else 0.0
+            team_win_rate = round((appt_row.won / appt_row.resolved * 100), 2) if appt_row.resolved > 0 else 0.0
 
             # --- Revenue & avg deal size ---
             # Use closed_at if available, fall back to updated_at, then created_at
@@ -926,6 +929,11 @@ class SalesRepDashboardService:
             follow_up_win_rate = round((t_row.fu_won / t_row.fu_total * 100), 2) if t_row.fu_total > 0 else 0.0
 
             # --- Follow-up rate: % of appointments with follow_up_required (via linked call analysis) ---
+            # SI-47 (PDF #47): exclude analyses that are not completed so that
+            # pending/failed rows (now written explicitly by the Shoonya webhook
+            # per CL-44) do not inflate the denominator with zero-follow-up
+            # rows. The KPI should reflect what the AI actually concluded, not
+            # what it failed to conclude.
             follow_up_stats_result = await self.session.execute(
                 select(
                     func.count(AppointmentORM.id).label("total_analyzed"),
@@ -940,6 +948,7 @@ class SalesRepDashboardService:
                     AppointmentORM.company_id == company_id,
                     AppointmentORM.scheduled_start >= _start_dt,
                     AppointmentORM.scheduled_start <= _end_dt,
+                    CallAnalysisORM.status == "completed",
                 )
             )
             fu_stats = follow_up_stats_result.one()
@@ -948,6 +957,8 @@ class SalesRepDashboardService:
             follow_up_rate = round((follow_up_count / total_analyzed * 100), 2) if total_analyzed > 0 else 0.0
 
             # --- Follow-up growth: compare with previous period ---
+            # SI-47 (PDF #47): same completed-only filter as the current
+            # period so the growth comparison is apples-to-apples.
             prev_fu_stats_result = await self.session.execute(
                 select(
                     func.count(AppointmentORM.id).label("total_analyzed"),
@@ -962,6 +973,7 @@ class SalesRepDashboardService:
                     AppointmentORM.company_id == company_id,
                     AppointmentORM.scheduled_start >= prev_start,
                     AppointmentORM.scheduled_start < prev_end,
+                    CallAnalysisORM.status == "completed",
                 )
             )
             prev_fu_stats = prev_fu_stats_result.one()
@@ -1146,6 +1158,12 @@ class SalesRepDashboardService:
                         common_objection_peak = round((max_count / total_count) * 100, 2)
 
             script_adherence = 0.0
+            # SI-47 (PDF #47): drop failed / pending analyses from the AVG so
+            # the team script adherence is computed only over calls that
+            # actually produced a score. Without this, the new status="failed"
+            # markers would be invisible (score is NULL, already excluded via
+            # isnot(None)) but any partial/pending rows that somehow carry a
+            # score would otherwise pollute the figure.
             sop_stmt = (
                 select(func.avg(CallAnalysisORM.sop_compliance_score))
                 .select_from(CallAnalysisORM)
@@ -1153,6 +1171,7 @@ class SalesRepDashboardService:
                 .where(
                     CallAnalysisORM.company_id == company_id,
                     CallORM.company_id == company_id,
+                    CallAnalysisORM.status == "completed",
                     CallAnalysisORM.sop_compliance_score.isnot(None),
                     CallORM.created_at >= _start_dt,
                     CallORM.created_at <= _end_dt,

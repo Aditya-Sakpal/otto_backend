@@ -50,6 +50,13 @@ DOCUMENT_TYPE_MAPPING = {
 REVERSE_DOCUMENT_TYPE_MAPPING = {v: k for k, v in DOCUMENT_TYPE_MAPPING.items()}
 
 
+def _crm_connected(integration) -> bool:
+    """ServiceTitan uses st_client_secret_encrypted; all other CRMs use crm_api_encrypted_key."""
+    if integration.crm_provider == "servicetitan":
+        return bool(integration.st_client_secret_encrypted)
+    return bool(integration.crm_api_encrypted_key)
+
+
 @router.get("", response_model=SettingsResponse, responses=RESPONSES)
 async def get_settings(
     company_id: UUID,
@@ -94,14 +101,14 @@ async def get_settings(
                     company_id=integration_orm.company_id,
                     provider=integration_orm.crm_provider,
                     provider_type="crm",
-                    status="connected" if integration_orm.crm_api_encrypted_key else "disconnected",
+                    status="connected" if _crm_connected(integration_orm) else "disconnected",
                     description=f"{integration_orm.crm_provider} CRM connection for lead and contact management",
                     last_sync=integration_orm.extra_metadata.get("crm_last_sync") if integration_orm.extra_metadata else None,
                     location_id=integration_orm.location_id,
                     company_id_external=integration_orm.crm_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-            
+
             # Build VoIP integration if exists
             if integration_orm.voip_provider:
                 integrations.append(IntegrationResponse(
@@ -116,7 +123,7 @@ async def get_settings(
                     company_id_external=integration_orm.voip_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-        
+
         # Get documents
         company = await service.get_company_by_id(company_id)
         documents = []
@@ -300,14 +307,14 @@ async def get_integrations(
                     company_id=integration_orm.company_id,
                     provider=integration_orm.crm_provider,
                     provider_type="crm",
-                    status="connected" if integration_orm.crm_api_encrypted_key else "disconnected",
+                    status="connected" if _crm_connected(integration_orm) else "disconnected",
                     description=f"{integration_orm.crm_provider} CRM connection for lead and contact management",
                     last_sync=integration_orm.extra_metadata.get("crm_last_sync") if integration_orm.extra_metadata else None,
                     location_id=integration_orm.location_id,
                     company_id_external=integration_orm.crm_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-            
+
             # Build VoIP integration if exists
             if integration_orm.voip_provider:
                 integrations.append(IntegrationResponse(
@@ -322,7 +329,7 @@ async def get_integrations(
                     company_id_external=integration_orm.voip_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-        
+
         return IntegrationsListResponse(
             integrations=integrations,
             total_count=len(integrations),
@@ -381,7 +388,7 @@ async def get_integration(
                 )
             provider = integration_orm.crm_provider
             company_id_external = integration_orm.crm_company_id
-            is_connected = bool(integration_orm.crm_api_encrypted_key)
+            is_connected = _crm_connected(integration_orm)
         else:  # voip
             if not integration_orm.voip_provider:
                 raise HTTPException(
@@ -527,6 +534,9 @@ async def update_integration(
             voip_api_key=request.voip_api_key,
             voip_company_id=request.voip_company_id,
             extra_metadata=request.extra_metadata,
+            st_tenant_id=request.st_tenant_id,
+            st_client_id=request.st_client_id,
+            st_client_secret=request.st_client_secret,
         )
         
         if not updated_integration:
@@ -543,7 +553,7 @@ async def update_integration(
                 company_id=updated_integration.company_id,
                 provider=updated_integration.crm_provider,
                 provider_type="crm",
-                status="connected" if updated_integration.crm_api_encrypted_key else "disconnected",
+                status="connected" if _crm_connected(updated_integration) else "disconnected",
                 description=f"{updated_integration.crm_provider} CRM connection for lead and contact management",
                 last_sync=updated_integration.extra_metadata.get("crm_last_sync") if updated_integration.extra_metadata else None,
                 location_id=updated_integration.location_id,

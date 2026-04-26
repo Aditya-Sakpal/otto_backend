@@ -32,4 +32,17 @@ class Call(BaseModel):
     scope: Optional[CallScope] = Field(None, description="Whether call is in-scope or out-of-scope")
     lead_source: Optional[str] = Field(None, description="Lead source from CRM (e.g. Google, LSA, Yelp)")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
+    # Populated by endpoints that join CallAnalysisORM (e.g. GET /calls/{id}).
+    # Additive — defaults to None when not looked up, keeping existing
+    # consumers (repos that don't run the join) unchanged. Mirrors the
+    # analysis_status field on Call Logs and Appointment responses.
+    analysis_status: Optional[str] = Field(
+        None,
+        description=(
+            "State of the call's AI analysis. One of 'not_analyzed', "
+            "'pending', 'processing', 'completed', 'failed', or null when the "
+            "endpoint didn't look it up. When not 'completed', analytical fields "
+            "(e.g. transcript) should be treated as unknown rather than absent."
+        ),
+    )
 

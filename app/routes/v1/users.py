@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role, require_executive
 from app.core.auth import get_current_user
+from app.core.tenant import require_company_access
 from app.core.logging import get_logger
 from app.domain.users.models import User
 from app.domain.users.service import UserService
@@ -29,7 +30,15 @@ RESPONSES = {
 }
 
 
-@router.get("", response_model=List[UserResponse], responses=RESPONSES)
+@router.get(
+    "",
+    response_model=List[UserResponse],
+    responses=RESPONSES,
+    # SI-45 (PDF #45): tenant isolation — reject cross-tenant reads when
+    # company_id is supplied. No-ops when both company_id and user_id are
+    # omitted; the service layer still filters by caller context downstream.
+    dependencies=[Depends(require_company_access)],
+)
 async def list_users(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -71,7 +80,13 @@ async def list_users(
         )
 
 
-@router.get("/sales-reps", response_model=List[UserResponse], responses=RESPONSES)
+@router.get(
+    "/sales-reps",
+    response_model=List[UserResponse],
+    responses=RESPONSES,
+    # SI-45 (PDF #45): tenant isolation — reject cross-tenant reads.
+    dependencies=[Depends(require_company_access)],
+)
 async def get_sales_reps_by_company(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),

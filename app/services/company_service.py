@@ -226,6 +226,9 @@ class CompanyService:
         voip_api_key: str | None = None,
         voip_company_id: str | None = None,
         extra_metadata: dict | None = None,
+        st_tenant_id: str | None = None,
+        st_client_id: str | None = None,
+        st_client_secret: str | None = None,
     ) -> CompanyIntegrationORM | None:
         """
         Update a company integration.
@@ -240,6 +243,9 @@ class CompanyService:
             voip_api_key: VoIP API key - will be encrypted (optional)
             voip_company_id: VoIP company ID (optional)
             extra_metadata: Additional metadata (optional)
+            st_tenant_id: ServiceTitan tenant ID (optional)
+            st_client_id: ServiceTitan client ID (optional)
+            st_client_secret: ServiceTitan client secret - will be encrypted (optional)
 
         Returns:
             Updated CompanyIntegrationORM instance or None if not found
@@ -253,7 +259,10 @@ class CompanyService:
             voip_provider=voip_provider,
             voip_api_key=voip_api_key,
             voip_company_id=voip_company_id,
-            extra_metadata=extra_metadata
+            extra_metadata=extra_metadata,
+            st_tenant_id=st_tenant_id,
+            st_client_id=st_client_id,
+            st_client_secret=st_client_secret,
         )
 
     async def upsert_company_integration(

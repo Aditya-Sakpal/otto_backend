@@ -1,6 +1,7 @@
 """API v1 routes."""
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.core.tenant import require_company_access
 from app.routes.v1 import (
     auth,
     calls,
@@ -39,7 +40,16 @@ router.include_router(calls.router, prefix="/calls", tags=["calls"])
 router.include_router(contact_card.router, prefix="/contact-card", tags=["contact-card"])
 router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 router.include_router(rag.router, prefix="/rag", tags=["rag"])
-router.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
+router.include_router(
+    metrics.router,
+    prefix="/metrics",
+    tags=["metrics"],
+    # SI-45 (PDF #45): enforce tenant isolation on all /metrics/* endpoints.
+    # Dependency reads company_id / user_id from Query (shared with route) and
+    # 403s on cross-tenant requests. Endpoints that don't accept those Query
+    # params (e.g. /csr/me/profile) are unaffected — the dependency no-ops.
+    dependencies=[Depends(require_company_access)],
+)
 router.include_router(leads.router, prefix="/leads", tags=["leads"])
 router.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 router.include_router(users.router, prefix="/users", tags=["users"])

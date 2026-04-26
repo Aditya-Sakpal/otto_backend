@@ -52,7 +52,7 @@ class OnboardingService:
         password: str,
         company_name: str,
         s3_service,
-        reference_doc: UploadFile,
+        reference_doc: UploadFile | None,
         csr_sop_doc: UploadFile | None,
         sales_sop_doc: UploadFile | None,
         phone_number: str | None,
@@ -69,6 +69,7 @@ class OnboardingService:
         st_client_id: str | None,
         st_client_secret: str | None,
         ghost_mode_enabled: bool,
+        tenant_config_payload: dict | None = None,
     ) -> OnboardingResult:
         """Run the full onboarding flow. Returns OnboardingResult."""
 
@@ -77,17 +78,32 @@ class OnboardingService:
         if existing:
             return existing
 
-        # 2. Upload documents to S3
+        def _has_upload_file(f: UploadFile | None) -> bool:
+            return f is not None and bool((f.filename or "").strip())
+
+        needs_s3_upload = (
+            _has_upload_file(reference_doc)
+            or _has_upload_file(csr_sop_doc)
+            or _has_upload_file(sales_sop_doc)
+        )
+
+        # 2. Upload documents to S3 (only when at least one file is provided)
         uploaded_keys: list[tuple[str, str]] = []
         try:
-            ref_url, csr_url, sales_url, uploaded_keys = await self._upload_documents(
-                s3_service, email, reference_doc, csr_sop_doc, sales_sop_doc,
-            )
+            if needs_s3_upload:
+                if not s3_service:
+                    raise ValueError("S3 service is not configured but file uploads were requested")
+                ref_url, csr_url, sales_url, uploaded_keys = await self._upload_documents(
+                    s3_service, email, reference_doc, csr_sop_doc, sales_sop_doc,
+                )
+            else:
+                ref_url = csr_url = sales_url = None
 
             # 3. Race-condition re-check
             existing_recheck = await self._check_existing_user(email)
             if existing_recheck:
-                await self._cleanup_s3_files(s3_service, uploaded_keys)
+                if uploaded_keys and s3_service:
+                    await self._cleanup_s3_files(s3_service, uploaded_keys)
                 return existing_recheck
 
             # 4. Create company + integration + user (atomic)
@@ -116,8 +132,12 @@ class OnboardingService:
                 ghost_mode_enabled=ghost_mode_enabled,
             )
 
-            # 5. Default tenant config (best-effort, post-commit)
-            await self._create_default_tenant_config(company_id, company_name)
+            # 5. Tenant config (best-effort, post-commit)
+            await self._create_default_tenant_config(
+                company_id=company_id,
+                company_name=company_name,
+                tenant_config_payload=tenant_config_payload,
+            )
 
             # 6. Generate JWT tokens
             access_token, refresh_token = self._generate_tokens(user)
@@ -132,7 +152,7 @@ class OnboardingService:
                 company_id=company_id,
             )
         except Exception:
-            if uploaded_keys:
+            if uploaded_keys and s3_service:
                 await self._cleanup_s3_files(s3_service, uploaded_keys)
             raise
 
@@ -169,26 +189,28 @@ class OnboardingService:
         self,
         s3_service,
         email: str,
-        reference_doc: UploadFile,
+        reference_doc: UploadFile | None,
         csr_sop_doc: UploadFile | None,
         sales_sop_doc: UploadFile | None,
-    ) -> tuple[str, str | None, str | None, list[tuple[str, str]]]:
+    ) -> tuple[str | None, str | None, str | None, list[tuple[str, str]]]:
         """Upload docs to S3. Returns (ref_url, csr_url, sales_url, uploaded_keys)."""
         uploaded_keys: list[tuple[str, str]] = []
 
-        reference_doc_bytes = await reference_doc.read()
-        reference_s3_key = s3_service.generate_s3_key(
-            prefix="user-onboarding-docs",
-            filename=f"{email}_{reference_doc.filename}",
-            extension=reference_doc.filename.split(".")[-1] if "." in reference_doc.filename else "pdf",
-        )
-        ref_url = await s3_service.upload_file(
-            file_bytes=reference_doc_bytes,
-            s3_key=reference_s3_key,
-            content_type=reference_doc.content_type,
-            bucket_type="documents",
-        )
-        uploaded_keys.append((reference_s3_key, "documents"))
+        ref_url: str | None = None
+        if reference_doc and (reference_doc.filename or "").strip():
+            reference_doc_bytes = await reference_doc.read()
+            reference_s3_key = s3_service.generate_s3_key(
+                prefix="user-onboarding-docs",
+                filename=f"{email}_{reference_doc.filename}",
+                extension=reference_doc.filename.split(".")[-1] if "." in reference_doc.filename else "pdf",
+            )
+            ref_url = await s3_service.upload_file(
+                file_bytes=reference_doc_bytes,
+                s3_key=reference_s3_key,
+                content_type=reference_doc.content_type,
+                bucket_type="documents",
+            )
+            uploaded_keys.append((reference_s3_key, "documents"))
 
         csr_url = None
         if csr_sop_doc and csr_sop_doc.filename:
@@ -233,7 +255,7 @@ class OnboardingService:
         email: str,
         password: str,
         company_name: str,
-        ref_url: str,
+        ref_url: str | None,
         csr_url: str | None,
         sales_url: str | None,
         phone_number: str | None,
@@ -308,12 +330,24 @@ class OnboardingService:
             await self.session.rollback()
             raise
 
-    async def _create_default_tenant_config(self, company_id: UUID, company_name: str) -> None:
-        """Best-effort: create default tenant config for the new company."""
+    async def _create_default_tenant_config(
+        self,
+        company_id: UUID,
+        company_name: str,
+        tenant_config_payload: dict | None = None,
+    ) -> None:
+        """Best-effort: create tenant config for the new company."""
         try:
+            # Always trust onboarding-created company identity and ignore any
+            # identity keys that may be included in custom payload.
+            payload = dict(tenant_config_payload or {})
+            payload.pop("company_id", None)
+            payload.pop("company_name", None)
+
             await self.tenant_config_service.create_config(
                 company_id=company_id,
                 company_name=company_name,
+                **payload,
             )
             logger.info(f"Created default tenant config for company {company_id}")
         except Exception as e:

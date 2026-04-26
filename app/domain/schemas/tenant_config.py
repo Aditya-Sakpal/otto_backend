@@ -281,6 +281,87 @@ class TenantConfigCreateRequest(BaseModel):
         description="Primary services offered, e.g. ['Roof Replacement', 'Roof Repair', 'Gutter Installation']. Default: empty list",
     )
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "company_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+                "company_name": "Arizona Roofers Inc.",
+                "qualification_thresholds": {
+                    "hot_threshold": 0.8,
+                    "warm_threshold": 0.55,
+                    "cold_threshold": 0.3,
+                    "scoring_weights": {
+                        "need": 0.3,
+                        "budget": 0.2,
+                        "authority": 0.2,
+                        "timeline": 0.3,
+                    },
+                },
+                "service_prioritization": {
+                    "services": [
+                        {
+                            "service_type": "roof_replacement",
+                            "display_name": "Roof Replacement",
+                            "priority": "high",
+                        },
+                        {
+                            "service_type": "roof_repair",
+                            "display_name": "Roof Repair",
+                            "priority": "deferred",
+                        },
+                    ],
+                    "default_priority": "normal",
+                },
+                "custom_keywords": {
+                    "urgency_keywords": [
+                        "monsoon",
+                        "rainy season",
+                        "before summer",
+                        "emergency",
+                        "leak",
+                    ],
+                    "budget_keywords": ["insurance", "claim", "adjuster"],
+                    "objection_keywords": ["too expensive", "call me later"],
+                    "service_keywords": [
+                        "new roof",
+                        "full replacement",
+                        "tear off",
+                        "patch",
+                        "fix",
+                        "repair",
+                        "small job",
+                    ],
+                },
+                "qualification_rules": [
+                    {
+                        "rule_id": "emergency_leak_boost",
+                        "name": "Emergency Leak Priority",
+                        "description": "Boost score for emergency leak situations",
+                        "condition": "'leak' in urgency_signals and 'emergency' in urgency_signals",
+                        "action": "set_status:hot",
+                    }
+                ],
+                "business_hours": {
+                    "timezone": "America/Phoenix",
+                    "monday": {"open": "08:00", "close": "18:00", "is_closed": False},
+                    "tuesday": {"open": "08:00", "close": "18:00", "is_closed": False},
+                    "wednesday": {"open": "08:00", "close": "18:00", "is_closed": False},
+                    "thursday": {"open": "08:00", "close": "18:00", "is_closed": False},
+                    "friday": {"open": "08:00", "close": "18:00", "is_closed": False},
+                    "saturday": {"open": "09:00", "close": "14:00", "is_closed": False},
+                    "sunday": {"open": "00:00", "close": "00:00", "is_closed": True},
+                },
+                "service_area": ["85001", "85002", "Phoenix", "Scottsdale", "Tempe"],
+                "industry": "home_services",
+                "primary_services": [
+                    "roofing_repair",
+                    "roofing_replacement",
+                    "roofing_inspection",
+                ],
+            }
+        }
+    }
+
 
 class TenantConfigUpdateRequest(BaseModel):
     """Request to update a tenant configuration. Only non-null fields are applied."""

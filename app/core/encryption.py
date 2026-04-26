@@ -58,7 +58,7 @@ def get_encryption_key() -> bytes:
 
     # Default key for development (32 bytes = 256 bits)
     # WARNING: This is insecure for production use
-    default_key = b"otto-default-encryption-key-256!!"  # Exactly 32 bytes
+    default_key = b"otto-default-encryption-key-256!"  # exactly 32 bytes
     logger.warning("Using default encryption key. Set ENCRYPTION_KEY environment variable for production.")
     return default_key
 

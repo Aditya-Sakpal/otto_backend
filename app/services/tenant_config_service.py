@@ -334,6 +334,21 @@ class TenantConfigService:
             response.raise_for_status()
             return response.json()
 
+    async def _call_shunya_update(self, company_id: str, payload: dict) -> dict:
+        """Call Shunya's PUT /api/v1/tenant-config/{company_id} to update a config."""
+        headers = {
+            "X-API-Key": self.api_key,
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.put(
+                f"{self.base_url}/api/v1/tenant-config/{company_id}",
+                json=payload,
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response.json()
+
     async def create_config(
         self,
         company_id: UUID,
@@ -496,16 +511,68 @@ class TenantConfigService:
         company_id: UUID,
         updates: Dict[str, Any],
     ) -> Optional[TenantConfigORM]:
-        """Update an existing tenant configuration locally."""
+        """Update an existing tenant configuration on Shunya and locally."""
         orm_obj = await self.get_config_by_company(company_id)
         if not orm_obj:
             return None
 
+        # Normalize incoming updates first (request may contain Pydantic models).
+        updates = self._to_plain_object(updates)
+
+        # Build Shoonya update payload using same mapping rules as create.
+        shunya_updates: Dict[str, Any] = {}
+        if "company_name" in updates and updates.get("company_name") is not None:
+            shunya_updates["company_name"] = updates["company_name"]
+        if "qualification_thresholds" in updates and updates.get("qualification_thresholds") is not None:
+            shunya_updates["qualification_thresholds"] = self._to_shunya_qualification_thresholds(
+                updates["qualification_thresholds"]
+            )
+        if "service_prioritization" in updates and updates.get("service_prioritization") is not None:
+            shunya_updates["service_prioritization"] = self._to_shunya_service_prioritization(
+                updates["service_prioritization"]
+            )
+        if "custom_keywords" in updates and updates.get("custom_keywords") is not None:
+            shunya_updates["custom_keywords"] = self._to_shunya_custom_keywords(
+                updates["custom_keywords"]
+            )
+        if "qualification_rules" in updates and updates.get("qualification_rules") is not None:
+            shunya_updates["qualification_rules"] = self._to_shunya_qualification_rules(
+                updates["qualification_rules"]
+            )
+        if "business_hours" in updates and updates.get("business_hours") is not None:
+            shunya_updates["business_hours"] = self._to_shunya_business_hours(
+                updates["business_hours"]
+            )
+        if "service_area" in updates and updates.get("service_area") is not None:
+            shunya_updates["service_area"] = updates["service_area"]
+        if "industry" in updates and updates.get("industry") is not None:
+            shunya_updates["industry"] = updates["industry"]
+        if "primary_services" in updates and updates.get("primary_services") is not None:
+            shunya_updates["primary_services"] = updates["primary_services"]
+
+        try:
+            shunya_response = await self._call_shunya_update(str(company_id), shunya_updates)
+            logger.info(
+                f"Updated tenant config on Shunya for company {company_id}: "
+                f"version={shunya_response.get('version')}"
+            )
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Shunya API error updating tenant config: "
+                f"{e.response.status_code} - {e.response.text}"
+            )
+            raise ValueError(f"Shunya API error: {e.response.json().get('detail', e.response.text)}")
+        except Exception as e:
+            logger.error(f"Failed to call Shunya tenant-config update API: {e}")
+            traceback.print_exc()
+            raise ValueError(f"Failed to update config on Shunya: {str(e)}")
+
+        # Persist local DB after remote update succeeds.
         for key, value in updates.items():
             if hasattr(orm_obj, key) and key not in ("id", "company_id", "created_at"):
                 setattr(orm_obj, key, value)
 
-        orm_obj.version = (orm_obj.version or 0) + 1
+        orm_obj.version = shunya_response.get("version", (orm_obj.version or 0) + 1)
         await self.session.flush()
         await self.session.refresh(orm_obj)
         return orm_obj

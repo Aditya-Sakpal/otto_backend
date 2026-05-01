@@ -3,13 +3,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.domain.enums import UserRole
-from app.domain.schemas.tenant_config import (
-    QualificationThresholds,
-    ServicePrioritization,
-    CustomKeywords,
-    QualificationRule,
-    BusinessHours,
-)
 
 class ValidateGHLRequest(BaseModel):
     """Request schema for GoHighLevel (GHL) credential validation."""
@@ -53,98 +46,6 @@ class ValidateServiceTitanResponse(BaseModel):
     """Response schema for ServiceTitan validation."""
     tenant_id: str = Field(..., description="ServiceTitan tenant ID")
     status: str = Field(..., description="Validation status")
-
-
-class OnboardingTenantConfigPayload(BaseModel):
-    """Optional tenant-config sections accepted during onboarding."""
-
-    qualification_thresholds: Optional[QualificationThresholds] = None
-    service_prioritization: Optional[ServicePrioritization] = None
-    custom_keywords: Optional[CustomKeywords] = None
-    qualification_rules: Optional[List[QualificationRule]] = None
-    business_hours: Optional[BusinessHours] = None
-    service_area: Optional[List[str]] = None
-    industry: Optional[str] = "home_services"
-    primary_services: Optional[List[str]] = None
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "qualification_thresholds": {
-                    "hot_threshold": 0.8,
-                    "warm_threshold": 0.55,
-                    "cold_threshold": 0.3,
-                    "scoring_weights": {
-                        "need": 0.3,
-                        "budget": 0.2,
-                        "authority": 0.2,
-                        "timeline": 0.3,
-                    },
-                },
-                "service_prioritization": {
-                    "services": [
-                        {
-                            "service_type": "roof_replacement",
-                            "display_name": "Roof Replacement",
-                            "priority": "high",
-                        },
-                        {
-                            "service_type": "roof_repair",
-                            "display_name": "Roof Repair",
-                            "priority": "deferred",
-                        },
-                    ],
-                    "default_priority": "normal",
-                },
-                "custom_keywords": {
-                    "urgency_keywords": [
-                        "monsoon",
-                        "rainy season",
-                        "before summer",
-                        "emergency",
-                        "leak",
-                    ],
-                    "budget_keywords": ["insurance", "claim", "adjuster"],
-                    "objection_keywords": ["too expensive", "call me later"],
-                    "service_keywords": [
-                        "new roof",
-                        "full replacement",
-                        "tear off",
-                        "patch",
-                        "fix",
-                        "repair",
-                        "small job",
-                    ],
-                },
-                "qualification_rules": [
-                    {
-                        "rule_id": "emergency_leak_boost",
-                        "name": "Emergency Leak Priority",
-                        "description": "Boost score for emergency leak situations",
-                        "condition": "'leak' in urgency_signals and 'emergency' in urgency_signals",
-                        "action": "set_status:hot",
-                    }
-                ],
-                "business_hours": {
-                    "timezone": "America/Phoenix",
-                    "monday": {"open": "08:00", "close": "18:00", "is_closed": False},
-                    "tuesday": {"open": "08:00", "close": "18:00", "is_closed": False},
-                    "wednesday": {"open": "08:00", "close": "18:00", "is_closed": False},
-                    "thursday": {"open": "08:00", "close": "18:00", "is_closed": False},
-                    "friday": {"open": "08:00", "close": "18:00", "is_closed": False},
-                    "saturday": {"open": "09:00", "close": "14:00", "is_closed": False},
-                    "sunday": {"open": "00:00", "close": "00:00", "is_closed": True},
-                },
-                "service_area": ["85001", "85002", "Phoenix", "Scottsdale", "Tempe"],
-                "industry": "home_services",
-                "primary_services": [
-                    "roofing_repair",
-                    "roofing_replacement",
-                    "roofing_inspection",
-                ],
-            }
-        }
-    }
 
 
 class OnboardingCompleteResponse(BaseModel):

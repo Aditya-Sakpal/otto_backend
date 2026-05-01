@@ -69,7 +69,6 @@ class OnboardingService:
         st_client_id: str | None,
         st_client_secret: str | None,
         ghost_mode_enabled: bool,
-        tenant_config_payload: dict | None = None,
     ) -> OnboardingResult:
         """Run the full onboarding flow. Returns OnboardingResult."""
 
@@ -136,7 +135,6 @@ class OnboardingService:
             await self._create_default_tenant_config(
                 company_id=company_id,
                 company_name=company_name,
-                tenant_config_payload=tenant_config_payload,
             )
 
             # 6. Generate JWT tokens
@@ -334,20 +332,12 @@ class OnboardingService:
         self,
         company_id: UUID,
         company_name: str,
-        tenant_config_payload: dict | None = None,
     ) -> None:
         """Best-effort: create tenant config for the new company."""
         try:
-            # Always trust onboarding-created company identity and ignore any
-            # identity keys that may be included in custom payload.
-            payload = dict(tenant_config_payload or {})
-            payload.pop("company_id", None)
-            payload.pop("company_name", None)
-
             await self.tenant_config_service.create_config(
                 company_id=company_id,
                 company_name=company_name,
-                **payload,
             )
             logger.info(f"Created default tenant config for company {company_id}")
         except Exception as e:

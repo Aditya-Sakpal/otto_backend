@@ -921,11 +921,18 @@ class GHLService:
             if existing_appt:
                 # Update existing appointment
                 appointment = Appointment(**{**appointment_data, "id": existing_appt.id})
-                await appt_repo.update(existing_appt.id, appointment)
+                appointment = await appt_repo.update(existing_appt.id, appointment) or appointment
             else:
                 # Create new appointment
                 appointment = Appointment(**appointment_data)
-                await appt_repo.create(appointment)
+                appointment = await appt_repo.create(appointment)
+
+            # Materialize/refresh appointment reminders (non-fatal)
+            try:
+                from app.services.appointment_reminder_service import sync_appointment_reminders
+                await sync_appointment_reminders(db_session, appointment)
+            except Exception as e:
+                logger.warning(f"Failed to sync appointment reminders (GHL): {e}", exc_info=False)
 
             # Update lead pipeline_stage based on rep assignment and appointment status
             if lead:
@@ -1192,9 +1199,7 @@ class GHLService:
         from app.domain.users.repository import UserRepository
         from app.domain.models.call import Call
         from app.domain.models.lead import Lead
-        from app.domain.enums import CallType, LeadStatus, PendingActionStatus
-        from app.domain.models.pending_action import PendingAction
-        from app.infrastructure.repositories.pending_action import PendingActionRepository
+        from app.domain.enums import CallType, LeadStatus
         from app.core.s3 import get_s3_service
 
         MISSED_CALL_STATUSES = {"no-answer", "no answer", "busy", "voicemail", "failed", "missed"}
@@ -1530,45 +1535,70 @@ class GHLService:
             if is_missed_call:
                 try:
                     call_repo = CallRepository(db_session)
-                    missed_call_obj = Call(
-                        company_id=company_id,
-                        contact_card_id=contact_card.id if contact_card else None,
-                        lead_id=lead.id if lead else None,
-                        phone_number=contact_phone,
-                        call_type=CallType.MISSED_CALL,
-                        missed_call=True,
-                        duration_seconds=call_duration,
-                        handled_by_user_id=handled_by_user_id,
-                        interaction_type="call",
-                        lead_source=ghl_lead_source,
-                        extra_metadata=extra_metadata,
-                    )
-                    missed_call_obj = await call_repo.create(missed_call_obj)
+                    missed_call_obj = None
+                    reused_missed_call = False
+
+                    if message_id:
+                        from sqlalchemy import select, and_
+                        from app.infrastructure.database.models.call import CallORM
+
+                        existing_result = await db_session.execute(
+                            select(CallORM).where(
+                                and_(
+                                    CallORM.company_id == company_id,
+                                    CallORM.extra_metadata.op("->>")("ghl_message_id") == message_id,
+                                )
+                            ).limit(1)
+                        )
+                        missed_call_obj = existing_result.scalar_one_or_none()
+
+                    if not missed_call_obj:
+                        missed_call_obj = Call(
+                            company_id=company_id,
+                            contact_card_id=contact_card.id if contact_card else None,
+                            lead_id=lead.id if lead else None,
+                            phone_number=contact_phone,
+                            call_type=CallType.MISSED_CALL,
+                            missed_call=True,
+                            duration_seconds=call_duration,
+                            handled_by_user_id=handled_by_user_id,
+                            interaction_type="call",
+                            lead_source=ghl_lead_source,
+                            extra_metadata=extra_metadata,
+                        )
+                        missed_call_obj = await call_repo.create(missed_call_obj)
+                    else:
+                        reused_missed_call = True
+                        logger.info(
+                            "Reusing existing GHL missed call for messageId dedupe",
+                            call_id=str(missed_call_obj.id),
+                            message_id=message_id,
+                        )
+
                     temp_call_id = str(missed_call_obj.id)
                     logger.info(
                         f"Created missed call record",
                         call_id=temp_call_id,
                         phone=contact_phone,
                         status=status,
+                        reused=reused_missed_call,
                     )
 
-                    # Create callback pending action
-                    pending_action_repo = PendingActionRepository(db_session)
-                    pending_action = PendingAction(
-                        company_id=company_id,
-                        lead_id=lead.id if lead else None,
-                        call_id=missed_call_obj.id,
-                        action_type="call_back",
-                        raw_text=f"Give {contact_phone} a call_back",
-                        status=PendingActionStatus.PENDING,
-                        source="manual",
-                    )
-                    await pending_action_repo.create(pending_action)
-                    logger.info(
-                        f"Created pending action for missed call",
-                        call_id=temp_call_id,
-                        phone=contact_phone,
-                    )
+                    if not reused_missed_call:
+                        from app.services.pending_action_service import create_missed_call_pending_action
+                        await create_missed_call_pending_action(
+                            db_session,
+                            company_id=company_id,
+                            call_id=missed_call_obj.id,
+                            phone=contact_phone,
+                            lead_id=lead.id if lead else missed_call_obj.lead_id,
+                            owner_id=handled_by_user_id,
+                        )
+                        logger.info(
+                            f"Created pending action for missed call",
+                            call_id=temp_call_id,
+                            phone=contact_phone,
+                        )
                 except Exception as e:
                     logger.error(f"Failed to create missed call record/action: {e}", exc_info=True)
 

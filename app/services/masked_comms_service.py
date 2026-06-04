@@ -14,17 +14,26 @@ import asyncio
 from typing import Optional, List
 from uuid import UUID, uuid4
 
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.domain.enums import PendingActionStatus
 from app.domain.models.masked_communication import MaskedCommunication
+from app.domain.models.pending_action import PendingAction
 from app.infrastructure.integrations.twilio_client import get_twilio_client
+from app.infrastructure.database.models.pending_action import PendingActionORM
 from app.infrastructure.repositories.masked_communication import MaskedCommunicationRepository
+from app.infrastructure.repositories.pending_action import PendingActionRepository
 from app.infrastructure.repositories.proxy_session import ProxySessionRepository
 from app.infrastructure.repositories.proxy_number import ProxyNumberRepository
 from app.infrastructure.repositories.rep_phone import RepPhoneRepository
 from app.infrastructure.repositories.company_integration import CompanyIntegrationRepository
+from app.services.intent_to_action_service import (
+    classify_inbound_reply,
+    suggested_next_action,
+)
 from app.services.proxy_session_service import ProxySessionService
 from app.services.reply_notification_service import ReplyNotificationService
 
@@ -136,6 +145,17 @@ class MaskedCommsService:
             proxy_number, sender
         )
 
+        # Idempotency guard: Twilio may replay webhooks. If this MessageSid already
+        # exists, do nothing (no second forward/push/task).
+        existing = await self.comms_repo.get_by_twilio_message_sid(twilio_message_sid)
+        if existing:
+            logger.info(
+                "Inbound SMS duplicate MessageSid — skipping",
+                message_sid=twilio_message_sid,
+                session_id=str(session.id),
+            )
+            return '<?xml version="1.0" encoding="UTF-8"?><Response/>'
+
         # Determine forward target
         if direction == "homeowner_to_rep":
             forward_to = session.rep_phone
@@ -143,6 +163,14 @@ class MaskedCommsService:
             forward_to = session.homeowner_phone
 
         # Log the inbound message
+        intent_label: Optional[str] = None
+        confidence_score: Optional[float] = None
+        extra_metadata = {}
+        if direction == "homeowner_to_rep":
+            intent_label, confidence_score, extra_metadata = await self._classify_sms_intent(
+                message_body=body
+            )
+
         comm = MaskedCommunication(
             session_id=session.id,
             company_id=session.company_id,
@@ -155,6 +183,9 @@ class MaskedCommsService:
             twilio_message_sid=twilio_message_sid,
             message_body=body,
             is_homeowner_reply=(direction == "homeowner_to_rep"),
+            intent_label=intent_label,
+            confidence_score=confidence_score,
+            extra_metadata=extra_metadata or None,
         )
         created_comm = await self.comms_repo.create(comm)
 
@@ -174,6 +205,17 @@ class MaskedCommsService:
             await self.reply_notification.notify_rep_of_inbound_sms(
                 session, body, created_comm.id
             )
+            await self._maybe_create_callback_task(
+                session_id=session.id,
+                company_id=session.company_id,
+                lead_id=session.lead_id,
+                owner_id=session.rep_user_id,
+                comm_id=created_comm.id,
+                twilio_message_sid=twilio_message_sid,
+                message_body=body,
+                intent_label=intent_label,
+                extra_metadata=extra_metadata,
+            )
 
         logger.info(
             "Forwarded inbound SMS",
@@ -183,6 +225,103 @@ class MaskedCommsService:
         )
 
         return '<?xml version="1.0" encoding="UTF-8"?><Response/>'
+
+    async def _classify_sms_intent(self, message_body: str) -> tuple[Optional[str], Optional[float], dict]:
+        """
+        Classify inbound homeowner SMS and attach deterministic suggestion metadata.
+        """
+        text_body = (message_body or "").strip()
+        if not text_body:
+            return None, None, {}
+
+        intent, conf = await classify_inbound_reply(text_body)
+        suggestion = suggested_next_action(intent)
+        return (
+            intent,
+            conf,
+            {
+                "intent_to_action": {
+                    "suggested_action_type": suggestion.get("action_type"),
+                    "suggested_action_summary": suggestion.get("summary"),
+                    "reply_draft": suggestion.get("reply_draft"),
+                },
+                "source": "masked_comms_inbound_sms",
+            },
+        )
+
+    async def _maybe_create_callback_task(
+        self,
+        *,
+        session_id: UUID,
+        company_id: UUID,
+        lead_id: UUID,
+        owner_id: UUID,
+        comm_id: UUID,
+        twilio_message_sid: str,
+        message_body: str,
+        intent_label: Optional[str],
+        extra_metadata: Optional[dict],
+    ) -> None:
+        """
+        Materialize call_me intent into a call_back pending action.
+        """
+        if intent_label != "call_me":
+            return
+
+        repo = PendingActionRepository(self.session)
+        existing = await self.session.execute(
+            select(PendingActionORM).where(
+                PendingActionORM.company_id == company_id,
+                PendingActionORM.lead_id == lead_id,
+                PendingActionORM.action_type == "call_back",
+                PendingActionORM.status.in_(
+                    [
+                        PendingActionStatus.PENDING.value,
+                        PendingActionStatus.IN_PROGRESS.value,
+                    ]
+                ),
+                # JSON idempotency check: avoid `.contains(...)` which can generate
+                # incompatible SQL for JSON vs JSONB types.
+                func.json_extract_path_text(
+                    PendingActionORM.extra_metadata, "sms_intent_twilio_message_sid"
+                )
+                == twilio_message_sid,
+            )
+        )
+        if existing.scalar_one_or_none():
+            logger.info(
+                "Skipped duplicate SMS callback task",
+                message_sid=twilio_message_sid,
+                session_id=str(session_id),
+            )
+            return
+
+        suggestion = ((extra_metadata or {}).get("intent_to_action") or {}).get(
+            "suggested_action_summary"
+        ) or "Homeowner requested a callback via SMS."
+        task = PendingAction(
+            company_id=company_id,
+            lead_id=lead_id,
+            action_type="call_back",
+            raw_text=f"Call back homeowner: {message_body[:120]}",
+            status=PendingActionStatus.PENDING,
+            owner_id=owner_id,
+            source="system",
+            extra_metadata={
+                "materialized_from": "sms_intent",
+                "sms_intent_label": intent_label,
+                "sms_intent_twilio_message_sid": twilio_message_sid,
+                "masked_comm_id": str(comm_id),
+                "suggested_action_summary": suggestion,
+            },
+        )
+        await repo.create(task)
+        logger.info(
+            "Created callback task from SMS intent",
+            message_sid=twilio_message_sid,
+            session_id=str(session_id),
+            lead_id=str(lead_id),
+        )
 
     # ── Outbound Call (from mobile app) ───────────────────────────────────
 
@@ -333,50 +472,131 @@ class MaskedCommsService:
             recording_sid=recording_sid,
         )
 
-        # Steps 2-6: Integration with existing Shunya pipeline
-        # This is where we plug into the existing flow:
-        #
-        # from app.services.call_service import CallService
-        # from app.infrastructure.integrations.s3 import get_s3_service
-        # from app.infrastructure.integrations.shoonya import get_shoonya_client
-        #
-        # comm = await self.comms_repo.get_by_twilio_call_sid(call_sid)
-        # if comm:
-        #     # Download recording from Twilio
-        #     # Upload to S3
-        #     s3_service = get_s3_service()
-        #     audio_url = await s3_service.upload_audio(recording_bytes, ...)
-        #
-        #     # Create Call record (reuse existing ingest flow)
-        #     call_service = CallService(self.session)
-        #     call = await call_service.ingest_call(
-        #         company_id=comm.company_id,
-        #         phone_number=comm.from_number,
-        #         audio_url=audio_url,
-        #         call_type="masked_call",
-        #         duration_seconds=comm.duration_seconds,
-        #         lead_id=comm.lead_id,
-        #     )
-        #
-        #     # Submit to Shunya
-        #     shoonya = get_shoonya_client()
-        #     await shoonya.process_call(
-        #         call_id=str(call.id),
-        #         company_id=str(comm.company_id),
-        #         audio_url=audio_url,
-        #         phone_number=comm.from_number,
-        #         duration=comm.duration_seconds,
-        #         ...
-        #     )
-        #
-        #     # Link back
-        #     await self.comms_repo.update_recording(
-        #         call_sid=call_sid,
-        #         recording_url=full_recording_url,
-        #         recording_sid=recording_sid,
-        #         audio_url=audio_url,
-        #         call_id=call.id,
-        #     )
+        # ── Steps 2-6: feed the masked call into the SAME analysis pipeline as
+        # CTM/normal calls (S3 → Call → Shunya → job-complete webhook →
+        # process_analysis → PendingActions → Action Center/Guidance/Notifications).
+        # Reuses S3Service.upload_from_url + CallService.ingest_call/trigger_analysis.
+        # No new tables, analysis, or pending-action logic.
+        comm = await self.comms_repo.get_by_twilio_call_sid(call_sid)
+        if not comm:
+            logger.warning("No masked communication found for recording", call_sid=call_sid)
+            return
+
+        # Idempotency: if this recording was already processed into a Call, stop.
+        # Makes duplicate Twilio callbacks / replays no-ops (no double S3, no
+        # double Shunya submission).
+        if comm.call_id:
+            logger.info(
+                "Recording already processed into a call — skipping",
+                call_sid=call_sid,
+                call_id=str(comm.call_id),
+            )
+            return
+
+        try:
+            from app.core.s3 import get_s3_service
+            from app.services.call_service import CallService
+
+            # Step 2: stream the Twilio recording into our audio bucket (Twilio
+            # URLs are private; this also unblocks presigned playback).
+            s3_service = get_s3_service()
+            if not s3_service:
+                logger.warning("S3 unavailable; masked recording stored but not analyzed",
+                               call_sid=call_sid)
+                return
+            s3_key = s3_service.generate_s3_key(
+                prefix="recordings", filename=f"masked_{call_sid}", extension="mp3"
+            )
+            # Twilio recordings are private — Basic auth (account SID + auth token)
+            # is required to download the media file.
+            auth_headers = None
+            sid = getattr(self.twilio, "account_sid", None)
+            token = getattr(self.twilio, "auth_token", None)
+            if sid and token:
+                import base64
+                creds = base64.b64encode(f"{sid}:{token}".encode()).decode()
+                auth_headers = {"Authorization": f"Basic {creds}"}
+            audio_s3_url = await s3_service.upload_from_url(
+                url=full_recording_url,
+                s3_key=s3_key,
+                content_type="audio/mpeg",
+                metadata={
+                    "masked_call_sid": call_sid,
+                    "company_id": str(comm.company_id),
+                    "lead_id": str(comm.lead_id) if comm.lead_id else None,
+                },
+                bucket_type="audio",
+                headers=auth_headers,
+            )
+
+            # Step 3: create the Call record via the existing ingest flow.
+            # A masked call is a rep↔homeowner conversation → sales_call (routes
+            # analysis through the sales-rep flow; "masked_call" is not a valid
+            # CallType). The masked origin is recorded in extra_metadata below.
+            call_service = CallService(self.session)
+            call = await call_service.ingest_call(
+                company_id=comm.company_id,
+                phone_number=comm.from_number,
+                audio_url=audio_s3_url,
+                call_type="sales_call",
+            )
+
+            # Link to the masked comm's actual lead + owning rep so the
+            # materialized tasks land on the right lead and the rep owns them
+            # (process_analysis uses handled_by_user_id as the task owner).
+            rep_user_id = None
+            try:
+                session = await self.session_repo.get_by_id(comm.session_id)
+                rep_user_id = getattr(session, "rep_user_id", None) if session else None
+            except Exception as e:
+                logger.warning(f"Could not resolve rep for masked call: {e}", call_sid=call_sid)
+
+            call_orm = call  # domain Call; update via repo
+            if comm.lead_id:
+                call_orm.lead_id = comm.lead_id
+            if rep_user_id:
+                call_orm.handled_by_user_id = rep_user_id
+            meta = dict(getattr(call_orm, "extra_metadata", None) or {})
+            meta["masked_call_sid"] = call_sid
+            meta["interaction_type"] = "masked_call"
+            call_orm.extra_metadata = meta
+            call = await call_service.call_repo.update(call_orm.id, call_orm)
+
+            # Step 4 (link back) BEFORE triggering analysis: persist call_id on the
+            # masked comm so a retry sees it as processed (idempotency closes here).
+            await self.comms_repo.update_recording(
+                call_sid=call_sid,
+                recording_url=full_recording_url,
+                recording_sid=recording_sid,
+                audio_url=audio_s3_url,
+                call_id=call.id,
+            )
+            await self.session.commit()
+
+            # Step 5: trigger Shunya analysis (submits with the job-complete webhook
+            # → existing CALL branch → process_analysis → PendingActions). Non-fatal.
+            try:
+                await call_service.trigger_analysis(call.id)
+            except Exception as e:
+                logger.error(f"Failed to trigger analysis for masked call {call.id}: {e}")
+                # Non-critical: call + recording persisted; analysis can be retried.
+
+            logger.info(
+                "Masked recording processed into analyzed call",
+                call_sid=call_sid,
+                call_id=str(call.id),
+                lead_id=str(comm.lead_id) if comm.lead_id else None,
+                owner_id=str(rep_user_id) if rep_user_id else None,
+            )
+        except Exception as e:
+            # Any failure here leaves Step-1 linkage intact and unprocessed
+            # (comm.call_id still null) → retryable on the next callback, no
+            # orphan Call linked.
+            logger.error(
+                f"Failed to process masked recording into call: {e}",
+                call_sid=call_sid,
+                exc_info=True,
+            )
 
     # ── Bridge Call TwiML (for outbound two-leg bridge) ───────────────────
 

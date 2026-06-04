@@ -89,7 +89,7 @@ class CallRepository(BaseRepository[CallORM, Call]):
                 select(CallORM)
                 .where(
                     CallORM.company_id == company_id,
-                    CallORM.extra_metadata["st_call_id"].as_string() == st_call_id,
+                    CallORM.extra_metadata.op("->>")("st_call_id") == st_call_id,
                 )
                 .order_by(desc(CallORM.created_at))
                 .limit(1)

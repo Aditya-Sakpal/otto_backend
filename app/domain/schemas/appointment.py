@@ -277,6 +277,8 @@ class CallSummaryItem(BaseModel):
     objections: List[str] = Field(default_factory=list)
     sentiment_score: Optional[float] = None
     handled_by_name: Optional[str] = None
+    service_requested: Optional[str] = None
+    property_details: Optional[Dict[str, Any]] = None
 
 
 class ContactCardInfo(BaseModel):
@@ -290,6 +292,55 @@ class ContactCardInfo(BaseModel):
     address: Optional[str]
     city: Optional[str]
     state: Optional[str]
+
+
+class PropertyBrief(BaseModel):
+    """Consolidated pre-appointment property/qualification brief for the sales rep.
+
+    Built deterministically from the latest CSR call's already-stored analysis
+    (call_analyses.property_details / customer_details / service_requested /
+    qualification). No new AI, storage, or persistence. All fields optional —
+    absent data simply yields nulls/empty lists.
+    """
+
+    # What & why
+    service_requested: Optional[str] = None
+    problem_summary: Optional[str] = None
+    current_issues: List[str] = Field(default_factory=list)
+
+    # Property characteristics
+    property_size: Optional[str] = None  # e.g. square footage / bedroom count if mentioned
+    stories: Optional[str] = None        # single|two|three|split_level
+    roof_type: Optional[str] = None      # tile|shingle|metal|flat|tpo|epdm
+    roof_age_years: Optional[Any] = None
+
+    # HOA
+    hoa_status: Optional[str] = None     # yes|no
+    hoa_name: Optional[str] = None
+
+    # Access
+    gated_community: Optional[bool] = None
+    gate_access: Optional[str] = None
+    property_access_notes: Optional[str] = None
+
+    # Pets
+    pets: Optional[str] = None
+    pet_notes: Optional[str] = None
+
+    # People
+    decision_makers: List[str] = Field(default_factory=list)
+
+    # Location (human-readable, from service_address_structured)
+    service_address: Optional[str] = None
+
+    # Status
+    qualification_status: Optional[str] = None
+    booking_status: Optional[str] = None
+
+    # Provenance (which CSR call this brief was assembled from)
+    source_call_id: Optional[UUID] = None
+    source_call_date: Optional[datetime] = None
+    has_data: bool = False
 
 
 class LeadContextInfo(BaseModel):
@@ -568,6 +619,10 @@ class AppointmentContextResponse(BaseModel):
     # Contact and rep info
     contact_info: ContactCardInfo
     sales_rep_name: Optional[str]
+
+    # Consolidated CSR→rep property/qualification brief (deterministic, from
+    # latest CSR call analysis). has_data=False when no property info exists yet.
+    property_brief: Optional[PropertyBrief] = None
 
     # Lead context
     lead_info: LeadContextInfo

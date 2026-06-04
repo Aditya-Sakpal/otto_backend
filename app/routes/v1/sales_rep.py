@@ -13,7 +13,11 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role
 from app.domain.enums import UserRole
-from app.domain.schemas.sales_rep import PendingLeadsResponse
+from app.domain.schemas.sales_rep import (
+    PendingLeadsResponse,
+    WorkQueueResponse,
+    MissedCallRecoveryResponse,
+)
 from app.domain.users.repository import UserRepository
 from app.domain.schemas.sales_rep_dashboard import (
     RidealongEntry,
@@ -25,6 +29,8 @@ from app.domain.schemas.appointment_details import AppointmentDetailsResponse
 from app.domain.users.models import User
 from app.services.appointment_service import AppointmentService
 from app.services.lead_service import LeadService
+from app.services.work_queue_service import WorkQueueService
+from app.services.missed_call_recovery_service import MissedCallRecoveryService
 from app.services.sales_rep_service import SalesRepService
 from app.services.sales_rep_dashboard_service import SalesRepDashboardService
 from app.services.sales_rep_stat_service import SalesRepStatService
@@ -52,6 +58,107 @@ async def get_follow_up(
             detail="Appointment not found or has no call analysis",
         )
     return result
+
+
+@router.get("/work-queue", response_model=WorkQueueResponse)
+async def get_work_queue(
+    db: DbSession,
+    owner_id: Optional[UUID] = Query(
+        None,
+        description="Executive-only: view another rep's queue. Reps/CSRs always see their own.",
+    ),
+    limit: int = Query(50, ge=1, le=200, description="Max items per section"),
+    current_user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])),
+):
+    """
+    Unified rep work queue — the rep's entire actionable workload in one call.
+
+    Composes three existing rep-scoped surfaces (no new ranking/scoring):
+    - **tasks** + **next_action** + **task_summary** (Action Center: call_back,
+      follow_up, appointment_reminder, rehash)
+    - **unresolved_appointments** (ran/past appointments whose outcome is still open)
+    - **pending_leads** (qualified-unbooked / stuck leads assigned to the rep)
+
+    Owner resolution:
+    - EXECUTIVE: uses `owner_id` query param if provided, else self.
+    - SALES_REP / CSR: always the current user (any `owner_id` is ignored).
+
+    Access: EXECUTIVE, CSR, SALES_REP
+    """
+    if current_user.company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has no company association",
+        )
+
+    # Reps/CSRs are forced to their own queue; executives may target a rep.
+    if current_user.role == UserRole.EXECUTIVE:
+        target_owner_id = owner_id or current_user.id
+    else:
+        target_owner_id = current_user.id
+
+    try:
+        service = WorkQueueService(db)
+        return await service.get_work_queue(
+            company_id=current_user.company_id,
+            owner_id=target_owner_id,
+            limit=limit,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/missed-calls", response_model=MissedCallRecoveryResponse)
+async def get_missed_call_recovery(
+    db: DbSession,
+    owner_id: Optional[UUID] = Query(
+        None,
+        description="Executive-only: view another rep's dashboard. Reps/CSRs always see their own.",
+    ),
+    limit: int = Query(100, ge=1, le=200, description="Max callbacks per section"),
+    completed_window_hours: int = Query(
+        24, ge=1, le=168, description="Lookback window for the completed-callbacks section (hours)"
+    ),
+    current_user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])),
+):
+    """
+    Rep missed-call recovery dashboard.
+
+    Surfaces the rep's `call_back` tasks (auto-created from VoIP missed calls):
+    - **pending_callbacks** with countdown (`minutes_until_due`, `urgency_tier`,
+      `overdue`) reused from the Action Center.
+    - **completed_callbacks** recovered within `completed_window_hours`.
+    - Counts: `pending_count`, `overdue_count`, `completed_today_count`.
+
+    Completion uses the existing workflow (PATCH /metrics/actions/pending/{id}/complete).
+
+    Owner resolution:
+    - EXECUTIVE: uses `owner_id` query param if provided, else self.
+    - SALES_REP / CSR: always the current user.
+
+    Access: EXECUTIVE, CSR, SALES_REP
+    """
+    if current_user.company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has no company association",
+        )
+
+    if current_user.role == UserRole.EXECUTIVE:
+        target_owner_id = owner_id or current_user.id
+    else:
+        target_owner_id = current_user.id
+
+    try:
+        service = MissedCallRecoveryService(db)
+        return await service.get_missed_call_dashboard(
+            company_id=current_user.company_id,
+            owner_id=target_owner_id,
+            limit=limit,
+            completed_window_hours=completed_window_hours,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.get("/pending-leads", response_model=PendingLeadsResponse)

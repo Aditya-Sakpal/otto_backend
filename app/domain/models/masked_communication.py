@@ -36,6 +36,8 @@ class MaskedCommunication(BaseModel):
     # Intelligence layer
     is_homeowner_reply: bool = False
     source_metadata: Optional[dict] = None
+    intent_label: Optional[str] = None
+    confidence_score: Optional[float] = None
 
     created_at: Optional[datetime] = None
 

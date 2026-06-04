@@ -1,0 +1,12 @@
+{
+  "locationId": "staging-validation-ghl",
+  "contactId": "staging-val-ghl-contact",
+  "messageId": "staging-validation-ghl-missed-001",
+  "messageType": "CALL",
+  "type": "InboundMessage",
+  "dateAdded": "2026-06-01T10:50:00.000Z",
+  "direction": "inbound",
+  "from": "+15551234567",
+  "status": "no-answer",
+  "callDuration": 0
+}

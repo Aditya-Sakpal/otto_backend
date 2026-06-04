@@ -29,9 +29,7 @@ from app.infrastructure.repositories.lead import LeadRepository
 from app.domain.users.repository import UserRepository
 from app.core.s3 import get_s3_service
 from app.services.call_service import CallService
-from app.infrastructure.repositories.pending_action import PendingActionRepository
-from app.domain.models.pending_action import PendingAction
-from app.domain.enums import PendingActionStatus, CallType
+from app.domain.enums import CallType
 
 logger = get_logger(__name__)
 
@@ -397,16 +395,22 @@ class CTMService:
                 "ctm_raw_payload": payload,
             }
 
-            # Create or update call record
-            # Check if call already exists by CTM call ID
-            existing_calls = await self.call_repo.get_all(
-                filters={"company_id": company_id},
+            # Create or update call record — lookup by CTM call id in metadata
+            from sqlalchemy import select, and_
+            from app.infrastructure.database.models.call import CallORM
+
+            existing_result = await self.session.execute(
+                select(CallORM).where(
+                    and_(
+                        CallORM.company_id == company_id,
+                        CallORM.extra_metadata.op("->>")("ctm_call_id") == str(call_id_ctm),
+                    )
+                ).limit(1)
             )
+            existing_call_orm = existing_result.scalar_one_or_none()
             existing_call = None
-            for call in existing_calls:
-                if call.extra_metadata and call.extra_metadata.get("ctm_call_id") == call_id_ctm:
-                    existing_call = call
-                    break
+            if existing_call_orm:
+                existing_call = await self.call_repo.get_by_id(existing_call_orm.id)
 
             is_new_call = False
 
@@ -482,6 +486,21 @@ class CTMService:
                         call = await self.call_repo.update(call.id, call)
                 except Exception as e:
                     logger.error(f"Failed to find or create lead for contact {contact_card.id}: {e}")
+
+            # Create callback pending action for missed calls
+            if is_missed and is_new_call:
+                try:
+                    from app.services.pending_action_service import create_missed_call_pending_action
+                    await create_missed_call_pending_action(
+                        self.session,
+                        company_id=company_id,
+                        call_id=call.id,
+                        phone=contact_phone,
+                        lead_id=call.lead_id,
+                        owner_id=handled_by_user_id,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create pending action for CTM missed call {call.id}: {e}")
 
             # Update contact card with last call metadata (for inbound calls)
             if direction == "inbound" and contact_card:

@@ -4,7 +4,7 @@ Customer Card domain model.
 Comprehensive response model for the customer card view that shows
 when a user clicks on a lead in the pipeline.
 """
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel as PydanticBaseModel, ConfigDict, Field
@@ -84,6 +84,10 @@ class CardConversation(_Slim):
     key_points: List[str] = Field(default_factory=list)
     objections: List[str] = Field(default_factory=list)
     sentiment_score: Optional[float] = None
+
+    # CSR qualification extracted from call analysis
+    service_requested: Optional[str] = None
+    property_details: Optional[Dict[str, Any]] = None
 
     # SOP compliance for this call
     sop_compliance_score: Optional[float] = None

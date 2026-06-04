@@ -1,0 +1,69 @@
+{
+  "payload_message_id": "staging-val-ghl-01retry2",
+  "first_post": {
+    "http": 200,
+    "body": {
+      "ok": true,
+      "isCall": true,
+      "isMissedCall": true,
+      "locationId": "staging-validation-ghl",
+      "contactId": "staging-val-ghl-contact",
+      "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "tempCallId": "4db172e2-882f-43af-bbc6-b6b4f50bacb8",
+      "shunyaJobId": null,
+      "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+      "dateAdded": "2026-06-01T10:50:00.000Z",
+      "direction": "inbound",
+      "userId": null,
+      "handledByUserId": null,
+      "messageId": "staging-val-ghl-01retry2",
+      "contactFullName": null,
+      "contactPhone": "+15551234567",
+      "recordingContentType": null,
+      "recordingFilename": null,
+      "recordingNumBytes": null,
+      "recordingS3Url": null
+    }
+  },
+  "second_post": {
+    "http": 200,
+    "body": {
+      "ok": true,
+      "isCall": true,
+      "isMissedCall": true,
+      "locationId": "staging-validation-ghl",
+      "contactId": "staging-val-ghl-contact",
+      "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "tempCallId": "8ab5f701-dd4f-40fd-bb57-76854b2b7f94",
+      "shunyaJobId": null,
+      "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+      "dateAdded": "2026-06-01T10:50:00.000Z",
+      "direction": "inbound",
+      "userId": null,
+      "handledByUserId": null,
+      "messageId": "staging-val-ghl-01retry2",
+      "contactFullName": null,
+      "contactPhone": "+15551234567",
+      "recordingContentType": null,
+      "recordingFilename": null,
+      "recordingNumBytes": null,
+      "recordingS3Url": null
+    }
+  },
+  "call_id": "4db172e2-882f-43af-bbc6-b6b4f50bacb8",
+  "pending_actions": [
+    {
+      "id": "ccec838f-abac-4848-b898-5c1a70e5d3b6",
+      "action_type": "call_back",
+      "source": "manual",
+      "call_id": "4db172e2-882f-43af-bbc6-b6b4f50bacb8",
+      "owner_id": null,
+      "due_at": "2026-06-01 05:45:30.804922+00:00",
+      "priority": 1,
+      "appointment_id": null,
+      "created_at": "2026-06-01 00:00:30.805128+00:00"
+    }
+  ],
+  "pending_count": 1,
+  "pass": true
+}

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
+from app.core.s3 import presign_audio_url_for_playback
 from app.domain.models.appointment import Appointment
 from app.domain.schemas.appointment import (
     AppointmentCreate,
@@ -27,6 +28,7 @@ from app.domain.schemas.appointment import (
     AppointmentContextFollowUpSection,
     CallSummaryItem,
     ContactCardInfo,
+    PropertyBrief,
     LeadContextInfo,
     AggregatedObjections,
     PendingActionItem,
@@ -50,6 +52,7 @@ from app.infrastructure.repositories.pending_action import PendingActionReposito
 from app.infrastructure.database.models.follow_up_otto import FollowUpOttoORM
 from app.infrastructure.database.models.company import CompanyORM
 from app.infrastructure.integrations.shoonya import get_shoonya_client
+from app.services.property_text_extractor import extract_property_from_text
 from app.core.datetime_utils import isoformat_utc
 
 logger = get_logger(__name__)
@@ -62,6 +65,146 @@ OUTCOME_TO_STATUS = {
     "no_show": "No Show",
     "rescheduled": "Rescheduled",
 }
+
+# Values Shunya uses for "no data" in property_details — treated as absent.
+_PROPERTY_UNKNOWN = {None, "", "unknown", "Unknown", "UNKNOWN"}
+
+
+def _clean(value):
+    """Normalize a property_details scalar: drop Shunya's 'unknown'/empty sentinels."""
+    if isinstance(value, str) and value.strip() in _PROPERTY_UNKNOWN:
+        return None
+    return value if value not in _PROPERTY_UNKNOWN else None
+
+
+def _str_list(value) -> list:
+    """Coerce a value into a clean list of non-empty strings."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, (list, tuple)):
+        return [str(v).strip() for v in value if v and str(v).strip()]
+    return []
+
+
+def _format_service_address(structured) -> Optional[str]:
+    """Build a human-readable address from a service_address_structured dict.
+
+    Tolerant of Shunya 'unknown'/empty sentinels (via `_clean`) and missing parts;
+    returns None when nothing usable is present. Shape: "line1, city, state postal".
+    """
+    if not isinstance(structured, dict):
+        return None
+    line1 = _clean(structured.get("line1"))
+    city = _clean(structured.get("city"))
+    state = _clean(structured.get("state"))
+    postal = _clean(structured.get("postal_code"))
+
+    # "state postal" reads as one token (e.g. "AZ 85338"); the rest are comma-joined.
+    region = " ".join(p for p in (state, postal) if p) or None
+    parts = [p for p in (line1, city, region) if p]
+    return ", ".join(parts) if parts else None
+
+
+def _select_brief_source(candidates: list[dict]) -> Optional[dict]:
+    """Pick the call whose analysis should drive the property brief.
+
+    Preference order (each restricted to calls that actually carry usable detail):
+      1. latest CSR call (call_type == 'csr_call')
+      2. latest call of any type
+    Sorts defensively newest-first so callers needn't pre-sort.
+
+    "Usable detail" is broader than structured property_details: Shunya frequently
+    leaves property_details/customer_details null while still extracting
+    service_requested, a rich summary, and a service address. Those alone make an
+    actionable brief, so they count as a valid source.
+    """
+    def _has_detail(c: dict) -> bool:
+        return bool(
+            c.get("property_details")
+            or c.get("customer_details")
+            or _clean(c.get("service_requested"))
+            or _clean(c.get("summary"))
+            or c.get("service_address_structured")
+        )
+
+    def _key(c: dict):
+        from datetime import timezone as _tz
+        return c.get("call_date") or datetime.min.replace(tzinfo=_tz.utc)
+
+    ordered = sorted(candidates, key=_key, reverse=True)
+    csr = [c for c in ordered if c.get("call_type") == "csr_call" and _has_detail(c)]
+    if csr:
+        return csr[0]
+    any_with = [c for c in ordered if _has_detail(c)]
+    return any_with[0] if any_with else None
+
+
+def build_property_brief(candidates: list[dict]) -> PropertyBrief:
+    """Assemble a typed PropertyBrief from CSR call analyses (pure, no I/O).
+
+    `candidates` is a newest-first list of dicts with keys: call_id, call_date,
+    call_type, property_details (dict|None), customer_details (dict|None),
+    service_requested, qualification_status, booking_status, summary.
+
+    Returns an empty brief (has_data=False) when no call carries property/customer
+    detail. Tolerant of partial blobs and Shunya 'unknown' sentinels.
+    """
+    source = _select_brief_source(candidates)
+    if source is None:
+        return PropertyBrief(has_data=False)
+
+    pd = source.get("property_details") or {}
+    cd = source.get("customer_details") or {}
+    if not isinstance(pd, dict):
+        pd = {}
+    if not isinstance(cd, dict):
+        cd = {}
+
+    current_issues = _str_list(pd.get("current_issues"))
+    problem_summary = (current_issues[0] if current_issues else None) or _clean(source.get("summary"))
+
+    # Fallback extraction: Shunya leaves property_details null in production, but
+    # the summary/service_requested text usually carries roof type, stories, size,
+    # etc. Mine those deterministically and use them ONLY to fill fields Shunya
+    # didn't provide (real property_details always wins when present).
+    text_pd = extract_property_from_text(
+        source.get("service_requested"), source.get("summary")
+    )
+
+    def _pd(field: str):
+        """Prefer Shunya's structured value; fall back to text-extracted."""
+        return _clean(pd.get(field)) or text_pd.get(field)
+
+    # Decision makers may live under customer_details in a few shapes.
+    decision_makers = _str_list(cd.get("decision_makers"))
+    if not decision_makers:
+        decision_makers = _str_list(cd.get("decision_maker"))
+
+    return PropertyBrief(
+        service_requested=_clean(source.get("service_requested")),
+        problem_summary=problem_summary,
+        current_issues=current_issues,
+        property_size=_pd("property_size"),
+        stories=_pd("stories"),
+        roof_type=_pd("roof_type"),
+        roof_age_years=pd.get("roof_age_years"),
+        hoa_status=_pd("hoa_status"),
+        hoa_name=_clean(pd.get("hoa_name")),
+        gated_community=pd.get("gated_community"),
+        gate_access=_clean(pd.get("gate_access")),
+        property_access_notes=_clean(pd.get("property_access_notes")),
+        pets=_clean(pd.get("pets")),
+        pet_notes=_clean(pd.get("pet_notes")),
+        decision_makers=decision_makers,
+        service_address=_format_service_address(source.get("service_address_structured")),
+        qualification_status=_clean(source.get("qualification_status")),
+        booking_status=_clean(source.get("booking_status")),
+        source_call_id=source.get("call_id"),
+        source_call_date=source.get("call_date"),
+        has_data=True,
+    )
 
 
 class AppointmentService:
@@ -207,10 +350,20 @@ class AppointmentService:
         """Get appointment by associated lead ID."""
         return await self.appointment_repo.get_by_lead_id(lead_id)
 
+    async def _sync_reminders_safe(self, appointment: Appointment) -> None:
+        """Sync appointment reminders; non-fatal on failure."""
+        try:
+            from app.services.appointment_reminder_service import sync_appointment_reminders
+            await sync_appointment_reminders(self.session, appointment)
+        except Exception as e:
+            logger.error(f"Failed to sync appointment reminders: {e}")
+
     async def create(self, appointment: Appointment) -> Appointment:
         """Create a new appointment from a domain model."""
         try:
-            return await self.appointment_repo.create(appointment)
+            created = await self.appointment_repo.create(appointment)
+            await self._sync_reminders_safe(created)
+            return created
         except Exception as e:
             logger.error(f"Error creating appointment: {e}")
             raise
@@ -224,7 +377,9 @@ class AppointmentService:
             appointment = Appointment(
                 **data.model_dump(),
             )
-            return await self.appointment_repo.create(appointment)
+            created = await self.appointment_repo.create(appointment)
+            await self._sync_reminders_safe(created)
+            return created
         except Exception as e:
             logger.error(f"Error creating appointment from schema: {e}")
             raise
@@ -270,7 +425,12 @@ class AppointmentService:
                     if lead_orm.deal_status != DealStatus.BOOKED.value:
                         lead_orm.deal_status = DealStatus.BOOKED.value
 
-            return await self.appointment_repo.update(appointment_id, existing)
+            updated = await self.appointment_repo.update(appointment_id, existing)
+            if updated is not None:
+                # Re-sync reminders: handles reschedule, outcome change, and rep
+                # (re)assignment uniformly (cancels stale rows + recreates).
+                await self._sync_reminders_safe(updated)
+            return updated
         except Exception as e:
             logger.error(f"Error updating appointment: {e}")
             raise
@@ -278,6 +438,11 @@ class AppointmentService:
     async def delete(self, appointment_id: UUID) -> bool:
         """Delete an appointment."""
         try:
+            try:
+                from app.services.appointment_reminder_service import cancel_appointment_reminders
+                await cancel_appointment_reminders(self.session, appointment_id)
+            except Exception as e:
+                logger.error(f"Failed to cancel appointment reminders on delete: {e}")
             return await self.appointment_repo.delete(appointment_id)
         except Exception as e:
             logger.error(f"Error deleting appointment: {e}")
@@ -407,6 +572,7 @@ class AppointmentService:
                     ))
 
             # Build objections with details
+            from app.services.pending_action_service import response_suggestions_for_objection
             objection_details = []
             if analysis.objections and analysis.objection_texts:
                 for i, obj in enumerate(analysis.objections):
@@ -418,7 +584,10 @@ class AppointmentService:
                         overcome=False,  # Not available in current data
                         severity="medium",  # Default
                         confidence_score=0.8,  # Default
-                        response_suggestions=[],
+                        # Recover dropped suggestions from the full Shunya payload.
+                        response_suggestions=response_suggestions_for_objection(
+                            getattr(analysis, "raw_analysis", None), obj_text
+                        ),
                     ))
 
             # Build SOP stages
@@ -1061,12 +1230,14 @@ class AppointmentService:
                 call_type=call.call_type.value if hasattr(call.call_type, 'value') else str(call.call_type),
                 call_date=call.created_at,
                 duration_seconds=call.duration_seconds,
-                audio_url=call.audio_url,
+                audio_url=presign_audio_url_for_playback(call.audio_url),
                 summary=analysis.summary if analysis else None,
                 key_points=list(analysis.key_points) if analysis and analysis.key_points else [],
                 objections=list(analysis.objections) if analysis and analysis.objections else [],
                 sentiment_score=analysis.sentiment_score if analysis else None,
                 handled_by_name=handler_name,
+                service_requested=analysis.service_requested if analysis else None,
+                property_details=dict(analysis.property_details) if analysis and analysis.property_details else None,
             )
             conversation_history.append(call_item)
 
@@ -1074,6 +1245,31 @@ class AppointmentService:
                 all_objections.extend(analysis.objections)
 
         conversation_history.sort(key=lambda x: x.call_date, reverse=True)
+
+        # 8b. Consolidated property brief from CSR call analyses (deterministic;
+        # reuses analyses already loaded above — no extra query, no new AI).
+        brief_candidates = []
+        for call in calls:
+            analysis = analyses_map.get(call.id)
+            if not analysis:
+                continue
+            brief_candidates.append({
+                "call_id": call.id,
+                "call_date": call.created_at,
+                "call_type": call.call_type.value if hasattr(call.call_type, "value") else str(call.call_type),
+                "property_details": dict(analysis.property_details) if analysis.property_details else None,
+                "customer_details": dict(analysis.customer_details) if analysis.customer_details else None,
+                "service_requested": analysis.service_requested,
+                "qualification_status": analysis.qualification_status,
+                "booking_status": analysis.booking_status,
+                "summary": analysis.summary,
+                "service_address_structured": (
+                    dict(analysis.service_address_structured)
+                    if analysis.service_address_structured else None
+                ),
+            })
+        brief_candidates.sort(key=lambda c: c["call_date"], reverse=True)
+        property_brief = build_property_brief(brief_candidates)
 
         # 9. Aggregate objections
         objection_counts = {}
@@ -1117,16 +1313,48 @@ class AppointmentService:
                 owner_name=owners_map.get(action.owner_id) if action.owner_id else None,
             ))
 
-        # 10. Generate AI briefing
-        # ai_briefing = await self._generate_ai_briefing(
-        #     contact_name=f"{contact_card.first_name or ''} {contact_card.last_name or ''}".strip(),
-        #     appointment_date=appointment.scheduled_start,
-        #     lead_status=lead.status.value if hasattr(lead.status, 'value') else str(lead.status),
-        #     deal_size=lead.deal_size,
-        #     conversation_history=conversation_history[:3],  # Last 3 calls
-        #     top_objections=top_objections,
-        #     pending_actions=pending_actions[:3],  # Top 3 actions
-        # )
+        # 10. Generate AI briefing (Ask Otto with deterministic local fallback)
+        ai_briefing: Optional[AIBriefing] = None
+        try:
+            # Primary path: Ask Otto, guarded by a hard timeout so we never hang
+            # the context endpoint on Shunya latency.
+            try:
+                ai_briefing = await asyncio.wait_for(
+                    self._generate_ai_briefing(
+                        company_id=str(lead.company_id),
+                        contact_name=f"{contact_card.first_name or ''} {contact_card.last_name or ''}".strip(),
+                        appointment_date=appointment.scheduled_start,
+                        lead_status=lead.status.value if hasattr(lead.status, "value") else str(lead.status),
+                        deal_size=lead.deal_size,
+                        conversation_history=conversation_history[:3],  # Last 3 calls
+                        top_objections=top_objections,
+                        pending_actions=pending_actions[:3],  # Top 3 actions
+                    ),
+                    timeout=2.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("AI briefing generation timed out (Ask Otto)")
+                ai_briefing = None
+            except Exception as e:
+                logger.warning(f"AI briefing generation failed via Ask Otto: {e}")
+                ai_briefing = None
+
+            # Fallback path: deterministic brief from local data when Ask Otto is
+            # unavailable or returns an empty briefing.
+            if not ai_briefing or not ai_briefing.briefing_text.strip():
+                ai_briefing = self._build_local_ai_briefing(
+                    appointment=appointment,
+                    contact_card=contact_card,
+                    property_brief=property_brief,
+                    conversation_history=conversation_history,
+                    aggregated_objections=aggregated_objections,
+                    pending_actions=pending_actions,
+                )
+        except Exception as e:
+            # Absolute guardrail: ai_briefing must never cause the context endpoint
+            # to fail; in worst case we fall back to None (current behavior).
+            logger.error(f"Error building AI briefing (Ask Otto + fallback): {e}", exc_info=True)
+            ai_briefing = None
 
         company_row = (
             await self.session.execute(
@@ -1180,7 +1408,7 @@ class AppointmentService:
             longitude=appointment.longitude,
             outcome=appointment.outcome.value if appointment.outcome and hasattr(appointment.outcome, 'value') else appointment.outcome,
             recording_status=appointment.recording_status,
-            audio_url=appointment.audio_url,
+            audio_url=presign_audio_url_for_playback(appointment.audio_url),
             appointment_analysis=AppointmentAnalysis(
                 analysis_status=appointment.analysis_status,
                 summary=appointment.summary,
@@ -1210,6 +1438,7 @@ class AppointmentService:
                 state=contact_card.state,
             ),
             sales_rep_name=sales_rep_name,
+            property_brief=property_brief,
             lead_info=LeadContextInfo(
                 id=lead.id,
                 status=lead.status.value if hasattr(lead.status, 'value') else str(lead.status),
@@ -1221,13 +1450,13 @@ class AppointmentService:
             objections=aggregated_objections,
             pending_actions=pending_actions,
             phases=phases,
-            # ai_briefing=ai_briefing, # Shunya API does not work as of yet
-            ai_briefing=None,
+            ai_briefing=ai_briefing,
             follow_up=follow_up_section,
         )
 
     async def _generate_ai_briefing(
         self,
+        company_id: str,
         contact_name: str,
         appointment_date: datetime,
         lead_status: str,
@@ -1261,7 +1490,7 @@ class AppointmentService:
 
             # Create temporary conversation for briefing
             conv_result = await shoonya.create_ask_otto_conversation(
-                company_id=str(conversation_history[0].call_id) if conversation_history else "system",
+                company_id=company_id,
                 user_id=None,
                 metadata={"purpose": "appointment_briefing"},
             )
@@ -1271,7 +1500,7 @@ class AppointmentService:
             response = await shoonya.send_ask_otto_message(
                 conversation_id=conv_id,
                 message=prompt,
-                company_id="system",
+                company_id=company_id,
             )
 
             briefing_text = response.get("answer") or response.get("message") or ""
@@ -1339,4 +1568,102 @@ class AppointmentService:
                 focus_areas.append(line.strip("- •*"))
 
         return focus_areas[:5]  # Max 5 focus areas
+
+    def _build_local_ai_briefing(
+        self,
+        appointment: Appointment,
+        contact_card,
+        property_brief: PropertyBrief,
+        conversation_history: List[CallSummaryItem],
+        aggregated_objections: AggregatedObjections,
+        pending_actions: List[PendingActionItem],
+    ) -> Optional[AIBriefing]:
+        """
+        Deterministic fallback briefing when Ask Otto is unavailable or empty.
+
+        Uses only local, already-loaded data and never performs I/O.
+        """
+        pieces: List[str] = []
+
+        contact_name = f"{contact_card.first_name or ''} {contact_card.last_name or ''}".strip() or "the customer"
+        when = appointment.scheduled_start.strftime("%Y-%m-%d %H:%M") if getattr(appointment, "scheduled_start", None) else "the upcoming appointment"
+
+        pieces.append(
+            f"You are meeting {contact_name} on {when}. This briefing is generated from existing Otto call analysis and tasks."
+        )
+
+        # Property / problem context
+        if getattr(property_brief, "has_data", False):
+            if property_brief.service_requested:
+                pieces.append(f"The customer is interested in {property_brief.service_requested}.")
+            if property_brief.problem_summary:
+                pieces.append(f"Main problem: {property_brief.problem_summary}.")
+            if property_brief.current_issues:
+                issues = "; ".join(property_brief.current_issues[:3])
+                pieces.append(f"Current issues mentioned: {issues}.")
+
+        # Recent conversations
+        if conversation_history:
+            latest = conversation_history[0]
+            when_last = latest.call_date.strftime("%Y-%m-%d") if latest.call_date else "recently"
+            pieces.append(f"The most recent call was a {latest.call_type} on {when_last}.")
+            if latest.summary:
+                pieces.append(f"On that call, the key summary was: {latest.summary[:200]}.")
+
+        # Objections
+        top_objs = aggregated_objections.top_objections or []
+        if top_objs:
+            joined = "; ".join(top_objs[:3])
+            pieces.append(f"Top objections raised so far: {joined}.")
+
+        # Pending actions
+        if pending_actions:
+            pa_summaries = []
+            for idx, pa in enumerate(pending_actions[:3], 1):
+                text = pa.raw_text or ""
+                owner = pa.owner_name or "you"
+                pa_summaries.append(f"{idx}. {text} (owner: {owner})")
+            if pa_summaries:
+                pieces.append("Open follow-up items you should be aware of:\n" + "\n".join(pa_summaries))
+
+        # Appointment-level analysis (summary / next steps)
+        if appointment.summary:
+            pieces.append(f"Post-appointment summary so far: {appointment.summary[:200]}.")
+        if appointment.next_steps:
+            steps = "; ".join(appointment.next_steps[:3])
+            pieces.append(f"Next steps already captured: {steps}.")
+
+        # Determine if we have “enough local data” per design; otherwise keep null.
+        has_any_local_signal = any(
+            [
+                getattr(property_brief, "has_data", False),
+                bool(conversation_history),
+                bool(top_objs),
+                bool(pending_actions),
+                bool(getattr(appointment, "summary", None)),
+                bool(getattr(appointment, "next_steps", None)),
+            ]
+        )
+
+        briefing_text = " ".join(pieces).strip()
+        if not has_any_local_signal or not briefing_text:
+            return None
+
+        # Simple focus areas based on what we surfaced.
+        focus_areas: List[str] = []
+        if property_brief.service_requested or property_brief.problem_summary:
+            focus_areas.append("Clarify the customer’s problem and desired service.")
+        if top_objs:
+            focus_areas.append("Prepare responses to the top objections mentioned so far.")
+        if pending_actions:
+            focus_areas.append("Confirm and complete the open follow-up items before and after the meeting.")
+
+        if not focus_areas:
+            focus_areas.append("Build rapport, restate the problem clearly, and agree on concrete next steps.")
+
+        return AIBriefing(
+            briefing_text=briefing_text,
+            focus_areas=focus_areas[:5],
+            generated_at=datetime.utcnow(),
+        )
 

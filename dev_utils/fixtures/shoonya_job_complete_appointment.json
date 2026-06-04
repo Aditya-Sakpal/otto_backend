@@ -1,0 +1,20 @@
+{
+  "job_id": "staging-validation-job-001",
+  "status": "completed",
+  "call_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+  "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+  "result": {
+    "transcript": "Staging validation transcript for appointment follow-up.",
+    "analysis": {
+      "summary": {
+        "summary": "Rep completed inspection; customer wants estimate by Friday.",
+        "key_points": ["Roof is 15 years old", "Interested in full replacement"],
+        "action_items": ["Send written estimate"]
+      },
+      "qualification": {
+        "follow_up_required": true,
+        "follow_up_reason": "Customer requested quote follow-up after site visit"
+      }
+    }
+  }
+}

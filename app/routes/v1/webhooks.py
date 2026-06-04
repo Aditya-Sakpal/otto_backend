@@ -30,7 +30,7 @@ from app.services.call_service import CallService, transform_summary_to_analysis
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
 from app.services.servicetitan_service import ServiceTitanService
-from app.services.intent_to_action_service import record_twilio_inbound_sms
+from app.services.masked_comms_service import MaskedCommsService
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -562,7 +562,16 @@ async def shoonya_job_complete_webhook(
         if is_appointment:
             # APPOINTMENT FLOW: Write analysis directly to appointments table
             appointment_id_str = metadata.get("appointment_id") or str(call_id)
-            appointment = found_appointment or await appointment_repo.get_by_id(UUID(appointment_id_str))
+
+            # Load the ORM row (the shared persistence helper mutates ORM state
+            # within this session; the repo's get_by_id returns a detached domain
+            # object, so we fetch the ORM appointment directly here).
+            from sqlalchemy import select as sa_select
+            from app.infrastructure.database.models.appointment import AppointmentORM
+            appt_orm_result = await db.execute(
+                sa_select(AppointmentORM).where(AppointmentORM.id == UUID(appointment_id_str))
+            )
+            appointment = appt_orm_result.scalar_one_or_none()
 
             if not appointment:
                 # Shunya produced a summary for an appointment we don't know
@@ -574,98 +583,14 @@ async def shoonya_job_complete_webhook(
                     detail=f"Appointment {appointment_id_str} not found",
                 )
 
-            # Extract analysis fields from Shunya summary
-            summary_section = complete_summary_data.get("summary", {})
-            qualification = complete_summary_data.get("qualification", {})
-            compliance = complete_summary_data.get("compliance", {})
-            objection_section = complete_summary_data.get("objections", {})
+            # Persist analysis via the shared path (same code used by the stuck-
+            # recording reconciliation job, so a recovered job is persisted
+            # identically to a webhook-delivered one).
+            from app.services.recording_reconciliation_service import apply_appointment_analysis
 
-            # Summary fields
-            if isinstance(summary_section, dict):
-                appointment.summary = summary_section.get("summary")
-                appointment.key_points = summary_section.get("key_points", [])
-                appointment.action_items = summary_section.get("action_items", [])
-                appointment.next_steps = summary_section.get("next_steps", [])
-                pending_actions = summary_section.get("pending_actions")
-                appointment.pending_actions_data = pending_actions if isinstance(pending_actions, dict) else None
-                appointment.sentiment_score = summary_section.get("sentiment_score")
-
-            # Objections
-            if isinstance(objection_section, dict):
-                raw_objections = objection_section.get("objections", [])
-                appointment.objection_texts = [
-                    o.get("text", "") if isinstance(o, dict) else str(o)
-                    for o in raw_objections
-                ]
-                appointment.objections = [
-                    o.get("category_text", "") if isinstance(o, dict) else str(o)
-                    for o in raw_objections
-                ]
-                appointment.objections_total_count = objection_section.get("total_count", len(raw_objections))
-            elif isinstance(objection_section, list):
-                appointment.objections = [
-                    o.get("category_text", "") if isinstance(o, dict) else str(o)
-                    for o in objection_section
-                ]
-                appointment.objections_total_count = len(objection_section)
-
-            # SOP Compliance
-            if isinstance(compliance, dict):
-                appointment.sop_stages_completed = compliance.get("stages_completed", [])
-                appointment.sop_stages_missed = compliance.get("stages_missed", [])
-                appointment.sop_stages_total = compliance.get("stages_total")
-                appointment.sop_compliance_score = compliance.get("compliance_score")
-                appointment.sop_compliance_rate = compliance.get("compliance_rate")
-                appointment.sop_compliance_confidence = compliance.get("confidence")
-                appointment.sop_compliance_issues = compliance.get("issues", [])
-                appointment.sop_compliance_positive_behaviors = compliance.get("positive_behaviors", [])
-                appointment.compliance_target_role = compliance.get("target_role")
-
-            # Qualification / status
-            follow_up_required = False
-            follow_up_reason = None
-            if isinstance(qualification, dict):
-                appointment.qualification_status = qualification.get("qualification_status")
-                appointment.booking_status = qualification.get("booking_status")
-                follow_up_required = qualification.get("follow_up_required", False)
-                follow_up_reason = qualification.get("follow_up_reason")
-
-            # Transcript and recording metadata
-            if transcript:
-                appointment.transcript = transcript
-            appointment.analysis_status = "completed"
-
-            appointment.mark_updated()
-            await appointment_repo.update(appointment.id, appointment)
-
-            # Create follow-up pending action if Shunya flagged follow_up_required
-            if follow_up_required:
-                try:
-                    from app.infrastructure.database.models.pending_action import PendingActionORM
-                    from app.domain.enums import PendingActionStatus
-
-                    pending_action = PendingActionORM(
-                        company_id=appointment.company_id,
-                        lead_id=appointment.lead_id,
-                        call_id=appointment.interaction_id,
-                        action_type="follow_up",
-                        raw_text=follow_up_reason or "Follow up required based on appointment analysis",
-                        status=PendingActionStatus.PENDING.value,
-                        owner_id=appointment.assigned_rep_id,
-                        source="ai_analysis",
-                        extra_metadata={
-                            "appointment_id": str(appointment.id),
-                            "follow_up_reason": follow_up_reason,
-                        },
-                    )
-                    db.add(pending_action)
-                    logger.info(
-                        "Created follow-up pending action from appointment analysis",
-                        appointment_id=str(appointment.id),
-                        owner_id=str(appointment.assigned_rep_id) if appointment.assigned_rep_id else None,
-                    )
-                except Exception as pa_err:
-                    logger.warning(f"Failed to create follow-up pending action: {pa_err}")
+            follow_up_required = await apply_appointment_analysis(
+                db, appointment, complete_summary_data, transcript
+            )
 
             await db.commit()
 
@@ -1303,12 +1228,14 @@ async def twilio_inbound_sms_webhook(request: Request, db: DbSession):
         raise HTTPException(status_code=400, detail="From and To are required")
 
     try:
-        new_id = await record_twilio_inbound_sms(
-            db,
-            from_number=from_number,
-            to_number=to_number,
+        # Canonical path: route all inbound SMS through masked comms handler so
+        # we do persist + forward + push + intent + task creation in one place.
+        service = MaskedCommsService(db)
+        await service.handle_inbound_sms(
+            proxy_number=to_number,
+            sender=from_number,
             body=body,
-            message_sid=message_sid,
+            twilio_message_sid=message_sid or "",
         )
         await db.commit()
     except Exception as e:
@@ -1319,7 +1246,7 @@ async def twilio_inbound_sms_webhook(request: Request, db: DbSession):
     # Twilio expects 2xx and optional empty TwiML
     logger.info(
         "twilio inbound SMS processed",
-        new_id=str(new_id) if new_id else None,
+        new_id=None,
         message_sid=message_sid,
     )
     return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="application/xml")

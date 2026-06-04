@@ -1,0 +1,30 @@
+{
+  "payload_message_id": "staging-val-ghl-encyfix1r",
+  "first_post": {
+    "http": 401,
+    "body": {
+      "error": "Unauthorized",
+      "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+      "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+    }
+  },
+  "second_post": {
+    "http": 401,
+    "body": {
+      "error": "Unauthorized",
+      "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+      "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+    }
+  },
+  "probe_after_post1": {
+    "calls_with_message_id": 0,
+    "call_ids": []
+  },
+  "calls_after_post2": 0,
+  "call_id_first": null,
+  "call_id_second": null,
+  "same_call_id_on_replay": null,
+  "pending_actions": [],
+  "pending_count": 0,
+  "pass": false
+}

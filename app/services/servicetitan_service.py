@@ -23,10 +23,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.s3 import get_s3_service
-from app.domain.enums import AppointmentOutcome, CallType, LeadStatus, PendingActionStatus, PipelineStage
+from app.domain.enums import AppointmentOutcome, CallType, LeadStatus, PipelineStage
 from app.domain.models.appointment import Appointment
 from app.domain.models.lead import Lead
-from app.domain.models.pending_action import PendingAction
 from app.domain.users.repository import UserRepository
 from app.infrastructure.integrations.servicetitan import ServiceTitanClient, parse_iso_duration
 from app.infrastructure.repositories.appointment import AppointmentRepository
@@ -34,7 +33,6 @@ from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.company_integration import CompanyIntegrationRepository
 from app.infrastructure.repositories.contact import ContactRepository
 from app.infrastructure.repositories.lead import LeadRepository
-from app.infrastructure.repositories.pending_action import PendingActionRepository
 from app.services.call_service import CallService
 
 logger = get_logger(__name__)
@@ -82,7 +80,6 @@ class ServiceTitanService:
         self.contact_repo = ContactRepository(session)
         self.lead_repo = LeadRepository(session)
         self.appointment_repo = AppointmentRepository(session)
-        self.pending_action_repo = PendingActionRepository(session)
         self.integration_repo = CompanyIntegrationRepository(session)
         self.user_repo = UserRepository(session)
         self._st_client_cache: dict[UUID, ServiceTitanClient] = {}
@@ -436,15 +433,15 @@ class ServiceTitanService:
         # 8. Create PendingAction for missed calls
         if is_missed:
             try:
-                pending_action = PendingAction(
+                from app.services.pending_action_service import create_missed_call_pending_action
+                await create_missed_call_pending_action(
+                    self.session,
                     company_id=company_id,
                     call_id=call.id,
-                    action_type="call_back",
-                    raw_text=f"Give {phone} a call back",
-                    status=PendingActionStatus.PENDING,
-                    source="manual",
+                    phone=phone,
+                    lead_id=call.lead_id,
+                    owner_id=handled_by_user_id,
                 )
-                await self.pending_action_repo.create(pending_action)
             except Exception as e:
                 logger.error(f"Failed to create pending action for ST missed call {call.id}: {e}")
 
@@ -1038,7 +1035,7 @@ class ServiceTitanService:
             if st_booking.get("jobId"):
                 meta["st_job_id"] = str(st_booking["jobId"])
             existing_appt.extra_metadata = meta
-            await self.appointment_repo.update(existing_appt.id, existing_appt)
+            synced_appt = await self.appointment_repo.update(existing_appt.id, existing_appt) or existing_appt
             logger.debug(f"Updated appointment {existing_appt.id} from ST booking {st_booking_id}")
         else:
             appt_meta: dict[str, Any] = {"st_booking_id": st_booking_id}
@@ -1056,8 +1053,15 @@ class ServiceTitanService:
                 outcome=outcome,
                 extra_metadata=appt_meta,
             )
-            await self.appointment_repo.create(new_appt)
+            synced_appt = await self.appointment_repo.create(new_appt)
             logger.info(f"Created appointment from ST booking {st_booking_id}")
+
+        # Materialize/refresh appointment reminders (non-fatal)
+        try:
+            from app.services.appointment_reminder_service import sync_appointment_reminders
+            await sync_appointment_reminders(self.session, synced_appt)
+        except Exception as e:
+            logger.error(f"Failed to sync appointment reminders (ServiceTitan): {e}")
 
         # Lead conversion: spec says completed/converted booking → Lead.status=converted
         if outcome == AppointmentOutcome.WON:

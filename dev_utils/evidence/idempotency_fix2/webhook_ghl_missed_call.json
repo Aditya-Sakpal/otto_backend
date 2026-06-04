@@ -1,0 +1,74 @@
+{
+  "payload_message_id": "staging-val-ghl-encyfix2",
+  "first_post": {
+    "http": 200,
+    "body": {
+      "ok": true,
+      "isCall": true,
+      "isMissedCall": true,
+      "locationId": "staging-validation-ghl",
+      "contactId": "staging-val-ghl-contact",
+      "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "tempCallId": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+      "shunyaJobId": null,
+      "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+      "dateAdded": "2026-06-01T10:50:00.000Z",
+      "direction": "inbound",
+      "userId": null,
+      "handledByUserId": null,
+      "messageId": "staging-val-ghl-encyfix2",
+      "contactFullName": null,
+      "contactPhone": "+15551234567",
+      "recordingContentType": null,
+      "recordingFilename": null,
+      "recordingNumBytes": null,
+      "recordingS3Url": null
+    }
+  },
+  "second_post": {
+    "http": 200,
+    "body": {
+      "ok": true,
+      "isCall": true,
+      "isMissedCall": true,
+      "locationId": "staging-validation-ghl",
+      "contactId": "staging-val-ghl-contact",
+      "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "tempCallId": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+      "shunyaJobId": null,
+      "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+      "dateAdded": "2026-06-01T10:50:00.000Z",
+      "direction": "inbound",
+      "userId": null,
+      "handledByUserId": null,
+      "messageId": "staging-val-ghl-encyfix2",
+      "contactFullName": null,
+      "contactPhone": "+15551234567",
+      "recordingContentType": null,
+      "recordingFilename": null,
+      "recordingNumBytes": null,
+      "recordingS3Url": null
+    }
+  },
+  "probe_after_post1": {
+    "calls_with_message_id": 1,
+    "call_ids": [
+      "f8a82255-e1cd-4dce-8a4d-705309e64533"
+    ]
+  },
+  "calls_after_post2": 1,
+  "call_id_first": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+  "call_id_second": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+  "same_call_id_on_replay": true,
+  "pending_actions": [
+    {
+      "id": "13158354-227d-4322-8b3a-9f5ab7ca1a83",
+      "call_id": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+      "due_at": "2026-06-01 06:09:01.990432+00:00",
+      "priority": 1,
+      "source": "manual"
+    }
+  ],
+  "pending_count": 1,
+  "pass": true
+}

@@ -1,0 +1,35 @@
+{
+  "payload_ctm_id": "staging-val-ctm-01104535",
+  "first_post": {
+    "http": 200,
+    "body": {
+      "status": "success",
+      "call_id": "3a97aac3-c0f1-4419-9d53-0981b892b058",
+      "ctm_call_id": "staging-val-ctm-01104535"
+    }
+  },
+  "second_post": {
+    "http": 200,
+    "body": {
+      "status": "success",
+      "call_id": "b4352088-e020-4c4c-9893-037ce84d1f64",
+      "ctm_call_id": "staging-val-ctm-01104535"
+    }
+  },
+  "call_id": "3a97aac3-c0f1-4419-9d53-0981b892b058",
+  "pending_actions": [
+    {
+      "id": "0a187a7a-675e-492e-9d9e-f997163341d0",
+      "action_type": "call_back",
+      "source": "manual",
+      "call_id": "3a97aac3-c0f1-4419-9d53-0981b892b058",
+      "owner_id": null,
+      "due_at": "2026-06-01 05:34:14.491954+00:00",
+      "priority": 1,
+      "appointment_id": null,
+      "created_at": "2026-05-31 23:49:14.495095+00:00"
+    }
+  ],
+  "pending_count": 1,
+  "pass": true
+}

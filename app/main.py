@@ -34,6 +34,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import settings
+from app.core.debug_runtime import emit_debug_log
 from app.core.logging import setup_logging, get_logger
 from app.core.scheduler import start_scheduler, stop_scheduler
 from app.routes.v1 import router as api_router
@@ -54,6 +55,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     setup_logging()
+    # #region agent log
+    emit_debug_log(
+        hypothesis_id="H10",
+        location="main.py:60",
+        message="Backend startup heartbeat",
+        data={"environment": settings.ENVIRONMENT},
+    )
+    # #endregion
 
     # Auto-create tables in development (optional)
     # For production, use Alembic migrations instead
@@ -67,13 +76,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Start background scheduler for follow-up notifications
     logger.info("Starting background scheduler...")
-    # start_scheduler()
+    start_scheduler()
 
     yield
 
     # Shutdown
     logger.info("Shutting down background scheduler...")
-    # stop_scheduler()
+    stop_scheduler()
 
 
 def create_app() -> FastAPI:
@@ -260,6 +269,14 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health_check():
         """Health check endpoint for load balancers."""
+        # #region agent log
+        emit_debug_log(
+            hypothesis_id="H11",
+            location="main.py:271",
+            message="Health endpoint hit",
+            data={"status": "healthy"},
+        )
+        # #endregion
         return {"status": "healthy", "version": "2.0.0"}
 
     return app

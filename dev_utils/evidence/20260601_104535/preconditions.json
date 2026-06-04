@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-06-01T10:45:35",
+  "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+  "local_health": {"status": 200, "body": {"status": "healthy", "version": "2.0.0"}},
+  "remote_health": {"status": 200, "body": {"status": "healthy", "service": "otto-intelligence", "version": "1.0.0"}},
+  "scheduler": "start_scheduler() enabled in app/main.py",
+  "integrations": {"location_id": "", "voip_company_id": "test-account-999"},
+  "appointment_for_follow_up": {
+    "id": "0c5b307c-4594-4893-87a3-06328be547f2",
+    "assigned_rep_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b"
+  },
+  "ghl_note": "Use locationId empty string to match company_integrations.location_id"
+}

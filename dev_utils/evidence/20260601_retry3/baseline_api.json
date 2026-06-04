@@ -1,0 +1,176 @@
+{
+  "pending_fields": {
+    "total_pending": 193,
+    "with_due_at": 193,
+    "with_owner": 118,
+    "with_appointment_id": 2,
+    "with_priority": 193
+  },
+  "tasks_api": {
+    "completion_rate": 0.0,
+    "summary": {
+      "total_tasks": 194,
+      "pending": 193,
+      "in_progress": 1,
+      "completed": 0,
+      "cancelled": 0
+    },
+    "tasks": [
+      {
+        "id": "74427e6e-ecb3-412d-b78b-b8941fdba0a6",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "follow_up",
+        "raw_text": "Customer requested quote follow-up after site visit",
+        "status": "pending",
+        "priority": 2,
+        "due_at": "2026-06-01T05:42:09.886824Z",
+        "created_at": "2026-06-01T05:31:44.982493Z",
+        "updated_at": null,
+        "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+        "assigned_to": {
+          "user_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "first_name": "Anthony",
+          "last_name": "Bonom",
+          "full_name": "Anthony Bonom",
+          "role": "sales_rep",
+          "email": "abonomo711@gmail.com"
+        },
+        "assigned_by": null,
+        "source_call": {
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "customer_name": "PHOENIX AZ",
+          "customer_phone": "4804153484",
+          "call_date": "2026-03-13T17:18:03.316884Z",
+          "call_created_at": "2026-03-13T17:18:03.316884Z"
+        },
+        "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+        "lead_id": "6c73d4f2-d79e-4c66-bbf4-9090a9b8f4c8",
+        "assigned_by_id": null
+      },
+      {
+        "id": "0058e13d-7248-427f-876d-8308a0ca4277",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "follow_up",
+        "raw_text": "Customer requested quote follow-up after site visit",
+        "status": "pending",
+        "priority": 2,
+        "due_at": "2026-06-02T05:31:42.687463Z",
+        "created_at": "2026-06-01T05:31:27.561873Z",
+        "updated_at": null,
+        "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+        "assigned_to": {
+          "user_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "first_name": "Anthony",
+          "last_name": "Bonom",
+          "full_name": "Anthony Bonom",
+          "role": "sales_rep",
+          "email": "abonomo711@gmail.com"
+        },
+        "assigned_by": null,
+        "source_call": {
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "customer_name": "PHOENIX AZ",
+          "customer_phone": "4804153484",
+          "call_date": "2026-03-13T17:18:03.316884Z",
+          "call_created_at": "2026-03-13T17:18:03.316884Z"
+        },
+        "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+        "lead_id": "6c73d4f2-d79e-4c66-bbf4-9090a9b8f4c8",
+        "assigned_by_id": null
+      },
+      {
+        "id": "462bf4b8-ddf3-49b2-ba1e-e91cdd826c5d",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "call_back",
+        "raw_text": "Give +15559876543 a call back",
+        "status": "pending",
+        "priority": 1,
+        "due_at": "2026-06-01T05:46:20.110845Z",
+        "created_at": "2026-06-01T00:01:20.110927Z",
+        "updated_at": null,
+        "owner_id": null,
+        "assigned_to": null,
+        "assigned_by": null,
+        "source_call": {
+          "call_id": "4b107748-ee85-4750-9545-54a505d13e8e",
+          "customer_name": null,
+          "customer_phone": "+15559876543",
+          "call_date": "2026-06-01T00:01:16.909102Z",
+          "call_created_at": "2026-06-01T00:01:16.909102Z"
+        },
+        "call_id": "4b107748-ee85-4750-9545-54a505d13e8e",
+        "lead_id": "fb9cc496-293c-4ba4-bb3b-d32d224e6ef4",
+        "assigned_by_id": null
+      },
+      {
+        "id": "9a7d9afc-a583-451e-94c0-548edd2f5181",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "call_back",
+        "raw_text": "Give +15559876543 a call back",
+        "status": "pending",
+        "priority": 1,
+        "due_at": "2026-06-01T05:46:04.027713Z",
+        "created_at": "2026-06-01T00:01:04.027787Z",
+        "updated_at": null,
+        "owner_id": null,
+        "assigned_to": null,
+        "assigned_by": null,
+        "source_call": {
+          "call_id": "a1859569-4384-47f9-8e0e-64afa336c1e3",
+          "customer_name": null,
+          "customer_phone": "+15559876543",
+          "call_date": "2026-06-01T00:00:51.620345Z",
+          "call_created_at": "2026-06-01T00:00:51.620345Z"
+        },
+        "call_id": "a1859569-4384-47f9-8e0e-64afa336c1e3",
+        "lead_id": "fb9cc496-293c-4ba4-bb3b-d32d224e6ef4",
+        "assigned_by_id": null
+      },
+      {
+        "id": "37565728-ab29-42bb-bbb0-29f8309d1065",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "call_back",
+        "raw_text": "Give +15551234567 a call back",
+        "status": "pending",
+        "priority": 1,
+        "due_at": "2026-06-01T05:45:38.600063Z",
+        "created_at": "2026-06-01T00:00:38.600171Z",
+        "updated_at": null,
+        "owner_id": null,
+        "assigned_to": null,
+        "assigned_by": null,
+        "source_call": {
+          "call_id": "8ab5f701-dd4f-40fd-bb57-76854b2b7f94",
+          "customer_name": null,
+          "customer_phone": "+15551234567",
+          "call_date": "2026-06-01T00:00:37.291067Z",
+          "call_created_at": "2026-06-01T00:00:37.291067Z"
+        },
+        "call_id": "8ab5f701-dd4f-40fd-bb57-76854b2b7f94",
+        "lead_id": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+        "assigned_by_id": null
+      }
+    ],
+    "total": 193,
+    "skip": 0,
+    "limit": 5
+  },
+  "metrics_api": {
+    "total_pending": 9,
+    "follow_ups_needed": 2,
+    "calls_to_make": 6,
+    "appointments_to_schedule": 0,
+    "start_date": "2026-05-02T05:35:24.099683+00:00",
+    "end_date": "2026-06-01T05:35:24.099683+00:00"
+  },
+  "call_back_sources": [
+    {
+      "source": "ai_analysis",
+      "cnt": 57
+    },
+    {
+      "source": "manual",
+      "cnt": 6
+    }
+  ]
+}

@@ -164,7 +164,7 @@ class TwilioClient:
             phone_number=available[0].phone_number,
             voice_url=f"{self.webhook_base_url}/api/v1/webhooks/twilio/inbound-call",
             voice_method="POST",
-            sms_url=f"{self.webhook_base_url}/api/v1/webhooks/twilio/inbound-sms",
+            sms_url=f"{self.webhook_base_url}/api/v1/twilio/masked-comms/twilio/inbound-sms",
             sms_method="POST",
         )
         logger.info(

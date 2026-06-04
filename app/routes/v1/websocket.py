@@ -30,8 +30,10 @@ async def websocket_notifications(
     
     The server will send notifications for:
     - Follow-up call reminders (15 min, 5 min before due)
+    - Appointment reminders (day-before, morning-of, one-hour-before)
+    - Rehash opportunities (qualified_unbooked, appointment_pending, stale_lead)
     - Other real-time events
-    
+
     Message format:
     {
         "type": "follow_up_reminder",
@@ -39,6 +41,29 @@ async def websocket_notifications(
         "minutes_until_due": 15,
         "message": "Follow-up call due in 15 minutes",
         "call_info": {...},
+        ...
+    }
+
+    Appointment reminder message format:
+    {
+        "type": "appointment_reminder",
+        "reminder_kind": "morning_of",   # day_before | morning_of | one_hour_before
+        "pending_action_id": "uuid",
+        "appointment_id": "uuid",
+        "minutes_until_appointment": 120,
+        "context_info": {"appointment": {...}},
+        "message": "Appointment today at 2:00 PM",
+        ...
+    }
+
+    Rehash opportunity message format:
+    {
+        "type": "rehash_opportunity",
+        "rehash_category": "qualified_unbooked",  # | appointment_pending | stale_lead
+        "pending_action_id": "uuid",
+        "lead_id": "uuid",
+        "raw_text": "Rehash: qualified lead never booked — reach out to schedule",
+        "minutes_until_due": 0,
         ...
     }
     """

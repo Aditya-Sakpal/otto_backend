@@ -150,20 +150,58 @@ class RepPhoneRepository(BaseRepository[RepPhoneORM, RepPhone]):
 
     async def update_push_token(
         self, user_id: UUID, expo_push_token: str
-    ) -> None:
-        """Update the Expo push token for a rep's phone."""
+    ) -> int:
+        """Upsert the Expo push token for a rep.
+
+        The old implementation issued a bare UPDATE on (user_id, is_primary=True);
+        when the rep had no rep_phones row yet it silently updated zero rows, so
+        every device that registered a token before completing the phone-OTP flow
+        ended up with no token persisted. We now upsert: update the primary row if
+        present, else any row for the user, else create a minimal row carrying the
+        token. phone_number is NOT-NULL, so a created row uses an empty-string
+        sentinel — it is never matched for masked-comms routing (that path filters
+        on is_verified=True).
+
+        Returns the number of rows written (1 = updated or created).
+        """
         try:
-            await self.session.execute(
-                update(RepPhoneORM)
-                .where(
+            # 1. Prefer the primary row.
+            result = await self.session.execute(
+                select(RepPhoneORM).where(
                     and_(
                         RepPhoneORM.user_id == user_id,
                         RepPhoneORM.is_primary == True,
                     )
                 )
-                .values(expo_push_token=expo_push_token)
             )
+            orm_obj = result.scalar_one_or_none()
+
+            # 2. Else fall back to any (newest) row for the user.
+            if orm_obj is None:
+                result = await self.session.execute(
+                    select(RepPhoneORM)
+                    .where(RepPhoneORM.user_id == user_id)
+                    .order_by(RepPhoneORM.created_at.desc())
+                    .limit(1)
+                )
+                orm_obj = result.scalar_one_or_none()
+
+            if orm_obj is not None:
+                orm_obj.expo_push_token = expo_push_token
+                await self.session.flush()
+                return 1
+
+            # 3. No row exists — create a minimal token-only registration.
+            orm_obj = RepPhoneORM(
+                user_id=user_id,
+                phone_number="",
+                is_verified=False,
+                is_primary=True,
+                expo_push_token=expo_push_token,
+            )
+            self.session.add(orm_obj)
             await self.session.flush()
+            return 1
         except Exception as e:
             logger.error(f"Error updating push token: {e}")
             traceback.print_exc()

@@ -1,0 +1,149 @@
+{
+  "generated_at": "2026-06-01T06:35:04.722540+00:00",
+  "checks": {
+    "day_before_created": true,
+    "morning_of_created": true,
+    "one_hour_before_created": true,
+    "exactly_three_rows": true,
+    "idempotent_double_sync": true,
+    "reminder_fired_once": true,
+    "notified_at_set": true,
+    "status_completed_after_fire": true,
+    "no_refire_second_tick": true,
+    "survives_restart": true,
+    "outcome_won_cancels": true,
+    "outcome_lost_cancels": true,
+    "outcome_no_show_cancels": true,
+    "outcome_rescheduled_cancels": true
+  },
+  "evidence": {
+    "materialized_rows": [
+      {
+        "id": "df7861f1-7da1-4740-acf6-64c3bbf46caf",
+        "action_type": "appointment_reminder",
+        "source": "appointment_reminder",
+        "status": "pending",
+        "due_at": "2026-06-01T13:00:00+00:00",
+        "priority": 2,
+        "owner_id": null,
+        "appointment_id": "05a7d2aa-3653-4b3d-aaf7-8dc931e0f40d",
+        "raw_text": "Appointment tomorrow at 5:00 AM",
+        "extra_metadata": {
+          "reminder_kind": "day_before",
+          "scheduled_start": "2026-06-02T09:00:00+00:00"
+        },
+        "created_at": "2026-06-01T01:05:17.120950+00:00"
+      },
+      {
+        "id": "7923f6a1-f4e5-478f-a240-f2570d50e12a",
+        "action_type": "appointment_reminder",
+        "source": "appointment_reminder",
+        "status": "pending",
+        "due_at": "2026-06-02T08:00:00+00:00",
+        "priority": 1,
+        "owner_id": null,
+        "appointment_id": "05a7d2aa-3653-4b3d-aaf7-8dc931e0f40d",
+        "raw_text": "Appointment in 1 hour",
+        "extra_metadata": {
+          "reminder_kind": "one_hour_before",
+          "scheduled_start": "2026-06-02T09:00:00+00:00"
+        },
+        "created_at": "2026-06-01T01:05:19.996332+00:00"
+      },
+      {
+        "id": "28c7fe1e-55bf-4c19-821c-759199feab74",
+        "action_type": "appointment_reminder",
+        "source": "appointment_reminder",
+        "status": "pending",
+        "due_at": "2026-06-02T12:00:00+00:00",
+        "priority": 2,
+        "owner_id": null,
+        "appointment_id": "05a7d2aa-3653-4b3d-aaf7-8dc931e0f40d",
+        "raw_text": "Appointment today at 5:00 AM",
+        "extra_metadata": {
+          "reminder_kind": "morning_of",
+          "scheduled_start": "2026-06-02T09:00:00+00:00"
+        },
+        "created_at": "2026-06-01T01:05:19.033937+00:00"
+      }
+    ],
+    "notification_payloads": [
+      {
+        "user_ids": [
+          "22d04d63-5151-4c18-b33f-0c60fed70f02"
+        ],
+        "payload": {
+          "type": "appointment_reminder",
+          "pending_action_id": "3305978c-b798-4087-bbf9-cf8f30af6c73",
+          "company_id": "d481d226-2791-4652-b080-b6b2c6c4f662",
+          "lead_id": "51d93d1e-eaba-4f35-b25e-f6f92cbfa7ec",
+          "call_id": null,
+          "appointment_id": "05a7d2aa-3653-4b3d-aaf7-8dc931e0f40d",
+          "due_at": "2026-06-01T06:33:32.503992+00:00",
+          "minutes_until_due": 0,
+          "threshold": 0,
+          "action_type": "appointment_reminder",
+          "raw_text": "Appointment in 1 hour",
+          "priority": 1,
+          "context_info": {
+            "appointment": {
+              "appointment_id": "05a7d2aa-3653-4b3d-aaf7-8dc931e0f40d",
+              "scheduled_start": "2026-06-02T09:00:00+00:00",
+              "scheduled_end": null,
+              "location_address": null,
+              "outcome": "pending",
+              "contact": {
+                "first_name": "Joe",
+                "last_name": "Sever",
+                "primary_phone": "+16027220955",
+                "email": null
+              }
+            }
+          },
+          "message": "Appointment in 1 hour",
+          "timestamp": "2026-06-01T06:35:41.122395+00:00",
+          "reminder_kind": "one_hour_before",
+          "minutes_until_appointment": 1584
+        }
+      }
+    ],
+    "outcome_cancellation": {
+      "won": {
+        "pending_before": 3,
+        "pending_after": 0,
+        "cancelled_after": 3,
+        "cancelled_ok": true
+      },
+      "lost": {
+        "pending_before": 3,
+        "pending_after": 0,
+        "cancelled_after": 3,
+        "cancelled_ok": true
+      },
+      "no_show": {
+        "pending_before": 3,
+        "pending_after": 0,
+        "cancelled_after": 3,
+        "cancelled_ok": true
+      },
+      "rescheduled": {
+        "pending_before": 3,
+        "pending_after": 0,
+        "cancelled_after": 3,
+        "cancelled_ok": true
+      }
+    }
+  },
+  "appointment": {
+    "id": "05a7d2aa-3653-4b3d-aaf7-8dc931e0f40d",
+    "company_id": "d481d226-2791-4652-b080-b6b2c6c4f662",
+    "lead_id": "51d93d1e-eaba-4f35-b25e-f6f92cbfa7ec",
+    "assigned_rep_id": null,
+    "scheduled_start": "2026-06-02T09:00:00+00:00",
+    "outcome": "pending"
+  },
+  "appointment_outcome_unchanged_in_db": true,
+  "cleanup_rows_deleted": 3,
+  "verdict": "GO",
+  "failed_checks": []
+}

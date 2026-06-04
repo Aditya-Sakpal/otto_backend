@@ -1,0 +1,209 @@
+{
+  "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+  "leads": {
+    "total": 3425
+  },
+  "appointments": {
+    "total": 629,
+    "with_audio_url": 124,
+    "with_assigned_rep": 233
+  },
+  "appointments_by_analysis_status": [
+    {
+      "analysis_status": "null",
+      "cnt": 618
+    },
+    {
+      "analysis_status": "completed",
+      "cnt": 7
+    },
+    {
+      "analysis_status": "failed",
+      "cnt": 2
+    },
+    {
+      "analysis_status": "processing",
+      "cnt": 2
+    }
+  ],
+  "calls": {
+    "total": 6072,
+    "missed": 501,
+    "with_audio": 5499
+  },
+  "calls_by_type": [
+    {
+      "call_type": "null",
+      "cnt": 5627
+    },
+    {
+      "call_type": "missed_call",
+      "cnt": 442
+    },
+    {
+      "call_type": "csr_call",
+      "cnt": 3
+    }
+  ],
+  "pending_actions": {
+    "total_pending": 189,
+    "with_due_at": 189,
+    "with_owner": 118,
+    "with_appointment_id": 2
+  },
+  "pending_actions_by_type": [
+    {
+      "action_type": "call_back",
+      "cnt": 59
+    },
+    {
+      "action_type": "send_estimate",
+      "cnt": 22
+    },
+    {
+      "action_type": "schedule_appointment",
+      "cnt": 22
+    },
+    {
+      "action_type": "inspection",
+      "cnt": 13
+    },
+    {
+      "action_type": "follow_up_call",
+      "cnt": 12
+    },
+    {
+      "action_type": "send_info",
+      "cnt": 11
+    },
+    {
+      "action_type": "send_details",
+      "cnt": 10
+    },
+    {
+      "action_type": "custom",
+      "cnt": 7
+    },
+    {
+      "action_type": "site_visit",
+      "cnt": 4
+    },
+    {
+      "action_type": "send_quote",
+      "cnt": 4
+    },
+    {
+      "action_type": "reschedule",
+      "cnt": 3
+    },
+    {
+      "action_type": "confirm_address",
+      "cnt": 3
+    },
+    {
+      "action_type": "schedule_visit",
+      "cnt": 3
+    },
+    {
+      "action_type": "send_invoice",
+      "cnt": 3
+    },
+    {
+      "action_type": "collect_documents",
+      "cnt": 2
+    }
+  ],
+  "recordings_on_calls": {
+    "calls_with_audio": 5499,
+    "with_transcript": 4741
+  },
+  "recordings_on_appointments": {
+    "appointments_with_audio": 629,
+    "with_recording_status": 10,
+    "with_analysis_status": 11
+  },
+  "appointment_recording_status": [
+    {
+      "recording_status": "null",
+      "cnt": 619
+    },
+    {
+      "recording_status": "uploaded",
+      "cnt": 10
+    }
+  ],
+  "call_processing_jobs": {
+    "total": 0,
+    "completed": 0,
+    "failed": 0,
+    "in_progress": 0
+  },
+  "call_analyses": {
+    "total": 4804,
+    "with_property_details": 0,
+    "with_service_requested": 1019,
+    "with_summary": 4700,
+    "completed": 4768
+  },
+  "call_analyses_by_status": [
+    {
+      "status": "completed",
+      "cnt": 4768
+    },
+    {
+      "status": "pending",
+      "cnt": 36
+    }
+  ],
+  "leads_by_status": [
+    {
+      "status": "new",
+      "cnt": 1245
+    },
+    {
+      "status": "closed_won",
+      "cnt": 1160
+    },
+    {
+      "status": "qualified_unbooked",
+      "cnt": 496
+    },
+    {
+      "status": "abandoned",
+      "cnt": 386
+    },
+    {
+      "status": "qualified_booked",
+      "cnt": 122
+    },
+    {
+      "status": "qualified_service_not_offered",
+      "cnt": 16
+    }
+  ],
+  "missed_calls_without_callback_task": {
+    "cnt": 499
+  },
+  "appointments_without_follow_up_task": {
+    "cnt": 628
+  },
+  "pending_last_30d": {
+    "total": 5
+  },
+  "call_back_by_source": [
+    {
+      "source": "ai_analysis",
+      "cnt": 57
+    },
+    {
+      "source": "manual",
+      "cnt": 2
+    }
+  ],
+  "qualified_unbooked_leads": {
+    "total": 496
+  },
+  "smart_nudges": {
+    "total": 0
+  }
+}

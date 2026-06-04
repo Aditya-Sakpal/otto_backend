@@ -1,0 +1,474 @@
+{
+  "run_id": "20260601_retry3",
+  "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+  "baseline": {
+    "pending_fields": {
+      "total_pending": 193,
+      "with_due_at": 193,
+      "with_owner": 118,
+      "with_appointment_id": 2,
+      "with_priority": 193
+    },
+    "tasks_api": {
+      "completion_rate": 0.0,
+      "summary": {
+        "total_tasks": 194,
+        "pending": 193,
+        "in_progress": 1,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "tasks": [
+        {
+          "id": "74427e6e-ecb3-412d-b78b-b8941fdba0a6",
+          "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "action_type": "follow_up",
+          "raw_text": "Customer requested quote follow-up after site visit",
+          "status": "pending",
+          "priority": 2,
+          "due_at": "2026-06-01T05:42:09.886824Z",
+          "created_at": "2026-06-01T05:31:44.982493Z",
+          "updated_at": null,
+          "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "assigned_to": {
+            "user_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+            "first_name": "Anthony",
+            "last_name": "Bonom",
+            "full_name": "Anthony Bonom",
+            "role": "sales_rep",
+            "email": "abonomo711@gmail.com"
+          },
+          "assigned_by": null,
+          "source_call": {
+            "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+            "customer_name": "PHOENIX AZ",
+            "customer_phone": "4804153484",
+            "call_date": "2026-03-13T17:18:03.316884Z",
+            "call_created_at": "2026-03-13T17:18:03.316884Z"
+          },
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "lead_id": "6c73d4f2-d79e-4c66-bbf4-9090a9b8f4c8",
+          "assigned_by_id": null
+        },
+        {
+          "id": "0058e13d-7248-427f-876d-8308a0ca4277",
+          "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "action_type": "follow_up",
+          "raw_text": "Customer requested quote follow-up after site visit",
+          "status": "pending",
+          "priority": 2,
+          "due_at": "2026-06-02T05:31:42.687463Z",
+          "created_at": "2026-06-01T05:31:27.561873Z",
+          "updated_at": null,
+          "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "assigned_to": {
+            "user_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+            "first_name": "Anthony",
+            "last_name": "Bonom",
+            "full_name": "Anthony Bonom",
+            "role": "sales_rep",
+            "email": "abonomo711@gmail.com"
+          },
+          "assigned_by": null,
+          "source_call": {
+            "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+            "customer_name": "PHOENIX AZ",
+            "customer_phone": "4804153484",
+            "call_date": "2026-03-13T17:18:03.316884Z",
+            "call_created_at": "2026-03-13T17:18:03.316884Z"
+          },
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "lead_id": "6c73d4f2-d79e-4c66-bbf4-9090a9b8f4c8",
+          "assigned_by_id": null
+        },
+        {
+          "id": "462bf4b8-ddf3-49b2-ba1e-e91cdd826c5d",
+          "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "action_type": "call_back",
+          "raw_text": "Give +15559876543 a call back",
+          "status": "pending",
+          "priority": 1,
+          "due_at": "2026-06-01T05:46:20.110845Z",
+          "created_at": "2026-06-01T00:01:20.110927Z",
+          "updated_at": null,
+          "owner_id": null,
+          "assigned_to": null,
+          "assigned_by": null,
+          "source_call": {
+            "call_id": "4b107748-ee85-4750-9545-54a505d13e8e",
+            "customer_name": null,
+            "customer_phone": "+15559876543",
+            "call_date": "2026-06-01T00:01:16.909102Z",
+            "call_created_at": "2026-06-01T00:01:16.909102Z"
+          },
+          "call_id": "4b107748-ee85-4750-9545-54a505d13e8e",
+          "lead_id": "fb9cc496-293c-4ba4-bb3b-d32d224e6ef4",
+          "assigned_by_id": null
+        },
+        {
+          "id": "9a7d9afc-a583-451e-94c0-548edd2f5181",
+          "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "action_type": "call_back",
+          "raw_text": "Give +15559876543 a call back",
+          "status": "pending",
+          "priority": 1,
+          "due_at": "2026-06-01T05:46:04.027713Z",
+          "created_at": "2026-06-01T00:01:04.027787Z",
+          "updated_at": null,
+          "owner_id": null,
+          "assigned_to": null,
+          "assigned_by": null,
+          "source_call": {
+            "call_id": "a1859569-4384-47f9-8e0e-64afa336c1e3",
+            "customer_name": null,
+            "customer_phone": "+15559876543",
+            "call_date": "2026-06-01T00:00:51.620345Z",
+            "call_created_at": "2026-06-01T00:00:51.620345Z"
+          },
+          "call_id": "a1859569-4384-47f9-8e0e-64afa336c1e3",
+          "lead_id": "fb9cc496-293c-4ba4-bb3b-d32d224e6ef4",
+          "assigned_by_id": null
+        },
+        {
+          "id": "37565728-ab29-42bb-bbb0-29f8309d1065",
+          "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "action_type": "call_back",
+          "raw_text": "Give +15551234567 a call back",
+          "status": "pending",
+          "priority": 1,
+          "due_at": "2026-06-01T05:45:38.600063Z",
+          "created_at": "2026-06-01T00:00:38.600171Z",
+          "updated_at": null,
+          "owner_id": null,
+          "assigned_to": null,
+          "assigned_by": null,
+          "source_call": {
+            "call_id": "8ab5f701-dd4f-40fd-bb57-76854b2b7f94",
+            "customer_name": null,
+            "customer_phone": "+15551234567",
+            "call_date": "2026-06-01T00:00:37.291067Z",
+            "call_created_at": "2026-06-01T00:00:37.291067Z"
+          },
+          "call_id": "8ab5f701-dd4f-40fd-bb57-76854b2b7f94",
+          "lead_id": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+          "assigned_by_id": null
+        }
+      ],
+      "total": 193,
+      "skip": 0,
+      "limit": 5
+    },
+    "metrics_api": {
+      "total_pending": 9,
+      "follow_ups_needed": 2,
+      "calls_to_make": 6,
+      "appointments_to_schedule": 0,
+      "start_date": "2026-05-02T05:35:24.099683+00:00",
+      "end_date": "2026-06-01T05:35:24.099683+00:00"
+    },
+    "call_back_sources": [
+      {
+        "source": "ai_analysis",
+        "cnt": 57
+      },
+      {
+        "source": "manual",
+        "cnt": 6
+      }
+    ]
+  },
+  "appointment_prep_deleted": 2,
+  "webhooks_local": {
+    "ghl": {
+      "payload_message_id": "staging-val-ghl-01retry3",
+      "first_post": {
+        "http": 200,
+        "body": {
+          "ok": true,
+          "isCall": true,
+          "isMissedCall": true,
+          "locationId": "staging-validation-ghl",
+          "contactId": "staging-val-ghl-contact",
+          "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "tempCallId": "b0f5827f-67c9-425c-9f0b-75bd1e025e8d",
+          "shunyaJobId": null,
+          "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+          "dateAdded": "2026-06-01T10:50:00.000Z",
+          "direction": "inbound",
+          "userId": null,
+          "handledByUserId": null,
+          "messageId": "staging-val-ghl-01retry3",
+          "contactFullName": null,
+          "contactPhone": "+15551234567",
+          "recordingContentType": null,
+          "recordingFilename": null,
+          "recordingNumBytes": null,
+          "recordingS3Url": null
+        }
+      },
+      "second_post": {
+        "http": 200,
+        "body": {
+          "ok": true,
+          "isCall": true,
+          "isMissedCall": true,
+          "locationId": "staging-validation-ghl",
+          "contactId": "staging-val-ghl-contact",
+          "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "tempCallId": "ae4e22e8-30e2-4d8c-bf07-e2cf07f7d750",
+          "shunyaJobId": null,
+          "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+          "dateAdded": "2026-06-01T10:50:00.000Z",
+          "direction": "inbound",
+          "userId": null,
+          "handledByUserId": null,
+          "messageId": "staging-val-ghl-01retry3",
+          "contactFullName": null,
+          "contactPhone": "+15551234567",
+          "recordingContentType": null,
+          "recordingFilename": null,
+          "recordingNumBytes": null,
+          "recordingS3Url": null
+        }
+      },
+      "call_id_first": "b0f5827f-67c9-425c-9f0b-75bd1e025e8d",
+      "call_id_second": "ae4e22e8-30e2-4d8c-bf07-e2cf07f7d750",
+      "pending_actions": [
+        {
+          "id": "159de8ff-4a7d-4e76-b758-db338ae9b089",
+          "call_id": "b0f5827f-67c9-425c-9f0b-75bd1e025e8d",
+          "due_at": "2026-06-01 05:50:41.844349+00:00",
+          "priority": 1,
+          "source": "manual"
+        },
+        {
+          "id": "da694064-c2ea-4f3e-9091-e6cc0fe1387d",
+          "call_id": "ae4e22e8-30e2-4d8c-bf07-e2cf07f7d750",
+          "due_at": "2026-06-01 05:50:48.546078+00:00",
+          "priority": 1,
+          "source": "manual"
+        }
+      ],
+      "pending_count": 2,
+      "pass": false
+    },
+    "ctm": {
+      "payload_ctm_id": "staging-val-ctm-01retry3",
+      "first_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "call_id": "c8cc50c4-410e-4ab3-8e51-3eac65d579c6",
+          "ctm_call_id": "staging-val-ctm-01retry3"
+        }
+      },
+      "second_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "call_id": "aa6bc43e-b70f-48ec-8718-c15e79c0713f",
+          "ctm_call_id": "staging-val-ctm-01retry3"
+        }
+      },
+      "call_id_first": "c8cc50c4-410e-4ab3-8e51-3eac65d579c6",
+      "call_id_second": "aa6bc43e-b70f-48ec-8718-c15e79c0713f",
+      "pending_actions": [
+        {
+          "id": "ee437181-1f64-48a9-aa99-e95fe7360b4b",
+          "action_type": "call_back",
+          "source": "manual",
+          "call_id": "c8cc50c4-410e-4ab3-8e51-3eac65d579c6",
+          "owner_id": null,
+          "due_at": "2026-06-01 05:51:03.136222+00:00",
+          "priority": 1
+        },
+        {
+          "id": "221692ed-6247-4187-980f-dafbccda3b3a",
+          "action_type": "call_back",
+          "source": "manual",
+          "call_id": "aa6bc43e-b70f-48ec-8718-c15e79c0713f",
+          "owner_id": null,
+          "due_at": "2026-06-01 05:51:14.394634+00:00",
+          "priority": 1
+        }
+      ],
+      "pending_count": 2,
+      "pass": false
+    },
+    "appointment": {
+      "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+      "first_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "follow_up_created": true
+        }
+      },
+      "second_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "follow_up_created": true
+        }
+      },
+      "pending_actions": [
+        {
+          "id": "28dd6290-b4d0-4603-b8c3-2e4ebe4cb786",
+          "action_type": "follow_up",
+          "source": "ai_analysis",
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "due_at": "2026-06-02 05:36:34.653030+00:00",
+          "priority": 2,
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "created_at": "2026-06-01 05:36:21.182508+00:00"
+        },
+        {
+          "id": "d661af7e-1a59-4601-874f-b72116adc8ff",
+          "action_type": "follow_up",
+          "source": "ai_analysis",
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "due_at": "2026-06-02 05:36:49.925776+00:00",
+          "priority": 2,
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "created_at": "2026-06-01 05:36:36.705091+00:00"
+        }
+      ],
+      "pending_count": 2,
+      "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+      "due_at": "2026-06-02 05:36:34.653030+00:00",
+      "priority": 2,
+      "pass": false
+    }
+  },
+  "notification": {
+    "test_action_id": "d661af7e-1a59-4601-874f-b72116adc8ff",
+    "due_at_set_to_plus_10_min": true,
+    "check_follow_ups_returned": 0,
+    "check_follow_ups_error": null,
+    "eligibility_sql": {
+      "pending_with_due_at": 197,
+      "with_owner": 118,
+      "csr_routed": 79,
+      "rep_routed": 0
+    },
+    "pass": true
+  },
+  "staging_validation": {
+    "local": {
+      "base": "http://127.0.0.1:8001",
+      "returncode": 0,
+      "summary": "=== SUMMARY: PASS=11 FAIL=0 WARN=1 ===",
+      "pass": true,
+      "log_file": "staging_validation_local.txt"
+    },
+    "remote": {
+      "base": "https://ottoai.shunyalabs.ai",
+      "returncode": 1,
+      "summary": "=== SUMMARY: PASS=6 FAIL=1 WARN=0 ===",
+      "pass": false,
+      "log_file": "staging_validation_remote.txt"
+    }
+  },
+  "webhooks_remote": {
+    "ghl": {
+      "payload_message_id": "staging-val-ghl-01retry3r",
+      "first_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "second_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "call_id_first": null,
+      "call_id_second": null,
+      "pending_actions": [],
+      "pending_count": 0,
+      "pass": false
+    },
+    "ctm": {
+      "payload_ctm_id": "staging-val-ctm-01retry3r",
+      "first_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "second_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "call_id_first": null,
+      "call_id_second": null,
+      "pending_actions": [],
+      "pending_count": 0,
+      "pass": false
+    },
+    "appointment": {
+      "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+      "first_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "second_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "pending_actions": [
+        {
+          "id": "28dd6290-b4d0-4603-b8c3-2e4ebe4cb786",
+          "action_type": "follow_up",
+          "source": "ai_analysis",
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "due_at": "2026-06-02 05:36:34.653030+00:00",
+          "priority": 2,
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "created_at": "2026-06-01 05:36:21.182508+00:00"
+        },
+        {
+          "id": "d661af7e-1a59-4601-874f-b72116adc8ff",
+          "action_type": "follow_up",
+          "source": "ai_analysis",
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "due_at": "2026-06-01 05:47:00.890909+00:00",
+          "priority": 2,
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "created_at": "2026-06-01 05:36:36.705091+00:00"
+        }
+      ],
+      "pending_count": 2,
+      "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+      "due_at": "2026-06-02 05:36:34.653030+00:00",
+      "priority": 2,
+      "pass": false
+    }
+  }
+}

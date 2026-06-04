@@ -1,0 +1,100 @@
+{
+  "generated_at": "2026-06-01T07:08:02.002839+00:00",
+  "company_id": "d481d226-2791-4652-b080-b6b2c6c4f662",
+  "checks": {
+    "step1_lead_eligible": true,
+    "step2_exactly_one_row": true,
+    "step2_rehash_created": true,
+    "step2_owner_is_rep": true,
+    "step3_notification_fired": true,
+    "step3_notified_at_set": true,
+    "step3_status_completed": true,
+    "step3_payload_type_rehash": true,
+    "step4_no_duplicate_on_rescan": true,
+    "step4_no_refire_second_tick": true,
+    "step5_survives_restart": true,
+    "step6_active_row_exists_before": true,
+    "step7_no_active_after_ineligible": true,
+    "step7_episode_closed": true,
+    "step7_stays_closed_on_rescan": true
+  },
+  "evidence": {
+    "created_rows": [
+      {
+        "id": "e3370ba0-88bc-436c-94bc-2fe94e47763b",
+        "action_type": "rehash",
+        "source": "rehash",
+        "status": "pending",
+        "due_at": "2026-06-01T07:08:13.037331+00:00",
+        "priority": 2,
+        "owner_id": "22d04d63-5151-4c18-b33f-0c60fed70f02",
+        "lead_id": "f230780d-264c-4664-9e90-45a48314c5ab",
+        "appointment_id": null,
+        "raw_text": "Rehash: qualified lead never booked \u2014 reach out to schedule",
+        "extra_metadata": {
+          "rehash_category": "qualified_unbooked",
+          "detected_at": "2026-06-01T07:08:13.037331+00:00",
+          "rule_version": "1"
+        },
+        "created_at": "2026-06-01T01:38:21.091137+00:00"
+      }
+    ],
+    "notification_payloads": [
+      {
+        "user_ids": [
+          "22d04d63-5151-4c18-b33f-0c60fed70f02"
+        ],
+        "payload": {
+          "type": "rehash_opportunity",
+          "pending_action_id": "e3370ba0-88bc-436c-94bc-2fe94e47763b",
+          "company_id": "d481d226-2791-4652-b080-b6b2c6c4f662",
+          "lead_id": "f230780d-264c-4664-9e90-45a48314c5ab",
+          "call_id": null,
+          "appointment_id": null,
+          "due_at": "2026-06-01T07:08:13.037331+00:00",
+          "minutes_until_due": 0,
+          "threshold": 0,
+          "action_type": "rehash",
+          "raw_text": "Rehash: qualified lead never booked \u2014 reach out to schedule",
+          "priority": 2,
+          "context_info": null,
+          "message": "Rehash: qualified lead never booked \u2014 reach out to schedule",
+          "timestamp": "2026-06-01T07:08:32.342599+00:00",
+          "rehash_category": "qualified_unbooked"
+        }
+      }
+    ],
+    "final_rows": [
+      {
+        "id": "e3370ba0-88bc-436c-94bc-2fe94e47763b",
+        "action_type": "rehash",
+        "source": "rehash",
+        "status": "cancelled",
+        "due_at": "2026-06-01T07:08:13.037331+00:00",
+        "priority": 2,
+        "owner_id": "22d04d63-5151-4c18-b33f-0c60fed70f02",
+        "lead_id": "f230780d-264c-4664-9e90-45a48314c5ab",
+        "appointment_id": null,
+        "raw_text": "Rehash: qualified lead never booked \u2014 reach out to schedule",
+        "extra_metadata": {
+          "rehash_category": "qualified_unbooked",
+          "detected_at": "2026-06-01T07:08:13.037331+00:00",
+          "rule_version": "1",
+          "notified_at": "2026-06-01T07:08:32.342599+00:00"
+        },
+        "created_at": "2026-06-01T01:38:21.091137+00:00"
+      }
+    ]
+  },
+  "assigned_rep_id": "22d04d63-5151-4c18-b33f-0c60fed70f02",
+  "synthetic_lead_id": "f230780d-264c-4664-9e90-45a48314c5ab",
+  "synthetic_contact_id": "5f0ccdaa-1f7b-473e-aafe-affc40fe9005",
+  "teardown_deleted": {
+    "action_items": 1,
+    "pending_actions": 1,
+    "leads": 1,
+    "contact_cards": 1
+  },
+  "verdict": "GO",
+  "failed_checks": []
+}

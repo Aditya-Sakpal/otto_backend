@@ -77,6 +77,9 @@ class CommunicationResponse(BaseModel):
     duration_seconds: Optional[int] = None
     is_homeowner_reply: bool = False
     source_metadata: Optional[dict] = None
+    intent_label: Optional[str] = None
+    confidence_score: Optional[float] = None
+    reply_draft: Optional[str] = None
     audio_url: Optional[str] = None
     created_at: Optional[str] = None
 
@@ -142,6 +145,9 @@ async def get_conversation(
                 "duration_seconds": m.duration_seconds,
                 "is_homeowner_reply": m.is_homeowner_reply,
                 "source_metadata": m.source_metadata,
+                "intent_label": m.intent_label,
+                "confidence_score": m.confidence_score,
+                "reply_draft": ((m.extra_metadata or {}).get("intent_to_action") or {}).get("reply_draft"),
                 "audio_url": m.audio_url,
                 "created_at": m.created_at.isoformat() if m.created_at else None,
             }
@@ -266,11 +272,15 @@ async def update_push_token(
         require_any_role([UserRole.SALES_REP, UserRole.EXECUTIVE])
     ),
 ):
-    """Register or update Expo push notification token."""
+    """Register or update Expo push notification token.
+
+    Upserts the token onto the rep's phone record (creating one if none exists),
+    so a device can enroll for push before completing phone verification.
+    """
     service = RepPhoneService(db)
-    await service.update_push_token(user.id, request.expo_push_token)
+    affected = await service.update_push_token(user.id, request.expo_push_token)
     await db.commit()
-    return {"status": "updated"}
+    return {"status": "updated" if affected else "no_rows"}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────

@@ -1,0 +1,274 @@
+{
+  "run_id": "idempotency_fix1",
+  "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+  "appointment_prep_deleted": 0,
+  "webhooks_local": {
+    "ghl": {
+      "payload_message_id": "staging-val-ghl-encyfix1",
+      "first_post": {
+        "http": 200,
+        "body": {
+          "ok": true,
+          "isCall": true,
+          "isMissedCall": true,
+          "locationId": "staging-validation-ghl",
+          "contactId": "staging-val-ghl-contact",
+          "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "tempCallId": null,
+          "shunyaJobId": null,
+          "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+          "dateAdded": "2026-06-01T10:50:00.000Z",
+          "direction": "inbound",
+          "userId": null,
+          "handledByUserId": null,
+          "messageId": "staging-val-ghl-encyfix1",
+          "contactFullName": null,
+          "contactPhone": "+15551234567",
+          "recordingContentType": null,
+          "recordingFilename": null,
+          "recordingNumBytes": null,
+          "recordingS3Url": null
+        }
+      },
+      "second_post": {
+        "http": 200,
+        "body": {
+          "ok": true,
+          "isCall": true,
+          "isMissedCall": true,
+          "locationId": "staging-validation-ghl",
+          "contactId": "staging-val-ghl-contact",
+          "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "tempCallId": null,
+          "shunyaJobId": null,
+          "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+          "dateAdded": "2026-06-01T10:50:00.000Z",
+          "direction": "inbound",
+          "userId": null,
+          "handledByUserId": null,
+          "messageId": "staging-val-ghl-encyfix1",
+          "contactFullName": null,
+          "contactPhone": "+15551234567",
+          "recordingContentType": null,
+          "recordingFilename": null,
+          "recordingNumBytes": null,
+          "recordingS3Url": null
+        }
+      },
+      "probe_after_post1": {
+        "calls_with_message_id": 0,
+        "call_ids": []
+      },
+      "calls_after_post2": 0,
+      "call_id_first": null,
+      "call_id_second": null,
+      "same_call_id_on_replay": null,
+      "pending_actions": [],
+      "pending_count": 0,
+      "pass": false
+    },
+    "ctm": {
+      "payload_ctm_id": "staging-val-ctm-encyfix1",
+      "first_post": {
+        "http": 500,
+        "body": {
+          "detail": "Neither 'BinaryExpression' object nor 'Comparator' object has an attribute 'astext'"
+        }
+      },
+      "second_post": {
+        "http": 500,
+        "body": {
+          "detail": "Neither 'BinaryExpression' object nor 'Comparator' object has an attribute 'astext'"
+        }
+      },
+      "probe_after_post1": {
+        "calls_with_ctm_id": 0,
+        "call_ids": []
+      },
+      "calls_after_post2": 0,
+      "call_id_first": null,
+      "call_id_second": null,
+      "same_call_id_on_replay": null,
+      "pending_actions": [],
+      "pending_count": 0,
+      "pass": false
+    },
+    "appointment": {
+      "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+      "first_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "follow_up_created": true
+        }
+      },
+      "second_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "follow_up_created": true
+        }
+      },
+      "probe_after_post1": {
+        "pending_follow_up_count": 1,
+        "pending_ids": [
+          "e9da35a2-f4bd-4b03-8538-c08117a45a00"
+        ]
+      },
+      "pending_actions": [
+        {
+          "id": "e9da35a2-f4bd-4b03-8538-c08117a45a00",
+          "action_type": "follow_up",
+          "source": "ai_analysis",
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "due_at": "2026-06-02 05:50:26.848377+00:00",
+          "priority": 2,
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "created_at": "2026-06-01 05:50:14.283656+00:00"
+        }
+      ],
+      "pending_count": 1,
+      "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+      "due_at": "2026-06-02 05:50:26.848377+00:00",
+      "priority": 2,
+      "pass": true
+    }
+  },
+  "notification": {
+    "test_action_id": "e9da35a2-f4bd-4b03-8538-c08117a45a00",
+    "due_at_set_to_plus_10_min": true,
+    "check_follow_ups_returned": 0,
+    "check_follow_ups_error": null,
+    "eligibility_sql": {
+      "pending_with_due_at": 196,
+      "with_owner": 117,
+      "csr_routed": 79,
+      "rep_routed": 0
+    },
+    "pass": true
+  },
+  "staging_validation": {
+    "local": {
+      "base": "http://127.0.0.1:8001",
+      "returncode": 0,
+      "summary": "=== SUMMARY: PASS=11 FAIL=0 WARN=1 ===",
+      "pass": true,
+      "log_file": "staging_validation_local.txt"
+    },
+    "remote": {
+      "base": "https://ottoai.shunyalabs.ai",
+      "returncode": 1,
+      "summary": "=== SUMMARY: PASS=6 FAIL=1 WARN=0 ===",
+      "pass": false,
+      "log_file": "staging_validation_remote.txt"
+    }
+  },
+  "webhooks_remote": {
+    "ghl": {
+      "payload_message_id": "staging-val-ghl-encyfix1r",
+      "first_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "second_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "probe_after_post1": {
+        "calls_with_message_id": 0,
+        "call_ids": []
+      },
+      "calls_after_post2": 0,
+      "call_id_first": null,
+      "call_id_second": null,
+      "same_call_id_on_replay": null,
+      "pending_actions": [],
+      "pending_count": 0,
+      "pass": false
+    },
+    "ctm": {
+      "payload_ctm_id": "staging-val-ctm-encyfix1r",
+      "first_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "second_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "probe_after_post1": {
+        "calls_with_ctm_id": 0,
+        "call_ids": []
+      },
+      "calls_after_post2": 0,
+      "call_id_first": null,
+      "call_id_second": null,
+      "same_call_id_on_replay": null,
+      "pending_actions": [],
+      "pending_count": 0,
+      "pass": false
+    },
+    "appointment": {
+      "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+      "first_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "second_post": {
+        "http": 401,
+        "body": {
+          "error": "Unauthorized",
+          "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+          "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+        }
+      },
+      "probe_after_post1": {
+        "pending_follow_up_count": 1,
+        "pending_ids": [
+          "e9da35a2-f4bd-4b03-8538-c08117a45a00"
+        ]
+      },
+      "pending_actions": [
+        {
+          "id": "e9da35a2-f4bd-4b03-8538-c08117a45a00",
+          "action_type": "follow_up",
+          "source": "ai_analysis",
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "due_at": "2026-06-01 06:00:56.262413+00:00",
+          "priority": 2,
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "created_at": "2026-06-01 05:50:14.283656+00:00"
+        }
+      ],
+      "pending_count": 1,
+      "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+      "due_at": "2026-06-01 06:00:56.262413+00:00",
+      "priority": 2,
+      "pass": false
+    }
+  }
+}

@@ -126,10 +126,11 @@ class RepPhoneService:
             "phone_number": self._mask_phone(rep_phone.phone_number),
         }
 
-    async def update_push_token(self, user_id: UUID, expo_push_token: str) -> None:
-        """Update the Expo push token for a rep."""
-        await self.repo.update_push_token(user_id, expo_push_token)
-        logger.info("Updated push token", user_id=str(user_id))
+    async def update_push_token(self, user_id: UUID, expo_push_token: str) -> int:
+        """Upsert the Expo push token for a rep. Returns rows written (1 = ok)."""
+        affected = await self.repo.update_push_token(user_id, expo_push_token)
+        logger.info("Updated push token", user_id=str(user_id), rows=affected)
+        return affected
 
     # ── Helpers ───────────────────────────────────────────────────────────
 

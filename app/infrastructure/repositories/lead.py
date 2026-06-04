@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.inspection import inspect
 
 from app.core.logging import get_logger
+from app.core.s3 import presign_audio_url_for_playback
 from app.domain.models.lead import Lead
 from app.domain.models.lead_detail import (
     LeadDetail, ContactInfo, AgentInfo, OverallEngagement, Conversation,
@@ -1946,13 +1947,15 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     missed_call=call.missed_call,
                     created_at=call.created_at,
                     answered_at=call.answered_at,
-                    call_recording_url=call.audio_url,
+                    call_recording_url=presign_audio_url_for_playback(call.audio_url),
                     booking_status=analysis.booking_status if analysis else None,
                     qualification_status=analysis.qualification_status if analysis else None,
                     summary=analysis.summary if analysis else None,
                     key_points=list(analysis.key_points) if analysis and analysis.key_points else [],
                     objections=list(analysis.objections) if analysis and analysis.objections else [],
                     sentiment_score=analysis.sentiment_score if analysis else None,
+                    service_requested=analysis.service_requested if analysis else None,
+                    property_details=dict(analysis.property_details) if analysis and analysis.property_details else None,
                     sop_compliance_score=analysis.sop_compliance_score if analysis else None,
                     sop_compliance_rate=analysis.sop_compliance_rate if analysis else None,
                     sop_checklist=sop_checklist,
@@ -2219,7 +2222,10 @@ class LeadRepository(BaseRepository[LeadORM, Lead]):
                     # ── Follow-up tracking ────────────────────────────────────
                     pending_result = await self.session.execute(
                         select(PendingActionORM)
-                        .where(PendingActionORM.lead_id == lead_id)
+                        .where(
+                            PendingActionORM.lead_id == lead_id,
+                            PendingActionORM.status.in_(["pending", "in_progress"]),
+                        )
                         .order_by(PendingActionORM.due_at.asc().nullslast())
                     )
                     pending_actions = pending_result.scalars().all()

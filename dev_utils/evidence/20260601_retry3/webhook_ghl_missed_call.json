@@ -1,0 +1,73 @@
+{
+  "payload_message_id": "staging-val-ghl-01retry3",
+  "first_post": {
+    "http": 200,
+    "body": {
+      "ok": true,
+      "isCall": true,
+      "isMissedCall": true,
+      "locationId": "staging-validation-ghl",
+      "contactId": "staging-val-ghl-contact",
+      "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "tempCallId": "b0f5827f-67c9-425c-9f0b-75bd1e025e8d",
+      "shunyaJobId": null,
+      "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+      "dateAdded": "2026-06-01T10:50:00.000Z",
+      "direction": "inbound",
+      "userId": null,
+      "handledByUserId": null,
+      "messageId": "staging-val-ghl-01retry3",
+      "contactFullName": null,
+      "contactPhone": "+15551234567",
+      "recordingContentType": null,
+      "recordingFilename": null,
+      "recordingNumBytes": null,
+      "recordingS3Url": null
+    }
+  },
+  "second_post": {
+    "http": 200,
+    "body": {
+      "ok": true,
+      "isCall": true,
+      "isMissedCall": true,
+      "locationId": "staging-validation-ghl",
+      "contactId": "staging-val-ghl-contact",
+      "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "tempCallId": "ae4e22e8-30e2-4d8c-bf07-e2cf07f7d750",
+      "shunyaJobId": null,
+      "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+      "dateAdded": "2026-06-01T10:50:00.000Z",
+      "direction": "inbound",
+      "userId": null,
+      "handledByUserId": null,
+      "messageId": "staging-val-ghl-01retry3",
+      "contactFullName": null,
+      "contactPhone": "+15551234567",
+      "recordingContentType": null,
+      "recordingFilename": null,
+      "recordingNumBytes": null,
+      "recordingS3Url": null
+    }
+  },
+  "call_id_first": "b0f5827f-67c9-425c-9f0b-75bd1e025e8d",
+  "call_id_second": "ae4e22e8-30e2-4d8c-bf07-e2cf07f7d750",
+  "pending_actions": [
+    {
+      "id": "159de8ff-4a7d-4e76-b758-db338ae9b089",
+      "call_id": "b0f5827f-67c9-425c-9f0b-75bd1e025e8d",
+      "due_at": "2026-06-01 05:50:41.844349+00:00",
+      "priority": 1,
+      "source": "manual"
+    },
+    {
+      "id": "da694064-c2ea-4f3e-9091-e6cc0fe1387d",
+      "call_id": "ae4e22e8-30e2-4d8c-bf07-e2cf07f7d750",
+      "due_at": "2026-06-01 05:50:48.546078+00:00",
+      "priority": 1,
+      "source": "manual"
+    }
+  ],
+  "pending_count": 2,
+  "pass": false
+}

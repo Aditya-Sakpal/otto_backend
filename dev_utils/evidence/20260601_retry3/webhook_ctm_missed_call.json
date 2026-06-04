@@ -1,0 +1,43 @@
+{
+  "payload_ctm_id": "staging-val-ctm-01retry3",
+  "first_post": {
+    "http": 200,
+    "body": {
+      "status": "success",
+      "call_id": "c8cc50c4-410e-4ab3-8e51-3eac65d579c6",
+      "ctm_call_id": "staging-val-ctm-01retry3"
+    }
+  },
+  "second_post": {
+    "http": 200,
+    "body": {
+      "status": "success",
+      "call_id": "aa6bc43e-b70f-48ec-8718-c15e79c0713f",
+      "ctm_call_id": "staging-val-ctm-01retry3"
+    }
+  },
+  "call_id_first": "c8cc50c4-410e-4ab3-8e51-3eac65d579c6",
+  "call_id_second": "aa6bc43e-b70f-48ec-8718-c15e79c0713f",
+  "pending_actions": [
+    {
+      "id": "ee437181-1f64-48a9-aa99-e95fe7360b4b",
+      "action_type": "call_back",
+      "source": "manual",
+      "call_id": "c8cc50c4-410e-4ab3-8e51-3eac65d579c6",
+      "owner_id": null,
+      "due_at": "2026-06-01 05:51:03.136222+00:00",
+      "priority": 1
+    },
+    {
+      "id": "221692ed-6247-4187-980f-dafbccda3b3a",
+      "action_type": "call_back",
+      "source": "manual",
+      "call_id": "aa6bc43e-b70f-48ec-8718-c15e79c0713f",
+      "owner_id": null,
+      "due_at": "2026-06-01 05:51:14.394634+00:00",
+      "priority": 1
+    }
+  ],
+  "pending_count": 2,
+  "pass": false
+}

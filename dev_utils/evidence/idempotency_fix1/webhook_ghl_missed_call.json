@@ -1,0 +1,64 @@
+{
+  "payload_message_id": "staging-val-ghl-encyfix1",
+  "first_post": {
+    "http": 200,
+    "body": {
+      "ok": true,
+      "isCall": true,
+      "isMissedCall": true,
+      "locationId": "staging-validation-ghl",
+      "contactId": "staging-val-ghl-contact",
+      "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "tempCallId": null,
+      "shunyaJobId": null,
+      "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+      "dateAdded": "2026-06-01T10:50:00.000Z",
+      "direction": "inbound",
+      "userId": null,
+      "handledByUserId": null,
+      "messageId": "staging-val-ghl-encyfix1",
+      "contactFullName": null,
+      "contactPhone": "+15551234567",
+      "recordingContentType": null,
+      "recordingFilename": null,
+      "recordingNumBytes": null,
+      "recordingS3Url": null
+    }
+  },
+  "second_post": {
+    "http": 200,
+    "body": {
+      "ok": true,
+      "isCall": true,
+      "isMissedCall": true,
+      "locationId": "staging-validation-ghl",
+      "contactId": "staging-val-ghl-contact",
+      "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+      "tempCallId": null,
+      "shunyaJobId": null,
+      "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+      "dateAdded": "2026-06-01T10:50:00.000Z",
+      "direction": "inbound",
+      "userId": null,
+      "handledByUserId": null,
+      "messageId": "staging-val-ghl-encyfix1",
+      "contactFullName": null,
+      "contactPhone": "+15551234567",
+      "recordingContentType": null,
+      "recordingFilename": null,
+      "recordingNumBytes": null,
+      "recordingS3Url": null
+    }
+  },
+  "probe_after_post1": {
+    "calls_with_message_id": 0,
+    "call_ids": []
+  },
+  "calls_after_post2": 0,
+  "call_id_first": null,
+  "call_id_second": null,
+  "same_call_id_on_replay": null,
+  "pending_actions": [],
+  "pending_count": 0,
+  "pass": false
+}

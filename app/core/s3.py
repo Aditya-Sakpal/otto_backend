@@ -383,3 +383,29 @@ def get_s3_service() -> Optional[S3Service]:
     except (RuntimeError, ValueError) as e:
         logger.warning(f"S3 service not available: {e}")
         return None
+
+
+def presign_audio_url_for_playback(
+    audio_url: Optional[str],
+    expiration: int = 14400,
+) -> Optional[str]:
+    """Return a short-lived presigned GET URL for stored S3 audio, or the original URL."""
+    if not audio_url:
+        return None
+    if ".amazonaws.com/" not in audio_url and "s3://" not in audio_url:
+        return audio_url
+    s3_service = get_s3_service()
+    if not s3_service:
+        logger.error(
+            "S3 service unavailable; returning non-presigned audio URL (playback may fail on private buckets)",
+            audio_url=audio_url[:120],
+        )
+        return audio_url
+    try:
+        return s3_service.generate_presigned_get_url_from_url(audio_url, expiration=expiration)
+    except Exception as e:
+        logger.error(
+            f"Failed to presign audio URL for playback: {e}",
+            audio_url=audio_url[:120],
+        )
+        return audio_url

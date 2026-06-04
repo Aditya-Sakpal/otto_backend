@@ -233,8 +233,13 @@ __marimo__/
 # Claude settings
 .claude/
 
-# miscelleaneous
-context.md
+# Local dev databases and scratch notes
+otto.db
+*.db
+otto.md
+
+# Ephemeral pytest cache directories
+pytest-cache-files-*/
 CLAUDE.md
 memory
 service_titan_docs

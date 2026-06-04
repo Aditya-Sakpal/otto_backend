@@ -1,0 +1,208 @@
+{
+  "pending_fields": {
+    "total_pending": 185,
+    "with_due_at": 41,
+    "with_owner": 13,
+    "with_appointment_id": 0,
+    "with_priority": 3
+  },
+  "tasks_api": {
+    "completion_rate": 0.0,
+    "summary": {
+      "total_tasks": 186,
+      "pending": 185,
+      "in_progress": 1,
+      "completed": 0,
+      "cancelled": 0
+    },
+    "tasks": [
+      {
+        "id": "ae6d26df-a11d-4aae-a6e3-66a4896a4896",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "send_quote",
+        "raw_text": "Test Task",
+        "status": "pending",
+        "priority": 1,
+        "due_at": "2026-05-20T09:13:00Z",
+        "created_at": "2026-05-19T09:14:03.748792Z",
+        "updated_at": null,
+        "owner_id": "733720f9-fc9c-46d3-9c9c-c29ea0bbf356",
+        "assigned_to": {
+          "user_id": "733720f9-fc9c-46d3-9c9c-c29ea0bbf356",
+          "first_name": "Kushal",
+          "last_name": "Gohel",
+          "full_name": "Kushal Gohel",
+          "role": "sales_rep",
+          "email": "kushal.gohel@techifysolutions.com"
+        },
+        "assigned_by": {
+          "user_id": "38dc7d9f-2935-416a-8fb9-2f929da8c0ab",
+          "first_name": "Anthony",
+          "last_name": "Bonomo",
+          "full_name": "Anthony Bonomo",
+          "role": "executive",
+          "email": "anthony@arizonaroofers.com"
+        },
+        "source_call": null,
+        "call_id": null,
+        "lead_id": null,
+        "assigned_by_id": "38dc7d9f-2935-416a-8fb9-2f929da8c0ab"
+      },
+      {
+        "id": "31dc1a66-1e50-41e9-ae12-f93acdc86d1c",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "site_visit",
+        "raw_text": "Conduct site inspection tomorrow between 11:00 AM and 1:00 PM. Notes: 1-story, shingle roof (approx 2011), no solar, no gates, 1200-1300 sq ft. Communicate via email.",
+        "status": "pending",
+        "priority": null,
+        "due_at": "2026-04-14T11:00:00Z",
+        "created_at": "2026-04-14T05:16:16.979598Z",
+        "updated_at": null,
+        "owner_id": null,
+        "assigned_to": null,
+        "assigned_by": null,
+        "source_call": {
+          "call_id": "2f8adaf4-f1fd-45cd-914f-e45c5f8a127d",
+          "customer_name": "THUNDER BAY  ON",
+          "customer_phone": "+18079990230",
+          "call_date": "2026-04-13T19:35:14.633920Z",
+          "call_created_at": "2026-04-13T19:35:14.633920Z"
+        },
+        "call_id": "2f8adaf4-f1fd-45cd-914f-e45c5f8a127d",
+        "lead_id": "4824f799-6e14-444a-a6fb-b1992fbf4801",
+        "assigned_by_id": null
+      },
+      {
+        "id": "c2c6459c-0a56-41da-9942-cfb338bda6fd",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "follow_up_call",
+        "raw_text": "Contact customer to confirm if a technician will visit for an inspection before she leaves the property tomorrow",
+        "status": "pending",
+        "priority": null,
+        "due_at": "2026-04-14T00:00:00Z",
+        "created_at": "2026-04-14T04:54:27.806712Z",
+        "updated_at": "2026-05-22T17:36:39.276802Z",
+        "owner_id": "3eed8382-6b30-44c9-82f6-6d70570e175e",
+        "assigned_to": {
+          "user_id": "3eed8382-6b30-44c9-82f6-6d70570e175e",
+          "first_name": "Bronte",
+          "last_name": "Pisz",
+          "full_name": "Bronte Pisz",
+          "role": "csr",
+          "email": "bronte@arizonaroofers.com"
+        },
+        "assigned_by": {
+          "user_id": "38dc7d9f-2935-416a-8fb9-2f929da8c0ab",
+          "first_name": "Anthony",
+          "last_name": "Bonomo",
+          "full_name": "Anthony Bonomo",
+          "role": "executive",
+          "email": "anthony@arizonaroofers.com"
+        },
+        "source_call": {
+          "call_id": "826cd1d0-3a7c-4010-834f-0ea2664dc69a",
+          "customer_name": "THUNDER BAY  ON",
+          "customer_phone": "8079990230",
+          "call_date": "2026-04-13T19:28:16.856853Z",
+          "call_created_at": "2026-04-13T19:28:16.856853Z"
+        },
+        "call_id": "826cd1d0-3a7c-4010-834f-0ea2664dc69a",
+        "lead_id": "99cd206c-e4e6-4e85-a247-eb9f8ec518bb",
+        "assigned_by_id": "38dc7d9f-2935-416a-8fb9-2f929da8c0ab"
+      },
+      {
+        "id": "a54839bc-339d-41e0-b92a-9a4d6143fa49",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "custom",
+        "raw_text": "Update dispatch notes for tomorrow's appointment to include a roof inspection for the customer's friend (Isabel)",
+        "status": "pending",
+        "priority": null,
+        "due_at": null,
+        "created_at": "2026-04-14T04:33:17.137590Z",
+        "updated_at": "2026-06-01T05:01:07.778250Z",
+        "owner_id": "7c07c61a-34bb-4fd2-a23f-4d9e184e220f",
+        "assigned_to": {
+          "user_id": "7c07c61a-34bb-4fd2-a23f-4d9e184e220f",
+          "first_name": "Jaivik",
+          "last_name": "Rathod",
+          "full_name": "Jaivik Rathod",
+          "role": "csr",
+          "email": "jaivik.rathod@techifysolutions.com"
+        },
+        "assigned_by": {
+          "user_id": "38dc7d9f-2935-416a-8fb9-2f929da8c0ab",
+          "first_name": "Anthony",
+          "last_name": "Bonomo",
+          "full_name": "Anthony Bonomo",
+          "role": "executive",
+          "email": "anthony@arizonaroofers.com"
+        },
+        "source_call": {
+          "call_id": "9ea3871c-34fb-4aac-ba1d-75352dfceb95",
+          "customer_name": "Denise Pyne",
+          "customer_phone": "7196611227",
+          "call_date": "2026-04-13T19:21:47.901036Z",
+          "call_created_at": "2026-04-13T19:21:47.901036Z"
+        },
+        "call_id": "9ea3871c-34fb-4aac-ba1d-75352dfceb95",
+        "lead_id": "81cacecd-db88-4f41-8e89-71e0c83b6314",
+        "assigned_by_id": "38dc7d9f-2935-416a-8fb9-2f929da8c0ab"
+      },
+      {
+        "id": "7525f796-3007-4cd1-92a1-a6f4c62ecc61",
+        "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+        "action_type": "call_back",
+        "raw_text": "Call the customer back next month to discuss energy-efficient exterior paint for their stucco home",
+        "status": "pending",
+        "priority": null,
+        "due_at": "2026-05-13T00:00:00Z",
+        "created_at": "2026-04-14T04:28:54.112011Z",
+        "updated_at": "2026-06-01T05:02:11.360719Z",
+        "owner_id": "7c07c61a-34bb-4fd2-a23f-4d9e184e220f",
+        "assigned_to": {
+          "user_id": "7c07c61a-34bb-4fd2-a23f-4d9e184e220f",
+          "first_name": "Jaivik",
+          "last_name": "Rathod",
+          "full_name": "Jaivik Rathod",
+          "role": "csr",
+          "email": "jaivik.rathod@techifysolutions.com"
+        },
+        "assigned_by": {
+          "user_id": "38dc7d9f-2935-416a-8fb9-2f929da8c0ab",
+          "first_name": "Anthony",
+          "last_name": "Bonomo",
+          "full_name": "Anthony Bonomo",
+          "role": "executive",
+          "email": "anthony@arizonaroofers.com"
+        },
+        "source_call": {
+          "call_id": "6b27f85f-6229-4310-94dd-b5eb44b118c6",
+          "customer_name": "Larson Jonathan",
+          "customer_phone": "+17206430918",
+          "call_date": "2026-04-13T19:15:08.955877Z",
+          "call_created_at": "2026-04-13T19:15:08.955877Z"
+        },
+        "call_id": "6b27f85f-6229-4310-94dd-b5eb44b118c6",
+        "lead_id": "779d6ae3-5cfa-4959-98ae-124276ce9087",
+        "assigned_by_id": "38dc7d9f-2935-416a-8fb9-2f929da8c0ab"
+      }
+    ],
+    "total": 185,
+    "skip": 0,
+    "limit": 5
+  },
+  "metrics_api": {
+    "total_pending": 1,
+    "follow_ups_needed": 0,
+    "calls_to_make": 0,
+    "appointments_to_schedule": 0,
+    "start_date": "2026-05-02T05:18:19.269941+00:00",
+    "end_date": "2026-06-01T05:18:19.269941+00:00"
+  },
+  "call_back_sources": [
+    {
+      "source": "ai_analysis",
+      "cnt": 57
+    }
+  ]
+}

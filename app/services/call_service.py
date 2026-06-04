@@ -29,7 +29,7 @@ from app.infrastructure.repositories.lead import LeadRepository
 from app.infrastructure.repositories.appointment import AppointmentRepository
 from app.infrastructure.integrations.shoonya import get_shoonya_client
 from app.tasks.analysis import analyze_call_task
-from app.core.s3 import get_s3_service
+from app.core.s3 import get_s3_service, presign_audio_url_for_playback
 from app.domain.users.repository import UserRepository
 from app.domain.users.models import User
 from app.domain.models.lead import Lead
@@ -1228,7 +1228,7 @@ class CallService:
                         continue
                     if hasattr(existing, key):
                         setattr(existing, key, value)
-                await self.appointment_repo.update(existing.id, existing)
+                synced = await self.appointment_repo.update(existing.id, existing) or existing
                 logger.info(
                     "Updated appointment from call",
                     call_id=str(call.id),
@@ -1239,12 +1239,20 @@ class CallService:
             else:
                 appointment = Appointment(**appointment_data)
                 created = await self.appointment_repo.create(appointment)
+                synced = created
                 logger.info(
                     "Created appointment from call (no GHL)",
                     call_id=str(call.id),
                     appointment_id=str(created.id),
                 )
                 appt_id = created.id
+
+            # Materialize/refresh appointment reminders (non-fatal)
+            try:
+                from app.services.appointment_reminder_service import sync_appointment_reminders
+                await sync_appointment_reminders(self.session, synced)
+            except Exception as e:
+                logger.error(f"Failed to sync appointment reminders (call): {e}")
 
             # Trigger background geocoding if location_address is set
             if location_address:
@@ -1387,6 +1395,14 @@ class CallService:
             # 2) Store pending_actions as PendingActionORM rows
             pending_actions_list = summary_section.get("pending_actions") or []
             if isinstance(pending_actions_list, list):
+                from datetime import datetime as dt_cls, timedelta
+                from zoneinfo import ZoneInfo
+
+                now_utc = dt_cls.now(ZoneInfo("UTC"))
+                default_owner_id = getattr(call, "handled_by_user_id", None)
+                default_due_at = now_utc + timedelta(hours=24)
+                default_priority = 3
+
                 pa_count = 0
                 for pa in pending_actions_list:
                     if not isinstance(pa, dict):
@@ -1396,12 +1412,18 @@ class CallService:
                     due_at_val = None
                     if pa.get("due_at"):
                         try:
-                            from datetime import datetime as dt_cls
                             due_at_str = pa["due_at"]
                             # Handle both timezone-aware and naive ISO strings
                             due_at_val = dt_cls.fromisoformat(due_at_str.replace("Z", "+00:00"))
                         except (ValueError, TypeError):
                             logger.warning(f"Could not parse due_at: {pa.get('due_at')}")
+                    if due_at_val is None:
+                        due_at_val = default_due_at
+
+                    owner_id_val = pa.get("owner_id") or default_owner_id
+                    priority_val = pa.get("priority")
+                    if priority_val is None:
+                        priority_val = default_priority
 
                     # Use action_item text if available, fall back to raw_text
                     raw_text = pa.get("action_item") or pa.get("raw_text") or ""
@@ -1414,8 +1436,8 @@ class CallService:
                         raw_text=raw_text,
                         status="pending",
                         due_at=due_at_val,
-                        priority=None,
-                        owner_id=None,
+                        priority=priority_val,
+                        owner_id=owner_id_val,
                         source="ai_analysis",
                         extra_metadata={
                             k: v for k, v in {
@@ -1901,7 +1923,7 @@ class CallService:
                     call_received = dt.isoformat()
 
                 # Get dropdown fields
-                audio_url = call.audio_url
+                audio_url = presign_audio_url_for_playback(call.audio_url)
                 transcript = call.transcript
                 call_summary = analysis.summary if analysis else None
                 key_items = list(analysis.key_points) if (analysis and analysis.key_points) else None
@@ -2015,6 +2037,7 @@ class CallService:
             )
 
             # 2. Objections section
+            from app.services.pending_action_service import response_suggestions_for_objection
             objection_details = []
             if a.objections and a.objection_texts:
                 for idx, objection in enumerate(a.objections):
@@ -2027,7 +2050,10 @@ class CallService:
                         overcome=True,
                         severity="medium",
                         confidence_score=0.85,
-                        response_suggestions=[],
+                        # Recover dropped suggestions from the full Shunya payload.
+                        response_suggestions=response_suggestions_for_objection(
+                            a.raw_analysis, obj_text or obj_str
+                        ),
                     ))
 
             objections = RecordingObjections(

@@ -171,6 +171,72 @@ class Settings(BaseSettings):
         description="Auto-create database tables on startup (development only, disabled in production). Use Alembic migrations for production."
     )
 
+    # Appointment Reminders
+    APPOINTMENT_REMINDER_TZ: str = Field(
+        default=os.getenv("APPOINTMENT_REMINDER_TZ", "America/New_York"),
+        description="IANA timezone used to compute day-before / morning-of reminder times",
+    )
+    APPOINTMENT_MORNING_REMINDER_HOUR: int = Field(
+        default=int(os.getenv("APPOINTMENT_MORNING_REMINDER_HOUR", "8")),
+        description="Local hour (0-23) at which the morning-of appointment reminder fires",
+    )
+    APPOINTMENT_DAY_BEFORE_REMINDER_HOUR: int = Field(
+        default=int(os.getenv("APPOINTMENT_DAY_BEFORE_REMINDER_HOUR", "9")),
+        description="Local hour (0-23) at which the day-before appointment reminder fires",
+    )
+    APPOINTMENT_REMINDER_GRACE_MINUTES: int = Field(
+        default=int(os.getenv("APPOINTMENT_REMINDER_GRACE_MINUTES", "15")),
+        description="Minutes after a reminder due_at during which the reminder is still eligible to fire",
+    )
+
+    # Rehash (missed-revenue opportunity scanner)
+    REHASH_QUALIFIED_UNBOOKED_DAYS: int = Field(
+        default=int(os.getenv("REHASH_QUALIFIED_UNBOOKED_DAYS", "7")),
+        description="Days since last update before a qualified-but-unbooked lead becomes a rehash candidate",
+    )
+    REHASH_APPOINTMENT_PENDING_DAYS: int = Field(
+        default=int(os.getenv("REHASH_APPOINTMENT_PENDING_DAYS", "3")),
+        description="Days since a ran appointment with open outcome before it becomes a rehash candidate",
+    )
+    REHASH_STALE_LEAD_DAYS: int = Field(
+        default=int(os.getenv("REHASH_STALE_LEAD_DAYS", "14")),
+        description="Days of no activity before an open-pipeline lead becomes a stale-lead rehash candidate",
+    )
+    REHASH_NOTIFICATION_GRACE_MINUTES: int = Field(
+        default=int(os.getenv("REHASH_NOTIFICATION_GRACE_MINUTES", "60")),
+        description="Minutes after a rehash due_at during which the rehash notification is still eligible to fire",
+    )
+
+    # Contextual follow-up agent (proactive draft generation)
+    CONTEXTUAL_FOLLOWUP_ENABLED: bool = Field(
+        default=os.getenv("CONTEXTUAL_FOLLOWUP_ENABLED", "True").lower() == "true",
+        description="Enable the daily scheduled run of the contextual follow-up agent (propose-only drafts)",
+    )
+
+    # Recording reconciliation (recovery for stuck analysis jobs)
+    RECORDING_STUCK_THRESHOLD_MINUTES: int = Field(
+        default=int(os.getenv("RECORDING_STUCK_THRESHOLD_MINUTES", "30")),
+        description="Minutes an appointment may sit in analysis_status='processing' before reconciliation polls Shunya",
+    )
+    RECORDING_MAX_PROCESSING_HOURS: int = Field(
+        default=int(os.getenv("RECORDING_MAX_PROCESSING_HOURS", "6")),
+        description="Hard ceiling: a recording stuck in 'processing' longer than this is marked failed (timed out)",
+    )
+    RECORDING_RECONCILE_BATCH_LIMIT: int = Field(
+        default=int(os.getenv("RECORDING_RECONCILE_BATCH_LIMIT", "100")),
+        description="Max stuck recordings reconciled per scheduler run",
+    )
+    RECORDING_RECONCILE_INTERVAL_MINUTES: int = Field(
+        default=int(os.getenv("RECORDING_RECONCILE_INTERVAL_MINUTES", "30")),
+        description="How often the stuck-recording reconciliation job runs (minutes)",
+    )
+
+    # Generic task reminders (call_back / follow_up / post-meeting)
+    GENERIC_TASK_REMINDER_GRACE_MINUTES: int = Field(
+        default=int(os.getenv("GENERIC_TASK_REMINDER_GRACE_MINUTES", "30")),
+        description="Minutes after a generic task's due_at during which its (single) reminder is still eligible to fire; makes firing restart/downtime-safe",
+    )
+
     @property
     def allowed_origins_list(self) -> List[str]:
         """Get allowed origins as a list."""

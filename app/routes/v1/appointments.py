@@ -66,9 +66,8 @@ RESPONSES = {
 @router.get("", response_model=List[AppointmentResponse], responses=RESPONSES)
 async def list_appointments(
     db: DbSession,
-    company_id: UUID = Query(..., description="Company/tenant ID"),
-    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
-    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    company_id: Optional[UUID] = Query(None, description="Company/tenant ID (defaults to authenticated user's company)"),
     assigned_rep_id: Optional[UUID] = Query(
         None,
         description="Filter appointments by assigned sales rep (user_id)",
@@ -119,6 +118,10 @@ async def list_appointments(
     try:
         from datetime import date as date_type, datetime as datetime_type, timezone as tz
 
+        resolved_company_id = company_id or user.company_id
+        if not resolved_company_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="company_id is required")
+
         start_dt = None
         end_dt = None
         if start_date:
@@ -142,6 +145,7 @@ async def list_appointments(
                     detail="end_date must be ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
                 )
 
+        company_id = resolved_company_id
         service = AppointmentService(db)
         search_effective = (search or q or "").strip() or None
 
@@ -199,9 +203,8 @@ async def list_appointments(
 @router.get("/past", response_model=List[AppointmentResponse], responses=RESPONSES)
 async def list_past_appointments(
     db: DbSession,
-    company_id: UUID = Query(..., description="Company/tenant ID"),
-    # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
-    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),  # RBAC DISABLED - Returns dummy user
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    company_id: Optional[UUID] = Query(None, description="Company/tenant ID (defaults to authenticated user's company)"),
     assigned_rep_id: Optional[UUID] = Query(
         None,
         description="Filter appointments by assigned sales rep (user_id)",
@@ -238,6 +241,11 @@ async def list_past_appointments(
     """
     try:
         from datetime import datetime as datetime_type, timezone as tz
+
+        resolved_company_id = company_id or user.company_id
+        if not resolved_company_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="company_id is required")
+        company_id = resolved_company_id
 
         start_dt = None
         end_dt = None
@@ -314,8 +322,8 @@ async def list_past_appointments(
 @router.get("/upcoming", response_model=List[AppointmentResponse], responses=RESPONSES)
 async def list_upcoming_appointments(
     db: DbSession,
-    company_id: UUID = Query(..., description="Company/tenant ID"),
     user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    company_id: Optional[UUID] = Query(None, description="Company/tenant ID (defaults to authenticated user's company)"),
     assigned_rep_id: Optional[UUID] = Query(
         None,
         description="Filter appointments by assigned sales rep (user_id)",
@@ -340,6 +348,11 @@ async def list_upcoming_appointments(
     - limit: Maximum number of results (1-1000)
     """
     try:
+        resolved_company_id = company_id or user.company_id
+        if not resolved_company_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="company_id is required")
+        company_id = resolved_company_id
+
         service = AppointmentService(db)
 
         if assigned_rep_id:
@@ -376,10 +389,10 @@ async def list_upcoming_appointments(
 @router.get("/today", response_model=AppointmentsTodayResponse, responses=RESPONSES)
 async def get_appointments_today(
     db: DbSession,
-    company_id: UUID = Query(..., description="Company/tenant ID"),
-    assigned_rep_id: UUID = Query(..., description="Assigned sales rep user ID"),
-    date: str = Query(..., description="Date in UTC (YYYY-MM-DD)"),
     user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    company_id: Optional[UUID] = Query(None, description="Company/tenant ID (defaults to authenticated user's company)"),
+    assigned_rep_id: Optional[UUID] = Query(None, description="Assigned sales rep user ID (defaults to authenticated user)"),
+    date: str = Query(..., description="Date in UTC (YYYY-MM-DD)"),
 ):
     """
     Get appointments and counts for a sales rep on a specific date.
@@ -390,6 +403,11 @@ async def get_appointments_today(
     Access: Any authenticated user
     """
     try:
+        resolved_company_id = company_id or user.company_id
+        if not resolved_company_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="company_id is required")
+        resolved_rep_id = assigned_rep_id or user.id
+
         # Parse date
         try:
             parsed_date = date_type.fromisoformat(date)
@@ -404,8 +422,8 @@ async def get_appointments_today(
 
         service = AppointmentService(db)
         return await service.get_today_summary(
-            company_id=company_id,
-            assigned_rep_id=assigned_rep_id,
+            company_id=resolved_company_id,
+            assigned_rep_id=resolved_rep_id,
             utc_start=utc_start,
             utc_end=utc_end,
         )
@@ -423,8 +441,8 @@ async def get_appointments_today(
 @router.get("/counts", responses=RESPONSES)
 async def get_appointment_counts(
     db: DbSession,
-    company_id: UUID = Query(..., description="Company/tenant ID"),
     user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+    company_id: Optional[UUID] = Query(None, description="Company/tenant ID (defaults to authenticated user's company)"),
     assigned_rep_id: Optional[UUID] = Query(
         None,
         description="Filter by assigned sales rep (user_id)",
@@ -441,9 +459,12 @@ async def get_appointment_counts(
     Access: Any authenticated user
     """
     try:
+        resolved_company_id = company_id or user.company_id
+        if not resolved_company_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="company_id is required")
         service = AppointmentService(db)
         return await service.get_appointment_counts(
-            company_id=company_id,
+            company_id=resolved_company_id,
             assigned_rep_id=assigned_rep_id,
         )
     except Exception as e:

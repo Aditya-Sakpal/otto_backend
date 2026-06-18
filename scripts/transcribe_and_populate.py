@@ -4,11 +4,15 @@ GPT-4o-derived analysis for company_id d8e4f2a1-...
 New DB: ec2-100-30-18-12
 """
 
-import json, psycopg2
+import json, os, psycopg2
 from openai import OpenAI
+from dotenv import load_dotenv
 
-OPENAI_API_KEY = "OPENAI_API_KEY_REMOVED"
-DB_URL = "DB_URL_REMOVED"
+load_dotenv()
+
+# Secrets come from the environment (see .env.example). Never hardcode keys here.
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+DB_URL = os.environ["DATABASE_URL"]
 COMPANY_ID = "d8e4f2a1-3b5c-4d6e-9f0a-1b2c3d4e5f6a"
 
 client = OpenAI(api_key=OPENAI_API_KEY)

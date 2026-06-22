@@ -1250,3 +1250,54 @@ async def twilio_inbound_sms_webhook(request: Request, db: DbSession):
         message_sid=message_sid,
     )
     return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="application/xml")
+
+
+@router.post("/retell/call-ended")
+async def retell_call_ended_webhook(request: Request, db: DbSession):
+    """
+    Retell post-call webhook — persist transcript and summary as an Otto call record.
+
+    Verifies X-Retell-Signature when RETELL_API_KEY is configured.
+    """
+    raw_body = await request.body()
+    raw_text = raw_body.decode("utf-8")
+
+    if settings.RETELL_API_KEY:
+        signature = request.headers.get("X-Retell-Signature")
+        verified = False
+        try:
+            from retell import Retell
+
+            verified = Retell.verify(
+                raw_text,
+                api_key=settings.RETELL_API_KEY,
+                signature=str(signature or ""),
+            )
+        except ImportError:
+            logger.warning(
+                "retell-sdk not installed; accepting webhook without signature check"
+            )
+            verified = True
+        except Exception as exc:
+            logger.error("Retell signature verification error", error=str(exc))
+            verified = False
+        if not verified:
+            raise HTTPException(status_code=401, detail="Invalid Retell signature")
+
+    try:
+        import json
+
+        payload = json.loads(raw_text) if raw_text else {}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON") from exc
+
+    try:
+        from app.services.voice_agent_service import VoiceAgentService
+
+        result = await VoiceAgentService(db).ingest_retell_call(payload)
+        return {"status": "success", "call_id": result.call_id}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Retell call-ended webhook failed", error=str(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

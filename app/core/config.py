@@ -154,6 +154,24 @@ class Settings(BaseSettings):
         description="Shared secret for ST worker → webhook auth",
     )
 
+    # Retell AI voice agent
+    VOICE_AGENT_SECRET: str = Field(
+        default=os.getenv("VOICE_AGENT_SECRET", ""),
+        description="Shared secret for Retell custom tools → /api/v1/voice-agent/*",
+    )
+    VOICE_AGENT_DEFAULT_COMPANY_ID: str = Field(
+        default=os.getenv("VOICE_AGENT_DEFAULT_COMPANY_ID", ""),
+        description="Default Otto company UUID provisioned on the Retell agent",
+    )
+    RETELL_API_KEY: str = Field(
+        default=os.getenv("RETELL_API_KEY", ""),
+        description="Retell API key for webhook signature verification",
+    )
+    RETELL_AGENT_COMPANY_MAP: str = Field(
+        default=os.getenv("RETELL_AGENT_COMPANY_MAP", "{}"),
+        description='JSON map of retell agent_id → company UUID, e.g. {"agent_abc":"uuid"}',
+    )
+
     # Twilio (Masked Communications)
     TWILIO_ACCOUNT_SID: str = Field(default=os.getenv("TWILIO_ACCOUNT_SID", ""), description="Twilio Account SID")
     TWILIO_AUTH_TOKEN: str = Field(default=os.getenv("TWILIO_AUTH_TOKEN", ""), description="Twilio Auth Token")

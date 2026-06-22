@@ -30,6 +30,7 @@ from app.routes.v1 import (
     tenant_config,
     masked_comms,
     twilio_webhooks,
+    voice_agent,
 )
 
 router = APIRouter()
@@ -71,3 +72,4 @@ router.include_router(coaching.router, prefix="/coaching", tags=["coaching"])
 router.include_router(tenant_config.router, prefix="/tenant-config", tags=["tenant-config"])
 router.include_router(masked_comms.router, prefix="/masked-comms", tags=["masked-comms"])
 router.include_router(twilio_webhooks.router, prefix="/twilio/masked-comms", tags=["twilio-webhooks"])
+router.include_router(voice_agent.router, tags=["voice-agent"])

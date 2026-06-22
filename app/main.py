@@ -204,7 +204,7 @@ def create_app() -> FastAPI:
             "# Otto AI — Revenue Intelligence Platform API\n\n"
             "AI-powered platform for call analysis, lead management, coaching, and sales pipeline tracking.\n\n"
             "## Authentication\n"
-            "All endpoints (except `/auth/signup`, `/auth/login`, `/auth/refresh`, webhooks, and onboarding) require a **Bearer JWT token** "
+            "All endpoints (except `/auth/signup`, `/auth/login`, `/auth/refresh`, webhooks, `/voice-agent/*`, and onboarding) require a **Bearer JWT token** "
             "in the `Authorization` header.\n\n"
             "```\nAuthorization: Bearer <access_token>\n```\n\n"
             "## Roles\n"

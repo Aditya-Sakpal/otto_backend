@@ -329,11 +329,6 @@ async def complete_recording(
 
         return RecordingCompleteResponse(
             appointment_id=request.appointment_id,
-            status=(
-                "failed"
-                if (not shoonya_available or submission_error is not None)
-                else "processing"
-            ),
             status=response_status,
             processing_job_id=processing_job_id,
         )

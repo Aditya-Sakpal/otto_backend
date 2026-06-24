@@ -205,13 +205,11 @@ async def get_auto_queued_leads(
         limit=limit,
     )
 
-
 @router.get("/booking-rate-improvement", response_model=BookingRateImprovementResponse, responses=RESPONSES)
 async def get_booking_rate_improvement(
     db: DbSession,
     company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
     user_id: Optional[UUID] = Query(None, description="User UUID to scope booking rate improvement to a single user (optional)"),
-    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     # Backwards-compatible single-period params:
     start_date: Optional[date] = Query(None, description="(legacy) Start date for filtering (YYYY-MM-DD)"),
@@ -222,44 +220,26 @@ async def get_booking_rate_improvement(
     start_b: Optional[date] = Query(None, description="Period B start date (YYYY-MM-DD)"),
     end_b: Optional[date] = Query(None, description="Period B end date (YYYY-MM-DD)"),
 ):
-    """
-    Get booking rate improvement metrics within date range.
-
-    - **company_id**: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
-    - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.
-    - **start_date**: Start of the current period (defaults to 30 days ago)
-    - **end_date**: End of the current period (defaults to today)
-
-    **Dual-period mode (for charts):**
-    - **start_a, end_a**: Period A date range
-    - **start_b, end_b**: Period B date range
-    - Returns per-day booking rate percentage: (booked leads / qualified leads) × 100
-    - series[].y = booking rate % (0-100), y_axis = percentage ticks
-    - period summary includes average_booking_rate (avg of daily rates)
-
-    **Legacy mode:** Compares booking rate between current period and previous period of same length.
-    Returns current rate, previous rate, improvement percentage, and totals.
-
-    Resolution Rules:
-    - If user_id is provided: prefer user_id (even if company_id is also provided)
-    - Else if company_id is provided: use company_id
-    - Else: return 400 error "Either company_id or user_id is required"
-
-    Required role: Any authenticated user
-    """
-    # Resolution rules:
-    # - If user_id is provided: prefer user_id (even if company_id is also provided)
-    # - Else if company_id is provided: use company_id
-    # - Else: error
+    # Validate that at least one of company_id or user_id is provided
     if not company_id and not user_id:
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either company_id or user_id is required",
         )
 
+    # --- BUG #59 FIX: Verify user presence to prevent 500 server crash ---
     if user_id:
-        company_id = None  # ensure user_id takes precedence (service will derive company_id from user)
+        from sqlalchemy import text
+        user_check = await db.execute(
+            text("SELECT id FROM users WHERE id = :user_id"),
+            {"user_id": str(user_id)}
+        )
+        if not user_check.fetchone():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User identifier '{user_id}' not found in system storage"
+            )
+        company_id = None  # ensure user_id takes precedence
 
     service = MetricsService(db)
     # If new dual-period params provided, pass them through; else use legacy start_date/end_date
@@ -296,25 +276,7 @@ async def get_close_rate_trends(
     start_b: Optional[date] = Query(None, description="Period B start date (YYYY-MM-DD)"),
     end_b: Optional[date] = Query(None, description="Period B end date (YYYY-MM-DD)"),
 ):
-    """
-    Get close rate trends within date range.
-
-    - **company_id**: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
-    - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user.
-    - **start_date**: Start of the current period (defaults to 30 days ago)
-    - **end_date**: End of the current period (defaults to today)
-
-    **Dual-period mode (for charts):**
-    - **start_a, end_a**: Period A date range
-    - **start_b, end_b**: Period B date range
-    - Returns per-day close rate percentage: (won appointments / total appointments) × 100
-    - series[].y = close rate % (0-100), y_axis = percentage ticks
-    - period summary includes average_close_rate (avg of daily rates)
-
-    **Legacy mode:** Compares close rate between current period and previous period of same length.
-    Tracks appointments with outcome='won' and leads with status='closed_won'.
-    Returns current rate, previous rate, improvement percentage, and totals.
-    """
+    """Get close rate trends within date range."""
     # Validate that at least one of company_id or user_id is provided
     if not company_id and not user_id:
         raise HTTPException(
@@ -322,7 +284,18 @@ async def get_close_rate_trends(
             detail="Either company_id or user_id is required",
         )
 
+    # --- BUG #101 FIX: Verify user presence to prevent 500 server crash ---
     if user_id:
+        from sqlalchemy import text
+        user_check = await db.execute(
+            text("SELECT id FROM users WHERE id = :user_id"),
+            {"user_id": str(user_id)}
+        )
+        if not user_check.fetchone():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User identifier '{user_id}' not found in system storage"
+            )
         company_id = None  # ensure user_id takes precedence
 
     service = MetricsService(db)

@@ -136,8 +136,14 @@ class RepPhoneService:
 
     @staticmethod
     def _normalize_phone(phone: str) -> str:
-        """Normalize phone number to E.164 format."""
+        """Normalize phone number to E.164 format.
+
+        International numbers must include their country code (e.g. +918887646909
+        or 00918887646909); bare 10-digit numbers are assumed to be US.
+        """
         phone = phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        if phone.startswith("00"):
+            phone = "+" + phone[2:]
         if not phone.startswith("+"):
             if phone.startswith("1") and len(phone) == 11:
                 phone = "+" + phone

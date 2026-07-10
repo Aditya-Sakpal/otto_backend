@@ -61,9 +61,13 @@ class RepPhoneService:
 
         # Send OTP via Twilio
         if self.twilio.is_available():
-            sent = self.twilio.send_verification_sms(phone_number, code)
-            if not sent:
-                logger.error("Failed to send OTP SMS", user_id=str(user_id))
+            try:
+                sent = self.twilio.send_verification_sms(phone_number, code)
+                if not sent:
+                    raise Exception("Twilio returned False (Service rejected request)")
+            except Exception as e:
+                logger.error(f"Failed to send OTP SMS: {e}", user_id=str(user_id))
+                return {"status": "error", "message": f"Twilio Error: {str(e)}"}
                 return {"status": "error", "message": "Failed to send verification code"}
         else:
             logger.warning(

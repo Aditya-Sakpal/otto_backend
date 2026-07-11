@@ -736,16 +736,43 @@ class CoachingService:
             peer_avg = result.get("peer_average", 0)
             peer_max = result.get("peer_max", 0)
 
+            # rank: try multiple key names Shunya may use; must be >= 1
+            raw_rank = (
+                result.get("rep_rank")
+                or result.get("rank")
+                or result.get("agent_rank")
+                or 0
+            )
+            rank = max(int(raw_rank), 1)
+
+            # percentile: clamp to 0-100
+            raw_pct = result.get("percentile", 0) or 0
+            percentile = max(0, min(100, int(raw_pct)))
+
+            # normalise scores to 0-100 scale
+            def _norm(v):
+                v = v or 0
+                return round(v * 100, 1) if v <= 1 else round(float(v), 1)
+
+            rep_score_norm = _norm(rep_score)
+            peer_avg_norm = _norm(peer_avg)
+            top_score_norm = _norm(peer_max)
+
+            # gap_to_top = rep_score - top_score  (≤ 0 when rep is not the top)
+            gap_to_top = round(rep_score_norm - top_score_norm, 1)
+            # vs_avg = rep_score - peer_average  (positive = above avg)
+            vs_avg = round(rep_score_norm - peer_avg_norm, 1)
+
             benchmark_metrics.append(
                 PeerBenchmarkMetric(
                     metric=metric_name,
-                    rank=result.get("rep_rank", 0),
-                    percentile=result.get("percentile", 0),
-                    rep_score=round(rep_score * 100, 1) if rep_score <= 1 else round(rep_score, 1),
-                    peer_average=round(peer_avg * 100, 1) if peer_avg <= 1 else round(peer_avg, 1),
-                    top_score=round(peer_max * 100, 1) if peer_max <= 1 else round(peer_max, 1),
-                    gap_to_top=round((peer_max - rep_score) * 100, 1) if peer_max <= 1 else round(peer_max - rep_score, 1),
-                    vs_avg=round((rep_score - peer_avg) * 100, 1) if peer_avg <= 1 else round(rep_score - peer_avg, 1),
+                    rank=rank,
+                    percentile=percentile,
+                    rep_score=rep_score_norm,
+                    peer_average=peer_avg_norm,
+                    top_score=top_score_norm,
+                    gap_to_top=gap_to_top,
+                    vs_avg=vs_avg,
                 )
             )
 
@@ -1165,13 +1192,56 @@ class CoachingService:
 
         scores: Dict[str, List[float]] = defaultdict(list)
         for a in analyses:
+            # compliance_score — primary SOP compliance metric
             if a.sop_compliance_score is not None:
-                scores["compliance_score"].append(a.sop_compliance_score)
-            if a.booking_status:
-                scores["booking_rate"].append(1.0 if a.booking_status.lower() == "booked" else 0.0)
-            if a.sentiment_score is not None:
-                scores["rapport_score"].append(a.sentiment_score)
+                scores["compliance_score"].append(float(a.sop_compliance_score))
 
+            # booking_rate — 1.0 if booked, 0.0 otherwise
+            if a.booking_status is not None:
+                scores["booking_rate"].append(
+                    1.0 if a.booking_status.lower() == "booked" else 0.0
+                )
+
+            # rapport_score — customer sentiment
+            if a.sentiment_score is not None:
+                scores["rapport_score"].append(float(a.sentiment_score))
+
+            # script_adherence — SOP compliance rate (how closely script was followed)
+            if a.sop_compliance_rate is not None:
+                scores["script_adherence"].append(float(a.sop_compliance_rate))
+
+            # qualification_accuracy — overall qualification score
+            if a.qualification_overall_score is not None:
+                scores["qualification_accuracy"].append(float(a.qualification_overall_score))
+
+            # budget_qualification — BANT budget score
+            if a.bant_budget_score is not None:
+                scores["budget_qualification"].append(float(a.bant_budget_score))
+
+            # timeline_qualification — BANT timeline score
+            if a.bant_timeline_score is not None:
+                scores["timeline_qualification"].append(float(a.bant_timeline_score))
+
+            # objection_handling — check raw_analysis first, then fall back to
+            # sop_compliance_score as the best available proxy
+            objection_score = None
+            if a.raw_analysis and isinstance(a.raw_analysis, dict):
+                objection_score = (
+                    a.raw_analysis.get("objection_handling_score")
+                    or a.raw_analysis.get("objection_handling")
+                    or a.raw_analysis.get("objection_score")
+                )
+            if objection_score is not None:
+                try:
+                    scores["objection_handling"].append(float(objection_score))
+                except (TypeError, ValueError):
+                    pass
+            elif a.sop_compliance_score is not None:
+                # Best available proxy when no dedicated score exists
+                scores["objection_handling"].append(float(a.sop_compliance_score))
+
+        # Only return metrics that either appear in focus_areas or have data.
+        # Always include any metric that has data — callers decide which to display.
         baseline = {}
         for metric, values in scores.items():
             if values:

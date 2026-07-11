@@ -13,12 +13,13 @@ Comprehensive Apex Roofing pipeline data quality fixes:
 8.  Set appointments.outcome = 'won'  for 'won' leads  (all currently say 'lost')
 9.  Add 4 more service_not_offered leads with calls & analyses
 """
-import uuid, json, random
+import os, uuid, json, random
 from datetime import datetime, timedelta, timezone
 
 import psycopg2, psycopg2.extras
 
-DB  = "***DB_URL_REMOVED***"
+# DB URL comes from the environment (see .env.example). Never hardcode credentials here.
+DB  = os.environ["DATABASE_URL"]
 CID = "d8e4f2a1-3b5c-4d6e-9f0a-1b2c3d4e5f6a"
 
 random.seed(7)

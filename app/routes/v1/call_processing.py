@@ -239,3 +239,145 @@ async def get_call_processing_status(
         )
     finally:
         logger.info(f"Finished status lookup sequence for job: {job_id}")
+
+
+@router.get("/summary/{call_id}", responses=RESPONSES)
+async def get_call_summary(
+    call_id: UUID,
+    db: DbSession,
+    include_chunks: bool = Query(False, description="Include chunks in response"),
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+):
+    """
+    Get call summary.
+    
+    Returns call summary, compliance analysis, objections, qualification (BANT, booking, appointment details).
+    """
+    try:
+        shoonya = get_shoonya_client()
+        if not shoonya.is_available():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service not available",
+            )
+        
+        result = await shoonya.get_call_summary(
+            call_id=str(call_id),
+            include_chunks=include_chunks,
+        )
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting call summary: {e}")
+        traceback.print_exc()
+        # Return 503 for Shunya connectivity issues (RetryError, connection errors)
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get call summary: {str(e)}",
+        )
+
+
+@router.get("/chunks/{call_id}", responses=RESPONSES)
+async def get_call_chunks(
+    call_id: UUID,
+    db: DbSession,
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+):
+    """
+    Get call chunks.
+    
+    Returns all chunks with summaries and Milvus IDs.
+    """
+    try:
+        shoonya = get_shoonya_client()
+        if not shoonya.is_available():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service not available",
+            )
+        
+        result = await shoonya.get_call_chunks(call_id=str(call_id))
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting call chunks: {e}")
+        traceback.print_exc()
+        # Return 503 for Shunya connectivity issues (RetryError, connection errors)
+        if "RetryError" in str(type(e).__name__) or "RetryError" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service temporarily unavailable",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get call chunks: {str(e)}",
+        )
+
+
+@router.post("/retry/{job_id}", status_code=status.HTTP_202_ACCEPTED, responses=RESPONSES)
+async def retry_failed_job(
+    job_id: str,
+    db: DbSession,
+    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+    current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
+):
+    """
+    Retry a failed call processing job.
+    """
+    try:
+        shoonya = get_shoonya_client()
+        if not shoonya.is_available():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Shunya service not available",
+            )
+        
+        # Retry via Shunya
+        result = await shoonya.retry_failed_job(job_id)
+        
+        # Update or create job record
+        job_query = select(CallProcessingJobORM).where(
+            CallProcessingJobORM.shunya_job_id == job_id
+        )
+        job_result = await db.execute(job_query)
+        original_job = job_result.scalar_one_or_none()
+        
+        # Create new job record for retry
+        if not original_job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Original job not found",
+            )
+        
+        new_job = CallProcessingJobORM(
+            company_id=original_job.company_id,
+            call_id=original_job.call_id,
+            shunya_job_id=result["job_id"],
+            status=result.get("status", "queued"),
+            original_job_id=job_id,
+            retry_attempt=result.get("retry_attempt", 1),
+        )
+        db.add(new_job)
+        await db.commit()
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrying job: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retry job: {str(e)}",
+        )

@@ -11,12 +11,13 @@ For each lead we create:
   1. A calls row  (inbound, answered, linked to lead + contact_card)
   2. A call_analyses row (status='completed', with accurate stage-matching data)
 """
-import uuid, json, random
+import os, uuid, json, random
 from datetime import datetime, timedelta, timezone
 
 import psycopg2, psycopg2.extras
 
-DB  = "***DB_URL_REMOVED***"
+# DB URL comes from the environment (see .env.example). Never hardcode credentials here.
+DB  = os.environ["DATABASE_URL"]
 CID = "d8e4f2a1-3b5c-4d6e-9f0a-1b2c3d4e5f6a"
 
 random.seed(42)

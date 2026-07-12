@@ -95,6 +95,16 @@ async def generate_insights(
         await db.commit()
         await db.refresh(job)
         
+        # Override week_start/week_end in the response with what we actually
+        # stored — Shunya may echo different defaults.
+        result["week_start"] = job.week_start.isoformat()
+        result["week_end"] = job.week_end.isoformat()
+        result["company_ids"] = job.company_ids
+        result["insight_types"] = job.insight_types
+        result["force_regenerate"] = job.force_regenerate
+        result["include_inactive_customers"] = job.include_inactive_customers
+        result["local_job_id"] = str(job.id)
+
         return result
     except HTTPException:
         raise
@@ -157,6 +167,17 @@ async def get_insight_job_status(
             job.error = result.get("error")
             
             await db.commit()
+
+            # Override week_start/week_end and flags in the response with our
+            # locally stored values — Shunya may return defaults that don't
+            # match what was actually submitted.
+            result["week_start"] = job.week_start.isoformat()
+            result["week_end"] = job.week_end.isoformat()
+            result["company_ids"] = job.company_ids
+            result["insight_types"] = job.insight_types
+            result["force_regenerate"] = job.force_regenerate
+            result["include_inactive_customers"] = job.include_inactive_customers
+            result["local_job_id"] = str(job.id)
         
         return result
     except HTTPException:

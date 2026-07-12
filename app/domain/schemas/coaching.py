@@ -143,7 +143,7 @@ class PeerBenchmarkMetric(BaseModel):
     rep_score: float = Field(0.0, description="Rep's score for this metric (0-100)")
     peer_average: float = Field(0.0, description="Team average score for this metric (0-100)")
     top_score: float = Field(0.0, description="Highest score on the team for this metric (0-100)")
-    gap_to_top: float = Field(0.0, description="Difference between rep's score and top score (positive = behind)")
+    gap_to_top: float = Field(0.0, description="rep_score - top_score: 0 when rep is the top performer, negative when behind")
     vs_avg: float = Field(0.0, description="Difference between rep's score and team average (positive = above avg, negative = below)")
 
 

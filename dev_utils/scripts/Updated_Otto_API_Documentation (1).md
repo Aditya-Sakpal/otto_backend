@@ -41,7 +41,7 @@ Requests with non-UUID `company_id`, `job_id`, or `conversation_id` will be reje
    - 3.1-3.5: Core Insights
    - 3.6-3.8: [BANT Lead Scoring](#36-list-leads-with-filters) (NEW)
    - 3.9-3.11: [Agent Progression Tracking](#39-get-agent-progression) (NEW)
-4. [Ask Otto (Conversational AI) APIs](#4-a***OPENAI_KEY_REMOVED***)
+4. [Ask Otto (Conversational AI) APIs](#4-ask-otto-conversational-ai-apis)
 5. [SOP Document Ingestion APIs](#5-sop-document-ingestion-apis)
    - 5.1-5.7: Core SOP Management
    - 5.8-5.12: [SOP Version Control](#58-upload-new-sop-version) (NEW)

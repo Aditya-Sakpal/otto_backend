@@ -1,5 +1,4 @@
-# mypy: ignore-errors
-
+# type: ignore
 """
 Ask Otto (Conversational AI) API routes.
 
@@ -245,22 +244,26 @@ Bearer JWT token** — no need to pass it explicitly.
 **Frontend usage:** Call this endpoint on the Ask Otto sidebar / thread list page
 to populate the user's conversation history.
 """,
-    responses={  # type: ignore
+    responses=dict({
         **RESPONSES,
         200: {
             "description": "List of conversation threads returned successfully",
             "model": ListConversationsResponse,
         },
-    },
-)
+    }),  # type: ignore
+)  # Enclosing the previous router decorator configuration cleanly
 async def list_user_conversations(
     db: DbSession,
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
 ):
     try:
+        # --- FIXED AI DATA SYNC ERROR: Added active company_id check filter ---
         query = (
             select(AskOttoConversationORM)
-            .where(AskOttoConversationORM.user_id == current_user.id)
+            .where(
+                AskOttoConversationORM.user_id == current_user.id,
+                AskOttoConversationORM.company_id == current_user.company_id
+            )
             .order_by(AskOttoConversationORM.created_at.desc())
         )
         result = await db.execute(query)
@@ -453,13 +456,12 @@ async def create_conversation(
 
 @router.post(
     "/conversations/{conversation_id}/messages",
-    responses={**RESPONSES, 200: {"description": "Streaming response (text/event-stream)"}},
+    responses={**RESPONSES, 200: {"description": "Streaming response (text/event-stream)"}},  # type: ignore
 )
 async def send_message(
     conversation_id: str,
     body: SendMessageRequest,
     db: DbSession,
-    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
 ):
     """

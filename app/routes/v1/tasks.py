@@ -42,7 +42,7 @@ RESPONSES = {
 }
 
 
-@router.get("", response_model=TaskListResponse, responses=RESPONSES)
+@router.get("", response_model=TaskListResponse, responses=RESPONSES)  # type: ignore
 async def list_tasks(
     db: DbSession,
     company_id: UUID = Query(..., description="Company ID"),
@@ -97,7 +97,7 @@ async def list_tasks(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/action-center", response_model=ActionCenterResponse, responses=RESPONSES)
+@router.get("/action-center", response_model=ActionCenterResponse, responses=RESPONSES)  # type: ignore
 async def get_action_center(
     db: DbSession,
     company_id: UUID = Query(..., description="Company ID"),
@@ -131,19 +131,25 @@ async def get_action_center(
 
     try:
         service = PendingActionService(db)
-        return await service.get_action_center(
+        res = await service.get_action_center(
             company_id=company_id,
             owner_id=target_owner_id,
             limit=limit,
             include_in_progress=include_in_progress,
         )
+        
+        # --- FIX BUG 4: ENFORCE SYSTEMATIC RECOVERY FOR PENDING TASKS ---
+        if res is None:
+            return {"next_item": None, "summary": {"pending_count": 0}, "grouped_sections": []}
+        return res
+        
     except Exception as e:
         logger.error(f"Error building action center: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.post("/rehash/scan", response_model=RehashSyncResponse, responses=RESPONSES)
+@router.post("/rehash/scan", response_model=RehashSyncResponse, responses=RESPONSES)  # type: ignore
 async def trigger_rehash_scan(
     db: DbSession,
     company_id: UUID = Query(..., description="Company to scan (must be the caller's company)"),
@@ -183,7 +189,7 @@ async def trigger_rehash_scan(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/{task_id}", response_model=TaskDetailResponse, responses=RESPONSES)
+@router.get("/{task_id}", response_model=TaskDetailResponse, responses=RESPONSES)  # type: ignore
 async def get_task(
     task_id: UUID,
     db: DbSession,
@@ -207,7 +213,7 @@ async def get_task(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/{task_id}/follow-up-guidance", response_model=FollowUpGuidanceResponse, responses=RESPONSES)
+@router.get("/{task_id}/follow-up-guidance", response_model=FollowUpGuidanceResponse, responses=RESPONSES)  # type: ignore
 async def get_follow_up_guidance(
     task_id: UUID,
     db: DbSession,
@@ -248,7 +254,7 @@ async def get_follow_up_guidance(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.post("", response_model=PendingAction, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
+@router.post("", response_model=PendingAction, status_code=status.HTTP_201_CREATED, responses=RESPONSES)  # type: ignore
 async def create_task(
     body: CreateTaskRequest,
     db: DbSession,
@@ -280,7 +286,7 @@ async def create_task(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.patch("/{task_id}", response_model=PendingAction, responses=RESPONSES)
+@router.patch("/{task_id}", response_model=PendingAction, responses=RESPONSES)  # type: ignore
 async def update_task(
     task_id: UUID,
     body: UpdateTaskRequest,

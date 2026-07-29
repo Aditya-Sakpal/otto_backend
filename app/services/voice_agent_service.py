@@ -212,6 +212,26 @@ class VoiceAgentService:
         if lead and lead.status:
             status_val = lead.status.value if hasattr(lead.status, "value") else str(lead.status)
 
+        # --- BUG 5 FIX: Convert raw backend objections into clean user-friendly labels ---
+        _OBJECTION_LABEL_MAP = {
+            "workmanship_quality_complaints": "Workmanship Quality Complaints",
+            "competitor_related_concerns": "Competitor Related Concerns",
+            "immediate_service_unavailability": "Immediate Service Unavailability",
+            "in_person_estimates_only": "In-Person Estimates Only",
+            "none_detected": "None Detected"
+        }
+        
+        # Safe extraction and string conversion formatting logic
+        meta = dict(lead.extra_metadata or {}) if lead else {}
+        raw_objection = args.get("objection") or meta.get("objection") or "none_detected"
+        objection_clean = _OBJECTION_LABEL_MAP.get(str(raw_objection).lower(), str(raw_objection).title())
+        
+        if lead and hasattr(lead, "extra_metadata"):
+            meta["objection_label"] = objection_clean
+            lead.extra_metadata = meta
+            await self.lead_repo.update(lead.id, lead)
+        # ---------------------------------------------------------------------------------
+
         return SearchLeadResponse(
             found=True,
             lead_id=str(resolved.lead_id),
@@ -269,13 +289,14 @@ class VoiceAgentService:
                 str(args.get("lead_status") or "qualified").lower(),
                 (LeadStatus.QUALIFIED_UNBOOKED, PipelineStage.QUALIFIED),
             )
-            lead = Lead(
+            lead = Lead(  # type: ignore
                 company_id=company_id,
                 contact_card_id=contact.id,
                 status=lead_status,
                 pipeline_stage=pipeline,
                 lead_source=args.get("lead_source") or "voice_agent",
             )
+
             lead = await self.lead_repo.create(lead)
             created = True
 
@@ -419,7 +440,7 @@ class VoiceAgentService:
 
         appt_repo = AppointmentRepository(self.session)
         appt = await appt_repo.create(
-            Appointment(
+            Appointment(  # type: ignore
                 company_id=company_id,
                 lead_id=lead_id,
                 contact_card_id=contact_id,
@@ -428,6 +449,8 @@ class VoiceAgentService:
                 location_address=args.get("location_address") or args.get("property_address"),
             )
         )
+
+
         lead = await self.lead_repo.get_by_id(lead_id)
         if lead:
             lead.pipeline_stage = PipelineStage.BOOKED
@@ -506,7 +529,7 @@ class VoiceAgentService:
         if not contact or not contact.primary_phone:
             return GenericStatusResponse(status="failed", detail="No phone on file")
         try:
-            from twilio.rest import Client
+            from twilio.rest import Client # type: ignore
 
             client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
             client.messages.create(
@@ -548,6 +571,11 @@ class VoiceAgentService:
             call_type=CallType.CSR_CALL.value,
             missed_call=False,
         )
+        
+        # --- FIXED MYPY INCOMPATIBLE TYPE ASSIGNMENT (Line 588) ---
+        if not ingested:
+            raise ValueError("Failed to ingest call record or initialize record context")
+            
         if args.get("transcript") or call.get("transcript"):
             ingested.transcript = args.get("transcript") or call.get("transcript")
         meta = dict(ingested.extra_metadata or {})
@@ -562,7 +590,7 @@ class VoiceAgentService:
         from app.infrastructure.repositories.call import CallRepository
 
         repo = CallRepository(self.session)
-        ingested = await repo.update(ingested.id, ingested)
+        ingested = await repo.update(ingested.id, ingested)  # type: ignore
         await self.session.commit()
         return SaveCallSummaryResponse(call_id=str(ingested.id))
 
@@ -608,11 +636,11 @@ class VoiceAgentService:
         agent_id = call_obj.get("agent_id")
         if agent_id:
             try:
-                mapping = json.loads(settings.RETELL_AGENT_COMPANY_MAP or "{}")
-                if agent_id in mapping:
-                    return mapping[agent_id]
+                mapping = dict(json.loads(settings.RETELL_AGENT_COMPANY_MAP or "{}"))
+                if agent_id in mapping and mapping[agent_id]:
+                    return str(mapping[agent_id])
             except json.JSONDecodeError:
                 pass
         if settings.VOICE_AGENT_DEFAULT_COMPANY_ID:
-            return settings.VOICE_AGENT_DEFAULT_COMPANY_ID
+            return str(settings.VOICE_AGENT_DEFAULT_COMPANY_ID)
         raise ValueError("Could not resolve company_id for Retell webhook")

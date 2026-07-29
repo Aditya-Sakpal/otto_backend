@@ -16,7 +16,7 @@ class CompanyRepository:
     async def create(
         self,
         name: str,
-        reference_doc_url: str,
+        reference_doc_url: str | None = None,
         sop_doc_url: str | None = None,
         csr_sop_doc_url: str | None = None,
         sales_sop_doc_url: str | None = None,
@@ -29,7 +29,7 @@ class CompanyRepository:
 
         Args:
             name: Company name
-            reference_doc_url: URL to reference document in S3
+            reference_doc_url: URL to reference document in S3 (optional)
             sop_doc_url: URL to SOP document in S3 (optional)
             csr_sop_doc_url: URL to CSR SOP document in S3 (optional)
             sales_sop_doc_url: URL to Sales SOP document in S3 (optional)
@@ -83,6 +83,7 @@ class CompanyRepository:
         csr_sop_doc_url: str | None = None,
         sales_sop_doc_url: str | None = None,
         extra_metadata: dict | None = None,
+        follow_up_manual_review_enabled: bool | None = None,
     ) -> CompanyORM | None:
         """
         Update a company record.
@@ -97,6 +98,7 @@ class CompanyRepository:
             csr_sop_doc_url: URL to CSR SOP document (optional)
             sales_sop_doc_url: URL to Sales SOP document (optional)
             extra_metadata: Additional metadata (optional)
+            follow_up_manual_review_enabled: Contextual follow-up draft-before-send toggle (optional)
 
         Returns:
             Updated CompanyORM instance or None if not found
@@ -121,6 +123,8 @@ class CompanyRepository:
             company.sales_sop_doc_url = sales_sop_doc_url
         if extra_metadata is not None:
             company.extra_metadata = extra_metadata
+        if follow_up_manual_review_enabled is not None:
+            company.follow_up_manual_review_enabled = follow_up_manual_review_enabled
 
         await self.db.flush()
         await self.db.refresh(company)

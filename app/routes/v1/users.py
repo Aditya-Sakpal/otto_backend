@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role, require_executive
 from app.core.auth import get_current_user
+from app.core.tenant import require_company_access
 from app.core.logging import get_logger
 from app.domain.users.models import User
 from app.domain.users.service import UserService
@@ -20,8 +21,24 @@ from app.domain.enums import UserRole
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    400: {"description": "Bad request"},
+    403: {"description": "Forbidden"},
+    404: {"description": "User not found"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
-@router.get("", response_model=List[UserResponse])
+
+@router.get(
+    "",
+    response_model=List[UserResponse],
+    responses=RESPONSES,
+    # SI-45 (PDF #45): tenant isolation — reject cross-tenant reads when
+    # company_id is supplied. No-ops when both company_id and user_id are
+    # omitted; the service layer still filters by caller context downstream.
+    dependencies=[Depends(require_company_access)],
+)
 async def list_users(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -63,7 +80,13 @@ async def list_users(
         )
 
 
-@router.get("/sales-reps", response_model=List[UserResponse])
+@router.get(
+    "/sales-reps",
+    response_model=List[UserResponse],
+    responses=RESPONSES,
+    # SI-45 (PDF #45): tenant isolation — reject cross-tenant reads.
+    dependencies=[Depends(require_company_access)],
+)
 async def get_sales_reps_by_company(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -103,7 +126,106 @@ async def get_sales_reps_by_company(
         )
 
 
-@router.get("/companies", response_model=List[dict])
+@router.delete(
+    "/sales-reps/{sales_rep_id}",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    responses=RESPONSES,
+    summary="Deactivate a sales rep (soft delete)",
+)
+async def deactivate_sales_rep(
+    sales_rep_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_executive),
+) -> UserResponse:
+    """
+    Set is_active to false for the given sales rep user.
+
+    Access: EXECUTIVE only. When the caller has a company_id, the rep must belong to the same company.
+    """
+    try:
+        service = UserService(db)
+        target = await service.get_by_id(sales_rep_id)
+        if not target:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        if target.role != UserRole.SALES_REP:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not a sales rep",
+            )
+        if current_user.company_id is not None and target.company_id != current_user.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot deactivate a sales rep outside your company",
+            )
+        updated = await service.deactivate_sales_rep(sales_rep_id)
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        return UserResponse.model_validate(updated)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error deactivating sales rep: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/assignees", response_model=List[UserResponse], responses=RESPONSES)
+async def list_assignees(
+    db: DbSession,
+    company_id: UUID = Query(..., description="Company ID"),
+    roles: Optional[str] = Query(None, description="Comma-separated roles to include (default: csr,sales_rep)"),
+    user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+) -> List[UserResponse]:
+    """
+    List users who can be assigned tasks (CSRs and Sales Reps) for the Task Management assignee dropdown.
+    Access: EXECUTIVE, CSR, SALES_REP
+    """
+    try:
+        service = UserService(db)
+        role_map = {"csr": UserRole.CSR, "sales_rep": UserRole.SALES_REP, "executive": UserRole.EXECUTIVE}
+        if roles:
+            role_list = [r.strip().lower() for r in roles.split(",")]
+            user_roles = [role_map[r] for r in role_list if r in role_map]
+        else:
+            user_roles = [UserRole.CSR, UserRole.SALES_REP]
+        if not user_roles:
+            user_roles = [UserRole.CSR, UserRole.SALES_REP]
+        all_assignees = []
+        for role in user_roles:
+            users_in_role = await service.list_users(company_id=company_id, role=role, is_active=True, skip=0, limit=500)
+            all_assignees.extend(users_in_role)
+        seen = set()
+        unique = []
+        for u in all_assignees:
+            if u.id not in seen and getattr(u, "is_active", True):
+                seen.add(u.id)
+                unique.append(u)
+        return [UserResponse.model_validate(u) for u in unique]
+    except Exception as e:
+        logger.error(f"Error listing assignees: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/companies", response_model=List[dict], responses=RESPONSES)
 async def list_companies(
     db: DbSession,
     # RBAC DISABLED - user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
@@ -160,7 +282,7 @@ async def get_current_user_profile(
         )
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserResponse, responses=RESPONSES)
 async def get_user(
     user_id: UUID,
     db: DbSession,
@@ -196,7 +318,7 @@ async def get_user(
         )
 
 
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def create_user(
     user_data: UserCreate,
     db: DbSession,
@@ -280,7 +402,7 @@ async def create_user(
 #         )
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserResponse, responses=RESPONSES)
 async def update_user(
     user_id: UUID,
     user_data: UserUpdate,

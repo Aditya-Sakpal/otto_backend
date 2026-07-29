@@ -24,11 +24,20 @@ from app.domain.schemas.settings import (
     CreateIntegrationRequest,
     UpdateDocumentRequest,
     SettingsResponse,
+    FollowUpManualReviewPatch,
 )
 from app.services.company_service import CompanyService
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+RESPONSES = {
+    400: {"description": "Bad request"},
+    403: {"description": "Forbidden"},
+    404: {"description": "Resource not found"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
 # Document type mapping
 DOCUMENT_TYPE_MAPPING = {
@@ -41,7 +50,14 @@ DOCUMENT_TYPE_MAPPING = {
 REVERSE_DOCUMENT_TYPE_MAPPING = {v: k for k, v in DOCUMENT_TYPE_MAPPING.items()}
 
 
-@router.get("", response_model=SettingsResponse)
+def _crm_connected(integration) -> bool:
+    """ServiceTitan uses st_client_secret_encrypted; all other CRMs use crm_api_encrypted_key."""
+    if integration.crm_provider == "servicetitan":
+        return bool(integration.st_client_secret_encrypted)
+    return bool(integration.crm_api_encrypted_key)
+
+
+@router.get("", response_model=SettingsResponse, responses=RESPONSES)
 async def get_settings(
     company_id: UUID,
     db: DbSession,
@@ -50,11 +66,24 @@ async def get_settings(
 ):
     """
     Get complete settings for a company (integrations and documents).
-    
+
     - **company_id**: Company UUID
-    
-    Returns integrations and documents for the company.
-    
+
+    Returns integrations, documents, and **follow_up_manual_review_enabled** (contextual follow-up draft-before-send).
+
+    **Example response (200)** — shape only; lists may contain real integration/document objects:
+
+    ```json
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "created_at": "2026-03-27T12:00:00",
+      "updated_at": null,
+      "integrations": [],
+      "documents": [],
+      "follow_up_manual_review_enabled": false
+    }
+    ```
+
     Required role: EXECUTIVE
     """
     try:
@@ -72,14 +101,14 @@ async def get_settings(
                     company_id=integration_orm.company_id,
                     provider=integration_orm.crm_provider,
                     provider_type="crm",
-                    status="connected" if integration_orm.crm_api_encrypted_key else "disconnected",
+                    status="connected" if _crm_connected(integration_orm) else "disconnected",
                     description=f"{integration_orm.crm_provider} CRM connection for lead and contact management",
                     last_sync=integration_orm.extra_metadata.get("crm_last_sync") if integration_orm.extra_metadata else None,
                     location_id=integration_orm.location_id,
                     company_id_external=integration_orm.crm_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-            
+
             # Build VoIP integration if exists
             if integration_orm.voip_provider:
                 integrations.append(IntegrationResponse(
@@ -94,7 +123,7 @@ async def get_settings(
                     company_id_external=integration_orm.voip_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-        
+
         # Get documents
         company = await service.get_company_by_id(company_id)
         documents = []
@@ -169,9 +198,14 @@ async def get_settings(
                     uploaded_by=sales_meta.get("uploaded_by"),
                 ))
         
+        follow_up_manual_review_enabled = (
+            bool(company.follow_up_manual_review_enabled) if company else False
+        )
+
         return SettingsResponse(
             integrations=integrations,
             documents=documents,
+            follow_up_manual_review_enabled=follow_up_manual_review_enabled,
         )
     except Exception as e:
         logger.error(f"Error getting settings: {e}")
@@ -182,7 +216,69 @@ async def get_settings(
         )
 
 
-@router.get("/integrations", response_model=IntegrationsListResponse)
+@router.patch(
+    "/follow-up-manual-review",
+    response_model=FollowUpManualReviewPatch,
+    responses=RESPONSES,
+)
+async def patch_follow_up_manual_review(
+    company_id: UUID = Query(..., description="Company UUID"),
+    body: FollowUpManualReviewPatch = ...,
+    db: DbSession = ...,
+    current_user: User = Depends(require_executive),
+):
+    """
+    Turn contextual follow-up manual review (draft before send) on or off for a company.
+
+    **Example request body**
+
+    ```json
+    { "follow_up_manual_review_enabled": true }
+    ```
+
+    **Example response (200)**
+
+    ```json
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "created_at": "2026-03-27T12:00:00",
+      "updated_at": null,
+      "follow_up_manual_review_enabled": true
+    }
+    ```
+    """
+    try:
+        service = CompanyService(db)
+        company = await service.get_company_by_id(company_id)
+        if not company:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Company not found",
+            )
+        updated = await service.update_company(
+            company_id,
+            follow_up_manual_review_enabled=body.follow_up_manual_review_enabled,
+        )
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update company",
+            )
+        return FollowUpManualReviewPatch(
+            follow_up_manual_review_enabled=body.follow_up_manual_review_enabled,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error patching follow-up manual review: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/integrations", response_model=IntegrationsListResponse, responses=RESPONSES)
 async def get_integrations(
     company_id: UUID,
     db: DbSession,
@@ -211,14 +307,14 @@ async def get_integrations(
                     company_id=integration_orm.company_id,
                     provider=integration_orm.crm_provider,
                     provider_type="crm",
-                    status="connected" if integration_orm.crm_api_encrypted_key else "disconnected",
+                    status="connected" if _crm_connected(integration_orm) else "disconnected",
                     description=f"{integration_orm.crm_provider} CRM connection for lead and contact management",
                     last_sync=integration_orm.extra_metadata.get("crm_last_sync") if integration_orm.extra_metadata else None,
                     location_id=integration_orm.location_id,
                     company_id_external=integration_orm.crm_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-            
+
             # Build VoIP integration if exists
             if integration_orm.voip_provider:
                 integrations.append(IntegrationResponse(
@@ -233,7 +329,7 @@ async def get_integrations(
                     company_id_external=integration_orm.voip_company_id,
                     extra_metadata=integration_orm.extra_metadata,
                 ))
-        
+
         return IntegrationsListResponse(
             integrations=integrations,
             total_count=len(integrations),
@@ -247,7 +343,7 @@ async def get_integrations(
         )
 
 
-@router.get("/integrations/{integration_id}", response_model=IntegrationResponse)
+@router.get("/integrations/{integration_id}", response_model=IntegrationResponse, responses=RESPONSES)
 async def get_integration(
     integration_id: UUID,
     company_id: UUID,
@@ -292,7 +388,7 @@ async def get_integration(
                 )
             provider = integration_orm.crm_provider
             company_id_external = integration_orm.crm_company_id
-            is_connected = bool(integration_orm.crm_api_encrypted_key)
+            is_connected = _crm_connected(integration_orm)
         else:  # voip
             if not integration_orm.voip_provider:
                 raise HTTPException(
@@ -326,7 +422,7 @@ async def get_integration(
         )
 
 
-@router.post("/integrations", response_model=List[IntegrationResponse], status_code=status.HTTP_201_CREATED)
+@router.post("/integrations", response_model=List[IntegrationResponse], status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def create_integration(
     company_id: UUID,
     request: CreateIntegrationRequest,
@@ -397,7 +493,7 @@ async def create_integration(
         )
 
 
-@router.put("/integrations/{integration_id}", response_model=List[IntegrationResponse])
+@router.put("/integrations/{integration_id}", response_model=List[IntegrationResponse], responses=RESPONSES)
 async def update_integration(
     integration_id: UUID,
     company_id: UUID,
@@ -438,6 +534,9 @@ async def update_integration(
             voip_api_key=request.voip_api_key,
             voip_company_id=request.voip_company_id,
             extra_metadata=request.extra_metadata,
+            st_tenant_id=request.st_tenant_id,
+            st_client_id=request.st_client_id,
+            st_client_secret=request.st_client_secret,
         )
         
         if not updated_integration:
@@ -454,7 +553,7 @@ async def update_integration(
                 company_id=updated_integration.company_id,
                 provider=updated_integration.crm_provider,
                 provider_type="crm",
-                status="connected" if updated_integration.crm_api_encrypted_key else "disconnected",
+                status="connected" if _crm_connected(updated_integration) else "disconnected",
                 description=f"{updated_integration.crm_provider} CRM connection for lead and contact management",
                 last_sync=updated_integration.extra_metadata.get("crm_last_sync") if updated_integration.extra_metadata else None,
                 location_id=updated_integration.location_id,
@@ -488,7 +587,7 @@ async def update_integration(
         )
 
 
-@router.get("/integrations/{integration_id}/logs")
+@router.get("/integrations/{integration_id}/logs", responses=RESPONSES)
 async def get_integration_logs(
     integration_id: UUID,
     company_id: UUID,
@@ -540,7 +639,7 @@ async def get_integration_logs(
         )
 
 
-@router.get("/documents", response_model=DocumentsListResponse)
+@router.get("/documents", response_model=DocumentsListResponse, responses=RESPONSES)
 async def get_documents(
     company_id: UUID,
     db: DbSession,
@@ -636,7 +735,7 @@ async def get_documents(
         )
 
 
-@router.post("/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def upload_document(
     company_id: UUID,
     db: DbSession,
@@ -773,7 +872,7 @@ async def upload_document(
         )
 
 
-@router.put("/documents/{document_type}", response_model=DocumentResponse)
+@router.put("/documents/{document_type}", response_model=DocumentResponse, responses=RESPONSES)
 async def update_document(
     document_type: str,
     company_id: UUID,

@@ -4,52 +4,157 @@ Metrics response schemas.
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
-from pydantic import Field
-
-from app.domain.models.base import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CompanyOverviewResponse(BaseModel):
-    """Company overview metrics."""
-    total_leads: int
-    active_leads: int
-    total_calls: int
-    missed_calls: int
-    total_appointments: int
-    conversion_rate: float
-    total_revenue: float
+    """Company overview metrics.
+
+    Qualified leads include leads with status: qualified_booked, qualified_unbooked,
+    or qualified_service_not_offered.
+    """
+    total_leads: int = Field(..., description="Total number of leads in date range")
+    active_leads: int = Field(..., description="Number of active (non-closed) leads")
+    qualified_leads: Optional[int] = Field(None, description="Number of qualified leads (qualified_booked + qualified_unbooked + qualified_service_not_offered)")
+    total_calls: int = Field(..., description="Total number of calls in date range")
+    missed_calls: int = Field(..., description="Number of missed calls")
+    total_appointments: int = Field(..., description="Total appointments in date range")
+    conversion_rate: float = Field(..., description="Lead-to-sale conversion rate (0-100)")
+    booked_leads: Optional[int] = Field(None, description="Number of leads with booked appointments")
+    total_revenue: float = Field(..., description="Total revenue from closed-won deals")
+    start_date: Optional[str] = Field(None, description="Start of date range (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End of date range (YYYY-MM-DD)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "total_leads": 250,
+                "active_leads": 180,
+                "qualified_leads": 95,
+                "total_calls": 420,
+                "missed_calls": 35,
+                "total_appointments": 65,
+                "conversion_rate": 18.5,
+                "booked_leads": 42,
+                "total_revenue": 125000.00,
+                "start_date": "2026-02-20",
+                "end_date": "2026-03-20",
+            }
+        }
+    }
 
 
 class CSRDashboardResponse(BaseModel):
     """CSR dashboard metrics."""
-    total_calls: int
-    missed_calls: int
-    calls_today: int
-    avg_call_duration: float
-    leads_assigned: int
-    appointments_scheduled: int
+    total_calls: int = Field(..., description="Total calls handled by this CSR")
+    missed_calls: int = Field(..., description="Number of missed calls")
+    calls_today: int = Field(..., description="Calls handled today")
+    avg_call_duration: float = Field(..., description="Average call duration in seconds")
+    leads_assigned: int = Field(..., description="Number of leads assigned to this CSR")
+    appointments_scheduled: int = Field(..., description="Number of appointments scheduled by this CSR")
+    start_date: Optional[str] = Field(None, description="Start of date range (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End of date range (YYYY-MM-DD)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "total_calls": 85,
+                "missed_calls": 5,
+                "calls_today": 12,
+                "avg_call_duration": 145.5,
+                "leads_assigned": 30,
+                "appointments_scheduled": 15,
+                "start_date": "2026-02-20",
+                "end_date": "2026-03-20",
+            }
+        }
+    }
 
 
 class BookingRateImprovementResponse(BaseModel):
     """Booking rate improvement metrics."""
-    current_rate: float
-    previous_rate: float
-    improvement_percentage: float
-    total_bookings: int
-    total_qualified: int
+    # Legacy single-period fields (made optional to support dual-period response)
+    current_rate: Optional[float] = None
+    previous_rate: Optional[float] = None
+    improvement_percentage: Optional[float] = None
+    total_bookings: Optional[int] = None
+    total_qualified: Optional[int] = None
+    booked_appointments: Optional[int] = None
+    booked_calls: Optional[int] = None
+    booked_leads: Optional[int] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    previous_period_start: Optional[str] = None
+    previous_period_end: Optional[str] = None
+    # Optional dual-period series for frontend comparison (new mode)
+    period_a: Optional[Dict[str, Any]] = None
+    period_b: Optional[Dict[str, Any]] = None
+    x_axis: Optional[List[str]] = None
+    y_axis: Optional[List[float]] = None
+
+
+class CloseRateTrendsResponse(BaseModel):
+    """Close rate trends metrics (similar to booking rate but for closed/won deals)."""
+    # Legacy single-period fields (made optional to support dual-period response)
+    current_rate: Optional[float] = None
+    previous_rate: Optional[float] = None
+    improvement_percentage: Optional[float] = None
+    total_closed: Optional[int] = None
+    total_qualified: Optional[int] = None
+    closed_appointments: Optional[int] = None
+    closed_leads: Optional[int] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    previous_period_start: Optional[str] = None
+    previous_period_end: Optional[str] = None
+    # Optional dual-period series for frontend comparison (new mode)
+    period_a: Optional[Dict[str, Any]] = None
+    period_b: Optional[Dict[str, Any]] = None
+    x_axis: Optional[List[str]] = None
+    y_axis: Optional[List[float]] = None
 
 
 class TopObjectionResponse(BaseModel):
     """Top objection data."""
-    objection_type: str
-    count: int
-    percentage: float
+    objection_type: str = Field(..., description="Objection type from CSRObjectionType enum (e.g. 'service_fee_concerns', 'scheduling_conflicts')")
+    count: int = Field(..., description="Number of calls with this objection")
+    percentage: float = Field(..., description="Percentage of total calls with objections (0-100)")
 
 
 class TopObjectionsResponse(BaseModel):
     """Top objections list."""
-    objections: List[TopObjectionResponse]
-    total_calls_with_objections: int
+    objections: List[TopObjectionResponse] = Field(..., description="List of top objections sorted by frequency")
+    total_calls_with_objections: int = Field(..., description="Total number of calls that had at least one objection")
+    start_date: Optional[str] = Field(None, description="Start of date range (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End of date range (YYYY-MM-DD)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "objections": [
+                    {"objection_type": "service_fee_concerns", "count": 28, "percentage": 35.0},
+                    {"objection_type": "scheduling_conflicts", "count": 20, "percentage": 25.0},
+                    {"objection_type": "customer_needs_time_to_decide", "count": 15, "percentage": 18.75},
+                ],
+                "total_calls_with_objections": 80,
+                "start_date": "2026-02-20",
+                "end_date": "2026-03-20",
+            }
+        }
+    }
+
+
+class MissedCallsResponse(BaseModel):
+    """Missed calls metrics."""
+    missed_calls: int = Field(..., description="Number of missed calls")
+    total_calls: int = Field(..., description="Total number of calls")
+    miss_rate: float = Field(..., description="Missed call rate (0-100)")
+    picked_up: int = Field(0, description="Number of missed calls that were later picked up")
+    booked: int = Field(0, description="Number of missed calls that resulted in bookings")
+    booking_percentage: float = Field(0.0, description="Booking percentage from missed calls (0-100)")
+    recent_missed: List[Dict[str, Any]] = Field(default_factory=list, description="List of recent missed call details")
+    start_date: Optional[str] = Field(None, description="Start of date range (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End of date range (YYYY-MM-DD)")
 
 
 class CoachingOpportunityResponse(BaseModel):
@@ -65,6 +170,8 @@ class CoachingOpportunitiesResponse(BaseModel):
     """Coaching opportunities list."""
     opportunities: List[CoachingOpportunityResponse]
     total_count: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class MostCoachingNeedItem(BaseModel):
@@ -103,6 +210,8 @@ class ConversionMetricsResponse(BaseModel):
     conversion_rate: float
     avg_days_to_conversion: float
     total_revenue: float
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class EmergencyDroppedResponse(BaseModel):
@@ -111,6 +220,8 @@ class EmergencyDroppedResponse(BaseModel):
     emergency_calls: int
     drop_rate: float
     avg_response_time: float
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class CompanyPerformanceResponse(BaseModel):
@@ -121,6 +232,8 @@ class CompanyPerformanceResponse(BaseModel):
     avg_deal_size: float
     active_reps: int
     calls_per_rep: float
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class CallsSummaryResponse(BaseModel):
@@ -131,6 +244,8 @@ class CallsSummaryResponse(BaseModel):
     avg_duration: float
     total_duration: int
     calls_today: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class BookingsSummaryResponse(BaseModel):
@@ -140,6 +255,8 @@ class BookingsSummaryResponse(BaseModel):
     pending_bookings: int
     cancelled_bookings: int
     bookings_today: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class UnbookedLeadsResponse(BaseModel):
@@ -148,6 +265,8 @@ class UnbookedLeadsResponse(BaseModel):
     qualified_unbooked: int
     avg_days_unbooked: float
     leads: List[Dict[str, Any]]
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class PendingActionsResponse(BaseModel):
@@ -156,6 +275,8 @@ class PendingActionsResponse(BaseModel):
     follow_ups_needed: int
     calls_to_make: int
     appointments_to_schedule: int
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class ConversionsPendingToBookedResponse(BaseModel):
@@ -163,8 +284,8 @@ class ConversionsPendingToBookedResponse(BaseModel):
     converted_count: int
     conversion_rate: float
     avg_days_to_book: float
-    period_start: datetime
-    period_end: datetime
+    period_start: Optional[datetime] = None
+    period_end: Optional[datetime] = None
 
 
 class ObjectionsSummaryResponse(BaseModel):
@@ -173,6 +294,8 @@ class ObjectionsSummaryResponse(BaseModel):
     unique_objection_types: int
     top_objection: str
     objections_by_type: Dict[str, int]
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class ObjectionCallsResponse(BaseModel):
@@ -199,6 +322,81 @@ class ExecutiveViewMetrics(BaseModel):
     total_calls: int = Field(..., description="Total number of calls")
     avg_response_time: float = Field(..., description="Average response time in seconds")
     response_time_target: float = Field(default=15.0, description="Target response time in seconds")
+
+
+# ===== Unified Strengths & Issues Schemas =====
+
+
+class SeverityDistribution(BaseModel):
+    """Severity breakdown for a weakness bucket."""
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+
+
+class CoachingBucket(BaseModel):
+    """A single coaching category bucket (strength or weakness)."""
+    category: str = Field(..., description="One of 15 canonical categories (e.g. 'Needs Discovery', 'Closing Technique')")
+    count: int = Field(..., description="Total occurrences across all calls in the time window")
+    severity_distribution: Optional[SeverityDistribution] = Field(None, description="Severity breakdown (weaknesses only)")
+    representative_examples: List[str] = Field(default_factory=list, description="Up to 3 real call excerpts")
+    related_sop_metrics: List[str] = Field(default_factory=list, description="SOP metric IDs associated with this bucket")
+    latest_occurrence: Optional[str] = Field(None, description="ISO datetime of most recent item")
+
+
+class ObjectionCoachingNeed(BaseModel):
+    """Per-objection coaching need from our DB (not available in Shunya)."""
+    objection: str
+    pct_unbooked: float = Field(..., description="Percentage of unbooked qualified leads with this objection")
+    unbooked_qualified_ratio: str = Field(..., description="e.g. '3/10'")
+    unbooked_count: int = 0
+    qualified_count: int = 0
+
+
+class DBPerformanceMetrics(BaseModel):
+    """Performance metrics from our database (not available in Shunya)."""
+    total_calls: int = Field(0, description="Total calls handled")
+    calls_answered: int = Field(0, description="Calls answered")
+    calls_answered_percentage: float = Field(0.0, description="% of calls answered")
+    missed_calls: int = Field(0, description="Missed calls count")
+    missed_calls_status: str = Field("low", description="low / medium / high")
+    booking_rate: float = Field(0.0, description="Booking rate percentage")
+    conversion_rate: float = Field(0.0, description="Conversion rate percentage")
+    avg_response_time: float = Field(0.0, description="Average response time in seconds")
+    response_time_status: str = Field("on_target", description="on_target / above_target / below_target")
+    avg_sop_compliance_score: float = Field(0.0, description="Average SOP compliance score")
+    qualified_leads: int = Field(0, description="Number of qualified leads")
+    booked_appointments: int = Field(0, description="Number of booked appointments")
+    rank: Optional[int] = Field(None, description="Rank among CSRs (1-based)")
+    total_csrs: int = Field(0, description="Total CSRs in company")
+    top_objections: List[ObjectionCoachingNeed] = Field(default_factory=list, description="Top 3 objection-based coaching needs")
+    booking_rate_trend: List[Dict[str, Any]] = Field(default_factory=list, description="Booking rate trend over time")
+
+
+class StrengthsAndIssuesResponse(BaseModel):
+    """Unified response combining Shunya coaching profile + our DB metrics."""
+    # Rep info
+    rep_id: str
+    rep_name: str
+    company_id: str
+
+    # Time window (from Shunya)
+    window_start: str
+    window_end: str
+    calls_analyzed: int
+
+    # Shunya coaching data
+    top_weaknesses: List[CoachingBucket]
+    top_strengths: List[CoachingBucket]
+    all_weakness_buckets: List[CoachingBucket]
+    all_strength_buckets: List[CoachingBucket]
+
+    # Our DB metrics (what Shunya doesn't provide)
+    db_performance_metrics: DBPerformanceMetrics
+
+    # Metadata
+    calculated_at: str
+    data_sources: List[str] = Field(default_factory=lambda: ["shunya_coaching_profile", "otto_db_metrics"])
 
 
 class CSRProfileResponse(BaseModel):

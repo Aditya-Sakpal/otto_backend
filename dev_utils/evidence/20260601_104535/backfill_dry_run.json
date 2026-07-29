@@ -1,0 +1,20 @@
+{
+  "apply": false,
+  "returncode": 1,
+  "log_file": "backfill_dry_run.log",
+  "before": {
+    "total_pending": 185,
+    "with_due_at": 41,
+    "with_owner": 13,
+    "with_appointment_id": 0,
+    "with_priority": 3
+  },
+  "after": {
+    "total_pending": 185,
+    "with_due_at": 41,
+    "with_owner": 13,
+    "with_appointment_id": 0,
+    "with_priority": 3
+  },
+  "pass": false
+}

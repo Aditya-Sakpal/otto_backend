@@ -8,14 +8,16 @@ JWT-based authentication endpoints:
 - GET /auth/me - Get current user info
 """
 import traceback
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from app.core.dependencies import DbSession
 from app.core.security import create_access_token, create_refresh_token, get_user_id_from_token
 from app.core.auth import get_current_user
 from app.core.logging import get_logger
-from app.domain.users.service import UserService
+from app.domain.users.service import InactiveAccountError, UserService
 from app.domain.users.schemas import (
     SignupRequest,
     UserCreate,
@@ -30,8 +32,39 @@ from app.domain.users.models import User
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    400: {"description": "Bad request (e.g. email already exists)"},
+    401: {"description": "Unauthorized (invalid credentials or token)"},
+    403: {"description": "Forbidden"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
-@router.post("/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+# --- BUG #9 FIX: Helper to catch unknown/invalid company IDs ---
+async def validate_company_id(company_id: str, db: AsyncSession) -> None:
+    """Helper to prevent 500 error when company_id does not exist."""
+    try:
+        uuid_obj = UUID(str(company_id))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format for company_id"
+        )
+    
+    # Query database safely using text parameter mapping
+    result = await db.execute(
+        text("SELECT id FROM companies WHERE id = :company_id"),
+        {"company_id": str(uuid_obj)}
+    )
+    if not result.fetchone():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+# -------------------------------------------------------------
+
+
+@router.post("/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def signup(
     signup_data: SignupRequest,
     db: DbSession,
@@ -48,6 +81,11 @@ async def signup(
     Raises:
         HTTPException: 400 if email already exists or validation fails
     """
+    # --- BUG #9 FIX: Intercept inputs before calling business logic ---
+    if signup_data.company_id:
+        await validate_company_id(signup_data.company_id, db)
+    # -------------------------------------------------------------------
+
     user_service = UserService(db)
 
     try:
@@ -96,7 +134,7 @@ async def signup(
         )
 
 
-@router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
+@router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def login(
     login_data: LoginRequest,
     db: DbSession,
@@ -113,11 +151,17 @@ async def login(
     try:
         user_service = UserService(db)
 
-        # Authenticate user
-        user = await user_service.authenticate(
-            email=login_data.email,
-            password=login_data.password,
-        )
+        # Authenticate user (inactive accounts with valid password get 403)
+        try:
+            user = await user_service.authenticate(
+                email=login_data.email,
+                password=login_data.password,
+            )
+        except InactiveAccountError:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is inactive",
+            )
 
         if not user:
             raise HTTPException(
@@ -158,7 +202,7 @@ async def login(
         )
 
 
-@router.post("/refresh", response_model=RefreshTokenResponse, status_code=status.HTTP_200_OK)
+@router.post("/refresh", response_model=RefreshTokenResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def refresh_token(
     refresh_data: RefreshTokenRequest,
     db: DbSession,
@@ -222,10 +266,9 @@ async def refresh_token(
         )
 
 
-@router.get("/me", response_model=UserResponse, status_code=status.HTTP_200_OK)
+@router.get("/me", response_model=UserResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def get_current_user_info(
-    # RBAC DISABLED - user: User = Depends(get_current_user),
-    user: User = Depends(get_current_user),  # RBAC DISABLED - Returns dummy user
+    user: User = Depends(get_current_user),
 ) -> UserResponse:
     """
     Get current authenticated user information.

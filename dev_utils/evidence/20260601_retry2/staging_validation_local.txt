@@ -1,0 +1,23 @@
+Staging validation against http://127.0.0.1:8001
+
+PASS  classify call_back
+PASS  classify send_quote
+PASS  classify schedule_appointment
+PASS  fixture ghl_missed_call.json
+PASS  fixture ctm_missed_call.json
+PASS  fixture shoonya_job_complete_appointment.json
+PASS  auth/login
+PASS  metrics/actions/pending schema
+PASS  metrics bucket sum <= total_pending — total=9 buckets=8
+PASS  appointment context schema fields — history=2
+PASS  appointment context property data
+WARN  presigned appointment audio_url — URL not presigned — check AWS credentials / private bucket config
+
+--- Manual webhook replay (staging) ---
+GHL missed call fixture: R:\devfuzzion\otto_backend\backend\dev_utils\fixtures\ghl_missed_call.json
+  POST to your GHL webhook route; replay twice -> expect one call_back pending action
+CTM missed call fixture: R:\devfuzzion\otto_backend\backend\dev_utils\fixtures\ctm_missed_call.json
+Shunya job-complete fixture: R:\devfuzzion\otto_backend\backend\dev_utils\fixtures\shoonya_job_complete_appointment.json
+  Set appointment_id; replay twice -> expect one follow_up row with appointment_id FK
+
+=== SUMMARY: PASS=11 FAIL=0 WARN=1 ===

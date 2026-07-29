@@ -61,7 +61,7 @@ DATABASE_URL=sqlite+aiosqlite:///./otto.db  # or PostgreSQL connection string
 # JWT Configuration (for token signing)
 JWT_SECRET_KEY=your-secret-key-change-in-production
 JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
 # Shoonya/UWC Integration (optional)
 UWC_BASE_URL=https://...

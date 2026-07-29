@@ -1,0 +1,43 @@
+{
+  "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+  "first_post": {
+    "http": 200,
+    "body": {
+      "status": "success",
+      "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+      "follow_up_created": true
+    }
+  },
+  "second_post": {
+    "http": 200,
+    "body": {
+      "status": "success",
+      "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+      "follow_up_created": true
+    }
+  },
+  "probe_after_post1": {
+    "pending_follow_up_count": 1,
+    "pending_ids": [
+      "e9da35a2-f4bd-4b03-8538-c08117a45a00"
+    ]
+  },
+  "pending_actions": [
+    {
+      "id": "e9da35a2-f4bd-4b03-8538-c08117a45a00",
+      "action_type": "follow_up",
+      "source": "ai_analysis",
+      "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+      "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+      "due_at": "2026-06-02 05:50:26.848377+00:00",
+      "priority": 2,
+      "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+      "created_at": "2026-06-01 05:50:14.283656+00:00"
+    }
+  ],
+  "pending_count": 1,
+  "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+  "due_at": "2026-06-02 05:50:26.848377+00:00",
+  "priority": 2,
+  "pass": true
+}

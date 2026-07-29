@@ -1,0 +1,497 @@
+{
+  "call_id": 442,
+  "timestamp": "2026-01-19T08:50:46.874633",
+  "call_data": {
+    "call_id": "442",
+    "audio_url": "https://otto-call-recording.s3.us-east-1.amazonaws.com/v1/1323597077-redacted.mp3",
+    "call_date": "2026-01-16 19:48:43.693000",
+    "company_id": "string",
+    "created_at": "2026-01-16 20:01:07.230000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 48
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-16 20:01:07.230000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Thank you for calling Arizona Roofers. My name is Travis. Can I start with your name?",
+        "start_time": 0.0,
+        "end_time": 5.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Hi, Travis. I'm Sandy.",
+        "start_time": 5.0,
+        "end_time": 7.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Hi, Sandy. What's going on? How can we help?",
+        "start_time": 7.0,
+        "end_time": 10.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I would like an estimate, please, on my roof. I know I have some loose tiles. I can see that. I know I've got a couple of broken tiles, and I really don't know the condition of the roof itself. I do know it's Uh, we're out in Narcopa. Do you do that?",
+        "start_time": 10.0,
+        "end_time": 25.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "We do. Perfect. Uh, address is 22042 North Reis R.E.I.F. drive. 8-5-1-3-8?",
+        "start_time": 25.0,
+        "end_time": 30.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, sir. That's in Rancho El Dorado. Gotcha, okay.",
+        "start_time": 30.0,
+        "end_time": 35.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Let's take a look here. I think I got you pulled up here. It looks like it's a one-story tile roof with a three-par garage on the right-hand side.",
+        "start_time": 35.0,
+        "end_time": 45.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Correct. I've got you pulled up. A little bit of flat roof in the back there, too, it looks like as well, over the patio.",
+        "start_time": 45.0,
+        "end_time": 55.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Yes. Perfect. Okay. So what's going on, Bruce, Andy? What's breaking?",
+        "start_time": 55.0,
+        "end_time": 60.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Like I said, I can see that there are a couple of broken tiles and one looks loose or pointing. in the wrong direction or something. And I just want to get that checked before the next monsoon season and see, like I said, the roof is old. I don't know if it needs other repairs or not.",
+        "start_time": 60.0,
+        "end_time": 80.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Well, I've got some details pulled up for you here. It looks like I got the job card created as well. Sandy, what is your last name?",
+        "start_time": 80.0,
+        "end_time": 90.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Balak, B. as in boy, A. T. T. O. C. K.",
+        "start_time": 90.0,
+        "end_time": 95.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And the number you're calling me on, is that the best one to reach you?",
+        "start_time": 95.0,
+        "end_time": 100.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 100.0,
+        "end_time": 101.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And can I send you text updates as well?",
+        "start_time": 101.0,
+        "end_time": 105.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, perfect.",
+        "start_time": 105.0,
+        "end_time": 107.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "All right. And what's the best email address for you?",
+        "start_time": 107.0,
+        "end_time": 112.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "S underscore and my last name, badak at yahoo.com.",
+        "start_time": 112.0,
+        "end_time": 120.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "S underscore badak at what.com?",
+        "start_time": 120.0,
+        "end_time": 125.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes. Yahoo.com.",
+        "start_time": 125.0,
+        "end_time": 127.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Perfect. I am showing it's in an HOA community, is that correct?",
+        "start_time": 127.0,
+        "end_time": 135.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes.",
+        "start_time": 135.0,
+        "end_time": 136.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Is it a gated community or no?",
+        "start_time": 136.0,
+        "end_time": 140.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "No. That's right.",
+        "start_time": 140.0,
+        "end_time": 143.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Do you have any pets on the property?",
+        "start_time": 143.0,
+        "end_time": 147.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Only inside my house.",
+        "start_time": 147.0,
+        "end_time": 150.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Oh, yeah? Dogs, cats.",
+        "start_time": 150.0,
+        "end_time": 153.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Indoor cats, indoor cats. I have three myself.",
+        "start_time": 153.0,
+        "end_time": 160.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "There you go. Well, I've got most of the details that I need here, Sandy. So let me see what I can get somebody out there for you. Give me a sec here. Make sure they like cats. I'm kidding. Right. I won't send anybody with any allergies to you.",
+        "start_time": 160.0,
+        "end_time": 180.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Yes, right.",
+        "start_time": 180.0,
+        "end_time": 182.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Looks like I could do this coming Thursday between 1 and 3. Would that work for you?",
+        "start_time": 182.0,
+        "end_time": 192.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "You picked one day I had something going at 1 o'clock. One does that work.",
+        "start_time": 192.0,
+        "end_time": 200.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And yeah, actually it looks like we're Uh, next week, I can do, uh, next week I can do a Monday, noon or after or Wednesday or Thursday.",
+        "start_time": 200.0,
+        "end_time": 215.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I could do that Monday if you'd be good with that. That would be like a one to three.",
+        "start_time": 215.0,
+        "end_time": 225.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "That's perfect, yeah.",
+        "start_time": 225.0,
+        "end_time": 228.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Okay, okay. Oh, yeah.",
+        "start_time": 228.0,
+        "end_time": 232.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "That's MLK Day, but are you guys still working? I haven't heard of us taking it off, but I can reschedule just to be safe.",
+        "start_time": 232.0,
+        "end_time": 245.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I'll stay here. Yeah, we can be there.",
+        "start_time": 245.0,
+        "end_time": 252.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "I'll set it in schedule from one\u2026 What? We can do Monday.",
+        "start_time": 252.0,
+        "end_time": 260.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I have you in the schedule between 1 to 3. Yes.",
+        "start_time": 260.0,
+        "end_time": 265.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. All right. Yes. Perfect.",
+        "start_time": 265.0,
+        "end_time": 270.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "All right.",
+        "start_time": 270.0,
+        "end_time": 271.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "And who, Gino, who will be coming out or not? Most likely it's between 2 reps, but I'll schedule it usually the Friday before.",
+        "start_time": 271.0,
+        "end_time": 285.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Oh, okay. Sounds good. Between 1 and 3 on Monday.",
+        "start_time": 285.0,
+        "end_time": 292.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "You got it. We'll see you soon with this, Andy.",
+        "start_time": 292.0,
+        "end_time": 298.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Appreciate it, Travis. Thank you.",
+        "start_time": 298.0,
+        "end_time": 303.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Bye.",
+        "start_time": 303.0,
+        "end_time": 304.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "Bye-bye.",
+        "start_time": 304.0,
+        "end_time": 306.0,
+        "original_speaker": "SPEAKER_01"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Thank you for calling Arizona Roofers. My name is Travis. Can I start with your name?\n\nhome_owner: Hi, Travis. I'm Sandy.\n\ncustomer_rep: Hi, Sandy. What's going on? How can we help?\n\nhome_owner: I would like an estimate, please, on my roof. I know I have some loose tiles. I can see that. I know I've got a couple of broken tiles, and I really don't know the condition of the roof itself. I do know it's Uh, we're out in Narcopa. Do you do that?\n\ncustomer_rep: We do. Perfect. Uh, address is 22042 North Reis R.E.I.F. drive. 8-5-1-3-8?\n\nhome_owner: Yes, sir. That's in Rancho El Dorado. Gotcha, okay.\n\ncustomer_rep: Let's take a look here. I think I got you pulled up here. It looks like it's a one-story tile roof with a three-par garage on the right-hand side.\n\nhome_owner: Correct. I've got you pulled up. A little bit of flat roof in the back there, too, it looks like as well, over the patio.\n\ncustomer_rep: Yes. Perfect. Okay. So what's going on, Bruce, Andy? What's breaking?\n\nhome_owner: Like I said, I can see that there are a couple of broken tiles and one looks loose or pointing. in the wrong direction or something. And I just want to get that checked before the next monsoon season and see, like I said, the roof is old. I don't know if it needs other repairs or not.\n\ncustomer_rep: Well, I've got some details pulled up for you here. It looks like I got the job card created as well. Sandy, what is your last name?\n\nhome_owner: Balak, B. as in boy, A. T. T. O. C. K.\n\ncustomer_rep: And the number you're calling me on, is that the best one to reach you?\n\nhome_owner: Yes.\n\ncustomer_rep: And can I send you text updates as well?\n\nhome_owner: Yes, perfect.\n\ncustomer_rep: All right. And what's the best email address for you?\n\nhome_owner: S underscore and my last name, badak at yahoo.com.\n\ncustomer_rep: S underscore badak at what.com?\n\nhome_owner: Yes. Yahoo.com.\n\ncustomer_rep: Perfect. I am showing it's in an HOA community, is that correct?\n\nhome_owner: Yes.\n\ncustomer_rep: Is it a gated community or no?\n\nhome_owner: No. That's right.\n\ncustomer_rep: Do you have any pets on the property?\n\nhome_owner: Only inside my house.\n\ncustomer_rep: Oh, yeah? Dogs, cats.\n\nhome_owner: Indoor cats, indoor cats. I have three myself.\n\ncustomer_rep: There you go. Well, I've got most of the details that I need here, Sandy. So let me see what I can get somebody out there for you. Give me a sec here. Make sure they like cats. I'm kidding. Right. I won't send anybody with any allergies to you.\n\nhome_owner: Yes, right.\n\ncustomer_rep: Looks like I could do this coming Thursday between 1 and 3. Would that work for you?\n\nhome_owner: You picked one day I had something going at 1 o'clock. One does that work.\n\ncustomer_rep: And yeah, actually it looks like we're Uh, next week, I can do, uh, next week I can do a Monday, noon or after or Wednesday or Thursday.\n\nhome_owner: I could do that Monday if you'd be good with that. That would be like a one to three.\n\ncustomer_rep: That's perfect, yeah.\n\nhome_owner: Okay, okay. Oh, yeah.\n\ncustomer_rep: That's MLK Day, but are you guys still working? I haven't heard of us taking it off, but I can reschedule just to be safe.\n\nhome_owner: I'll stay here. Yeah, we can be there.\n\ncustomer_rep: I'll set it in schedule from one\u2026 What? We can do Monday.\n\nhome_owner: I have you in the schedule between 1 to 3. Yes.\n\ncustomer_rep: Okay. All right. Yes. Perfect.\n\nhome_owner: All right.\n\ncustomer_rep: And who, Gino, who will be coming out or not? Most likely it's between 2 reps, but I'll schedule it usually the Friday before.\n\nhome_owner: Oh, okay. Sounds good. Between 1 and 3 on Monday.\n\ncustomer_rep: You got it. We'll see you soon with this, Andy.\n\nhome_owner: Appreciate it, Travis. Thank you.\n\ncustomer_rep: Bye.\n\nhome_owner: Bye-bye."
+  },
+  "transcript": "customer_rep: Thank you for calling Arizona Roofers. My name is Travis. Can I start with your name?\n\nhome_owner: Hi, Travis. I'm Sandy.\n\ncustomer_rep: Hi, Sandy. What's going on? How can we help?\n\nhome_owner: I would like an estimate, please, on my roof. I know I have some loose tiles. I can see that. I know I've got a couple of broken tiles, and I really don't know the condition of the roof itself. I do know it's Uh, we're out in Narcopa. Do you do that?\n\ncustomer_rep: We do. Perfect. Uh, address is 22042 North Reis R.E.I.F. drive. 8-5-1-3-8?\n\nhome_owner: Yes, sir. That's in Rancho El Dorado. Gotcha, okay.\n\ncustomer_rep: Let's take a look here. I think I got you pulled up here. It looks like it's a one-story tile roof with a three-par garage on the right-hand side.\n\nhome_owner: Correct. I've got you pulled up. A little bit of flat roof in the back there, too, it looks like as well, over the patio.\n\ncustomer_rep: Yes. Perfect. Okay. So what's going on, Bruce, Andy? What's breaking?\n\nhome_owner: Like I said, I can see that there are a couple of broken tiles and one looks loose or pointing. in the wrong direction or something. And I just want to get that checked before the next monsoon season and see, like I said, the roof is old. I don't know if it needs other repairs or not.\n\ncustomer_rep: Well, I've got some details pulled up for you here. It looks like I got the job card created as well. Sandy, what is your last name?\n\nhome_owner: Balak, B. as in boy, A. T. T. O. C. K.\n\ncustomer_rep: And the number you're calling me on, is that the best one to reach you?\n\nhome_owner: Yes.\n\ncustomer_rep: And can I send you text updates as well?\n\nhome_owner: Yes, perfect.\n\ncustomer_rep: All right. And what's the best email address for you?\n\nhome_owner: S underscore and my last name, badak at yahoo.com.\n\ncustomer_rep: S underscore badak at what.com?\n\nhome_owner: Yes. Yahoo.com.\n\ncustomer_rep: Perfect. I am showing it's in an HOA community, is that correct?\n\nhome_owner: Yes.\n\ncustomer_rep: Is it a gated community or no?\n\nhome_owner: No. That's right.\n\ncustomer_rep: Do you have any pets on the property?\n\nhome_owner: Only inside my house.\n\ncustomer_rep: Oh, yeah? Dogs, cats.\n\nhome_owner: Indoor cats, indoor cats. I have three myself.\n\ncustomer_rep: There you go. Well, I've got most of the details that I need here, Sandy. So let me see what I can get somebody out there for you. Give me a sec here. Make sure they like cats. I'm kidding. Right. I won't send anybody with any allergies to you.\n\nhome_owner: Yes, right.\n\ncustomer_rep: Looks like I could do this coming Thursday between 1 and 3. Would that work for you?\n\nhome_owner: You picked one day I had something going at 1 o'clock. One does that work.\n\ncustomer_rep: And yeah, actually it looks like we're Uh, next week, I can do, uh, next week I can do a Monday, noon or after or Wednesday or Thursday.\n\nhome_owner: I could do that Monday if you'd be good with that. That would be like a one to three.\n\ncustomer_rep: That's perfect, yeah.\n\nhome_owner: Okay, okay. Oh, yeah.\n\ncustomer_rep: That's MLK Day, but are you guys still working? I haven't heard of us taking it off, but I can reschedule just to be safe.\n\nhome_owner: I'll stay here. Yeah, we can be there.\n\ncustomer_rep: I'll set it in schedule from one\u2026 What? We can do Monday.\n\nhome_owner: I have you in the schedule between 1 to 3. Yes.\n\ncustomer_rep: Okay. All right. Yes. Perfect.\n\nhome_owner: All right.\n\ncustomer_rep: And who, Gino, who will be coming out or not? Most likely it's between 2 reps, but I'll schedule it usually the Friday before.\n\nhome_owner: Oh, okay. Sounds good. Between 1 and 3 on Monday.\n\ncustomer_rep: You got it. We'll see you soon with this, Andy.\n\nhome_owner: Appreciate it, Travis. Thank you.\n\ncustomer_rep: Bye.\n\nhome_owner: Bye-bye.",
+  "summary": {
+    "call_id": "442",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.9,
+        "compliance_rate": 0.9,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "Greeting & Identification",
+            "Needs Discovery",
+            "Qualifying",
+            "Scheduling",
+            "Setting Expectations",
+            "Close & Confirmation"
+          ],
+          "missed": []
+        },
+        "issues": [],
+        "positive_behaviors": [
+          "Professional greeting with company name",
+          "Asked clarifying questions",
+          "Confirmed address and contact",
+          "Provided options and next steps"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-16T20:01:01.720671"
+      },
+      "call_id": "442"
+    },
+    "created_at": "2026-01-16 20:01:07.420000",
+    "milvus_id": "vec_442_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "booked",
+      "call_outcome_category": "qualified_and_booked",
+      "appointment_confirmed": true,
+      "appointment_date": "2026-01-25T13:00:00",
+      "appointment_type": "in-person",
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.7,
+      "preferred_time_window": "afternoon",
+      "appointment_intent": "new",
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof inspection and repair",
+      "service_not_offered_reason": null,
+      "service_address_raw": "22042 North Reis R.E.I.F. drive, Rancho El Dorado, Narcopa",
+      "service_address_structured": {
+        "line1": "22042 North Reis R.E.I.F. drive",
+        "city": "Rancho El Dorado",
+        "state": "Narcopa",
+        "postal_code": null,
+        "country": "US"
+      },
+      "address_confidence": 0.7,
+      "customer_name": "Sandy",
+      "customer_name_confidence": 1.0,
+      "decision_makers": [
+        "Sandy (homeowner/customer)"
+      ],
+      "urgency_signals": [
+        "before the next monsoon season"
+      ],
+      "budget_indicators": [],
+      "confidence_score": 0.8,
+      "follow_up_required": false,
+      "follow_up_reason": null,
+      "property_details": {
+        "roof_type": "tile",
+        "roof_age_years": null,
+        "stories": "single",
+        "hoa_status": "yes",
+        "gated_community": false,
+        "has_solar": false,
+        "pets": "indoor cat",
+        "property_access_notes": null,
+        "roof_condition": null,
+        "special_features": []
+      }
+    },
+    "summary": {
+      "summary": "Sandy Balak called Arizona Roofers to request an estimate for a roof inspection and potential repairs due to loose and broken tiles. The representative, Travis, scheduled an appointment for Monday between 1-3 PM to inspect the roof and provide an estimate. Sandy has three indoor cats and lives in a non-gated HOA community in Rancho El Dorado.",
+      "key_points": [
+        "Customer needs a roof inspection and potential repairs due to loose and broken tiles.",
+        "Scheduled appointment for Monday between 1-3 PM for roof inspection and estimate.",
+        "Customer has three indoor cats and lives in a non-gated HOA community."
+      ],
+      "action_items": [
+        "Schedule roof inspection and estimate for Monday between 1-3 PM."
+      ],
+      "next_steps": [
+        "Send text updates to Sandy Balak.",
+        "Send email to Sandy Balak with estimate and schedule appointment."
+      ],
+      "pending_actions": [
+        {
+          "type": "schedule_appointment",
+          "owner": "customer_rep",
+          "due_at": "2026-01-18T13:00:00",
+          "raw_text": "Travis scheduled an appointment for Monday between 1-3 PM.",
+          "confidence": 0.9,
+          "contact_method": "phone"
+        },
+        {
+          "type": "send_info",
+          "owner": "customer_rep",
+          "due_at": "2026-01-17T10:00:00",
+          "raw_text": "Travis will send text updates to Sandy Balak.",
+          "confidence": 0.8,
+          "contact_method": "sms"
+        }
+      ],
+      "sentiment_score": 0.7,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

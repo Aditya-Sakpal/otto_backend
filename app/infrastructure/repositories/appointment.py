@@ -3,17 +3,109 @@ Appointment repository.
 """
 from typing import Optional, List
 from uuid import UUID
-from datetime import datetime
+from datetime import date, datetime, time, timezone
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
+from app.domain.enums import UserRole
 from app.domain.models.appointment import Appointment
 from app.infrastructure.database.models.appointment import AppointmentORM
+from app.infrastructure.database.models.contact import ContactCardORM
+from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.repositories.base import BaseRepository
 
 logger = get_logger(__name__)
+
+
+def _coerce_scheduled_range_end(end_date: datetime | date) -> datetime:
+    """
+    Inclusive upper bound for scheduled_start range filters.
+
+    Query params parsed as date-only (YYYY-MM-DD) become midnight UTC; without
+    adjustment, scheduled_start <= that instant excludes the rest of that day.
+    Midnight datetimes are treated as the end calendar day in their timezone.
+    """
+    if isinstance(end_date, datetime):
+        end_dt = end_date
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        if end_dt.time() == time.min and end_dt.microsecond == 0:
+            return datetime.combine(end_dt.date(), time.max, tzinfo=end_dt.tzinfo)
+        return end_dt
+    return datetime.combine(end_date, time.max, tzinfo=timezone.utc)
+
+
+def normalize_appointment_outcome_filter(raw: Optional[str]) -> Optional[str]:
+    """
+    Map UI/API outcome strings to DB outcome values.
+
+    Returns one of pending/won/lost/no_show/rescheduled, or None to mean "no outcome filter".
+    Unknown strings return None (no filter), matching previous ridealongs behavior.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    s = s.lower().replace(" ", "_").replace("-", "_")
+    aliases = {
+        "in_progress": "pending",
+        "inprogress": "pending",
+        "pending": "pending",
+        "won": "won",
+        "lost": "lost",
+        "no_show": "no_show",
+        "noshow": "no_show",
+        "rescheduled": "rescheduled",
+    }
+    resolved = aliases.get(s, s)
+    if resolved not in ("pending", "won", "lost", "no_show", "rescheduled"):
+        return None
+    return resolved
+
+
+def _apply_appointment_outcome_filter(query, norm: Optional[str]):
+    """Restrict query to appointments matching outcome `norm`; None = no filter."""
+    if norm is None:
+        return query
+    if norm == "pending":
+        return query.where(
+            or_(
+                AppointmentORM.outcome.is_(None),
+                func.lower(func.coalesce(AppointmentORM.outcome, "")) == "pending",
+            )
+        )
+    return query.where(func.lower(func.coalesce(AppointmentORM.outcome, "")) == norm)
+
+
+def _appointment_search_tokens(raw: Optional[str]) -> List[str]:
+    if raw is None or not str(raw).strip():
+        return []
+    return [t for t in str(raw).strip().split() if t]
+
+
+def _apply_appointment_search_filter(query, tokens: List[str]):
+    """
+    Each token must match at least one of: contact first/last/phone, rep first/last,
+    appointment location (case-insensitive substring). Tokens are ANDed.
+    """
+    if not tokens:
+        return query
+    for token in tokens:
+        pattern = f"%{token}%"
+        query = query.where(
+            or_(
+                ContactCardORM.first_name.ilike(pattern),
+                ContactCardORM.last_name.ilike(pattern),
+                ContactCardORM.primary_phone.ilike(pattern),
+                UserORM.first_name.ilike(pattern),
+                UserORM.last_name.ilike(pattern),
+                AppointmentORM.location_address.ilike(pattern),
+            )
+        )
+    return query
 
 
 class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
@@ -25,11 +117,51 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
     async def get_by_company(
         self,
         company_id: UUID,
+        start_date: Optional[datetime | date] = None,
+        end_date: Optional[datetime | date] = None,
+        past_only: bool = False,
         skip: int = 0,
         limit: int = 100,
+        outcome: Optional[str] = None,
+        search: Optional[str] = None,
     ) -> List[Appointment]:
-        """Get all appointments for a company."""
+        """Get all appointments for a company, with optional schedule, outcome, and text search filters."""
         try:
+            norm = normalize_appointment_outcome_filter(outcome)
+            tokens = _appointment_search_tokens(search)
+            if (
+                start_date is not None
+                or end_date is not None
+                or past_only
+                or norm is not None
+                or tokens
+            ):
+                query = select(AppointmentORM).where(AppointmentORM.company_id == company_id)
+                if tokens:
+                    query = query.outerjoin(
+                        ContactCardORM, AppointmentORM.contact_card_id == ContactCardORM.id
+                    ).outerjoin(UserORM, AppointmentORM.assigned_rep_id == UserORM.id)
+                if start_date is not None:
+                    start_dt = start_date if isinstance(start_date, datetime) else datetime.combine(start_date, time.min, tzinfo=timezone.utc)
+                    query = query.where(AppointmentORM.scheduled_start >= start_dt)
+                if end_date is not None:
+                    end_dt = _coerce_scheduled_range_end(end_date)
+                    query = query.where(AppointmentORM.scheduled_start <= end_dt)
+                if past_only:
+                    query = query.where(AppointmentORM.scheduled_start < datetime.now(timezone.utc))
+                query = _apply_appointment_outcome_filter(query, norm)
+                if tokens:
+                    query = _apply_appointment_search_filter(query, tokens)
+                # Ensure deterministic ordering for pagination/limits (otherwise large ranges can look "cut off")
+                query = query.order_by(AppointmentORM.scheduled_start.desc(), AppointmentORM.created_at.desc())
+                query = query.offset(skip).limit(limit)
+                result = await self.session.execute(query)
+                orm_objs = (
+                    result.unique().scalars().all()
+                    if tokens
+                    else result.scalars().all()
+                )
+                return [self._to_domain(obj) for obj in orm_objs]
             return await self.get_all(
                 skip=skip,
                 limit=limit,
@@ -73,15 +205,213 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
             logger.error(f"Error counting appointments by outcome: {e}")
             raise e
 
+    async def count_today(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+    ) -> int:
+        """Count appointments scheduled for today."""
+        try:
+            utc_today = datetime.now(timezone.utc).date()
+            today_start = datetime.combine(utc_today, time.min, tzinfo=timezone.utc)
+            today_end = datetime.combine(utc_today, time.max, tzinfo=timezone.utc)
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= today_start,
+                AppointmentORM.scheduled_start <= today_end,
+            ]
+            if assigned_rep_id:
+                filters.append(AppointmentORM.assigned_rep_id == assigned_rep_id)
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting today's appointments: {e}")
+            raise e
+
+    async def count_pending(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+    ) -> int:
+        """Count today's appointments with pending outcome (not yet completed)."""
+        try:
+            utc_today = datetime.now(timezone.utc).date()
+            today_start = datetime.combine(utc_today, time.min, tzinfo=timezone.utc)
+            today_end = datetime.combine(utc_today, time.max, tzinfo=timezone.utc)
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= today_start,
+                AppointmentORM.scheduled_start <= today_end,
+                or_(
+                    AppointmentORM.outcome.is_(None),
+                    AppointmentORM.outcome == "pending",
+                ),
+            ]
+            if assigned_rep_id:
+                filters.append(AppointmentORM.assigned_rep_id == assigned_rep_id)
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting pending appointments: {e}")
+            raise e
+
+    async def count_closed(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+    ) -> int:
+        """Count today's appointments with closed outcome (won or lost)."""
+        try:
+            utc_today = datetime.now(timezone.utc).date()
+            today_start = datetime.combine(utc_today, time.min, tzinfo=timezone.utc)
+            today_end = datetime.combine(utc_today, time.max, tzinfo=timezone.utc)
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.scheduled_start >= today_start,
+                AppointmentORM.scheduled_start <= today_end,
+                AppointmentORM.outcome.in_(["won", "lost"]),
+            ]
+            if assigned_rep_id:
+                filters.append(AppointmentORM.assigned_rep_id == assigned_rep_id)
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting closed appointments: {e}")
+            raise e
+
+    async def count_for_date_range(
+        self,
+        company_id: UUID,
+        assigned_rep_id: UUID,
+        utc_start: datetime,
+        utc_end: datetime,
+    ) -> int:
+        """Count appointments for a rep within a UTC date range."""
+        try:
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id == assigned_rep_id,
+                AppointmentORM.scheduled_start >= utc_start,
+                AppointmentORM.scheduled_start <= utc_end,
+            ]
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting appointments for date range: {e}")
+            raise e
+
+    async def count_pending_for_date_range(
+        self,
+        company_id: UUID,
+        assigned_rep_id: UUID,
+        utc_start: datetime,
+        utc_end: datetime,
+    ) -> int:
+        """Count pending appointments for a rep within a UTC date range."""
+        try:
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id == assigned_rep_id,
+                AppointmentORM.scheduled_start >= utc_start,
+                AppointmentORM.scheduled_start <= utc_end,
+                or_(
+                    AppointmentORM.outcome.is_(None),
+                    AppointmentORM.outcome == "pending",
+                ),
+            ]
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting pending appointments for date range: {e}")
+            raise e
+
+    async def count_closed_for_date_range(
+        self,
+        company_id: UUID,
+        assigned_rep_id: UUID,
+        utc_start: datetime,
+        utc_end: datetime,
+    ) -> int:
+        """Count closed (won/lost) appointments for a rep within a UTC date range."""
+        try:
+            filters = [
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id == assigned_rep_id,
+                AppointmentORM.scheduled_start >= utc_start,
+                AppointmentORM.scheduled_start <= utc_end,
+                AppointmentORM.outcome.in_(["won", "lost"]),
+            ]
+            result = await self.session.execute(
+                select(func.count(AppointmentORM.id)).where(*filters)
+            )
+            return result.scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting closed appointments for date range: {e}")
+            raise e
+
     async def get_by_assigned_rep(
         self,
         company_id: UUID,
         assigned_rep_id: UUID,
+        start_date: Optional[datetime | date] = None,
+        end_date: Optional[datetime | date] = None,
+        past_only: bool = False,
         skip: int = 0,
         limit: int = 100,
+        outcome: Optional[str] = None,
+        search: Optional[str] = None,
     ) -> List[Appointment]:
-        """Get all appointments for a company assigned to a specific sales rep."""
+        """Get appointments for a rep, with optional schedule, outcome, and text search filters."""
         try:
+            norm = normalize_appointment_outcome_filter(outcome)
+            tokens = _appointment_search_tokens(search)
+            if (
+                start_date is not None
+                or end_date is not None
+                or past_only
+                or norm is not None
+                or tokens
+            ):
+                query = (
+                    select(AppointmentORM)
+                    .where(AppointmentORM.company_id == company_id)
+                    .where(AppointmentORM.assigned_rep_id == assigned_rep_id)
+                )
+                if tokens:
+                    query = query.outerjoin(
+                        ContactCardORM, AppointmentORM.contact_card_id == ContactCardORM.id
+                    ).outerjoin(UserORM, AppointmentORM.assigned_rep_id == UserORM.id)
+                if start_date is not None:
+                    start_dt = start_date if isinstance(start_date, datetime) else datetime.combine(start_date, time.min, tzinfo=timezone.utc)
+                    query = query.where(AppointmentORM.scheduled_start >= start_dt)
+                if end_date is not None:
+                    end_dt = _coerce_scheduled_range_end(end_date)
+                    query = query.where(AppointmentORM.scheduled_start <= end_dt)
+                if past_only:
+                    query = query.where(AppointmentORM.scheduled_start < datetime.now(timezone.utc))
+                query = _apply_appointment_outcome_filter(query, norm)
+                if tokens:
+                    query = _apply_appointment_search_filter(query, tokens)
+                # Ensure deterministic ordering for pagination/limits (otherwise large ranges can look "cut off")
+                query = query.order_by(AppointmentORM.scheduled_start.desc(), AppointmentORM.created_at.desc())
+                query = query.offset(skip).limit(limit)
+                result = await self.session.execute(query)
+                orm_objs = (
+                    result.unique().scalars().all()
+                    if tokens
+                    else result.scalars().all()
+                )
+                return [self._to_domain(obj) for obj in orm_objs]
             return await self.get_all(
                 skip=skip,
                 limit=limit,
@@ -106,16 +436,209 @@ class AppointmentRepository(BaseRepository[AppointmentORM, Appointment]):
             logger.error(f"Error getting appointment by lead ID: {e}")
             raise e
 
-    async def create_appointment(self, appointment: Appointment) -> Appointment:
-        """Create appointment."""
+    async def get_by_interaction_id(self, interaction_id: UUID) -> Optional[Appointment]:
+        """Get appointment by call/interaction ID (for appointments created from calls)."""
         try:
-            orm_obj = self._to_orm(appointment)
-            self.session.add(orm_obj)
-            await self.session.flush()
-            await self.session.refresh(orm_obj)
-            return self._to_domain(orm_obj)
+            result = await self.session.execute(
+                select(AppointmentORM).where(AppointmentORM.interaction_id == interaction_id)
+            )
+            orm_obj = result.scalar_one_or_none()
+            return self._to_domain(orm_obj) if orm_obj else None
         except Exception as e:
-            logger.error(f"Error creating appointment: {e}")
+            logger.error(f"Error getting appointment by interaction ID: {e}")
+            raise e
+
+    async def find_for_lead_within_window(
+        self,
+        lead_id: UUID,
+        scheduled_start: datetime,
+        window_minutes: int = 120,
+    ) -> Optional[Appointment]:
+        """
+        Find an existing appointment for ``lead_id`` whose ``scheduled_start``
+        is within ``+/- window_minutes`` of the given timestamp.
+
+        Used by the call-driven appointment ingest path to avoid the audit's
+        #39 case where the same lead receives two calls (e.g., follow-up
+        confirmation) and ends up with two near-duplicate appointment rows.
+
+        If multiple matches exist the most recently updated one is returned.
+        """
+        try:
+            from datetime import timedelta as _td
+
+            window = _td(minutes=window_minutes)
+            lower = scheduled_start - window
+            upper = scheduled_start + window
+            result = await self.session.execute(
+                select(AppointmentORM)
+                .where(
+                    AppointmentORM.lead_id == lead_id,
+                    AppointmentORM.scheduled_start >= lower,
+                    AppointmentORM.scheduled_start <= upper,
+                )
+                .order_by(
+                    AppointmentORM.updated_at.desc().nullslast(),
+                    AppointmentORM.created_at.desc(),
+                )
+                .limit(1)
+            )
+            orm_obj = result.scalar_one_or_none()
+            return self._to_domain(orm_obj) if orm_obj else None
+        except Exception as e:
+            logger.error(f"Error finding appointment within window: {e}")
+            raise e
+
+    async def get_ridealongs_filtered(
+        self,
+        company_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        status: Optional[str] = None,
+        ghost_mode: Optional[bool] = None,
+        sales_rep_name: Optional[str] = None,
+        search: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+        order_desc: bool = False,
+    ) -> List[Appointment]:
+        """
+        Get appointments (ridealongs) with filters for dashboard.
+
+        Args:
+            company_id: Company UUID
+            start_date: Filter scheduled on or after this date
+            end_date: Filter scheduled on or before this date
+            status: Filter by outcome (pending, won, lost, no_show, rescheduled)
+            ghost_mode: Filter by assigned rep's ghost_mode_active (True/False)
+            sales_rep_name: Filter by rep name (case-insensitive partial match)
+            search: Filter by contact name/phone, rep name, or location (tokens ANDed)
+            skip: Pagination offset
+            limit: Max results
+            order_desc: If True, order by scheduled_start desc (newest first)
+
+        Returns:
+            List of Appointment domain models
+        """
+        try:
+            search_tokens = _appointment_search_tokens(search)
+            needs_user_join = ghost_mode is not None or (
+                sales_rep_name is not None and sales_rep_name.strip()
+            )
+
+            # Join User so we only include appointments assigned to a sales rep
+            query = (
+                select(AppointmentORM)
+                .where(AppointmentORM.company_id == company_id)
+                .where(AppointmentORM.assigned_rep_id.isnot(None))
+                .join(UserORM, AppointmentORM.assigned_rep_id == UserORM.id)
+                .where(UserORM.role == UserRole.SALES_REP.value)
+            )
+            if search_tokens:
+                query = query.outerjoin(
+                    ContactCardORM, AppointmentORM.contact_card_id == ContactCardORM.id
+                )
+
+            if start_date is not None:
+                start_dt = datetime.combine(start_date, time.min, tzinfo=timezone.utc)
+                query = query.where(AppointmentORM.scheduled_start >= start_dt)
+            if end_date is not None:
+                end_dt = datetime.combine(end_date, time.max, tzinfo=timezone.utc)
+                query = query.where(AppointmentORM.scheduled_start <= end_dt)
+
+            norm = normalize_appointment_outcome_filter(status)
+            query = _apply_appointment_outcome_filter(query, norm)
+            if search_tokens:
+                query = _apply_appointment_search_filter(query, search_tokens)
+
+            if needs_user_join:
+                if ghost_mode is not None:
+                    dialect = self.session.get_bind().dialect.name
+                    if dialect == "postgresql":
+                        gm_key = UserORM.extra_metadata["ghost_mode_active"].astext
+                        if ghost_mode:
+                            query = query.where(gm_key == "true")
+                        else:
+                            query = query.where(
+                                or_(gm_key.is_(None), gm_key != "true")
+                            )
+
+                if sales_rep_name is not None and sales_rep_name.strip():
+                    name_pattern = f"%{sales_rep_name.strip()}%"
+                    query = query.where(
+                        or_(
+                            func.coalesce(UserORM.first_name, "").ilike(name_pattern),
+                            func.coalesce(UserORM.last_name, "").ilike(name_pattern),
+                        )
+                    )
+
+            if order_desc:
+                query = query.order_by(
+                    AppointmentORM.scheduled_start.desc(),
+                    AppointmentORM.created_at.desc(),
+                )
+            else:
+                query = query.order_by(
+                    AppointmentORM.scheduled_start.asc(),
+                    AppointmentORM.created_at.asc(),
+                )
+
+            query = query.offset(skip).limit(limit)
+            result = await self.session.execute(query)
+            orm_objs = result.unique().scalars().all()
+            return [self._to_domain(obj) for obj in orm_objs]
+        except Exception as e:
+            logger.error(f"Error getting filtered ridealongs: {e}")
+            raise e
+
+    async def get_upcoming(
+        self,
+        company_id: UUID,
+        assigned_rep_id: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[Appointment]:
+        """
+        Get upcoming appointments (future, pending status only).
+
+        Returns appointments with:
+        - scheduled_start >= now (future)
+        - outcome is None or 'pending'
+        - Sorted by scheduled_start ASC (soonest first)
+
+        Args:
+            company_id: Company UUID
+            assigned_rep_id: Optional filter by assigned sales rep
+            skip: Pagination offset
+            limit: Max results
+
+        Returns:
+            List of upcoming appointments
+        """
+        try:
+            query = (
+                select(AppointmentORM)
+                .where(AppointmentORM.company_id == company_id)
+                .where(AppointmentORM.scheduled_start >= datetime.now(timezone.utc))
+                .where(
+                    or_(
+                        AppointmentORM.outcome.is_(None),
+                        AppointmentORM.outcome == "pending",
+                    )
+                )
+            )
+
+            if assigned_rep_id:
+                query = query.where(AppointmentORM.assigned_rep_id == assigned_rep_id)
+
+            query = query.order_by(AppointmentORM.scheduled_start.asc())
+            query = query.offset(skip).limit(limit)
+
+            result = await self.session.execute(query)
+            orm_objs = result.scalars().all()
+            return [self._to_domain(obj) for obj in orm_objs]
+        except Exception as e:
+            logger.error(f"Error getting upcoming appointments: {e}")
             raise e
 
     async def update_appointment(self, appointment: Appointment) -> Appointment:

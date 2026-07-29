@@ -17,6 +17,7 @@ from app.core.permissions import require_any_role
 from app.domain.enums import UserRole
 from app.domain.users.models import User
 from app.infrastructure.integrations.shoonya import get_shoonya_client
+from app.services.appointment_service import AppointmentService
 from app.core.logging import get_logger
 from app.infrastructure.database.models.insight_job import InsightJobORM
 from sqlalchemy import select
@@ -24,6 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 logger = get_logger(__name__)
+
+RESPONSES = {
+    403: {"description": "Forbidden"},
+    404: {"description": "Job or resource not found"},
+    500: {"description": "Internal server error"},
+    503: {"description": "Shunya service not available"},
+}
 
 
 # Request/Response Models
@@ -40,7 +48,7 @@ class GenerateInsightsRequest(BaseModel):
     )
 
 
-@router.post("/generate", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/generate", status_code=status.HTTP_202_ACCEPTED, responses=RESPONSES)
 async def generate_insights(
     body: GenerateInsightsRequest,
     db: DbSession,
@@ -87,6 +95,16 @@ async def generate_insights(
         await db.commit()
         await db.refresh(job)
         
+        # Override week_start/week_end in the response with what we actually
+        # stored — Shunya may echo different defaults.
+        result["week_start"] = job.week_start.isoformat()
+        result["week_end"] = job.week_end.isoformat()
+        result["company_ids"] = job.company_ids
+        result["insight_types"] = job.insight_types
+        result["force_regenerate"] = job.force_regenerate
+        result["include_inactive_customers"] = job.include_inactive_customers
+        result["local_job_id"] = str(job.id)
+
         return result
     except HTTPException:
         raise
@@ -105,7 +123,7 @@ async def generate_insights(
         )
 
 
-@router.get("/status/{job_id}")
+@router.get("/status/{job_id}", responses=RESPONSES)
 async def get_insight_job_status(
     job_id: str,
     db: DbSession,
@@ -149,6 +167,17 @@ async def get_insight_job_status(
             job.error = result.get("error")
             
             await db.commit()
+
+            # Override week_start/week_end and flags in the response with our
+            # locally stored values — Shunya may return defaults that don't
+            # match what was actually submitted.
+            result["week_start"] = job.week_start.isoformat()
+            result["week_end"] = job.week_end.isoformat()
+            result["company_ids"] = job.company_ids
+            result["insight_types"] = job.insight_types
+            result["force_regenerate"] = job.force_regenerate
+            result["include_inactive_customers"] = job.include_inactive_customers
+            result["local_job_id"] = str(job.id)
         
         return result
     except HTTPException:
@@ -162,7 +191,7 @@ async def get_insight_job_status(
         )
 
 
-@router.get("/company/{company_id}/current")
+@router.get("/company/{company_id}/current", responses=RESPONSES)
 async def get_current_company_insight(
     company_id: UUID,
     db: DbSession,
@@ -194,7 +223,7 @@ async def get_current_company_insight(
         )
 
 
-@router.get("/customers")
+@router.get("/customers", responses=RESPONSES)
 async def get_customer_insights(
     db: DbSession,
     # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
@@ -240,7 +269,60 @@ async def get_customer_insights(
         )
 
 
-@router.get("/objections/{company_id}")
+@router.get("/appointments/{appointment_id}")
+async def get_appointment_insights(
+    appointment_id: UUID,
+    db: DbSession,
+    current_user: User = Depends(require_any_role([UserRole.EXECUTIVE, UserRole.CSR, UserRole.SALES_REP])),
+):
+    """
+    Get insights for an appointment.
+
+    Returns call analysis insights for the appointment's associated call/interaction.
+    If no interaction_id exists or no analysis is available, returns appropriate status.
+
+    Access: Any authenticated user
+
+    Returns:
+        {
+            "appointment_id": "...",
+            "status": "completed" | "pending" | "processing" | "not_found",
+            "insights": {
+                "summary": "...",
+                "sentiment": 0.85,
+                "sop_score": 0.9,
+                "objections_found": ["Price", "Competitor"]
+            } | null
+        }
+    """
+    try:
+        service = AppointmentService(db)
+        result = await service.get_appointment_insights(appointment_id)
+
+        # Check if appointment was not found
+        if result.get("status") == "not_found" and not result.get("insights"):
+            # Verify appointment exists
+            appointment = await service.get_by_id(appointment_id)
+            if not appointment:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Appointment not found",
+                )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting appointment insights: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/objections/{company_id}", responses=RESPONSES)
 async def get_objection_insights(
     company_id: UUID,
     db: DbSession,

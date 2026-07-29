@@ -1,0 +1,26 @@
+{
+  "payload_ctm_id": "staging-val-ctm-encyfix1",
+  "first_post": {
+    "http": 500,
+    "body": {
+      "detail": "Neither 'BinaryExpression' object nor 'Comparator' object has an attribute 'astext'"
+    }
+  },
+  "second_post": {
+    "http": 500,
+    "body": {
+      "detail": "Neither 'BinaryExpression' object nor 'Comparator' object has an attribute 'astext'"
+    }
+  },
+  "probe_after_post1": {
+    "calls_with_ctm_id": 0,
+    "call_ids": []
+  },
+  "calls_after_post2": 0,
+  "call_id_first": null,
+  "call_id_second": null,
+  "same_call_id_on_replay": null,
+  "pending_actions": [],
+  "pending_count": 0,
+  "pass": false
+}

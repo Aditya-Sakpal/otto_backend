@@ -17,13 +17,21 @@ from app.domain.schemas.invitation import (
     InvitationSignupRequest,
     InvitationSignupResponse,
 )
-from app.services.invitation_service import InvitationService
+from app.services.invitation_service import InvitationService, InvitationNotFoundError
 
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    400: {"description": "Bad request (e.g. token already accepted or expired)"},
+    403: {"description": "Forbidden"},
+    404: {"description": "Invitation token not found"},
+    422: {"description": "Validation error"},
+    500: {"description": "Internal server error"},
+}
 
-@router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def create_invitation(
     db: DbSession,
     invitation_data: InvitationCreate = Body(...),
@@ -64,7 +72,7 @@ async def create_invitation(
         )
 
 
-@router.get("/validate/{token}", response_model=InvitationValidateResponse, status_code=status.HTTP_200_OK)
+@router.get("/validate/{token}", response_model=InvitationValidateResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def validate_invitation_token(
     token: str,
     db: DbSession,
@@ -87,6 +95,12 @@ async def validate_invitation_token(
             valid=True,
             invitation=InvitationResponse.model_validate(invitation),
         )
+    except InvitationNotFoundError as e:
+        logger.warning(f"Invitation token not found: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
     except ValueError as e:
         logger.warning(f"Validation error validating invitation token: {e}")
         traceback.print_exc()
@@ -103,7 +117,7 @@ async def validate_invitation_token(
         )
 
 
-@router.post("/invite/complete", response_model=InvitationSignupResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/invite/complete", response_model=InvitationSignupResponse, status_code=status.HTTP_201_CREATED, responses=RESPONSES)
 async def accept_invitation_and_signup(
     body: InvitationSignupRequest,
     db: DbSession,

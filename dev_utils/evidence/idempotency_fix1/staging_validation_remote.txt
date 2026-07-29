@@ -1,0 +1,18 @@
+Staging validation against https://ottoai.shunyalabs.ai
+
+PASS  classify call_back
+PASS  classify send_quote
+PASS  classify schedule_appointment
+PASS  fixture ghl_missed_call.json
+PASS  fixture ctm_missed_call.json
+PASS  fixture shoonya_job_complete_appointment.json
+FAIL  auth/login — HTTP 401
+
+--- Manual webhook replay (staging) ---
+GHL missed call fixture: R:\devfuzzion\otto_backend\backend\dev_utils\fixtures\ghl_missed_call.json
+  POST to your GHL webhook route; replay twice -> expect one call_back pending action
+CTM missed call fixture: R:\devfuzzion\otto_backend\backend\dev_utils\fixtures\ctm_missed_call.json
+Shunya job-complete fixture: R:\devfuzzion\otto_backend\backend\dev_utils\fixtures\shoonya_job_complete_appointment.json
+  Set appointment_id; replay twice -> expect one follow_up row with appointment_id FK
+
+=== SUMMARY: PASS=6 FAIL=1 WARN=0 ===

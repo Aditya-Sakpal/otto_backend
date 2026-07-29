@@ -11,8 +11,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True)
 
+print("ENV DATABASE_URL =", os.getenv("DATABASE_URL"))
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -33,7 +34,7 @@ class Settings(BaseSettings):
 
     # Database (optional for development - can use SQLite)
     DATABASE_URL: str = Field(
-        default=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./otto.db"),
+        default=os.getenv("DATABASE_URL"),
         description="Database connection string (PostgreSQL with asyncpg or SQLite with aiosqlite)"
     )
 
@@ -53,6 +54,16 @@ class Settings(BaseSettings):
 
     # OpenAI (fallback LLM)
     OPENAI_API_KEY: str = Field(default=os.getenv("OPENAI_API_KEY", ""), description="OpenAI API key")
+    INTENT_CLASSIFICATION_MODEL: str = Field(
+        default=os.getenv("INTENT_CLASSIFICATION_MODEL", "gpt-4o-mini"),
+        description="OpenAI model for inbound SMS intent classification",
+    )
+
+    # Twilio (webhook signature validation for inbound SMS)
+    TWILIO_AUTH_TOKEN: str = Field(
+        default=os.getenv("TWILIO_AUTH_TOKEN", ""),
+        description="Twilio auth token; used to validate inbound SMS webhooks when set",
+    )
 
     # Vector DB Configuration
     VECTOR_DB_PROVIDER: str = Field(
@@ -100,7 +111,7 @@ class Settings(BaseSettings):
         description="JWT signing algorithm"
     )
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
+        default=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")),
         description="Access token expiration time in minutes"
     )
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
@@ -123,8 +134,49 @@ class Settings(BaseSettings):
         description="Default sender email address"
     )
 
+    # Google Maps
+    GOOGLE_MAPS_API_KEY: str = Field(default=os.getenv("GOOGLE_MAPS_API_KEY", ""), description="Google Maps API key for geocoding")
+
     # GoHighLevel Configuration
     GHL_PUBLIC_KEY: str = Field(default=os.getenv("GHL_PUBLIC_KEY", ""), description="GoHighLevel public key")
+
+    # ServiceTitan
+    ST_APP_KEY: str = Field(
+        default=os.getenv("ST_APP_KEY", ""),
+        description="ServiceTitan platform app key (shared across all tenants)",
+    )
+    ST_ENV: str = Field(
+        default=os.getenv("ST_ENV", "production"),
+        description="ServiceTitan environment: production or integration (shared across all tenants)",
+    )
+    ST_WORKER_SECRET: str = Field(
+        default=os.getenv("ST_WORKER_SECRET", ""),
+        description="Shared secret for ST worker → webhook auth",
+    )
+
+    # Retell AI voice agent
+    VOICE_AGENT_SECRET: str = Field(
+        default=os.getenv("VOICE_AGENT_SECRET", ""),
+        description="Shared secret for Retell custom tools → /api/v1/voice-agent/*",
+    )
+    VOICE_AGENT_DEFAULT_COMPANY_ID: str = Field(
+        default=os.getenv("VOICE_AGENT_DEFAULT_COMPANY_ID", ""),
+        description="Default Otto company UUID provisioned on the Retell agent",
+    )
+    RETELL_API_KEY: str = Field(
+        default=os.getenv("RETELL_API_KEY", ""),
+        description="Retell API key for webhook signature verification",
+    )
+    RETELL_AGENT_COMPANY_MAP: str = Field(
+        default=os.getenv("RETELL_AGENT_COMPANY_MAP", "{}"),
+        description='JSON map of retell agent_id → company UUID, e.g. {"agent_abc":"uuid"}',
+    )
+
+    # Twilio (Masked Communications)
+    TWILIO_ACCOUNT_SID: str = Field(default=os.getenv("TWILIO_ACCOUNT_SID", ""), description="Twilio Account SID")
+    TWILIO_AUTH_TOKEN: str = Field(default=os.getenv("TWILIO_AUTH_TOKEN", ""), description="Twilio Auth Token")
+    TWILIO_SYSTEM_NUMBER: str = Field(default=os.getenv("TWILIO_SYSTEM_NUMBER", ""), description="Twilio system number for OTP")
+
     # Feature Flags
     ENABLE_CELERY: bool = Field(default=os.getenv("ENABLE_CELERY", "False").lower() == "true", description="Enable Celery for background jobs")
     ENABLE_VECTOR_DB: bool = Field(default=os.getenv("ENABLE_VECTOR_DB", "True").lower() == "true", description="Enable vector DB for RAG")
@@ -135,6 +187,72 @@ class Settings(BaseSettings):
     AUTO_CREATE_TABLES: bool = Field(
         default=os.getenv("AUTO_CREATE_TABLES", "False").lower() == "true",
         description="Auto-create database tables on startup (development only, disabled in production). Use Alembic migrations for production."
+    )
+
+    # Appointment Reminders
+    APPOINTMENT_REMINDER_TZ: str = Field(
+        default=os.getenv("APPOINTMENT_REMINDER_TZ", "America/New_York"),
+        description="IANA timezone used to compute day-before / morning-of reminder times",
+    )
+    APPOINTMENT_MORNING_REMINDER_HOUR: int = Field(
+        default=int(os.getenv("APPOINTMENT_MORNING_REMINDER_HOUR", "8")),
+        description="Local hour (0-23) at which the morning-of appointment reminder fires",
+    )
+    APPOINTMENT_DAY_BEFORE_REMINDER_HOUR: int = Field(
+        default=int(os.getenv("APPOINTMENT_DAY_BEFORE_REMINDER_HOUR", "9")),
+        description="Local hour (0-23) at which the day-before appointment reminder fires",
+    )
+    APPOINTMENT_REMINDER_GRACE_MINUTES: int = Field(
+        default=int(os.getenv("APPOINTMENT_REMINDER_GRACE_MINUTES", "15")),
+        description="Minutes after a reminder due_at during which the reminder is still eligible to fire",
+    )
+
+    # Rehash (missed-revenue opportunity scanner)
+    REHASH_QUALIFIED_UNBOOKED_DAYS: int = Field(
+        default=int(os.getenv("REHASH_QUALIFIED_UNBOOKED_DAYS", "7")),
+        description="Days since last update before a qualified-but-unbooked lead becomes a rehash candidate",
+    )
+    REHASH_APPOINTMENT_PENDING_DAYS: int = Field(
+        default=int(os.getenv("REHASH_APPOINTMENT_PENDING_DAYS", "3")),
+        description="Days since a ran appointment with open outcome before it becomes a rehash candidate",
+    )
+    REHASH_STALE_LEAD_DAYS: int = Field(
+        default=int(os.getenv("REHASH_STALE_LEAD_DAYS", "14")),
+        description="Days of no activity before an open-pipeline lead becomes a stale-lead rehash candidate",
+    )
+    REHASH_NOTIFICATION_GRACE_MINUTES: int = Field(
+        default=int(os.getenv("REHASH_NOTIFICATION_GRACE_MINUTES", "60")),
+        description="Minutes after a rehash due_at during which the rehash notification is still eligible to fire",
+    )
+
+    # Contextual follow-up agent (proactive draft generation)
+    CONTEXTUAL_FOLLOWUP_ENABLED: bool = Field(
+        default=os.getenv("CONTEXTUAL_FOLLOWUP_ENABLED", "True").lower() == "true",
+        description="Enable the daily scheduled run of the contextual follow-up agent (propose-only drafts)",
+    )
+
+    # Recording reconciliation (recovery for stuck analysis jobs)
+    RECORDING_STUCK_THRESHOLD_MINUTES: int = Field(
+        default=int(os.getenv("RECORDING_STUCK_THRESHOLD_MINUTES", "30")),
+        description="Minutes an appointment may sit in analysis_status='processing' before reconciliation polls Shunya",
+    )
+    RECORDING_MAX_PROCESSING_HOURS: int = Field(
+        default=int(os.getenv("RECORDING_MAX_PROCESSING_HOURS", "6")),
+        description="Hard ceiling: a recording stuck in 'processing' longer than this is marked failed (timed out)",
+    )
+    RECORDING_RECONCILE_BATCH_LIMIT: int = Field(
+        default=int(os.getenv("RECORDING_RECONCILE_BATCH_LIMIT", "100")),
+        description="Max stuck recordings reconciled per scheduler run",
+    )
+    RECORDING_RECONCILE_INTERVAL_MINUTES: int = Field(
+        default=int(os.getenv("RECORDING_RECONCILE_INTERVAL_MINUTES", "30")),
+        description="How often the stuck-recording reconciliation job runs (minutes)",
+    )
+
+    # Generic task reminders (call_back / follow_up / post-meeting)
+    GENERIC_TASK_REMINDER_GRACE_MINUTES: int = Field(
+        default=int(os.getenv("GENERIC_TASK_REMINDER_GRACE_MINUTES", "30")),
+        description="Minutes after a generic task's due_at during which its (single) reminder is still eligible to fire; makes firing restart/downtime-safe",
     )
 
     @property

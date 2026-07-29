@@ -50,18 +50,19 @@ if database_url.startswith("sqlite"):
     # SQLite configuration (for development)
     engine = create_async_engine(
         database_url,
-        echo=settings.is_development,
+        echo=False,
         connect_args={"check_same_thread": False},  # SQLite requirement
     )
 else:
     # PostgreSQL configuration (production)
     engine = create_async_engine(
         database_url,
-        echo=settings.is_development,
+        echo=False,
         pool_size=20,
         max_overflow=40,
         pool_pre_ping=True,
         pool_recycle=1800,
+        connect_args={"statement_cache_size": 0},
     )
 
 # Create session factory
@@ -95,4 +96,3 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
-

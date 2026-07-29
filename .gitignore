@@ -230,4 +230,18 @@ __marimo__/
 .vscode/settings.json
 .vscode/settings.json
 
-miscelleaneous
+# Claude settings
+.claude/
+
+# Local dev databases and scratch notes
+otto.db
+*.db
+otto.md
+
+# Ephemeral pytest cache directories
+pytest-cache-files-*/
+CLAUDE.md
+memory
+service_titan_docs
+seed_realistic_test_data.sql
+test_shunya.py

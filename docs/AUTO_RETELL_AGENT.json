@@ -1,0 +1,1407 @@
+{
+  "agent_id": "",
+  "channel": "voice",
+  "last_modification_timestamp": 1780304606563,
+  "agent_name": "Otto AI Receptionist",
+  "retell_llm_dynamic_variables": {
+    "company_id": "REPLACE_WITH_COMPANY_UUID"
+  },
+  "response_engine": {
+    "type": "conversation-flow",
+    "version": 1,
+    "conversation_flow_id": "conversation_flow_auto_lead_2026"
+  },
+  "language": "en-US",
+  "data_storage_setting": "everything",
+  "opt_in_signed_url": false,
+  "end_call_after_silence_ms": 34000,
+  "version": 1,
+  "base_version": 0,
+  "assigned_tags": ["auto", "roofing", "lead-intake", "receptionist", "otto"],
+  "is_published": false,
+  "version_title": "Otto inbound receptionist — lead intake + booking",
+  "post_call_analysis_model": "gpt-4.1-mini",
+  "pii_config": {
+    "mode": "post_call",
+    "categories": []
+  },
+  "timezone": "America/Phoenix",
+  "voice_id": "retell-Cimo",
+  "max_call_duration_ms": 598000,
+  "interruption_sensitivity": 0.9,
+  "ambient_sound": "call-center",
+  "ambient_sound_volume": 2,
+  "responsiveness": 0.8,
+  "enable_dynamic_responsiveness": true,
+  "normalize_for_speech": false,
+  "voicemail_option": {
+    "action": {
+      "type": "hangup"
+    }
+  },
+  "ivr_option": {
+    "action": {
+      "type": "hangup"
+    }
+  },
+  "stt_mode": "custom",
+  "custom_stt_config": {
+    "provider": "azure",
+    "endpointing_ms": 500
+  },
+  "allow_user_dtmf": true,
+  "allow_dtmf_interruption": true,
+  "user_dtmf_options": {},
+  "denoising_mode": "noise-cancellation",
+  "conversationFlow": {
+    "conversation_flow_id": "conversation_flow_auto_lead_2026",
+    "version": 1,
+    "global_prompt": "You are Otto, the company's warm, human-sounding AI receptionist for a roofing business. Your primary role is answering inbound calls: greet callers, understand their roofing need, and generate a qualified lead in the system. You may also place outbound follow-up calls when the flow indicates an outbound context. Your single most important job on every call is to TALK TO THE CUSTOMER AND GENERATE A QUALIFIED LEAD IN THE SYSTEM. Everything else (property info, appointment, follow-up) supports that goal.\n\nSpeak only in natural, conversational, polite English. Sound like a real person on the phone, never like a script or an AI reading bullet points.\n\n--- HUMANISTIC TONE (VERY IMPORTANT) ---\nReal humans pause to think and use small fillers. Use them sparingly and naturally:\n- Thinking pauses: 'Umm...', 'Hmm...', 'Let me see...', 'Okay so...', 'Alright...'\n- Soft openers: 'Got it...', 'I see...', 'Oh okay...', 'Sure thing...'\n- Honest phrases: 'To be honest...', 'Actually...', 'You know what...'\n- Empathy: 'Oh no, sorry to hear that...', 'Yeah, that sounds stressful...', 'I totally get it...'\nRULES: at most 1-2 fillers per response; never stack them ('umm aaah hmm'); never put fillers inside data (addresses, numbers, dates, times); some responses (confirmations) need none. Use contractions ('I'll', 'you're', \"it's\").\n\n--- WHAT NOT TO SAY ---\n- Never read JSON, IDs, timestamps, or API responses aloud.\n- Never say 'calling tool', 'fetching', 'querying the database', 'creating lead', or 'updating CRM'.\n- Never reveal that you checked a CRM or looked the caller up.\n- Always speak dates/times naturally ('this Thursday', '10 AM', 'March 25th'), never ISO format.\n\n--- CALLER IDENTITY ---\nUse the dynamic variable customer_name everywhere. The caller's phone number is captured automatically from call metadata ({{from_number}}) — NEVER ask for it. At call start, search_lead runs silently. If crm_found is true, greet the caller by crm_customer_name and treat them as a known customer; do not ask for their name again unless they correct it.\n\n--- SALES QUALIFICATION (core) ---\nQuickly establish: (1) are they the property owner or decision maker; (2) is this a service we offer (roof repair, replacement, inspection, leak, storm/insurance); (3) urgency (active leak / emergency vs. soon vs. just researching); (4) insurance vs. out-of-pocket. Set lead_status to 'qualified' if it's an owner with an in-scope roofing need, 'service_not_offered' if out of scope, 'unqualified' if not a real opportunity.\n\n--- ROOFING CONSULTATION & PROPERTY INFO ---\nFor a qualified lead, collect, conversationally and one or two at a time: property_address, house_type (single-story / two-story / multi-unit), square_footage, roof_type (tile / shingle / flat / metal), roof_age, and a one-sentence problem_description. Do not interrogate — weave it into the conversation. Then call save_property_details.\n\n--- LEAD INTAKE (always) ---\nEvery in-scope call MUST result in a lead. After qualification + property info, call create_lead with customer_name, lead_source 'voice_agent', and whatever property/problem info you have. create_lead is non-blocking — keep talking while it saves.\n\n--- APPOINTMENT SCHEDULING ---\nOffer to book a free roof inspection. Always call get_current_date first, then convert the customer's requested date to YYYY-MM-DD. Call get_available_slots for that date. Confirm the chosen time verbally ('so that's this Thursday at 10 AM, right?') BEFORE calling create_appointment. Never invent slots; if their time isn't available, offer what is. If they don't want to book now, that's fine — still create the lead and a follow-up.\n\n--- FOLLOW-UP GENERATION & ACTION ITEMS ---\nAfter the lead is created (booked or not), call create_pending_action describing the next step for the rep/CSR (e.g. 'Call back to schedule inspection', 'Send insurance-claim info'), and call generate_followup to queue a follow-up draft. Set follow_up_required accordingly and next_action to a short human label.\n\n--- ESCALATION RULES ---\n- Active emergency (major leak, structural danger, water pouring in): set urgency 'emergency', create the lead immediately, create a high-priority pending action, and tell them a rep will call right away.\n- Out-of-scope request: politely say it's not something we handle and offer to note their info anyway.\n- Abusive / inappropriate / time-wasting caller: stay polite, state once that the call isn't appropriate, then end the call.\n- Caller explicitly asks for a human: create the lead + a high-priority pending action to call them back, reassure them a rep will reach out.\n\n--- MULTI-INTENT ---\nThe customer may want several things. After completing any task, always return to 'is there anything else?' before ending.",
+    "nodes": [
+      {
+        "tool_id": "tool-auto-search-lead",
+        "else_edge": {
+          "destination_node_id": "node-auto-greeting",
+          "id": "edge-recognize-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Call search_lead immediately with no spoken output. The caller's phone number is resolved by the backend from call metadata. Do not speak. Do not wait for customer input. Always continue to the greeting regardless of the result."
+        },
+        "name": "Recognize Caller",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-greeting",
+            "id": "edge-recognize-to-greeting",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Lookup complete — always go to greeting regardless of whether the caller was found"
+            }
+          }
+        ],
+        "enable_typing_sound": true,
+        "id": "node-auto-recognize",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": false,
+        "display_position": {
+          "x": -900,
+          "y": 510
+        },
+        "wait_for_result": true
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Greet the customer warmly and human.\n\nIF {{crm_found}} is true: greet by name, e.g. 'Hi {{crm_customer_name}}, this is Otto from the roofing team — good to hear from you again! What can I help you with today?'\n\nIF {{crm_found}} is false: standard greeting, e.g. 'Hi, this is Otto with the roofing team. How can I help you today?'\n\nFor an OUTBOUND call, open with the reason for the call, e.g. 'Hi, is this {{customer_name}}? This is Otto from the roofing team, following up about your roof — is now an okay time for a quick chat?'\n\nDo NOT mention any database or lookup. If the customer asks about a previous call or quote, go to customer history."
+        },
+        "name": "Greeting",
+        "start_speaker": "agent",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-history",
+            "id": "edge-greeting-to-history",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer asks about a previous call, previous quote, or their history with us"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-capture-name",
+            "id": "edge-greeting-to-capture-name",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer responded with anything else — capture their name and continue to qualification"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-emergency",
+            "id": "edge-greeting-to-emergency",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer describes an active emergency — major leak, water coming in, structural danger"
+            }
+          }
+        ],
+        "finetune_transition_examples": [
+          {
+            "id": "fe-greeting-known",
+            "transcript": [
+              { "content": "Hi Brenda, this is Otto from the roofing team — good to hear from you again! What can I help you with today?", "role": "agent" },
+              { "content": "I wanted to get a quote on a new roof.", "role": "user" }
+            ]
+          },
+          {
+            "id": "fe-greeting-new",
+            "transcript": [
+              { "content": "Hi, this is Otto with the roofing team. How can I help you today?", "role": "agent" },
+              { "content": "Yeah, my roof is leaking pretty bad right now.", "role": "user" }
+            ]
+          }
+        ],
+        "id": "node-auto-greeting",
+        "type": "conversation",
+        "display_position": {
+          "x": -560,
+          "y": 510
+        }
+      },
+      {
+        "tool_id": "tool-auto-get-history",
+        "else_edge": {
+          "destination_node_id": "node-auto-anything-else",
+          "id": "edge-history-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Call get_customer_history with lead_id={{crm_lead_id}}. When the result arrives, if there is history, summarize {{crm_history_text}} naturally (e.g. 'So last time we talked about a tile-roof inspection...'). If there is none, say 'Hmm, I don't see any prior records on my end.' Do not read IDs or raw data."
+        },
+        "name": "Customer History",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-anything-else",
+            "id": "edge-history-done",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "History shared — ask if anything else"
+            }
+          }
+        ],
+        "enable_typing_sound": true,
+        "id": "node-auto-history",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": true,
+        "display_position": {
+          "x": -560,
+          "y": 870
+        },
+        "wait_for_result": true
+      },
+      {
+        "variables": [
+          {
+            "name": "customer_name",
+            "type": "string",
+            "description": "Customer's name. If crm_found was true keep crm_customer_name unless the caller corrects it. Otherwise capture the name if they volunteered it (e.g. 'this is Brenda', 'my name is John Smith'). If no name given, leave empty — do not invent."
+          }
+        ],
+        "else_edge": {
+          "destination_node_id": "node-auto-qualification",
+          "id": "edge-capture-name-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "name": "Capture Name",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-qualification",
+            "id": "edge-capture-name-to-qual",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Name captured or already known — proceed to qualification"
+            }
+          }
+        ],
+        "finetune_transition_examples": [
+          {
+            "id": "fe-name-john",
+            "transcript": [
+              { "content": "Hi, this is John Smith, my roof has a leak.", "role": "user" },
+              { "content": "{ \"customer_name\": \"John Smith\" }", "role": "agent" }
+            ]
+          },
+          {
+            "id": "fe-name-none",
+            "transcript": [
+              { "content": "I need a quote on a new roof.", "role": "user" },
+              { "content": "{ \"customer_name\": \"\" }", "role": "agent" }
+            ]
+          }
+        ],
+        "id": "node-auto-capture-name",
+        "type": "extract_dynamic_variables",
+        "display_position": {
+          "x": -220,
+          "y": 510
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Qualify the lead conversationally. Without sounding like a checklist, find out: (1) are they the property owner / decision maker; (2) what roofing need they have (repair, full replacement, inspection, leak, storm/insurance) and whether it's something we offer; (3) urgency — emergency, soon, or just researching; (4) whether they expect to go through insurance or pay out of pocket. Acknowledge their situation warmly first. Ask only what's still unknown. Keep it to a couple of questions per turn."
+        },
+        "name": "Lead Qualification",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-extract-qual",
+            "id": "edge-qual-to-extract",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Enough qualification info gathered — extract qualification variables"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-service-not-offered",
+            "id": "edge-qual-to-not-offered",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "The customer's request is clearly out of scope / a service we do not offer"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-emergency",
+            "id": "edge-qual-to-emergency",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer describes an active emergency — major leak, water coming in, structural danger"
+            }
+          }
+        ],
+        "finetune_transition_examples": [
+          {
+            "id": "fe-qual-owner-replace",
+            "transcript": [
+              { "content": "And are you the homeowner?", "role": "agent" },
+              { "content": "Yes, we've owned the house 25 years. The tile roof is old and we want it replaced.", "role": "user" },
+              { "content": "Perfect, thanks — that's exactly the kind of project we handle.", "role": "agent" }
+            ]
+          }
+        ],
+        "id": "node-auto-qualification",
+        "type": "conversation",
+        "display_position": {
+          "x": 120,
+          "y": 510
+        }
+      },
+      {
+        "variables": [
+          {
+            "name": "insurance_status",
+            "type": "string",
+            "description": "One of: insurance, out_of_pocket, unsure. Based on what the customer said about how they'll pay."
+          },
+          {
+            "name": "urgency",
+            "type": "string",
+            "description": "One of: emergency, soon, researching. How urgent the roofing need is."
+          },
+          {
+            "name": "lead_status",
+            "type": "string",
+            "description": "qualified if the caller is an owner/decision-maker with an in-scope roofing need; service_not_offered if out of scope; unqualified if not a real opportunity."
+          }
+        ],
+        "else_edge": {
+          "destination_node_id": "node-auto-property",
+          "id": "edge-extract-qual-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "name": "Extract Qualification",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-property",
+            "id": "edge-extract-qual-to-property",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "lead_status is qualified — collect property information"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-create-lead",
+            "id": "edge-extract-qual-to-create-unqualified",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "lead_status is unqualified or service_not_offered — still record the lead, skip property collection"
+            }
+          }
+        ],
+        "finetune_transition_examples": [
+          {
+            "id": "fe-extract-qual-1",
+            "transcript": [
+              { "content": "It's leaking right over the kitchen and we'd probably file an insurance claim, need it soon.", "role": "user" },
+              { "content": "{ \"insurance_status\": \"insurance\", \"urgency\": \"soon\", \"lead_status\": \"qualified\" }", "role": "agent" }
+            ]
+          }
+        ],
+        "id": "node-auto-extract-qual",
+        "type": "extract_dynamic_variables",
+        "display_position": {
+          "x": 460,
+          "y": 510
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Collect property info naturally, one or two items at a time, like a friendly estimator gathering details. You need: property_address (full street address), house_type (single-story / two-story / multi-unit), square_footage, roof_type (tile / shingle / flat / metal), and roof_age. Confirm the address back once. Don't rapid-fire all questions — react to their answers ('okay, a two-story tile roof, got it')."
+        },
+        "name": "Property Information Collection",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-extract-property",
+            "id": "edge-property-to-extract",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Property details gathered — extract them"
+            }
+          }
+        ],
+        "id": "node-auto-property",
+        "type": "conversation",
+        "display_position": {
+          "x": 800,
+          "y": 510
+        }
+      },
+      {
+        "variables": [
+          {
+            "name": "property_address",
+            "type": "string",
+            "description": "Full street address of the property, e.g. '7634 West Robin Lane, Peoria AZ'."
+          },
+          { "name": "house_type", "type": "string", "description": "single-story, two-story, or multi-unit." },
+          { "name": "square_footage", "type": "string", "description": "Approximate square footage as a number string, e.g. '2136'." },
+          { "name": "roof_type", "type": "string", "description": "tile, shingle, flat, or metal." },
+          { "name": "roof_age", "type": "string", "description": "Age of the current roof in years, e.g. '25'." }
+        ],
+        "else_edge": {
+          "destination_node_id": "node-auto-property",
+          "id": "edge-extract-property-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "name": "Extract Property",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-save-property",
+            "id": "edge-extract-property-to-save",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Property details captured — save them"
+            }
+          }
+        ],
+        "finetune_transition_examples": [
+          {
+            "id": "fe-extract-property-1",
+            "transcript": [
+              { "content": "It's 7634 West Robin Lane in Peoria, single story, about 2136 square feet, tile roof, roughly 25 years old.", "role": "user" },
+              { "content": "{ \"property_address\": \"7634 West Robin Lane, Peoria AZ\", \"house_type\": \"single-story\", \"square_footage\": \"2136\", \"roof_type\": \"tile\", \"roof_age\": \"25\" }", "role": "agent" }
+            ]
+          }
+        ],
+        "id": "node-auto-extract-property",
+        "type": "extract_dynamic_variables",
+        "display_position": {
+          "x": 1140,
+          "y": 510
+        }
+      },
+      {
+        "tool_id": "tool-auto-save-property",
+        "else_edge": {
+          "destination_node_id": "node-auto-problem",
+          "id": "edge-save-property-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Say something brief and warm while it saves, e.g. 'Great, let me get that noted down.' Never say 'saving' or 'calling tool'. Call save_property_details with the captured property variables."
+        },
+        "name": "Save Property Details",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-problem",
+            "id": "edge-save-property-to-problem",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Property saved — move to problem identification"
+            }
+          }
+        ],
+        "enable_typing_sound": true,
+        "id": "node-auto-save-property",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": true,
+        "display_position": {
+          "x": 1480,
+          "y": 510
+        },
+        "wait_for_result": true
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Confirm and refine the specific problem. Ask what's prompting the call right now (leak location, missing shingles, storm damage, age, selling the house, etc.) and summarize it back in one clear sentence. Show empathy if it's a damage/leak situation."
+        },
+        "name": "Problem Identification",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-extract-problem",
+            "id": "edge-problem-to-extract",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Problem described — extract problem_description"
+            }
+          }
+        ],
+        "id": "node-auto-problem",
+        "type": "conversation",
+        "display_position": {
+          "x": 1820,
+          "y": 510
+        }
+      },
+      {
+        "variables": [
+          {
+            "name": "problem_description",
+            "type": "string",
+            "description": "One clear sentence describing the customer's roofing problem or reason for the call."
+          }
+        ],
+        "else_edge": {
+          "destination_node_id": "node-auto-scheduling",
+          "id": "edge-extract-problem-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "name": "Extract Problem",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-scheduling",
+            "id": "edge-extract-problem-to-scheduling",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Problem captured — offer to schedule an inspection"
+            }
+          }
+        ],
+        "finetune_transition_examples": [
+          {
+            "id": "fe-extract-problem-1",
+            "transcript": [
+              { "content": "There's a leak over the kitchen ceiling every time it rains.", "role": "user" },
+              { "content": "{ \"problem_description\": \"Active roof leak over the kitchen ceiling during rain\" }", "role": "agent" }
+            ]
+          }
+        ],
+        "id": "node-auto-extract-problem",
+        "type": "extract_dynamic_variables",
+        "display_position": {
+          "x": 2160,
+          "y": 510
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Offer a free, no-obligation roof inspection. If they want to book, ask what day works. If they're not ready, that's completely fine — reassure them and move on (we'll still note everything and follow up). Be warm and low-pressure."
+        },
+        "name": "Appointment Scheduling",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-get-current-date",
+            "id": "edge-scheduling-wants-appt",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer wants to book an inspection and is giving a day/time"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-create-lead",
+            "id": "edge-scheduling-no-appt",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer does not want to book right now — proceed to record the lead and follow up"
+            }
+          }
+        ],
+        "id": "node-auto-scheduling",
+        "type": "conversation",
+        "display_position": {
+          "x": 2500,
+          "y": 510
+        }
+      },
+      {
+        "tool_id": "tool-auto-get-current-date",
+        "else_edge": {
+          "destination_node_id": "node-auto-extract-datetime",
+          "id": "edge-get-date-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Say something warm and brief like 'Sure, let me check the calendar.' Never say 'fetching the date' or 'calling tool'. Call get_current_date silently so relative dates can be resolved."
+        },
+        "name": "Get Current Date",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-extract-datetime",
+            "id": "edge-get-date-to-extract",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Date fetched — convert the customer's requested date/time"
+            }
+          }
+        ],
+        "enable_typing_sound": true,
+        "id": "node-auto-get-current-date",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": true,
+        "display_position": {
+          "x": 2500,
+          "y": 870
+        },
+        "wait_for_result": true
+      },
+      {
+        "variables": [
+          {
+            "name": "appointment_date",
+            "type": "string",
+            "description": "Requested appointment date in YYYY-MM-DD. Use the datetime from get_current_date as 'today' to resolve relative dates like 'tomorrow' or 'this Thursday'. Never guess from training knowledge."
+          },
+          {
+            "name": "appointment_time",
+            "type": "string",
+            "description": "Requested clock time, e.g. '10 AM'. Empty if they only gave a day."
+          }
+        ],
+        "else_edge": {
+          "destination_node_id": "node-auto-scheduling",
+          "id": "edge-extract-datetime-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "name": "Extract Date/Time",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-get-slots",
+            "id": "edge-extract-datetime-to-slots",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Date captured — check available slots"
+            }
+          }
+        ],
+        "finetune_transition_examples": [
+          {
+            "id": "fe-extract-datetime-1",
+            "transcript": [
+              { "content": "Can you do this Thursday around 10?", "role": "user" },
+              { "content": "{ \"appointment_date\": \"2026-06-18\", \"appointment_time\": \"10 AM\" }", "role": "agent" }
+            ]
+          }
+        ],
+        "id": "node-auto-extract-datetime",
+        "type": "extract_dynamic_variables",
+        "display_position": {
+          "x": 2840,
+          "y": 870
+        }
+      },
+      {
+        "tool_id": "tool-auto-get-slots",
+        "else_edge": {
+          "destination_node_id": "node-auto-scheduling",
+          "id": "edge-get-slots-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Say something warm while slots load, e.g. 'Okay, let me see what we have open that day.' Never say 'fetching slots' or 'calling tool'. Call get_available_slots for appointment_date. If the customer's requested time is in the returned slots, confirm it briefly; otherwise read out a couple of available options."
+        },
+        "name": "Get Available Slots",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-confirm-slot",
+            "id": "edge-get-slots-to-confirm",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Slots returned — confirm a time with the customer"
+            }
+          }
+        ],
+        "enable_typing_sound": true,
+        "id": "node-auto-get-slots",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": true,
+        "display_position": {
+          "x": 3180,
+          "y": 870
+        },
+        "wait_for_result": true
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Confirm the appointment verbally before booking. Restate it naturally: 'So that's this Thursday at 10 AM at [property_address] — should I go ahead and lock that in?' Only continue to booking after they say yes. If their requested time isn't available, offer the closest open slots and let them pick. Never read ISO timestamps."
+        },
+        "name": "Confirm Slot",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-create-appointment",
+            "id": "edge-confirm-slot-to-book",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer confirmed the time — create the appointment"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-get-slots",
+            "id": "edge-confirm-slot-retry",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer wants a different time on the same day"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-scheduling",
+            "id": "edge-confirm-slot-different-day",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer wants a different day or no longer wants to book"
+            }
+          }
+        ],
+        "id": "node-auto-confirm-slot",
+        "type": "conversation",
+        "display_position": {
+          "x": 3520,
+          "y": 870
+        }
+      },
+      {
+        "tool_id": "tool-auto-create-appointment",
+        "else_edge": {
+          "destination_node_id": "node-auto-create-lead",
+          "id": "edge-create-appt-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Say something warm while booking, e.g. 'Perfect, let me get that on the calendar for you.' Never say 'booking' or 'calling tool'. Call create_appointment with selected_start, customer_name, property_address, and the captured lead context. The backend creates/links the lead and contact as needed. After it succeeds, confirm: 'You're all set for [day] at [time] — you'll get a confirmation, and the tech will call ahead before arriving.'"
+        },
+        "name": "Create Appointment",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-create-lead",
+            "id": "edge-create-appt-to-create-lead",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Appointment booked — record/update the lead"
+            }
+          }
+        ],
+        "enable_typing_sound": true,
+        "id": "node-auto-create-appointment",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": true,
+        "display_position": {
+          "x": 3860,
+          "y": 870
+        },
+        "wait_for_result": true
+      },
+      {
+        "tool_id": "tool-auto-create-lead",
+        "else_edge": {
+          "destination_node_id": "node-auto-action-summary",
+          "id": "edge-create-lead-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Call create_lead silently (do not wait for the result; keep the conversation flowing). Pass customer_name (or crm_customer_name, else 'Unknown'), lead_source 'voice_agent', and all captured context: property_address, house_type, square_footage, roof_type, roof_age, problem_description, insurance_status, urgency, lead_status. The phone number is resolved by the backend from call metadata. Do not speak about the lead being created."
+        },
+        "name": "Lead Create/Update",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-action-summary",
+            "id": "edge-create-lead-to-summary",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Lead recorded — summarize next steps for the customer"
+            }
+          }
+        ],
+        "enable_typing_sound": false,
+        "id": "node-auto-create-lead",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": false,
+        "display_position": {
+          "x": 4200,
+          "y": 510
+        },
+        "wait_for_result": false
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Briefly summarize the outcome and next step in a warm, human way, tailored to what happened: if booked, restate the appointment and that a rep will follow up; if not booked, say you've noted everything and someone will reach out about scheduling; if emergency, that a rep will call right away. Keep it to 1-2 sentences. Do NOT ask 'anything else' here yet — the flow continues to record the action item."
+        },
+        "name": "Action Summary",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-create-pending-action",
+            "id": "edge-summary-to-pending-action",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Summary given — record the action item for the team"
+            }
+          }
+        ],
+        "id": "node-auto-action-summary",
+        "type": "conversation",
+        "display_position": {
+          "x": 4540,
+          "y": 510
+        }
+      },
+      {
+        "tool_id": "tool-auto-create-pending-action",
+        "else_edge": {
+          "destination_node_id": "node-auto-generate-followup",
+          "id": "edge-pending-action-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Call create_pending_action silently. Set next_action to a short human label of the rep/CSR's next step (e.g. 'Call back to schedule inspection', 'Send insurance-claim info', 'Confirm Thursday 10 AM inspection'), priority High for emergencies otherwise Medium, and follow_up_required accordingly. Do not speak."
+        },
+        "name": "Create Pending Action",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-generate-followup",
+            "id": "edge-pending-action-to-followup",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Action recorded — queue the follow-up draft"
+            }
+          }
+        ],
+        "enable_typing_sound": false,
+        "id": "node-auto-create-pending-action",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": false,
+        "display_position": {
+          "x": 4880,
+          "y": 510
+        },
+        "wait_for_result": false
+      },
+      {
+        "tool_id": "tool-auto-generate-followup",
+        "else_edge": {
+          "destination_node_id": "node-auto-anything-else",
+          "id": "edge-followup-else",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Call generate_followup silently (fire-and-forget) to queue a contextual follow-up draft for this lead. Do not speak. Then continue to 'anything else'."
+        },
+        "name": "Follow-up Creation",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-anything-else",
+            "id": "edge-followup-to-anything-else",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Follow-up queued — ask if anything else"
+            }
+          }
+        ],
+        "enable_typing_sound": false,
+        "id": "node-auto-generate-followup",
+        "type": "function",
+        "tool_type": "local",
+        "speak_during_execution": false,
+        "display_position": {
+          "x": 5220,
+          "y": 510
+        },
+        "wait_for_result": false
+      },
+      {
+        "else_edge": {
+          "destination_node_id": "node-auto-end-call",
+          "id": "edge-anything-else-end",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "Else"
+          }
+        },
+        "instruction": {
+          "type": "prompt",
+          "text": "Ask warmly if there's anything else, varying the phrasing ('Anything else I can help you with?', 'Is there anything else on your mind today?'). Use at most one filler. Sound natural, not scripted."
+        },
+        "name": "Anything Else",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-qualification",
+            "id": "edge-anything-else-new-need",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer raises a new roofing need or question — re-qualify"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-scheduling",
+            "id": "edge-anything-else-book",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer now wants to book or reschedule an inspection"
+            }
+          },
+          {
+            "destination_node_id": "node-auto-end-call",
+            "id": "edge-anything-else-done",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Customer says no, that's all, goodbye, or nothing else"
+            }
+          }
+        ],
+        "finetune_transition_examples": [
+          {
+            "id": "fe-anything-else-done",
+            "transcript": [
+              { "content": "Is there anything else I can help you with today?", "role": "agent" },
+              { "content": "No, that's everything, thanks.", "role": "user" },
+              { "content": "Awesome — thanks for calling, and we'll be in touch soon. Take care!", "role": "agent" }
+            ]
+          }
+        ],
+        "id": "node-auto-anything-else",
+        "type": "conversation",
+        "display_position": {
+          "x": 5560,
+          "y": 510
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "For an active emergency, stay calm and reassuring. Acknowledge it ('Oh no, okay — let's get someone out to you fast.'), confirm the property address, and tell them a rep will call them right back. This branch must still capture the lead, so continue into the lead-record path."
+        },
+        "name": "Emergency Escalation",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-create-lead",
+            "id": "edge-emergency-to-create-lead",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Reassured customer and confirmed address — record the high-priority lead"
+            }
+          }
+        ],
+        "id": "node-auto-emergency",
+        "type": "conversation",
+        "display_position": {
+          "x": 800,
+          "y": 870
+        }
+      },
+      {
+        "instruction": {
+          "type": "prompt",
+          "text": "Politely explain this isn't something we handle, but offer to take their details anyway in case it helps. Be kind and brief. Then continue to record the lead as service_not_offered."
+        },
+        "name": "Service Not Offered",
+        "edges": [
+          {
+            "destination_node_id": "node-auto-create-lead",
+            "id": "edge-not-offered-to-create-lead",
+            "transition_condition": {
+              "type": "prompt",
+              "prompt": "Acknowledged — record the lead for the record, then wrap up"
+            }
+          }
+        ],
+        "id": "node-auto-service-not-offered",
+        "type": "conversation",
+        "display_position": {
+          "x": 460,
+          "y": 870
+        }
+      },
+      {
+        "name": "End Call",
+        "id": "node-auto-end-call",
+        "type": "end",
+        "display_position": {
+          "x": 5900,
+          "y": 510
+        },
+        "speak_during_execution": true,
+        "instruction": {
+          "type": "prompt",
+          "text": "Give a warm, brief goodbye that reassures them we'll follow up. Vary the wording, e.g. 'Thanks so much for calling — we'll be in touch soon. Take care!' or 'Appreciate your time today, we'll reach out shortly. Have a great one!' Use at most one filler."
+        }
+      }
+    ],
+    "components": [],
+    "start_node_id": "node-auto-recognize",
+    "start_speaker": "agent",
+    "tools": [
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": { "call_id": "{{call_id}}" },
+        "description": "Identify whether the caller is a returning customer. Call this FIRST, silently, before greeting. The backend resolves the phone number from call metadata. If found=true, greet by name and offer history.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/search_lead",
+        "tool_id": "tool-auto-search-lead",
+        "args_at_root": false,
+        "timeout_ms": 15000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "search_lead",
+        "response_variables": {
+          "crm_found": "found",
+          "crm_lead_id": "lead_id",
+          "crm_contact_id": "contact_id",
+          "crm_customer_name": "name"
+        },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID this agent is provisioned for." },
+            "phone_number": { "type": "string", "description": "Optional override; defaults to the caller's number from call metadata." }
+          },
+          "required": ["company_id"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": {},
+        "description": "Fetch a short, speakable summary of the caller's prior interactions for a personalized greeting. Call only when crm_found is true.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/get_customer_history",
+        "tool_id": "tool-auto-get-history",
+        "args_at_root": false,
+        "timeout_ms": 8000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "get_customer_history",
+        "response_variables": {
+          "crm_history_text": "history_text",
+          "crm_has_history": "has_history"
+        },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "lead_id": { "type": "string", "description": "Lead UUID from {{crm_lead_id}}." }
+          },
+          "required": ["company_id", "lead_id"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": {},
+        "description": "Normalize and store property details on the contact card (property_snapshot). Backend uses the property text extractor to standardize fields.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/save_property_details",
+        "tool_id": "tool-auto-save-property",
+        "args_at_root": false,
+        "timeout_ms": 15000,
+        "speak_after_execution": false,
+        "speak_during_execution": true,
+        "name": "save_property_details",
+        "response_variables": {},
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "contact_id": { "type": "string", "description": "Contact UUID from {{crm_contact_id}} if known; otherwise empty and backend resolves by phone." },
+            "property_address": { "type": "string", "description": "From {{property_address}}." },
+            "house_type": { "type": "string", "description": "From {{house_type}}." },
+            "square_footage": { "type": "string", "description": "From {{square_footage}}." },
+            "roof_type": { "type": "string", "description": "From {{roof_type}}." },
+            "roof_age": { "type": "string", "description": "From {{roof_age}}." },
+            "problem_description": { "type": "string", "description": "From {{problem_description}}." }
+          },
+          "required": ["company_id", "property_address"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "GET",
+        "query_params": { "company_id": "{{company_id}}" },
+        "description": "Return the current date/time in the company timezone so relative dates can be resolved. Call before any availability check.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/get_current_date",
+        "tool_id": "tool-auto-get-current-date",
+        "args_at_root": false,
+        "timeout_ms": 15000,
+        "speak_after_execution": false,
+        "speak_during_execution": true,
+        "name": "get_current_date",
+        "response_variables": { "today": "datetime" },
+        "parameters": { "type": "object", "properties": {} }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "GET",
+        "query_params": { "company_id": "{{company_id}}", "date": "{{appointment_date}}" },
+        "description": "Return bookable inspection slots for a date. Always call get_current_date first and pass a YYYY-MM-DD date.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/get_available_slots",
+        "tool_id": "tool-auto-get-slots",
+        "args_at_root": false,
+        "timeout_ms": 15000,
+        "speak_after_execution": true,
+        "speak_during_execution": true,
+        "name": "get_available_slots",
+        "response_variables": { "available_slots": "slots" },
+        "parameters": { "type": "object", "properties": {} }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": { "call_id": "{{call_id}}" },
+        "description": "Book a roof inspection. Backend creates/links the lead and contact from the call context if needed, then creates the appointment. Only call after the customer verbally confirms the time.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/create_appointment",
+        "tool_id": "tool-auto-create-appointment",
+        "args_at_root": false,
+        "timeout_ms": 45000,
+        "speak_after_execution": true,
+        "speak_during_execution": true,
+        "name": "create_appointment",
+        "response_variables": { "appointment_id": "appointment_id" },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "customer_name": { "type": "string", "description": "From {{customer_name}} or {{crm_customer_name}}." },
+            "selected_start": { "type": "string", "description": "Chosen slot from {{available_slots}} (ISO 8601)." },
+            "location_address": { "type": "string", "description": "From {{property_address}}." },
+            "lead_id": { "type": "string", "description": "From {{crm_lead_id}} if known; otherwise empty so the backend creates it." }
+          },
+          "required": ["company_id", "customer_name", "selected_start"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": { "call_id": "{{call_id}}" },
+        "description": "Create or update the lead for this caller. Call silently and do not wait for the result. The backend upserts the contact (by phone) and creates the lead with pipeline stage based on lead_status.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/create_lead",
+        "tool_id": "tool-auto-create-lead",
+        "args_at_root": false,
+        "timeout_ms": 10000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "create_lead",
+        "response_variables": { "created_lead_id": "lead_id" },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "customer_name": { "type": "string", "description": "From {{customer_name}} / {{crm_customer_name}}; 'Unknown' if not captured." },
+            "lead_source": { "type": "string", "description": "Always 'voice_agent'." },
+            "lead_status": { "type": "string", "description": "From {{lead_status}}: qualified, unqualified, or service_not_offered." },
+            "property_address": { "type": "string", "description": "From {{property_address}}." },
+            "house_type": { "type": "string", "description": "From {{house_type}}." },
+            "square_footage": { "type": "string", "description": "From {{square_footage}}." },
+            "roof_type": { "type": "string", "description": "From {{roof_type}}." },
+            "roof_age": { "type": "string", "description": "From {{roof_age}}." },
+            "problem_description": { "type": "string", "description": "From {{problem_description}}." },
+            "insurance_status": { "type": "string", "description": "From {{insurance_status}}." },
+            "urgency": { "type": "string", "description": "From {{urgency}}." }
+          },
+          "required": ["company_id", "customer_name", "lead_source"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": {},
+        "description": "Update an existing lead's status / pipeline stage. Use when re-qualifying or moving a known lead.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/update_lead",
+        "tool_id": "tool-auto-update-lead",
+        "args_at_root": false,
+        "timeout_ms": 10000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "update_lead",
+        "response_variables": {},
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "lead_id": { "type": "string", "description": "Lead UUID from {{crm_lead_id}} or {{created_lead_id}}." },
+            "status": { "type": "string", "description": "New lead status." },
+            "reason": { "type": "string", "description": "Optional note for the audit log." }
+          },
+          "required": ["company_id", "lead_id", "status"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": { "call_id": "{{call_id}}" },
+        "description": "Record a next-step action item for the rep/CSR. Call silently.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/create_pending_action",
+        "tool_id": "tool-auto-create-pending-action",
+        "args_at_root": false,
+        "timeout_ms": 10000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "create_pending_action",
+        "response_variables": {},
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "lead_id": { "type": "string", "description": "From {{crm_lead_id}} or {{created_lead_id}}." },
+            "action_type": { "type": "string", "description": "Short machine label, e.g. 'callback', 'send_info', 'confirm_appointment'." },
+            "raw_text": { "type": "string", "description": "Human description = {{next_action}}." },
+            "priority": { "type": "string", "description": "High for emergencies, otherwise Medium.", "enum": ["High", "Medium", "Low"] }
+          },
+          "required": ["company_id", "action_type", "raw_text"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": {},
+        "description": "Queue a contextual follow-up draft for this lead (fire-and-forget). Call silently.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/generate_followup",
+        "tool_id": "tool-auto-generate-followup",
+        "args_at_root": false,
+        "timeout_ms": 10000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "generate_followup",
+        "response_variables": {},
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "lead_id": { "type": "string", "description": "From {{crm_lead_id}} or {{created_lead_id}}." },
+            "follow_up_required": { "type": "string", "description": "From {{follow_up_required}}: 'true' or 'false'." },
+            "context": { "type": "string", "description": "Brief context, e.g. problem + urgency + whether booked." }
+          },
+          "required": ["company_id", "lead_id"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": {},
+        "description": "Send an SMS to the lead via the masked-comms proxy (e.g. appointment confirmation or info link).",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/send_sms",
+        "tool_id": "tool-auto-send-sms",
+        "args_at_root": false,
+        "timeout_ms": 15000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "send_sms",
+        "response_variables": { "sms_status": "status" },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "lead_id": { "type": "string", "description": "From {{crm_lead_id}} or {{created_lead_id}}." },
+            "body": { "type": "string", "description": "Message text to send." }
+          },
+          "required": ["company_id", "lead_id", "body"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": {},
+        "description": "Send an email to the lead (e.g. inspection details or insurance-claim guidance).",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/send_email",
+        "tool_id": "tool-auto-send-email",
+        "args_at_root": false,
+        "timeout_ms": 15000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "send_email",
+        "response_variables": { "email_status": "status" },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "lead_id": { "type": "string", "description": "From {{crm_lead_id}} or {{created_lead_id}}." },
+            "subject": { "type": "string", "description": "Email subject." },
+            "body": { "type": "string", "description": "Email body." }
+          },
+          "required": ["company_id", "lead_id", "subject", "body"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": { "call_id": "{{call_id}}" },
+        "description": "Persist the voice-agent call transcript and summary into Otto as a call record. Prefer the Retell post-call webhook (/webhooks/retell/call-ended); this tool is a fallback.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/save_call_summary",
+        "tool_id": "tool-auto-save-call-summary",
+        "args_at_root": false,
+        "timeout_ms": 45000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "save_call_summary",
+        "response_variables": { "saved_call_id": "call_id" },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "lead_id": { "type": "string", "description": "From {{crm_lead_id}} or {{created_lead_id}}." },
+            "transcript": { "type": "string", "description": "Full call transcript." },
+            "summary": { "type": "string", "description": "Short call summary." }
+          },
+          "required": ["company_id", "transcript"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": {},
+        "description": "Attach recording/analysis data to an appointment recording. Typically driven by the post-call webhook for appointment interaction recordings.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/save_recording_analysis",
+        "tool_id": "tool-auto-save-recording-analysis",
+        "args_at_root": false,
+        "timeout_ms": 45000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "save_recording_analysis",
+        "response_variables": {},
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "appointment_id": { "type": "string", "description": "Appointment UUID from {{appointment_id}}." },
+            "recording_url": { "type": "string", "description": "URL of the recording." },
+            "transcript": { "type": "string", "description": "Recording transcript." }
+          },
+          "required": ["company_id", "appointment_id"]
+        }
+      },
+      {
+        "headers": { "X-Voice-Agent-Secret": "REPLACE_WITH_SHARED_SECRET" },
+        "parameter_type": "json",
+        "method": "POST",
+        "query_params": {},
+        "description": "Surface the next best actions / work-queue items for a lead or rep, for the agent to mention proactively if relevant.",
+        "type": "custom",
+        "url": "https://AUTO_HOST/api/v1/voice-agent/surface_next_actions",
+        "tool_id": "tool-auto-surface-next-actions",
+        "args_at_root": false,
+        "timeout_ms": 10000,
+        "speak_after_execution": false,
+        "speak_during_execution": false,
+        "name": "surface_next_actions",
+        "response_variables": { "next_actions": "actions" },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company_id": { "type": "string", "const": "{{company_id}}", "description": "Company/tenant UUID." },
+            "lead_id": { "type": "string", "description": "From {{crm_lead_id}} or {{created_lead_id}}." }
+          },
+          "required": ["company_id"]
+        }
+      }
+    ],
+    "model_choice": {
+      "type": "cascading",
+      "model": "gpt-4.1-mini",
+      "high_priority": false
+    },
+    "tool_call_strict_mode": true,
+    "knowledge_base_ids": [],
+    "kb_config": {
+      "top_k": 3,
+      "filter_score": 0.6
+    },
+    "begin_tag_display_position": {
+      "x": -1100,
+      "y": 822
+    },
+    "is_published": false,
+    "flex_mode": true,
+    "is_transfer_cf": false
+  }
+}

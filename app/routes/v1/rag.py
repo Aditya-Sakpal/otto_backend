@@ -17,6 +17,12 @@ from app.core.logging import get_logger
 router = APIRouter()
 logger = get_logger(__name__)
 
+RESPONSES = {
+    403: {"description": "Forbidden or user not associated with company"},
+    500: {"description": "Internal server error"},
+    503: {"description": "RAG/Shunya service not available"},
+}
+
 
 class RAGQueryRequest(BaseModel):
     """RAG query request."""
@@ -24,7 +30,7 @@ class RAGQueryRequest(BaseModel):
     context: dict = {}
 
 
-@router.post("/ask-otto")
+@router.post("/ask-otto", responses=RESPONSES)
 async def query_ask_otto(
     body: RAGQueryRequest,
     db: DbSession,
@@ -62,11 +68,25 @@ async def query_ask_otto(
                 detail="User must be associated with a company",
             )
 
+        # Build user context for personalized responses
+        user_context = {
+            "user_id": str(user.id),
+            "user_role": user.role.value if hasattr(user.role, "value") else str(user.role),
+        }
+        name_parts = [user.first_name, user.last_name]
+        full_name = " ".join(p for p in name_parts if p)
+        if full_name:
+            user_context["user_name"] = full_name
+        if user.email:
+            user_context["user_email"] = user.email
+
         result = await shoonya.query_ask_otto(
             company_id=company_id,
             query=body.query,
             target_role=target_role,
             context=body.context,
+            user_id=str(user.id),
+            user_context=user_context,
         )
 
         return result

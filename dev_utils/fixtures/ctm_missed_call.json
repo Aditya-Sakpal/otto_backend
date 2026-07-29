@@ -1,0 +1,9 @@
+{
+  "id": "staging-validation-ctm-missed-001",
+  "account_id": "test-account-999",
+  "caller_number": "+15559876543",
+  "direction": "inbound",
+  "status": "no answer",
+  "duration": 0,
+  "tracking_number": "+18885551234"
+}

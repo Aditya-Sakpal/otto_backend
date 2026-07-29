@@ -1,0 +1,10 @@
+{
+  "_comment": "Copy to AUTO_RETELL_AGENT.local.json via: python scripts/patch_retell_agent.py --host https://YOUR.ngrok-free.app",
+  "headers_example": {
+    "X-Voice-Agent-Secret": "<VOICE_AGENT_SECRET from .env>"
+  },
+  "url_example": "https://YOUR.ngrok-free.app/api/v1/voice-agent/search_lead",
+  "retell_llm_dynamic_variables": {
+    "company_id": "<VOICE_AGENT_DEFAULT_COMPANY_ID>"
+  }
+}

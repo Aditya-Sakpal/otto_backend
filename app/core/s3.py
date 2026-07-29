@@ -218,6 +218,7 @@ class S3Service:
         content_type: Optional[str] = None,
         metadata: Optional[dict] = None,
         bucket_type: Optional[BucketType] = None,
+        headers: Optional[dict] = None,
     ) -> str:
         try:
             if bucket_type is None:
@@ -226,7 +227,7 @@ class S3Service:
 
             # 1. Use follow_redirects=True (Crucial for CTM)
             async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
-                async with client.stream('GET', url) as response:
+                async with client.stream('GET', url, headers=headers) as response:
                     # If CTM returns 404 or 403, this will catch it
                     response.raise_for_status()
 
@@ -250,7 +251,7 @@ class S3Service:
                     )
 
             s3_url = f"https://{bucket_name}.s3.{self.region}.amazonaws.com/{s3_key}"
-            logger.info(f"Successfully moved CTM recording to S3: {s3_key}")
+            logger.info(f"Successfully moved recording to S3: {s3_key}")
             return s3_url
 
         except httpx.HTTPStatusError as e:
@@ -280,7 +281,7 @@ class S3Service:
     def generate_presigned_url(
         self,
         s3_key: str,
-        expiration: int = 3600,
+        expiration: int = 14400,
         content_type: Optional[str] = None,
         bucket_type: Optional[BucketType] = None,
     ) -> str:
@@ -382,3 +383,29 @@ def get_s3_service() -> Optional[S3Service]:
     except (RuntimeError, ValueError) as e:
         logger.warning(f"S3 service not available: {e}")
         return None
+
+
+def presign_audio_url_for_playback(
+    audio_url: Optional[str],
+    expiration: int = 14400,
+) -> Optional[str]:
+    """Return a short-lived presigned GET URL for stored S3 audio, or the original URL."""
+    if not audio_url:
+        return None
+    if ".amazonaws.com/" not in audio_url and "s3://" not in audio_url:
+        return audio_url
+    s3_service = get_s3_service()
+    if not s3_service:
+        logger.error(
+            "S3 service unavailable; returning non-presigned audio URL (playback may fail on private buckets)",
+            audio_url=audio_url[:120],
+        )
+        return audio_url
+    try:
+        return s3_service.generate_presigned_get_url_from_url(audio_url, expiration=expiration)
+    except Exception as e:
+        logger.error(
+            f"Failed to presign audio URL for playback: {e}",
+            audio_url=audio_url[:120],
+        )
+        return audio_url

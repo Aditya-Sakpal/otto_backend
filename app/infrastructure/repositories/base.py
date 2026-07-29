@@ -132,6 +132,12 @@ class BaseRepository(Generic[T, D]):
 
     def _to_orm(self, domain_obj: D) -> T:
         """Convert domain model to ORM model."""
-        data = domain_obj.model_dump(exclude={"id"} if domain_obj.id else set())
+        # If domain_obj has an ID, include it when constructing the ORM object.
+        # Previously this excluded the id when present which caused FK mismatches
+        # when callers supplied a pre-generated UUID (e.g. creating a Call with a given id).
+        data = domain_obj.model_dump(exclude=set() if domain_obj.id else {"id"})
+        # Drop domain-only computed fields that have no corresponding ORM column
+        # (mirrors the hasattr guard already used in update()).
+        data = {k: v for k, v in data.items() if hasattr(self.orm_model, k)}
         return self.orm_model(**data)
 

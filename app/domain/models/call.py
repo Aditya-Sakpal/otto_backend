@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import Field
 
 from app.domain.models.base import BaseModel
-from app.domain.enums import CallType
+from app.domain.enums import CallType, CallScope
 
 
 class Call(BaseModel):
@@ -29,5 +29,20 @@ class Call(BaseModel):
     duration_seconds: Optional[int] = Field(None, description="Call duration in seconds")
     handled_by_user_id: Optional[UUID] = Field(None, description="CSR who handled the call")
     interaction_type: Optional[str] = Field(default="call", description="Type of interaction")
+    scope: Optional[CallScope] = Field(None, description="Whether call is in-scope or out-of-scope")
+    lead_source: Optional[str] = Field(None, description="Lead source from CRM (e.g. Google, LSA, Yelp)")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")
+    # Populated by endpoints that join CallAnalysisORM (e.g. GET /calls/{id}).
+    # Additive — defaults to None when not looked up, keeping existing
+    # consumers (repos that don't run the join) unchanged. Mirrors the
+    # analysis_status field on Call Logs and Appointment responses.
+    analysis_status: Optional[str] = Field(
+        None,
+        description=(
+            "State of the call's AI analysis. One of 'not_analyzed', "
+            "'pending', 'processing', 'completed', 'failed', or null when the "
+            "endpoint didn't look it up. When not 'completed', analytical fields "
+            "(e.g. transcript) should be treated as unknown rather than absent."
+        ),
+    )
 

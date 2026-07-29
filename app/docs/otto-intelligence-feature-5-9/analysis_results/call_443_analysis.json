@@ -1,0 +1,208 @@
+{
+  "call_id": 443,
+  "timestamp": "2026-01-19T08:50:47.547192",
+  "call_data": {
+    "call_id": "443",
+    "audio_url": "https://otto-call-recording.s3.us-east-1.amazonaws.com/v1/1323651808-redacted.mp3",
+    "call_date": "2026-01-16 19:48:43.693000",
+    "company_id": "string",
+    "created_at": "2026-01-16 20:10:42.314000",
+    "customer_id": null,
+    "diarization_metadata": {
+      "method": "llm_primary",
+      "speaker_labeling": "llm",
+      "segment_count": 7
+    },
+    "duration": 0,
+    "metadata": {},
+    "phone_number": "string",
+    "processed_at": "2026-01-16 20:10:42.314000",
+    "segments": [
+      {
+        "speaker": "customer_rep",
+        "text": "Hello, this is Jim. Hey Jim, it's Raven again, sorry for you to go back. Hey, I forgot to ask while we had you on the phone, were there any days within the next couple of weeks that won't work for starting the installation of your roof?",
+        "start_time": 0.0,
+        "end_time": 10.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "The next couple of weeks? Like I would say the next four or six-ish weeks? You said the next 4 weeks, right? 4 to 6?",
+        "start_time": 10.0,
+        "end_time": 18.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "4 to 6. No, we should be fine.",
+        "start_time": 18.0,
+        "end_time": 20.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "We were thinking about going to vacate. We were thinking of taking a vacation, but we might just postpone it until after all this is completed.",
+        "start_time": 20.0,
+        "end_time": 28.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Okay. Gotcha. Already, I'll go ahead and update that for you.",
+        "start_time": 28.0,
+        "end_time": 32.0,
+        "original_speaker": "SPEAKER_00"
+      },
+      {
+        "speaker": "home_owner",
+        "text": "I appreciate it. Okay.",
+        "start_time": 32.0,
+        "end_time": 34.0,
+        "original_speaker": "SPEAKER_01"
+      },
+      {
+        "speaker": "customer_rep",
+        "text": "Sounds good. Thank you.",
+        "start_time": 34.0,
+        "end_time": 36.0,
+        "original_speaker": "SPEAKER_00"
+      }
+    ],
+    "status": "completed",
+    "transcript": "customer_rep: Hello, this is Jim. Hey Jim, it's Raven again, sorry for you to go back. Hey, I forgot to ask while we had you on the phone, were there any days within the next couple of weeks that won't work for starting the installation of your roof?\n\nhome_owner: The next couple of weeks? Like I would say the next four or six-ish weeks? You said the next 4 weeks, right? 4 to 6?\n\ncustomer_rep: 4 to 6. No, we should be fine.\n\nhome_owner: We were thinking about going to vacate. We were thinking of taking a vacation, but we might just postpone it until after all this is completed.\n\ncustomer_rep: Okay. Gotcha. Already, I'll go ahead and update that for you.\n\nhome_owner: I appreciate it. Okay.\n\ncustomer_rep: Sounds good. Thank you."
+  },
+  "transcript": "customer_rep: Hello, this is Jim. Hey Jim, it's Raven again, sorry for you to go back. Hey, I forgot to ask while we had you on the phone, were there any days within the next couple of weeks that won't work for starting the installation of your roof?\n\nhome_owner: The next couple of weeks? Like I would say the next four or six-ish weeks? You said the next 4 weeks, right? 4 to 6?\n\ncustomer_rep: 4 to 6. No, we should be fine.\n\nhome_owner: We were thinking about going to vacate. We were thinking of taking a vacation, but we might just postpone it until after all this is completed.\n\ncustomer_rep: Okay. Gotcha. Already, I'll go ahead and update that for you.\n\nhome_owner: I appreciate it. Okay.\n\ncustomer_rep: Sounds good. Thank you.",
+  "summary": {
+    "call_id": "443",
+    "company_id": "string",
+    "compliance": {
+      "target_role": "customer_rep",
+      "evaluation_mode": "sop_only",
+      "sop_compliance": {
+        "score": 0.8,
+        "compliance_rate": 0.8,
+        "stages": {
+          "total": 6,
+          "followed": [
+            "Greeting & Identification",
+            "Needs Discovery",
+            "Qualifying"
+          ],
+          "missed": [
+            "Scheduling",
+            "Setting Expectations",
+            "Close & Confirmation"
+          ]
+        },
+        "issues": [
+          "Failed to schedule inspection/estimate",
+          "Did not set expectations for appointment",
+          "Did not confirm appointment details"
+        ],
+        "positive_behaviors": [
+          "Professional greeting with company name",
+          "Asked clarifying questions",
+          "Updated customer information"
+        ],
+        "confidence": 0.8
+      },
+      "timestamps": {
+        "sop_evaluated_at": "2026-01-16T20:10:37.265336"
+      },
+      "call_id": "443"
+    },
+    "created_at": "2026-01-16 20:10:42.503000",
+    "milvus_id": "vec_443_summary",
+    "objections": {
+      "objections": [],
+      "total_count": 0,
+      "analysis_note": "No potential objections found in transcript"
+    },
+    "qualification": {
+      "bant_scores": {
+        "need": 0.8,
+        "budget": 0.0,
+        "timeline": 0.9,
+        "authority": 1.0
+      },
+      "overall_score": 0.675,
+      "qualification_status": "warm",
+      "booking_status": "not_booked",
+      "call_outcome_category": "qualified_but_unbooked",
+      "appointment_confirmed": false,
+      "appointment_date": null,
+      "appointment_type": null,
+      "appointment_timezone": "UTC",
+      "appointment_time_confidence": 0.0,
+      "preferred_time_window": null,
+      "appointment_intent": "new",
+      "original_appointment_datetime": null,
+      "new_requested_time": null,
+      "service_requested": "Roof installation",
+      "service_not_offered_reason": null,
+      "service_address_raw": null,
+      "service_address_structured": {
+        "line1": null,
+        "city": null,
+        "state": null,
+        "postal_code": null,
+        "country": "US"
+      },
+      "address_confidence": 0.0,
+      "customer_name": "Jim",
+      "customer_name_confidence": 0.7,
+      "decision_makers": [
+        "Jim (homeowner/customer)"
+      ],
+      "urgency_signals": [
+        "next couple of weeks",
+        "4 to 6 weeks",
+        "vacate",
+        "postpone"
+      ],
+      "budget_indicators": [],
+      "confidence_score": 0.5,
+      "follow_up_required": false,
+      "follow_up_reason": null,
+      "property_details": {
+        "roof_type": null,
+        "roof_age_years": null,
+        "stories": "single",
+        "hoa_status": null,
+        "gated_community": null,
+        "has_solar": null,
+        "pets": null,
+        "property_access_notes": null,
+        "roof_condition": null,
+        "special_features": []
+      }
+    },
+    "summary": {
+      "summary": "Raven, the homeowner, called to inquire about scheduling the roof installation. They mentioned that they might postpone their vacation until after the installation is completed. The customer representative, Jim, updated the schedule and confirmed the new timeline.",
+      "key_points": [
+        "Customer needs to schedule roof installation within the next 4-6 weeks.",
+        "Homeowner might postpone their vacation until after the installation is completed.",
+        "Customer representative updated the schedule to accommodate the new timeline."
+      ],
+      "action_items": [
+        "Update the schedule to reflect the new timeline."
+      ],
+      "next_steps": [
+        "Schedule the roof installation within the next 4-6 weeks."
+      ],
+      "pending_actions": [
+        {
+          "type": "follow_up_call",
+          "owner": "customer_rep",
+          "due_at": null,
+          "raw_text": "I'll go ahead and update that for you.",
+          "confidence": 0.9,
+          "contact_method": "phone"
+        }
+      ],
+      "sentiment_score": 0.7,
+      "confidence_score": 0.8
+    }
+  },
+  "errors": []
+}

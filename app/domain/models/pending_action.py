@@ -27,5 +27,6 @@ class PendingAction(BaseModel):
     due_at: Optional[datetime] = Field(None, description="When action is due (UTC)")
     priority: Optional[int] = Field(None, description="Priority level (higher = more urgent)")
     owner_id: Optional[UUID] = Field(None, description="Assigned user ID (CSR or Sales Rep)")
+    assigned_by_id: Optional[UUID] = Field(None, description="User who assigned this action (e.g. executive)")
     source: str = Field(default="shunya", description="Source of action (shunya, manual, system)")
     extra_metadata: Optional[dict] = Field(None, description="Additional metadata")

@@ -525,12 +525,12 @@ class LeadService:
         reason: Optional[str] = None,
     ) -> dict:
         """
-        Move a lead forward through pipeline stages with validation.
+        Move a lead to a new pipeline stage.
 
-        Validates forward-only movement, required inputs per target stage,
-        and delegates DB mutations to the repository.
+        Supports both forward and backward movement (drag-and-drop use case).
+        Stage-specific fields are optional for simple drag-and-drop operations.
         """
-        from app.domain.enums import PipelineStage, PIPELINE_STAGE_ORDER
+        from app.domain.enums import PipelineStage
         from app.infrastructure.database.models.lead import LeadORM
 
         # Validate target_stage is a valid PipelineStage
@@ -561,26 +561,8 @@ class LeadService:
         if not lead_orm:
             raise ValueError("Lead not found")
 
-        # Validate forward-only movement
-        current_stage = lead_orm.pipeline_stage
-        current_order = PIPELINE_STAGE_ORDER.get(current_stage, -1)
-        target_order = PIPELINE_STAGE_ORDER[target.value]
-
-        if target_order <= current_order and current_order > 0:
-            raise ValueError(
-                f"Cannot move backward from '{current_stage}' to '{target_stage}'. "
-                f"Only forward movement is allowed."
-            )
-
-        # Validate stage-specific required inputs
-        if target == PipelineStage.BOOKED:
-            if not scheduled_start:
-                raise ValueError("scheduled_start is required when moving to 'booked'")
-
-        elif target == PipelineStage.APPOINTMENT:
-            if not assigned_rep_id:
-                raise ValueError("assigned_rep_id is required when moving to 'appointment'")
-            # Validate rep exists, is active, and belongs to same company
+        # Only validate rep when moving to appointment AND a rep id was provided
+        if target == PipelineStage.APPOINTMENT and assigned_rep_id:
             rep_result = await self.session.execute(
                 select(UserORM).where(
                     UserORM.id == assigned_rep_id,
@@ -593,24 +575,6 @@ class LeadService:
                 raise ValueError(f"Sales rep with ID {assigned_rep_id} not found or not active")
             if lead_orm.company_id != rep_orm.company_id:
                 raise ValueError("Lead and sales rep must belong to the same company")
-
-            # If no appointment exists yet, scheduled_start is required
-            existing_appt = await self.session.execute(
-                select(AppointmentORM).where(AppointmentORM.lead_id == lead_id).limit(1)
-            )
-            if not existing_appt.scalar_one_or_none() and not scheduled_start:
-                raise ValueError(
-                    "scheduled_start is required when moving to 'appointment' "
-                    "and no appointment exists for this lead"
-                )
-
-        elif target == PipelineStage.WON:
-            if deal_size is None:
-                raise ValueError("deal_size is required when moving to 'won'")
-
-        elif target == PipelineStage.LOST:
-            if not reason or not reason.strip():
-                raise ValueError("reason is required when moving to 'lost'")
 
         # Delegate to repository
         result = await self.lead_repo.move_pipeline_stage(

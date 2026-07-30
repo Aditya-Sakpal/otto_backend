@@ -61,9 +61,13 @@ class RepPhoneService:
 
         # Send OTP via Twilio
         if self.twilio.is_available():
-            sent = self.twilio.send_verification_sms(phone_number, code)
-            if not sent:
-                logger.error("Failed to send OTP SMS", user_id=str(user_id))
+            try:
+                sent = self.twilio.send_verification_sms(phone_number, code)
+                if not sent:
+                    raise Exception("Twilio returned False (Service rejected request)")
+            except Exception as e:
+                logger.error(f"Failed to send OTP SMS: {e}", user_id=str(user_id))
+                return {"status": "error", "message": f"Twilio Error: {str(e)}"}
                 return {"status": "error", "message": "Failed to send verification code"}
         else:
             logger.warning(
@@ -136,8 +140,14 @@ class RepPhoneService:
 
     @staticmethod
     def _normalize_phone(phone: str) -> str:
-        """Normalize phone number to E.164 format."""
+        """Normalize phone number to E.164 format.
+
+        International numbers must include their country code (e.g. +918887646909
+        or 00918887646909); bare 10-digit numbers are assumed to be US.
+        """
         phone = phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        if phone.startswith("00"):
+            phone = "+" + phone[2:]
         if not phone.startswith("+"):
             if phone.startswith("1") and len(phone) == 11:
                 phone = "+" + phone

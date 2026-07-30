@@ -74,11 +74,18 @@ def build_missed_call_dashboard(
     unassigned = [_build_item(r, now_utc, tz, completed=False) for r in unassigned_rows]
 
     overdue_count = sum(1 for it in pending if it.overdue)
+    unassigned_overdue_count = sum(1 for it in unassigned if it.overdue)
     today_local = now_utc.astimezone(tz).date()
     completed_today_count = sum(
         1 for r in completed_rows
         if r.updated_at and r.updated_at.astimezone(tz).date() == today_local
     )
+
+    # pending_count and overdue_count cover ALL pending callbacks surfaced in
+    # the response (owner-assigned + unassigned) so that summary counts always
+    # reconcile with the returned callback records.
+    total_pending_count = len(pending) + len(unassigned)
+    total_overdue_count = overdue_count + unassigned_overdue_count
 
     return MissedCallRecoveryResponse(
         generated_at=now_utc,
@@ -87,11 +94,11 @@ def build_missed_call_dashboard(
         pending_callbacks=pending,
         completed_callbacks=completed,
         unassigned_callbacks=unassigned,
-        pending_count=len(pending),
-        overdue_count=overdue_count,
+        pending_count=total_pending_count,
+        overdue_count=total_overdue_count,
         completed_today_count=completed_today_count,
         unassigned_count=len(unassigned),
-        unassigned_overdue_count=sum(1 for it in unassigned if it.overdue),
+        unassigned_overdue_count=unassigned_overdue_count,
     )
 
 

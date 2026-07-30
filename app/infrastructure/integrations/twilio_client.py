@@ -12,6 +12,7 @@ Follows the same singleton pattern as ShoonyaClient.
 """
 from typing import Optional, Dict, Any
 from twilio.rest import Client
+from twilio.base.exceptions import TwilioRestException
 from twilio.request_validator import RequestValidator
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -127,11 +128,21 @@ class TwilioClient:
             logger.error("TWILIO_SYSTEM_NUMBER not configured — cannot send OTP")
             return False
 
-        msg = self._client.messages.create(
-            to=to_number,
-            from_=self.system_number,
-            body=f"Your gomotto verification code is: {code}. It expires in 10 minutes.",
-        )
+        try:
+            msg = self._client.messages.create(
+                to=to_number,
+                from_=self.system_number,
+                body=f"Your gomotto verification code is: {code}. It expires in 10 minutes.",
+            )
+        except TwilioRestException as e:
+            # e.g. geo-permission not enabled for the destination country (code 21408)
+            logger.error(
+                "Failed to send OTP SMS via Twilio",
+                to_number=to_number,
+                error_code=e.code,
+                error=str(e),
+            )
+            return False
         return msg.status in ("queued", "sent")
 
     # ── Phone Number Management ───────────────────────────────────────────
@@ -151,9 +162,8 @@ class TwilioClient:
         if area_code:
             search_params["area_code"] = area_code
 
-        available = (
-            self._client.available_phone_numbers(country)
-            .local.list(**search_params, limit=1)
+        available = self._client.available_phone_numbers(country).local.list(
+            **search_params, limit=1
         )
         if not available:
             raise RuntimeError(

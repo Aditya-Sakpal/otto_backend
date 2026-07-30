@@ -525,10 +525,10 @@ class LeadService:
         reason: Optional[str] = None,
     ) -> dict:  # type: ignore
         """
-        Move a lead forward through pipeline stages with validation.
+        Move a lead to a new pipeline stage.
 
-        Validates forward-only movement, required inputs per target stage,
-        and delegates DB mutations to the repository.
+        Supports both forward and backward movement (drag-and-drop use case).
+        Stage-specific fields are optional for simple drag-and-drop operations.
         """
         from app.domain.enums import PipelineStage, PIPELINE_STAGE_ORDER
         from app.infrastructure.database.models.lead import LeadORM
@@ -560,7 +560,6 @@ class LeadService:
         lead_orm = lead_result.scalar_one_or_none()
         if not lead_orm:
             raise ValueError("Lead not found")
-
         # Validate forward-only movement
         current_stage = lead_orm.pipeline_stage
         
@@ -618,7 +617,7 @@ class LeadService:
             if not reason or not reason.strip():
                 raise ValueError("reason is required when moving to 'lost'")
 
-        # --- FIXED MYPY ARGS TYPE MISMATCH (Lines 625, 626, 627, 628) ---
+        # Delegate to repository
         result = await self.lead_repo.move_pipeline_stage(
             lead_id=lead_id,
             target_stage=target,

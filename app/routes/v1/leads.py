@@ -947,44 +947,6 @@ class MoveLeadStageResponse(BaseModel):
     )
 
 
-# --- BUG #98 ACTION PIPELINE FIX: Add input presence validations on routing endpoints ---
-@router.post("/{lead_id}/move-stage", response_model=MoveLeadStageResponse, responses=RESPONSES)
-async def move_lead_stage(
-    lead_id: UUID,
-    body: MoveLeadStageRequest,
-    db: DbSession,
-    user: User = Depends(require_manager_or_csr),
-) -> MoveLeadStageResponse:
-    """Advance a lead through the pipeline with structural parameter boundary checking."""
-    if not lead_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pipeline reference identifier is required"
-        )
-        
-    try:
-        service = LeadService(db)
-        
-        # Verify if lead resource actually exists in DB to prevent 500 error down the service layer
-        existing_lead = await service.get_by_id(lead_id)
-        if not existing_lead:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Pipeline lead record not found in system context"
-            )
-            
-        result = await service.move_stage(lead_id=lead_id, request=body)
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error executing pipeline stage move: {e}")
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline stage operation failed: {str(e)}"
-        )
-
 @router.post("/{lead_id}/assign", response_model=AssignLeadResponse, status_code=status.HTTP_200_OK, responses=RESPONSES)
 async def assign_lead(
     lead_id: UUID,

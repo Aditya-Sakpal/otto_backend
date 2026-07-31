@@ -56,7 +56,7 @@ class TaskListSummary(BaseModel):
     in_progress: int = 0
     completed: int = 0
     cancelled: int = 0
-     converted: int = 0
+    converted: int = 0
 
 
 class TaskListResponse(BaseModel):

@@ -619,6 +619,7 @@ class PendingActionService:
             in_progress=counts.get(PendingActionStatus.IN_PROGRESS.value, 0),
             completed=counts.get(PendingActionStatus.COMPLETED.value, 0),
             cancelled=counts.get(PendingActionStatus.CANCELLED.value, 0),
+            converted=counts.get("converted", 0),
         )
         # Build base filter conditions
         filters = [PendingActionORM.company_id == company_id]

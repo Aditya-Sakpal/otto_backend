@@ -20,7 +20,7 @@ class CompanyService:
     async def create_company(
         self,
         name: str,
-        reference_doc_url: str,
+        reference_doc_url: str | None = None,
         sop_doc_url: str | None = None,
         csr_sop_doc_url: str | None = None,
         sales_sop_doc_url: str | None = None,
@@ -33,7 +33,7 @@ class CompanyService:
 
         Args:
             name: Company name
-            reference_doc_url: URL to reference document in S3
+            reference_doc_url: URL to reference document in S3 (optional)
             sop_doc_url: URL to SOP document in S3 (optional)
             csr_sop_doc_url: URL to CSR SOP document in S3 (optional)
             sales_sop_doc_url: URL to Sales SOP document in S3 (optional)
@@ -64,8 +64,12 @@ class CompanyService:
         crm_company_id: str | None = None,
         voip_provider: str | None = None,
         voip_api_key: str | None = None,
+        voip_access_key: str | None = None,
         voip_company_id: str | None = None,
         extra_metadata: dict | None = None,
+        st_tenant_id: str | None = None,
+        st_client_id: str | None = None,
+        st_client_secret: str | None = None,
     ) -> CompanyIntegrationORM | None:
         """
         Create a company integration record with encrypted API keys.
@@ -85,13 +89,47 @@ class CompanyService:
         Returns:
             Created CompanyIntegrationORM instance or None if no integrations provided
         """
+        # Multipart / Swagger often sends "" instead of omitting fields — normalize so
+        # ServiceTitan (and CRM/VoIP) flags match what the user typed in the form.
+        def _nz(s: str | None) -> str | None:
+            if s is None:
+                return None
+            t = str(s).strip()
+            return t or None
+
+        location_id = _nz(location_id)
+        crm_provider = _nz(crm_provider)
+        crm_api_key = _nz(crm_api_key)
+        crm_company_id = _nz(crm_company_id)
+        voip_provider = _nz(voip_provider)
+        voip_api_key = _nz(voip_api_key)
+        voip_access_key = _nz(voip_access_key)
+        voip_company_id = _nz(voip_company_id)
+        st_tenant_id = _nz(st_tenant_id)
+        st_client_id = _nz(st_client_id)
+        st_client_secret = _nz(st_client_secret)
+
         # Check if any integration data is provided
         has_crm = bool(crm_provider and crm_api_key)
         has_voip = bool(voip_provider and voip_api_key)
+        has_st = bool(st_tenant_id and st_client_id and st_client_secret)
 
-        if not has_crm and not has_voip:
-            logger.info(f"No integration data provided for company {company_id}, skipping integration creation")
+        if not has_crm and not has_voip and not has_st:
+            logger.info(
+                "No integration data provided for company %s (has_crm=%s has_voip=%s has_st=%s), skipping",
+                company_id,
+                has_crm,
+                has_voip,
+                has_st,
+            )
             return None
+
+        if has_st:
+            logger.info(
+                "Creating company integration with ServiceTitan tenant_id=%s for company %s",
+                st_tenant_id,
+                company_id,
+            )
 
         return await self.integration_repo.create(
             company_id=company_id,
@@ -101,8 +139,12 @@ class CompanyService:
             crm_company_id=crm_company_id,
             voip_provider=voip_provider,
             voip_api_key=voip_api_key,
+            voip_access_key=voip_access_key,
             voip_company_id=voip_company_id,
-            extra_metadata=extra_metadata
+            extra_metadata=extra_metadata,
+            st_tenant_id=st_tenant_id,
+            st_client_id=st_client_id,
+            st_client_secret=st_client_secret,
         )
 
     async def get_company_by_id(self, company_id: UUID) -> CompanyORM | None:
@@ -140,6 +182,7 @@ class CompanyService:
         csr_sop_doc_url: str | None = None,
         sales_sop_doc_url: str | None = None,
         extra_metadata: dict | None = None,
+        follow_up_manual_review_enabled: bool | None = None,
     ) -> CompanyORM | None:
         """
         Update a company.
@@ -154,6 +197,7 @@ class CompanyService:
             csr_sop_doc_url: URL to CSR SOP document (optional)
             sales_sop_doc_url: URL to Sales SOP document (optional)
             extra_metadata: Additional metadata (optional)
+            follow_up_manual_review_enabled: Contextual follow-up draft-before-send toggle (optional)
 
         Returns:
             Updated CompanyORM instance or None if not found
@@ -167,7 +211,8 @@ class CompanyService:
             sop_doc_url=sop_doc_url,
             csr_sop_doc_url=csr_sop_doc_url,
             sales_sop_doc_url=sales_sop_doc_url,
-            extra_metadata=extra_metadata
+            extra_metadata=extra_metadata,
+            follow_up_manual_review_enabled=follow_up_manual_review_enabled,
         )
 
     async def update_company_integration(
@@ -181,6 +226,9 @@ class CompanyService:
         voip_api_key: str | None = None,
         voip_company_id: str | None = None,
         extra_metadata: dict | None = None,
+        st_tenant_id: str | None = None,
+        st_client_id: str | None = None,
+        st_client_secret: str | None = None,
     ) -> CompanyIntegrationORM | None:
         """
         Update a company integration.
@@ -195,6 +243,9 @@ class CompanyService:
             voip_api_key: VoIP API key - will be encrypted (optional)
             voip_company_id: VoIP company ID (optional)
             extra_metadata: Additional metadata (optional)
+            st_tenant_id: ServiceTitan tenant ID (optional)
+            st_client_id: ServiceTitan client ID (optional)
+            st_client_secret: ServiceTitan client secret - will be encrypted (optional)
 
         Returns:
             Updated CompanyIntegrationORM instance or None if not found
@@ -208,7 +259,10 @@ class CompanyService:
             voip_provider=voip_provider,
             voip_api_key=voip_api_key,
             voip_company_id=voip_company_id,
-            extra_metadata=extra_metadata
+            extra_metadata=extra_metadata,
+            st_tenant_id=st_tenant_id,
+            st_client_id=st_client_id,
+            st_client_secret=st_client_secret,
         )
 
     async def upsert_company_integration(

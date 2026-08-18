@@ -1,0 +1,5326 @@
+[
+  {
+    "table": "appointments",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "lead_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "contact_card_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "scheduled_start",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "scheduled_end",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "location_address",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "outcome",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "assigned_rep_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "interaction_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "latitude",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "longitude",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "audio_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "transcript",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "duration_seconds",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "recording_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "shunya_job_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "handled_by_user_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "recording_started_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "recording_completed_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "analysis_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "qualification_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "booking_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "objections",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "objection_texts",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "0",
+        "data_type": "integer",
+        "column_name": "objections_total_count",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "sop_stages_completed",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "sop_stages_missed",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "sop_stages_total",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "sop_compliance_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "sop_compliance_rate",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "sop_compliance_confidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "sop_compliance_issues",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "sop_compliance_positive_behaviors",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "compliance_target_role",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "sentiment_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "summary",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "key_points",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "action_items",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "next_steps",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "pending_actions_data",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "summary_confidence_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "bant_need_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "bant_budget_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "bant_timeline_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "bant_authority_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "qualification_overall_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "qualification_confidence_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "call_outcome_category",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "false",
+        "data_type": "boolean",
+        "column_name": "appointment_confirmed_by_analysis",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "analysis_appointment_date",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "analysis_appointment_type",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "analysis_appointment_timezone",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "appointment_time_confidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "preferred_time_window",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "appointment_intent",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "original_appointment_datetime",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "new_requested_time",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "service_requested",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "service_not_offered_reason",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "service_address_raw",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "service_address_structured",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "address_confidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "customer_name",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "customer_name_confidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "decision_makers",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "urgency_signals",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "budget_indicators",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "false",
+        "data_type": "boolean",
+        "column_name": "follow_up_required",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "follow_up_reason",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "detected_call_type",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "is_existing_customer",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "is_deprioritized",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "service_wait_time_weeks",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "applied_rules",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "property_details",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "customer_details",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "priority_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "raw_analysis",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "analysis_extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "analysis_created_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "analysis_updated_at",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "appointments_pkey",
+      "ix_appointments_scheduled_start",
+      "ix_appointments_lead_id",
+      "ix_appointments_assigned_rep_id",
+      "ix_appointments_contact_card_id",
+      "ix_appointments_company_id",
+      "idx_appointments_interaction_id",
+      "idx_appointments_recording_status",
+      "idx_appointments_shunya_job_id",
+      "idx_appointments_analysis_status",
+      "idx_appointments_handled_by_user_id"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "appointments_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "appointments_assigned_rep_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "appointments_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "appointments_contact_card_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "appointments_handled_by_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "appointments_interaction_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "appointments_lead_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322575990_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575990_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575990_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575990_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575990_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575990_11_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "assigned_rep_id",
+        "references_table": "users",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "contact_card_id",
+        "references_table": "contact_cards",
+        "references_column": "id"
+      },
+      {
+        "column": "handled_by_user_id",
+        "references_table": "users",
+        "references_column": "id"
+      },
+      {
+        "column": "interaction_id",
+        "references_table": "calls",
+        "references_column": "id"
+      },
+      {
+        "column": "lead_id",
+        "references_table": "leads",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "action_items",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "lead_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "appointment_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "action_type",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "raw_text",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "due_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "priority",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "owner_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "source",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "assigned_by_id",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "idx_action_items_lead_id",
+      "idx_action_items_due_at",
+      "idx_action_items_owner_status",
+      "idx_action_items_call_id",
+      "idx_action_items_owner_id",
+      "idx_action_items_company_id",
+      "idx_action_items_appointment_id",
+      "action_items_pkey"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "action_items_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "action_items_appointment_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "action_items_assigned_by_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "action_items_call_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "action_items_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "action_items_lead_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "action_items_owner_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322575983_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575983_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575983_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575983_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575983_12_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322575983_14_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "appointment_id",
+        "references_table": "appointments",
+        "references_column": "id"
+      },
+      {
+        "column": "assigned_by_id",
+        "references_table": "users",
+        "references_column": "id"
+      },
+      {
+        "column": "call_id",
+        "references_table": "calls",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "lead_id",
+        "references_table": "leads",
+        "references_column": "id"
+      },
+      {
+        "column": "owner_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "ask_otto_conversations",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "user_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "shunya_conversation_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "title",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "context",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "ask_otto_conversations_pkey",
+      "ix_ask_otto_conversations_shunya_conversation_id",
+      "ix_ask_otto_conversations_company_id",
+      "ix_ask_otto_conversations_user_id"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "ask_otto_conversations_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "ask_otto_conversations_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "ask_otto_conversations_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576012_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576012_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576012_8_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "user_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "ask_otto_messages",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "conversation_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "shunya_message_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "role",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "content",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "message_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "ask_otto_messages_pkey",
+      "ix_ask_otto_messages_shunya_message_id",
+      "ix_ask_otto_messages_conversation_id"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "ask_otto_messages_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "ask_otto_messages_conversation_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576018_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576018_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576018_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576018_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576018_7_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "conversation_id",
+        "references_table": "ask_otto_conversations",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "call_analyses",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "qualification_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "booking_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "ARRAY",
+        "column_name": "objections",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "ARRAY",
+        "column_name": "objection_texts",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "ARRAY",
+        "column_name": "sop_stages_completed",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "ARRAY",
+        "column_name": "sop_stages_missed",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "sop_compliance_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "sentiment_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "summary",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "ARRAY",
+        "column_name": "key_points",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "raw_analysis",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "action_items",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "next_steps",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'[]'::jsonb",
+        "data_type": "jsonb",
+        "column_name": "pending_actions",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "summary_confidence_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "sop_compliance_issues",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "sop_compliance_positive_behaviors",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "sop_compliance_confidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "sop_compliance_rate",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "sop_stages_total",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "0",
+        "data_type": "integer",
+        "column_name": "objections_total_count",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "bant_need_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "bant_budget_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "bant_timeline_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "bant_authority_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "qualification_overall_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "call_outcome_category",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "false",
+        "data_type": "boolean",
+        "column_name": "appointment_confirmed",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "appointment_date",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "appointment_type",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "appointment_timezone",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "appointment_time_confidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "preferred_time_window",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "appointment_intent",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "original_appointment_datetime",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "new_requested_time",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "service_requested",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "service_not_offered_reason",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "service_address_raw",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "service_address_structured",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "address_confidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "customer_name",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "customer_name_confidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "decision_makers",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "urgency_signals",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "budget_indicators",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "false",
+        "data_type": "boolean",
+        "column_name": "follow_up_required",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "follow_up_reason",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "qualification_confidence_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "compliance_target_role",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "detected_call_type",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "is_existing_customer",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "is_deprioritized",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "service_wait_time_weeks",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "applied_rules",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "property_details",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "customer_details",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "priority_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "scope",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "call_analyses_pkey",
+      "ix_call_analyses_call_id",
+      "ix_call_analyses_company_id",
+      "ix_call_analyses_status",
+      "idx_call_analyses_appointment_date",
+      "idx_call_analyses_outcome_category",
+      "idx_call_analyses_follow_up_required",
+      "idx_call_analyses_appointment_confirmed",
+      "idx_call_analyses_qualification_score",
+      "idx_call_analyses_compliance_target_role",
+      "idx_call_analyses_detected_call_type",
+      "idx_call_analyses_is_existing_customer",
+      "idx_call_analyses_is_deprioritized",
+      "ix_call_analyses_scope"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "call_analyses_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "call_analyses_call_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "call_analyses_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576024_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576024_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576024_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576024_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576024_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576024_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576024_9_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576024_10_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576024_14_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576024_17_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "call_id",
+        "references_table": "calls",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "call_objection_details",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_analysis_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "user_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "category_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "category_text",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "objection_text",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "false",
+        "data_type": "boolean",
+        "column_name": "overcome",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "severity",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "confidence_score",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "call_objection_details_pkey",
+      "idx_call_objection_details_user_id",
+      "idx_call_objection_details_company_id",
+      "idx_call_objection_details_call_id",
+      "idx_call_objection_details_category_text",
+      "idx_call_objection_details_created_at"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "call_objection_details_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "call_objection_details_call_analysis_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "call_objection_details_call_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "call_objection_details_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "call_objection_details_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576042_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576042_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576042_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576042_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576042_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576042_9_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576042_12_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "call_analysis_id",
+        "references_table": "call_analyses",
+        "references_column": "id"
+      },
+      {
+        "column": "call_id",
+        "references_table": "calls",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "user_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "calls",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "contact_card_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "lead_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "phone_number",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "call_type",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "missed_call",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "transcript",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "audio_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "duration_seconds",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "handled_by_user_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "interaction_type",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "answered_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'pending'::character varying",
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "shunya_job_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "answered_by_display",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "lead_source",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "scope",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "calls_pkey",
+      "ix_calls_handled_by_user_id",
+      "ix_calls_phone_number",
+      "ix_calls_contact_card_id",
+      "ix_calls_company_id",
+      "ix_calls_lead_id",
+      "idx_calls_answered_at",
+      "idx_calls_status",
+      "idx_calls_shunya_job_id",
+      "idx_calls_lead_source",
+      "ix_calls_scope"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "calls_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "calls_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "calls_contact_card_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "calls_handled_by_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "calls_lead_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576056_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576056_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576056_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576056_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576056_14_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "contact_card_id",
+        "references_table": "contact_cards",
+        "references_column": "id"
+      },
+      {
+        "column": "handled_by_user_id",
+        "references_table": "users",
+        "references_column": "id"
+      },
+      {
+        "column": "lead_id",
+        "references_table": "leads",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "call_processing_jobs",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "shunya_job_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "progress_percent",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "current_step",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "steps_completed",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "steps_remaining",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "steps_failed",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "started_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "completed_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "failed_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "estimated_completion",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "duration_seconds",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "summary_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "chunks_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "transcript_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "job_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "error",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "retry_available",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "retry_attempt",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "original_job_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "skip_rag_indexing",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "skip_summary_generation",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "priority",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "appointment_id",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "ix_call_processing_jobs_shunya_job_id",
+      "ix_call_processing_jobs_status",
+      "ix_call_processing_jobs_company_id",
+      "ix_call_processing_jobs_call_id",
+      "idx_call_processing_jobs_appointment_id",
+      "call_processing_jobs_pkey"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "call_processing_jobs_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "call_processing_jobs_appointment_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "call_processing_jobs_call_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "call_processing_jobs_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576050_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_9_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_10_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_21_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_22_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_24_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_25_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_26_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576050_28_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "appointment_id",
+        "references_table": "appointments",
+        "references_column": "id"
+      },
+      {
+        "column": "call_id",
+        "references_table": "calls",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "coaching_issues",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_analysis_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "user_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "issue",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "'medium'::character varying",
+        "data_type": "character varying",
+        "column_name": "severity",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "why_it_matters",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "how_to_fix",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "example_language",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "transcript_evidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "related_sop_metric",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "idx_coaching_issues_user_id",
+      "idx_coaching_issues_company_id",
+      "idx_coaching_issues_call_id",
+      "idx_coaching_issues_created_at",
+      "coaching_issues_pkey"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "coaching_issues_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "coaching_issues_call_analysis_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "coaching_issues_call_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "coaching_issues_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "coaching_issues_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576063_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576063_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576063_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576063_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576063_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576063_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576063_13_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "call_analysis_id",
+        "references_table": "call_analyses",
+        "references_column": "id"
+      },
+      {
+        "column": "call_id",
+        "references_table": "calls",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "user_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "coaching_sessions",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "rep_user_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "coach_user_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "'{}'::text[]",
+        "data_type": "ARRAY",
+        "column_name": "focus_areas",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "targets",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "baseline_scores",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'in_progress'::character varying",
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "14",
+        "data_type": "integer",
+        "column_name": "follow_up_days",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "follow_up_end_date",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "impact_scores",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "overall_improved",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "improvement_pct",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "targets_met",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "notes",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "coached_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "1",
+        "data_type": "integer",
+        "column_name": "cycle_number",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "parent_session_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "false",
+        "data_type": "boolean",
+        "column_name": "auto_created",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "coaching_sessions_pkey",
+      "idx_coaching_sessions_company_id",
+      "idx_coaching_sessions_rep_user_id",
+      "idx_coaching_sessions_coach_user_id",
+      "idx_coaching_sessions_status",
+      "idx_coaching_sessions_coached_at",
+      "idx_coaching_sessions_parent"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "coaching_sessions_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "coaching_sessions_coach_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "coaching_sessions_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "coaching_sessions_parent_session_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "coaching_sessions_rep_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576071_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_9_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_16_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_17_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_19_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576071_21_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "coach_user_id",
+        "references_table": "users",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "parent_session_id",
+        "references_table": "coaching_sessions",
+        "references_column": "id"
+      },
+      {
+        "column": "rep_user_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "coaching_strengths",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_analysis_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "user_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "behavior",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "why_effective",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "transcript_evidence",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "related_sop_metric",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "coaching_strengths_pkey",
+      "idx_coaching_strengths_user_id",
+      "idx_coaching_strengths_company_id",
+      "idx_coaching_strengths_call_id",
+      "idx_coaching_strengths_created_at"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "coaching_strengths_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "coaching_strengths_call_analysis_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "coaching_strengths_call_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "coaching_strengths_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "coaching_strengths_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576084_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576084_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576084_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576084_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576084_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576084_10_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "call_analysis_id",
+        "references_table": "call_analyses",
+        "references_column": "id"
+      },
+      {
+        "column": "call_id",
+        "references_table": "calls",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "user_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "company_integrations",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "location_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "crm_provider",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "crm_api_encrypted_key",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "crm_company_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "voip_provider",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "voip_api_encrypted_key",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "voip_company_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "st_tenant_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "st_client_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "st_client_secret_encrypted",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "true",
+        "data_type": "boolean",
+        "column_name": "recording_disclosure_enabled",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "company_integrations_pkey",
+      "ix_company_integrations_company_id",
+      "ix_ci_st_tenant_id"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "company_integrations_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "fk_company",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576096_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576096_2_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "insight_jobs",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "shunya_job_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "date",
+        "column_name": "week_start",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "date",
+        "column_name": "week_end",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "ARRAY",
+        "column_name": "company_ids",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "ARRAY",
+        "column_name": "insight_types",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "force_regenerate",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "include_inactive_customers",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "started_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "completed_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "failed_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "results",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "error",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "insight_jobs_pkey",
+      "ix_insight_jobs_status",
+      "ix_insight_jobs_company_id",
+      "ix_insight_jobs_shunya_job_id"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "insight_jobs_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "insight_jobs_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576108_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576108_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576108_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576108_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576108_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576108_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576108_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576108_9_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576108_10_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576108_17_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "invitations",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "email",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "inviter_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "token",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "expires_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "accepted_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'csr'::character varying",
+        "data_type": "character varying",
+        "column_name": "role",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "invitations_pkey",
+      "ix_invitations_inviter_id",
+      "idx_invitations_token_status",
+      "ix_invitations_company_id",
+      "ix_invitations_status",
+      "idx_invitations_email_status",
+      "ix_invitations_email",
+      "ix_invitations_expires_at",
+      "ix_invitations_token"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "invitations_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "invitations_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "invitations_inviter_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576114_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576114_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576114_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576114_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576114_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576114_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576114_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576114_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576114_10_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "inviter_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "companies",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "name",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "phone_number",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "address",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "reference_doc_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "sop_doc_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "csr_sop_doc_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "sales_sop_doc_url",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "companies_pkey"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "companies_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "2200_322576091_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576091_2_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": null,
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "contact_cards",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "primary_phone",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "secondary_phone",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "email",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "first_name",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "last_name",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "address",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "city",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "state",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "postal_code",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "property_snapshot",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "latitude",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "longitude",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "contact_cards_pkey",
+      "ix_contact_cards_email",
+      "ix_contact_cards_primary_phone",
+      "ix_contact_cards_company_id"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "contact_cards_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "contact_cards_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576103_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576103_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576103_3_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "leads",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "contact_card_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "deal_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "assigned_rep_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "deal_size",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "closed_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "coaching_tips",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "pipeline_stage",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "lead_source",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "leads_pkey",
+      "ix_leads_status",
+      "ix_leads_contact_card_id",
+      "ix_leads_assigned_rep_id",
+      "ix_leads_company_id",
+      "idx_leads_pipeline_stage",
+      "idx_leads_lead_source"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "leads_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "leads_assigned_rep_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "leads_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "leads_contact_card_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576135_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576135_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576135_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576135_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576135_10_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "assigned_rep_id",
+        "references_table": "users",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "contact_card_id",
+        "references_table": "contact_cards",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "lead_status_changes",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "lead_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "changed_by_user_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "old_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "new_status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "old_deal_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "new_deal_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "reason",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "lead_status_changes_pkey",
+      "idx_lead_status_changes_lead_id",
+      "idx_lead_status_changes_company_id",
+      "idx_lead_status_changes_changed_by",
+      "idx_lead_status_changes_created_at"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "lead_status_changes_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "lead_status_changes_changed_by_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "lead_status_changes_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "lead_status_changes_lead_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576121_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576121_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576121_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576121_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576121_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576121_10_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "changed_by_user_id",
+        "references_table": "users",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "lead_id",
+        "references_table": "leads",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "pending_actions",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "lead_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "appointment_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "action_type",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "raw_text",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "due_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "priority",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "owner_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "source",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "assigned_by_id",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "pending_actions_pkey",
+      "ix_pending_actions_lead_id",
+      "ix_pending_actions_due_at",
+      "idx_pending_actions_owner_status",
+      "ix_pending_actions_call_id",
+      "ix_pending_actions_owner_id",
+      "ix_pending_actions_company_id",
+      "idx_pending_actions_due_at",
+      "idx_pending_actions_lead_status",
+      "ix_pending_actions_status",
+      "ix_pending_actions_appointment_id",
+      "idx_pending_actions_urgency",
+      "idx_pending_actions_company_status",
+      "idx_pending_actions_assigned_by_id"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "pending_actions_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "pending_actions_appointment_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "pending_actions_assigned_by_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "pending_actions_call_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "pending_actions_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "pending_actions_lead_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "pending_actions_owner_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576149_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576149_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576149_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576149_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576149_12_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576149_14_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "appointment_id",
+        "references_table": "appointments",
+        "references_column": "id"
+      },
+      {
+        "column": "assigned_by_id",
+        "references_table": "users",
+        "references_column": "id"
+      },
+      {
+        "column": "call_id",
+        "references_table": "calls",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "lead_id",
+        "references_table": "leads",
+        "references_column": "id"
+      },
+      {
+        "column": "owner_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "proxy_numbers",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "phone_number",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "twilio_sid",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "friendly_name",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "true",
+        "data_type": "boolean",
+        "column_name": "is_active",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "false",
+        "data_type": "boolean",
+        "column_name": "is_assigned",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "true",
+        "data_type": "boolean",
+        "column_name": "capabilities_sms",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "true",
+        "data_type": "boolean",
+        "column_name": "capabilities_voice",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "region",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "last_released_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "proxy_numbers_pkey",
+      "proxy_numbers_phone_number_key",
+      "idx_proxy_numbers_company_id",
+      "idx_proxy_numbers_phone_number",
+      "idx_proxy_numbers_company_available"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "proxy_numbers_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "proxy_numbers_phone_number_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "proxy_numbers_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576164_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576164_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576164_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576164_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576164_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576164_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576164_13_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "rep_phones",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "user_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "phone_number",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "false",
+        "data_type": "boolean",
+        "column_name": "is_verified",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "true",
+        "data_type": "boolean",
+        "column_name": "is_primary",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "verification_code",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "verification_expires_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "verified_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "expo_push_token",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "rep_phones_pkey",
+      "idx_rep_phones_user_id",
+      "idx_rep_phones_phone_number"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "rep_phones_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "rep_phones_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576183_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576183_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576183_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576183_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576183_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576183_11_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "user_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "smart_nudge_reads",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "nudge_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "user_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "'read'::character varying",
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "read_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "dismissed_at",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "smart_nudge_reads_pkey",
+      "smart_nudge_reads_nudge_id_user_id_key",
+      "idx_smart_nudge_reads_user",
+      "idx_smart_nudge_reads_nudge"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "smart_nudge_reads_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "smart_nudge_reads_nudge_id_user_id_key",
+        "constraint_type": "UNIQUE"
+      },
+      {
+        "constraint_name": "smart_nudge_reads_nudge_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "smart_nudge_reads_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576192_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576192_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576192_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576192_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576192_5_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "nudge_id",
+        "references_table": "smart_nudges",
+        "references_column": "id"
+      },
+      {
+        "column": "user_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "posts",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "gen_random_uuid()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "appointment_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "poster_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "note",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "USER-DEFINED",
+        "column_name": "tags",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "0",
+        "data_type": "integer",
+        "column_name": "likes",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp without time zone",
+        "column_name": "created_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp without time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "posts_pkey",
+      "idx_posts_appointment_id",
+      "idx_posts_poster_id"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "posts_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "fk_appointment",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "fk_poster",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576155_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576155_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576155_3_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "appointment_id",
+        "references_table": "appointments",
+        "references_column": "id"
+      },
+      {
+        "column": "poster_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "masked_communications",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "session_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "lead_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "comm_type",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "direction",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "from_number",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "to_number",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "proxy_number",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "twilio_call_sid",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "duration_seconds",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "call_status",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "recording_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "recording_sid",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "audio_url",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "call_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "twilio_message_sid",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "message_body",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "false",
+        "data_type": "boolean",
+        "column_name": "is_homeowner_reply",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "source_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "masked_communications_pkey",
+      "idx_masked_comms_session_id",
+      "idx_masked_comms_company_id",
+      "idx_masked_comms_lead_id",
+      "idx_masked_comms_twilio_call_sid",
+      "idx_masked_comms_twilio_message_sid",
+      "idx_masked_comms_session_created",
+      "idx_mc_homeowner_reply"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "masked_communications_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "masked_communications_call_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "masked_communications_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "masked_communications_lead_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "masked_communications_session_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576141_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_9_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_20_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576141_22_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "call_id",
+        "references_table": "calls",
+        "references_column": "id"
+      },
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "lead_id",
+        "references_table": "leads",
+        "references_column": "id"
+      },
+      {
+        "column": "session_id",
+        "references_table": "proxy_sessions",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "proxy_sessions",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "lead_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "rep_user_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "proxy_number_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "homeowner_phone",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "rep_phone",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "'active'::character varying",
+        "data_type": "character varying",
+        "column_name": "status",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "closed_reason",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "jsonb",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "closed_at",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "proxy_sessions_pkey",
+      "idx_proxy_sessions_company_id",
+      "idx_proxy_sessions_lead_id",
+      "idx_proxy_sessions_rep_user_id",
+      "idx_proxy_sessions_proxy_number_id",
+      "idx_proxy_sessions_status",
+      "idx_proxy_sessions_homeowner_phone",
+      "idx_proxy_sessions_rep_phone",
+      "idx_proxy_sessions_active_lead_rep"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "proxy_sessions_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "proxy_sessions_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "proxy_sessions_lead_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "proxy_sessions_proxy_number_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "proxy_sessions_rep_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576175_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576175_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576175_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576175_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576175_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576175_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576175_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576175_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576175_11_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "lead_id",
+        "references_table": "leads",
+        "references_column": "id"
+      },
+      {
+        "column": "proxy_number_id",
+        "references_table": "proxy_numbers",
+        "references_column": "id"
+      },
+      {
+        "column": "rep_user_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "users",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "email",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "password_hash",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "role",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "is_active",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "first_name",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "last_name",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "now()",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_metadata",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "users_pkey",
+      "ix_users_email"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "users_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "users_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576214_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576214_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576214_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576214_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576214_9_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "leaderboard_stats",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "user_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "period_key",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "0",
+        "data_type": "integer",
+        "column_name": "won_count",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "0",
+        "data_type": "integer",
+        "column_name": "total_resolved",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "0",
+        "data_type": "double precision",
+        "column_name": "sum_deal_value",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "0",
+        "data_type": "integer",
+        "column_name": "no_show_count",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "leaderboard_stats_pkey",
+      "idx_leaderboard_stats_company_period"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "leaderboard_stats_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "leaderboard_stats_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "leaderboard_stats_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576128_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576128_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576128_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576128_4_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576128_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576128_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576128_7_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "user_id",
+        "references_table": "users",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "user_id",
+      "company_id",
+      "period_key"
+    ]
+  },
+  {
+    "table": "smart_nudges",
+    "schema": "public",
+    "columns": [
+      {
+        "default": "uuid_generate_v4()",
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "rep_user_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "rep_name",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "nudge_type",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "'medium'::character varying",
+        "data_type": "character varying",
+        "column_name": "priority",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "title",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "text",
+        "column_name": "message",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "metric_name",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "previous_value",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "current_value",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "double precision",
+        "column_name": "change_pct",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "window_description",
+        "is_nullable": "YES"
+      },
+      {
+        "default": "'{}'::uuid[]",
+        "data_type": "ARRAY",
+        "column_name": "source_call_ids",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "source_session_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "extra_data",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "fingerprint",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "timestamp with time zone",
+        "column_name": "expires_at",
+        "is_nullable": "YES"
+      }
+    ],
+    "indexes": [
+      "idx_smart_nudges_company_created",
+      "idx_smart_nudges_rep",
+      "idx_smart_nudges_fingerprint",
+      "idx_smart_nudges_type",
+      "idx_smart_nudges_expires",
+      "idx_smart_nudges_priority",
+      "smart_nudges_pkey"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "smart_nudges_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "smart_nudges_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "smart_nudges_rep_user_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "smart_nudges_source_session_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576198_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576198_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576198_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576198_5_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576198_6_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576198_7_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576198_8_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576198_17_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576198_18_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      },
+      {
+        "column": "rep_user_id",
+        "references_table": "users",
+        "references_column": "id"
+      },
+      {
+        "column": "source_session_id",
+        "references_table": "coaching_sessions",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  },
+  {
+    "table": "tenant_configs",
+    "schema": "public",
+    "columns": [
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "uuid",
+        "column_name": "company_id",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "company_name",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "shunya_config_id",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "qualification_thresholds",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "service_prioritization",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "custom_keywords",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "qualification_rules",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "business_hours",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "service_area",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "character varying",
+        "column_name": "industry",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "json",
+        "column_name": "primary_services",
+        "is_nullable": "YES"
+      },
+      {
+        "default": null,
+        "data_type": "integer",
+        "column_name": "version",
+        "is_nullable": "NO"
+      },
+      {
+        "default": null,
+        "data_type": "boolean",
+        "column_name": "is_active",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "created_at",
+        "is_nullable": "NO"
+      },
+      {
+        "default": "CURRENT_TIMESTAMP",
+        "data_type": "timestamp with time zone",
+        "column_name": "updated_at",
+        "is_nullable": "NO"
+      }
+    ],
+    "indexes": [
+      "tenant_configs_pkey",
+      "ix_tenant_configs_company_id"
+    ],
+    "constraints": [
+      {
+        "constraint_name": "tenant_configs_pkey",
+        "constraint_type": "PRIMARY KEY"
+      },
+      {
+        "constraint_name": "tenant_configs_company_id_fkey",
+        "constraint_type": "FOREIGN KEY"
+      },
+      {
+        "constraint_name": "2200_322576207_1_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576207_2_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576207_3_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576207_13_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576207_14_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576207_15_not_null",
+        "constraint_type": "CHECK"
+      },
+      {
+        "constraint_name": "2200_322576207_16_not_null",
+        "constraint_type": "CHECK"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "company_id",
+        "references_table": "companies",
+        "references_column": "id"
+      }
+    ],
+    "primary_keys": [
+      "id"
+    ]
+  }
+]

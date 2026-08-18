@@ -1,0 +1,13 @@
+{
+  "test_action_id": "e9da35a2-f4bd-4b03-8538-c08117a45a00",
+  "due_at_set_to_plus_10_min": true,
+  "check_follow_ups_returned": 0,
+  "check_follow_ups_error": null,
+  "eligibility_sql": {
+    "pending_with_due_at": 196,
+    "with_owner": 117,
+    "csr_routed": 79,
+    "rep_routed": 0
+  },
+  "pass": true
+}

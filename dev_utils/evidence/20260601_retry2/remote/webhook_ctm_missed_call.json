@@ -1,0 +1,24 @@
+{
+  "payload_ctm_id": "staging-val-ctm-01retry2r",
+  "first_post": {
+    "http": 401,
+    "body": {
+      "error": "Unauthorized",
+      "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+      "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+    }
+  },
+  "second_post": {
+    "http": 401,
+    "body": {
+      "error": "Unauthorized",
+      "message": "API key is missing. Please provide a valid API key in the 'X-API-Key' header.",
+      "hint": "Get your API key from the .env file (API_KEY variable) or contact your administrator."
+    }
+  },
+  "call_id_first": null,
+  "call_id_second": null,
+  "pending_actions": [],
+  "pending_count": 0,
+  "pass": false
+}

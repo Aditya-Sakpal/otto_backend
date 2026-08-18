@@ -25,6 +25,7 @@ class ContactInfo:
     contact_id: str
     full_name: Optional[str]
     phone: Optional[str]
+    source: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -199,8 +200,9 @@ class GHLService:
                 full_name = None
 
             phone = (contact.get("phone") or "").strip() or None
+            source = (contact.get("source") or "").strip() or None
 
-            return ContactInfo(contact_id=contact_id, full_name=full_name, phone=phone)
+            return ContactInfo(contact_id=contact_id, full_name=full_name, phone=phone, source=source)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
                 logger.warning(f"GHL API returned 401 Unauthorized for contact {contact_id}. Bearer token may be invalid or expired.")
@@ -514,7 +516,7 @@ class GHLService:
         from app.infrastructure.repositories.contact import ContactRepository
         from app.domain.users.repository import UserRepository
         from app.domain.models.lead import Lead
-        from app.domain.enums import LeadStatus, DealStatus
+        from app.domain.enums import LeadStatus, DealStatus, PipelineStage
 
         try:
             location_id = event.get("locationId")
@@ -565,17 +567,20 @@ class GHLService:
                     existing_lead = lead
                     break
 
-            # Map GHL status to our LeadStatus
+            # Map GHL status to our LeadStatus and PipelineStage
             ghl_status = opp_data.get("status", "open")
             if ghl_status == "won":
                 status = LeadStatus.CLOSED_WON
                 deal_status = DealStatus.WON
+                pipeline_stage = PipelineStage.WON
             elif ghl_status == "lost":
                 status = LeadStatus.CLOSED_LOST
                 deal_status = DealStatus.LOST
+                pipeline_stage = PipelineStage.LOST
             else:
                 status = LeadStatus.NEW
                 deal_status = None
+                pipeline_stage = None
 
             # Get assigned user if available
             assigned_rep_id = None
@@ -605,7 +610,9 @@ class GHLService:
                 "contact_card_id": contact_card.id,
                 "status": status.value,
                 "deal_status": deal_status.value if deal_status else None,
+                "pipeline_stage": pipeline_stage.value if pipeline_stage else None,
                 "deal_size": opp_data.get("monetaryValue"),
+                "lead_source": opp_data.get("source") or None,
                 "extra_metadata": {
                     "ghl_opportunity_id": opportunity_id,
                     "ghl_contact_id": contact_id,
@@ -629,6 +636,17 @@ class GHLService:
                 await lead_repo.create(lead)
 
             logger.info(f"Updated lead from GHL opportunity {opportunity_id}")
+
+            # Auto-close proxy sessions when deal is won or lost
+            if ghl_status in ("won", "lost"):
+                try:
+                    from app.services.proxy_session_service import ProxySessionService
+                    proxy_svc = ProxySessionService(db_session)
+                    lead_ref = existing_lead if existing_lead else lead
+                    reason = "deal_won" if ghl_status == "won" else "deal_lost"
+                    await proxy_svc.close_sessions_for_lead(lead_ref.id, reason)
+                except Exception as e:
+                    logger.warning(f"Failed to close proxy sessions: {e}", exc_info=False)
 
         except Exception as e:
             logger.error(f"Error updating lead event: {e}", exc_info=True)
@@ -837,7 +855,7 @@ class GHLService:
                     pass
 
             # Map appointment status to outcome
-            from app.domain.enums import AppointmentOutcome
+            from app.domain.enums import AppointmentOutcome, PipelineStage
             appt_status = full_appt_data.get("appointmentStatus", "").lower()
             if appt_status == "confirmed":
                 outcome = AppointmentOutcome.PENDING
@@ -888,7 +906,7 @@ class GHLService:
                 "contact_card_id": contact_card.id,
                 "scheduled_start": start_time or datetime.now(),
                 "scheduled_end": end_time,
-                "location_address": full_appt_data.get("address"),
+                "location_address": full_appt_data.get("address") or self._build_contact_address(contact_card),
                 "outcome": outcome,
                 "assigned_rep_id": assigned_rep_id,
                 "extra_metadata": {
@@ -903,11 +921,65 @@ class GHLService:
             if existing_appt:
                 # Update existing appointment
                 appointment = Appointment(**{**appointment_data, "id": existing_appt.id})
-                await appt_repo.update(existing_appt.id, appointment)
+                appointment = await appt_repo.update(existing_appt.id, appointment) or appointment
             else:
                 # Create new appointment
                 appointment = Appointment(**appointment_data)
-                await appt_repo.create(appointment)
+                appointment = await appt_repo.create(appointment)
+
+            # Materialize/refresh appointment reminders (non-fatal)
+            try:
+                from app.services.appointment_reminder_service import sync_appointment_reminders
+                await sync_appointment_reminders(db_session, appointment)
+            except Exception as e:
+                logger.warning(f"Failed to sync appointment reminders (GHL): {e}", exc_info=False)
+
+            # Update lead pipeline_stage based on rep assignment and appointment status
+            if lead:
+                from sqlalchemy import select
+                from app.infrastructure.database.models.lead import LeadORM
+                result = await db_session.execute(
+                    select(LeadORM).where(LeadORM.id == lead.id)
+                )
+                lead_orm = result.scalar_one_or_none()
+                if lead_orm:
+                    # Transition booked -> appointment when a rep is assigned via GHL
+                    if assigned_rep_id and lead_orm.pipeline_stage == PipelineStage.BOOKED.value:
+                        lead_orm.pipeline_stage = PipelineStage.APPOINTMENT.value
+                        if not lead_orm.assigned_rep_id:
+                            lead_orm.assigned_rep_id = assigned_rep_id
+                        logger.info(
+                            f"Updated lead pipeline_stage to appointment (rep assigned via GHL)",
+                            lead_id=str(lead.id),
+                            assigned_rep_id=str(assigned_rep_id),
+                        )
+
+                    # Transition booked/appointment -> appointment_ran when completed
+                    if appt_status == "completed" and lead_orm.pipeline_stage in (
+                        PipelineStage.BOOKED.value,
+                        PipelineStage.APPOINTMENT.value,
+                    ):
+                        lead_orm.pipeline_stage = PipelineStage.APPOINTMENT_RAN.value
+                        logger.info(
+                            f"Updated lead pipeline_stage to appointment_ran",
+                            lead_id=str(lead.id),
+                            ghl_appointment_id=appointment_id,
+                        )
+
+                        # Auto-create proxy session for masked communications
+                        if lead_orm.assigned_rep_id:
+                            try:
+                                from app.services.proxy_session_service import ProxySessionService
+                                proxy_svc = ProxySessionService(db_session)
+                                await proxy_svc.create_session(
+                                    company_id=lead.company_id,
+                                    lead_id=lead.id,
+                                    rep_user_id=lead_orm.assigned_rep_id,
+                                )
+                            except Exception as e:
+                                logger.warning(f"Failed to create proxy session: {e}", exc_info=False)
+
+                    await db_session.flush()
 
             # Trigger background geocoding if location_address is set
             if appointment_data.get("location_address"):
@@ -1130,6 +1202,8 @@ class GHLService:
         from app.domain.enums import CallType, LeadStatus
         from app.core.s3 import get_s3_service
 
+        MISSED_CALL_STATUSES = {"no-answer", "no answer", "busy", "voicemail", "failed", "missed"}
+
         try:
             # Extract call event data
             location_id: Optional[str] = event.get("locationId")
@@ -1143,15 +1217,17 @@ class GHLService:
             call_to: Optional[str] = event.get("to")  # For outbound webhooks
             call_duration: Optional[int] = event.get("callDuration") or event.get("duration")
 
-            # Filter for completed calls only
-            # Accept both "completed" and "answered" statuses
-            if status and status.lower() not in ("completed", "answered"):
-                logger.info(f"Skipping call with status {status}, only processing completed/answered calls")
+            # Detect missed calls vs completed calls
+            is_missed_call = bool(status and status.lower() in MISSED_CALL_STATUSES)
+
+            # Skip non-terminal statuses (not completed, answered, or missed)
+            if status and status.lower() not in ("completed", "answered") and not is_missed_call:
+                logger.info(f"Skipping call with status {status}, not a terminal call status")
                 return {
                     "ok": True,
                     "isCall": True,
                     "skipped": True,
-                    "reason": f"Status is {status}, not completed or answered",
+                    "reason": f"Status is {status}, not a terminal call status",
                 }
 
             logger.info(
@@ -1162,6 +1238,7 @@ class GHLService:
             # Get contact info from GHL or extract from webhook payload
             contact_full_name = None
             contact_phone = None
+            ghl_lead_source = None
 
             # For inbound calls: contact is the caller (from field)
             # For outbound calls: contact is the recipient (to field)
@@ -1174,6 +1251,7 @@ class GHLService:
                     if contact_info:
                         contact_full_name = contact_info.full_name
                         contact_phone = contact_info.phone
+                        ghl_lead_source = contact_info.source
                     else:
                         logger.warning(f"Could not fetch contact info for contactId={contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
             elif direction and direction.lower() in ("outbound", "outgoing"):
@@ -1185,6 +1263,7 @@ class GHLService:
                     if contact_info:
                         contact_full_name = contact_info.full_name
                         contact_phone = contact_info.phone
+                        ghl_lead_source = contact_info.source
                     else:
                         logger.warning(f"Could not fetch contact info for contactId={contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
             else:
@@ -1194,6 +1273,7 @@ class GHLService:
                     if contact_info:
                         contact_full_name = contact_info.full_name
                         contact_phone = contact_info.phone
+                        ghl_lead_source = contact_info.source
                     else:
                         logger.warning(f"Could not fetch contact info for contactId={contact_id} (bearer token: {'configured' if self.bearer_token else 'not configured'})")
 
@@ -1209,103 +1289,113 @@ class GHLService:
                     "error": "No phone number found for contact",
                 }
 
-            # Fetch recording and upload to S3
+            # If we have phone from call_from/call_to but still need source, fetch contact info
+            if not ghl_lead_source and contact_id:
+                try:
+                    source_info = await self.get_contact_info(contact_id=contact_id)
+                    if source_info and source_info.source:
+                        ghl_lead_source = source_info.source
+                except Exception:
+                    pass
+
+            # Fetch recording and upload to S3 (skip for missed calls)
             recording_s3_url = None
             recording_filename = None
             recording_content_type = None
             recording_num_bytes = None
 
-            # Check for recording in attachments first (e.g., Twilio URLs)
-            attachments = event.get("attachments", [])
-            recording_url = None
-            rec = None
-            
-            if attachments and isinstance(attachments, list) and len(attachments) > 0:
-                # Use first attachment as recording URL
-                recording_url = attachments[0] if isinstance(attachments[0], str) else None
+            if not is_missed_call:
+                # Check for recording in attachments first (e.g., Twilio URLs)
+                attachments = event.get("attachments", [])
+                recording_url = None
+                rec = None
+
+                if attachments and isinstance(attachments, list) and len(attachments) > 0:
+                    # Use first attachment as recording URL
+                    recording_url = attachments[0] if isinstance(attachments[0], str) else None
+                    if recording_url:
+                        logger.info(f"Found recording URL in attachments: {recording_url}")
+
                 if recording_url:
-                    logger.info(f"Found recording URL in attachments: {recording_url}")
-
-            if recording_url:
-                # Download recording from direct URL (e.g., Twilio)
-                try:
-                    rec = await self.download_recording_from_url(recording_url)
-                    recording_filename = rec.filename
-                    recording_content_type = rec.content_type
-                    recording_num_bytes = len(rec.audio_bytes)
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to download recording from attachment URL {recording_url}: {e}. "
-                        f"Falling back to GHL API."
-                    )
-                    rec = None  # Fall back to GHL API
-
-            # Fall back to GHL API if no attachment URL or download failed
-            if not rec and location_id and message_id:
-                try:
-                    rec = await self.get_message_recording(
-                        location_id=location_id,
-                        message_id=message_id,
-                    )
-                    recording_filename = rec.filename
-                    recording_content_type = rec.content_type
-                    recording_num_bytes = len(rec.audio_bytes)
-                except Exception:
-                    logger.exception(
-                        f"Failed to fetch recording for locationId={location_id} messageId={message_id}"
-                    )
-
-            # Upload to S3 if we have a recording
-            if rec and recording_num_bytes:
-                s3_service = get_s3_service()
-                if s3_service:
+                    # Download recording from direct URL (e.g., Twilio)
                     try:
-                        # Generate S3 key with company_id prefix
-                        prefix = f"ghl-recordings/{company_id or 'unknown'}"
-                        extension = "wav"
-                        if recording_filename:
-                            # Extract extension from filename
-                            if "." in recording_filename:
-                                extension = recording_filename.split(".")[-1]
-
-                        s3_key = s3_service.generate_s3_key(
-                            prefix=prefix,
-                            filename=f"{message_id or 'recording'}",
-                            extension=extension
+                        rec = await self.download_recording_from_url(recording_url)
+                        recording_filename = rec.filename
+                        recording_content_type = rec.content_type
+                        recording_num_bytes = len(rec.audio_bytes)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to download recording from attachment URL {recording_url}: {e}. "
+                            f"Falling back to GHL API."
                         )
+                        rec = None  # Fall back to GHL API
 
-                        # Upload to S3 (audio bucket)
-                        recording_s3_url = await s3_service.upload_file(
-                            file_bytes=rec.audio_bytes,
-                            s3_key=s3_key,
-                            content_type=recording_content_type,
-                            bucket_type="audio",
-                            metadata={
-                                "location_id": location_id or "",
-                                "message_id": message_id or "",
-                                "contact_id": contact_id or "",
-                                "direction": direction or "",
-                                "date_added": date_added or "",
-                                "recording_source": "attachment_url" if recording_url else "ghl_api",
-                            }
-                        )
-
-                        logger.info(
-                            f"Uploaded recording to S3: {s3_key}",
+                # Fall back to GHL API if no attachment URL or download failed
+                if not rec and location_id and message_id:
+                    try:
+                        rec = await self.get_message_recording(
                             location_id=location_id,
                             message_id=message_id,
-                            s3_url=recording_s3_url,
-                            recording_source="attachment_url" if recording_url else "ghl_api"
                         )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to upload recording to S3: {e}",
-                            exc_info=True,
-                            location_id=location_id,
-                            message_id=message_id
+                        recording_filename = rec.filename
+                        recording_content_type = rec.content_type
+                        recording_num_bytes = len(rec.audio_bytes)
+                    except Exception:
+                        logger.exception(
+                            f"Failed to fetch recording for locationId={location_id} messageId={message_id}"
                         )
-                else:
-                    logger.warning("S3 service not available, skipping upload")
+
+                # Upload to S3 if we have a recording
+                if rec and recording_num_bytes:
+                    s3_service = get_s3_service()
+                    if s3_service:
+                        try:
+                            # Generate S3 key with company_id prefix
+                            prefix = f"ghl-recordings/{company_id or 'unknown'}"
+                            extension = "wav"
+                            if recording_filename:
+                                # Extract extension from filename
+                                if "." in recording_filename:
+                                    extension = recording_filename.split(".")[-1]
+
+                            s3_key = s3_service.generate_s3_key(
+                                prefix=prefix,
+                                filename=f"{message_id or 'recording'}",
+                                extension=extension
+                            )
+
+                            # Upload to S3 (audio bucket)
+                            recording_s3_url = await s3_service.upload_file(
+                                file_bytes=rec.audio_bytes,
+                                s3_key=s3_key,
+                                content_type=recording_content_type,
+                                bucket_type="audio",
+                                metadata={
+                                    "location_id": location_id or "",
+                                    "message_id": message_id or "",
+                                    "contact_id": contact_id or "",
+                                    "direction": direction or "",
+                                    "date_added": date_added or "",
+                                    "recording_source": "attachment_url" if recording_url else "ghl_api",
+                                }
+                            )
+
+                            logger.info(
+                                f"Uploaded recording to S3: {s3_key}",
+                                location_id=location_id,
+                                message_id=message_id,
+                                s3_url=recording_s3_url,
+                                recording_source="attachment_url" if recording_url else "ghl_api"
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to upload recording to S3: {e}",
+                                exc_info=True,
+                                location_id=location_id,
+                                message_id=message_id
+                            )
+                    else:
+                        logger.warning("S3 service not available, skipping upload")
 
             # Validate company_id is present before creating contact
             if not company_id:
@@ -1363,6 +1453,7 @@ class GHLService:
                         company_id=company_id,
                         contact_card_id=contact_card.id,
                         status=LeadStatus.NEW,
+                        lead_source=ghl_lead_source,
                     )
                     lead = await lead_repo.create(lead)
                     logger.info(f"Created new lead {lead.id} for contact {contact_card.id}")
@@ -1393,14 +1484,19 @@ class GHLService:
                 except Exception as e:
                     logger.warning(f"Failed to fetch user {user_id}: {e}")
 
-            # Determine call_type from direction
-            call_type = None
-            if direction:
+            # Determine call_type from direction (override for missed calls)
+            if is_missed_call:
+                call_type = CallType.MISSED_CALL
+            elif direction:
                 direction_lower = direction.lower()
                 if direction_lower in ("inbound", "incoming"):
                     call_type = CallType.CSR_CALL
                 elif direction_lower in ("outbound", "outgoing"):
                     call_type = CallType.SALES_CALL
+                else:
+                    call_type = None
+            else:
+                call_type = None
 
             # Prepare extra_metadata with GHL-specific data
             extra_metadata = {
@@ -1417,6 +1513,7 @@ class GHLService:
                 "recording_filename": recording_filename,
                 "recording_content_type": recording_content_type,
                 "recording_num_bytes": recording_num_bytes,
+                "ghl_lead_source": ghl_lead_source,
             }
 
             # NEW FLOW: Send directly to Shunya without creating call record first
@@ -1431,10 +1528,82 @@ class GHLService:
                 except Exception as e:
                     logger.exception(f"Failed to update lead status: {e}")
 
-            # Send directly to Shunya for analysis (NEW FLOW)
+            # Handle missed calls: create call record + pending action
             shunya_job_id = None
             temp_call_id = None
-            if recording_s3_url:
+
+            if is_missed_call:
+                try:
+                    call_repo = CallRepository(db_session)
+                    missed_call_obj = None
+                    reused_missed_call = False
+
+                    if message_id:
+                        from sqlalchemy import select, and_
+                        from app.infrastructure.database.models.call import CallORM
+
+                        existing_result = await db_session.execute(
+                            select(CallORM).where(
+                                and_(
+                                    CallORM.company_id == company_id,
+                                    CallORM.extra_metadata.op("->>")("ghl_message_id") == message_id,
+                                )
+                            ).limit(1)
+                        )
+                        missed_call_obj = existing_result.scalar_one_or_none()
+
+                    if not missed_call_obj:
+                        missed_call_obj = Call(
+                            company_id=company_id,
+                            contact_card_id=contact_card.id if contact_card else None,
+                            lead_id=lead.id if lead else None,
+                            phone_number=contact_phone,
+                            call_type=CallType.MISSED_CALL,
+                            missed_call=True,
+                            duration_seconds=call_duration,
+                            handled_by_user_id=handled_by_user_id,
+                            interaction_type="call",
+                            lead_source=ghl_lead_source,
+                            extra_metadata=extra_metadata,
+                        )
+                        missed_call_obj = await call_repo.create(missed_call_obj)
+                    else:
+                        reused_missed_call = True
+                        logger.info(
+                            "Reusing existing GHL missed call for messageId dedupe",
+                            call_id=str(missed_call_obj.id),
+                            message_id=message_id,
+                        )
+
+                    temp_call_id = str(missed_call_obj.id)
+                    logger.info(
+                        f"Created missed call record",
+                        call_id=temp_call_id,
+                        phone=contact_phone,
+                        status=status,
+                        reused=reused_missed_call,
+                    )
+
+                    if not reused_missed_call:
+                        from app.services.pending_action_service import create_missed_call_pending_action
+                        await create_missed_call_pending_action(
+                            db_session,
+                            company_id=company_id,
+                            call_id=missed_call_obj.id,
+                            phone=contact_phone,
+                            lead_id=lead.id if lead else missed_call_obj.lead_id,
+                            owner_id=handled_by_user_id,
+                        )
+                        logger.info(
+                            f"Created pending action for missed call",
+                            call_id=temp_call_id,
+                            phone=contact_phone,
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to create missed call record/action: {e}", exc_info=True)
+
+            # Send directly to Shunya for analysis (only for non-missed calls with audio)
+            elif recording_s3_url:
                 try:
                     from app.services.call_service import CallService
                     call_service = CallService(db_session)
@@ -1469,11 +1638,12 @@ class GHLService:
             return {
                 "ok": True,
                 "isCall": True,
+                "isMissedCall": is_missed_call,
                 "locationId": location_id,
                 "contactId": contact_id,
                 "companyId": str(company_id) if company_id else None,
-                "tempCallId": temp_call_id,  # Temporary ID for tracking
-                "shunyaJobId": shunya_job_id,  # Shunya job ID for tracking
+                "tempCallId": temp_call_id,
+                "shunyaJobId": shunya_job_id,
                 "leadId": str(lead.id) if lead else None,
                 "dateAdded": date_added,
                 "direction": direction,
@@ -1491,3 +1661,11 @@ class GHLService:
         except Exception as e:
             logger.error(f"Error processing call webhook: {e}", exc_info=True)
             raise
+
+    @staticmethod
+    def _build_contact_address(contact_card) -> str | None:
+        """Build a location address string from contact card fields."""
+        if not contact_card:
+            return None
+        parts = [contact_card.address, contact_card.city, contact_card.state, contact_card.postal_code]
+        return ", ".join(p for p in parts if p) or None

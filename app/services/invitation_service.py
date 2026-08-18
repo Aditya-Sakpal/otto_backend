@@ -27,6 +27,10 @@ from app.domain.enums import UserRole
 logger = get_logger(__name__)
 
 
+class InvitationNotFoundError(ValueError):
+    """Raised when an invitation token does not match any record."""
+
+
 class InvitationService:
     """Service for Invitation business logic."""
 
@@ -147,7 +151,7 @@ class InvitationService:
         invitation = await self.invitation_repo.get_by_token(token)
 
         if not invitation:
-            raise ValueError("Invitation not found")
+            raise InvitationNotFoundError("Invitation not found")
 
         # Check if already accepted
         if invitation.status == InvitationStatus.ACCEPTED:

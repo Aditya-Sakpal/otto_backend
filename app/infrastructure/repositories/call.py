@@ -4,7 +4,7 @@ Call repository.
 from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -57,5 +57,46 @@ class CallRepository(BaseRepository[CallORM, Call]):
             )
         except Exception as e:
             logger.error(f"Error getting calls by company: {e}")
+            raise e
+
+    async def get_by_lead_id(self, lead_id: UUID) -> List[Call]:
+        """Get all calls for a lead, ordered by most recent first."""
+        try:
+            query = (
+                select(CallORM)
+                .where(CallORM.lead_id == lead_id)
+                .order_by(desc(CallORM.created_at))
+            )
+            result = await self.session.execute(query)
+            orm_objs = result.scalars().all()
+            return [self._to_domain(obj) for obj in orm_objs]
+        except Exception as e:
+            logger.error(f"Error getting calls by lead: {e}")
+            raise e
+
+    async def get_by_st_call_id(self, company_id: UUID, st_call_id: str) -> Optional[Call]:
+        """
+        Find a call ingested from ServiceTitan Export by st_call_id in extra_metadata.
+
+        Used for deduplication. Do not use get_all(limit=100): companies can have
+        thousands of calls, so in-memory scans miss prior rows and ST re-sends create
+        duplicate calls (same recording, same st_call_id).
+        """
+        if not st_call_id:
+            return None
+        try:
+            result = await self.session.execute(
+                select(CallORM)
+                .where(
+                    CallORM.company_id == company_id,
+                    CallORM.extra_metadata.op("->>")("st_call_id") == st_call_id,
+                )
+                .order_by(desc(CallORM.created_at))
+                .limit(1)
+            )
+            orm_obj = result.scalar_one_or_none()
+            return self._to_domain(orm_obj) if orm_obj else None
+        except Exception as e:
+            logger.error(f"Error getting call by st_call_id: {e}")
             raise e
 

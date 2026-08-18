@@ -1,0 +1,25 @@
+{
+  "apply": true,
+  "returncode": 0,
+  "summary": {
+    "scanned": 184,
+    "owner_from_call": 99,
+    "owner_from_appointment": 0,
+    "due_at_set": 144,
+    "due_at_skipped_stale": 0,
+    "priority_set": 182,
+    "updated": 182
+  },
+  "before": {
+    "total_pending": 185,
+    "with_due_at": 41,
+    "with_owner": 5
+  },
+  "after": {
+    "total_pending": 193,
+    "with_due_at": 193,
+    "with_owner": 118,
+    "with_appointment_id": 2
+  },
+  "note": "After counts include webhook-created tasks during validation runs."
+}

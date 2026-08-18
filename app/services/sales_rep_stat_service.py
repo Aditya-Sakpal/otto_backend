@@ -4,6 +4,7 @@ Sales rep stat service.
 Provides GET /sales_rep/stat/{sales_rep_id} response with
 personal stats and pending leads.
 """
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import select, func
@@ -36,10 +37,18 @@ class SalesRepStatService:
     async def get_sales_rep_stat(
         self,
         sales_rep_id: UUID,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> SalesRepStatResponse:
         """
         Get sales rep stat: personal stats and pending leads.
+
+        ``start_date`` / ``end_date`` align KPI metrics and the recordings count
+        (calls with ``handled_by_user_id`` == rep in that UTC window).
         """
+        from datetime import datetime, timezone, timedelta
+        from app.infrastructure.database.models.appointment import AppointmentORM
+
         user_result = await self.session.execute(
             select(UserORM).where(UserORM.id == sales_rep_id)
         )
@@ -52,16 +61,25 @@ class SalesRepStatService:
         company_id = user.company_id
         rep_name = f"{(user.first_name or '')} {(user.last_name or '')}".strip() or "Unknown"
 
+        start_dt, end_dt = self.metrics_service._get_date_range(start_date, end_date)
+
         total_recordings_result = await self.session.execute(
-            select(func.count(CallORM.id)).where(
-                CallORM.company_id == company_id,
-                CallORM.handled_by_user_id == sales_rep_id,
+            select(func.count(AppointmentORM.id)).where(
+                AppointmentORM.company_id == company_id,
+                AppointmentORM.assigned_rep_id == sales_rep_id,
+                AppointmentORM.scheduled_start >= _start_dt,
+                AppointmentORM.scheduled_start <= _end_dt,
+                AppointmentORM.audio_url.isnot(None),
+                CallORM.created_at >= start_dt,
+                CallORM.created_at <= end_dt,
             )
         )
         total_recordings = total_recordings_result.scalar() or 0
 
         kpi = await self.metrics_service.get_sales_rep_kpi(
             user_id=sales_rep_id,
+            start_date=start_date,
+            end_date=end_date,
         )
 
         tardiness = 0
@@ -121,6 +139,7 @@ class SalesRepStatService:
         recording = item.appointment.recording_url or ""
 
         return PendingLeadItem(
+            lead_id=item.id,
             name=item.customer.full_name or "",
             looking_for=item.sales_context.intent or "",
             objection=item.sales_context.primary_objection or "",

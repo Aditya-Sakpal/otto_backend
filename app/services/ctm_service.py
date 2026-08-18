@@ -20,11 +20,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.core.encryption import decrypt_api_key
 from app.domain.models.call import Call
+from app.domain.models.lead import Lead
+from app.domain.enums import LeadStatus
 from app.infrastructure.repositories.call import CallRepository
 from app.infrastructure.repositories.contact import ContactRepository
+from app.infrastructure.repositories.appointment import AppointmentRepository
+from app.infrastructure.repositories.lead import LeadRepository
 from app.domain.users.repository import UserRepository
 from app.core.s3 import get_s3_service
 from app.services.call_service import CallService
+from app.domain.enums import CallType
 
 logger = get_logger(__name__)
 
@@ -43,6 +48,7 @@ class CTMService:
         self.call_repo = CallRepository(session)
         self.contact_repo = ContactRepository(session)
         self.user_repo = UserRepository(session)
+        self.appointment_repo = AppointmentRepository(session)
 
     @staticmethod
     def verify_ctm_signature(
@@ -146,6 +152,8 @@ class CTMService:
         self,
         payload: Dict[str, Any],
         company_id: UUID,
+        ctm_access_key: str | None = None,
+        ctm_secret_key: str | None = None,
     ) -> Call:
         """
         Process Call Tracking Metrics (CTM) webhook payload.
@@ -193,9 +201,14 @@ class CTMService:
                     contact_phone = caller_phone
 
             elif direction == "outbound":
-                caller_phone = payload.get("caller_number")  # Company's number
-                dialed_number = payload.get("dialed_number") or payload.get("destination_number")
-                contact_phone = dialed_number
+                caller_phone = payload.get("tracking_number")  # Company's tracking number
+                contact_phone = (
+                    payload.get("contact_number")
+                    or payload.get("dialed_number")
+                    or payload.get("destination_number")
+                    or payload.get("caller_number_bare")
+                    or payload.get("caller_number")
+                )
 
             else:
                 raise ValueError(f"Unknown call direction: {direction}")
@@ -267,33 +280,32 @@ class CTMService:
                 update_needed = False
                 contact_updates = {}
 
-                # Update address/location fields if provided (for inbound calls)
-                if direction == "inbound":
-                    street = payload.get("street")
-                    city = payload.get("city")
-                    state = payload.get("state")
-                    postal_code = payload.get("postal_code")
-                    country = payload.get("country")
+                # Update address/location fields if provided
+                street = payload.get("street")
+                city = payload.get("city")
+                state = payload.get("state")
+                postal_code = payload.get("postal_code")
+                country = payload.get("country")
 
-                    if street and not contact_card.address:
-                        contact_updates["address"] = street
+                if street and not contact_card.address:
+                    contact_updates["address"] = street
+                    update_needed = True
+                if city and not contact_card.city:
+                    contact_updates["city"] = city
+                    update_needed = True
+                if state and not contact_card.state:
+                    contact_updates["state"] = state
+                    update_needed = True
+                if postal_code and not contact_card.postal_code:
+                    contact_updates["postal_code"] = postal_code
+                    update_needed = True
+                if country:
+                    # Store country in extra_metadata since we don't have a direct column
+                    if contact_card.extra_metadata is None:
+                        contact_card.extra_metadata = {}
+                    if "country" not in contact_card.extra_metadata:
+                        contact_card.extra_metadata["country"] = country
                         update_needed = True
-                    if city and not contact_card.city:
-                        contact_updates["city"] = city
-                        update_needed = True
-                    if state and not contact_card.state:
-                        contact_updates["state"] = state
-                        update_needed = True
-                    if postal_code and not contact_card.postal_code:
-                        contact_updates["postal_code"] = postal_code
-                        update_needed = True
-                    if country:
-                        # Store country in extra_metadata since we don't have a direct column
-                        if contact_card.extra_metadata is None:
-                            contact_card.extra_metadata = {}
-                        if "country" not in contact_card.extra_metadata:
-                            contact_card.extra_metadata["country"] = country
-                            update_needed = True
 
                 if update_needed:
                     for key, value in contact_updates.items():
@@ -311,6 +323,15 @@ class CTMService:
                         message_id = str(call_id_ctm)
                         s3_key = f"recordings/{contact_id_str}/{message_id}.mp3"
 
+                        # Build Basic Auth headers for CTM audio download
+                        auth_headers = None
+                        if ctm_access_key and ctm_secret_key:
+                            import base64
+                            credentials = base64.b64encode(
+                                f"{ctm_access_key}:{ctm_secret_key}".encode()
+                            ).decode()
+                            auth_headers = {"Authorization": f"Basic {credentials}"}
+
                         # Stream from CTM URL to S3
                         s3_audio_url = await s3_service.upload_from_url(
                             url=audio_url_ctm,
@@ -322,6 +343,7 @@ class CTMService:
                                 "company_id": str(company_id),
                             },
                             bucket_type="audio",
+                            headers=auth_headers,
                         )
                         logger.info(
                             "Audio streamed to S3",
@@ -368,21 +390,29 @@ class CTMService:
                 "hour": payload.get("hour"),
                 "location": payload.get("location"),
                 "country": payload.get("country"),
-                "agent": agent_data,
+                "ctm_agent": agent_data,
                 # Preserve the full raw payload for debugging / future use
                 "ctm_raw_payload": payload,
             }
 
-            # Create or update call record
-            # Check if call already exists by CTM call ID
-            existing_calls = await self.call_repo.get_all(
-                filters={"company_id": company_id},
+            # Create or update call record — lookup by CTM call id in metadata
+            from sqlalchemy import select, and_
+            from app.infrastructure.database.models.call import CallORM
+
+            existing_result = await self.session.execute(
+                select(CallORM).where(
+                    and_(
+                        CallORM.company_id == company_id,
+                        CallORM.extra_metadata.op("->>")("ctm_call_id") == str(call_id_ctm),
+                    )
+                ).limit(1)
             )
+            existing_call_orm = existing_result.scalar_one_or_none()
             existing_call = None
-            for call in existing_calls:
-                if call.extra_metadata and call.extra_metadata.get("ctm_call_id") == call_id_ctm:
-                    existing_call = call
-                    break
+            if existing_call_orm:
+                existing_call = await self.call_repo.get_by_id(existing_call_orm.id)
+
+            is_new_call = False
 
             if existing_call:
                 # Update existing call
@@ -391,12 +421,27 @@ class CTMService:
                 existing_call.transcript = transcript or existing_call.transcript
                 existing_call.handled_by_user_id = handled_by_user_id or existing_call.handled_by_user_id
                 existing_call.missed_call = is_missed
+                if is_missed:
+                    existing_call.call_type = CallType.MISSED_CALL.value
                 if contact_card:
                     existing_call.contact_card_id = contact_card.id
+                if not existing_call.lead_source and payload.get("source"):
+                    existing_call.lead_source = payload["source"]
                 existing_call.extra_metadata = {**(existing_call.extra_metadata or {}), **extra_metadata}
 
                 call = await self.call_repo.update(existing_call.id, existing_call)
                 logger.info("Call updated", call_id=str(call.id), ctm_call_id=call_id_ctm)
+
+                # Also update appointment's audio_url if this call is linked to an appointment
+                if s3_audio_url and call.audio_url:
+                    appointment = await self.appointment_repo.get_by_interaction_id(call.id)
+                    if appointment:
+                        appointment.audio_url = call.audio_url
+                        appointment.mark_updated()
+                        await self.appointment_repo.update(appointment.id, appointment)
+                        logger.info(
+                            f"Updated appointment {appointment.id} with audio_url from CTM call {call.id}"
+                        )
             else:
                 # Create new call
                 call = Call(
@@ -407,13 +452,55 @@ class CTMService:
                     duration_seconds=duration,
                     transcript=transcript,
                     handled_by_user_id=handled_by_user_id,
-                    call_type=None,  # CTM doesn't provide call_type
+                    call_type=CallType.MISSED_CALL if is_missed else None,
                     missed_call=is_missed,
                     interaction_type="call",
+                    lead_source=payload.get("source") or None,
                     extra_metadata=extra_metadata,
                 )
                 call = await self.call_repo.create(call)
+                is_new_call = True
                 logger.info("Call created", call_id=str(call.id), ctm_call_id=call_id_ctm)
+
+            # Find or create lead for this contact card
+            if contact_card:
+                try:
+                    lead_repo = LeadRepository(self.session)
+                    existing_leads = await lead_repo.get_all(
+                        filters={"contact_card_id": contact_card.id, "company_id": company_id}
+                    )
+                    lead = existing_leads[0] if existing_leads else None
+
+                    if not lead:
+                        lead = Lead(
+                            company_id=company_id,
+                            contact_card_id=contact_card.id,
+                            status=LeadStatus.NEW,
+                            lead_source=payload.get("source") or None,
+                        )
+                        lead = await lead_repo.create(lead)
+                        logger.info("Lead created", lead_id=str(lead.id), contact_card_id=str(contact_card.id))
+
+                    if lead and not call.lead_id:
+                        call.lead_id = lead.id
+                        call = await self.call_repo.update(call.id, call)
+                except Exception as e:
+                    logger.error(f"Failed to find or create lead for contact {contact_card.id}: {e}")
+
+            # Create callback pending action for missed calls
+            if is_missed and is_new_call:
+                try:
+                    from app.services.pending_action_service import create_missed_call_pending_action
+                    await create_missed_call_pending_action(
+                        self.session,
+                        company_id=company_id,
+                        call_id=call.id,
+                        phone=contact_phone,
+                        lead_id=call.lead_id,
+                        owner_id=handled_by_user_id,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create pending action for CTM missed call {call.id}: {e}")
 
             # Update contact card with last call metadata (for inbound calls)
             if direction == "inbound" and contact_card:
@@ -435,8 +522,8 @@ class CTMService:
                 except Exception as e:
                     logger.exception(f"Failed to update contact card metadata: {e}")
 
-            # Trigger analysis if audio URL is available
-            if s3_audio_url and not call.missed_call:
+            # Trigger analysis only for NEW calls (skip re-fired webhooks to avoid 409 from Shunya)
+            if is_new_call and s3_audio_url and not call.missed_call:
                 try:
                     call_service = CallService(self.session)
                     await call_service.trigger_analysis(call.id)

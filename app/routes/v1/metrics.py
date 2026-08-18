@@ -35,10 +35,12 @@ from app.domain.schemas.metrics import (
     UnbookedLeadsResponse,
     PendingActionsResponse,
     CSRProfileResponse,
+    StrengthsAndIssuesResponse,
 )
 from app.services.metrics_service import MetricsService
 from app.services.analytics_service import AnalyticsService
 from app.services.pending_action_service import PendingActionService
+from app.infrastructure.integrations.shoonya import get_shoonya_client
 
 router = APIRouter(tags=["metrics"])
 
@@ -203,13 +205,11 @@ async def get_auto_queued_leads(
         limit=limit,
     )
 
-
 @router.get("/booking-rate-improvement", response_model=BookingRateImprovementResponse, responses=RESPONSES)
 async def get_booking_rate_improvement(
     db: DbSession,
     company_id: Optional[UUID] = Query(None, description="Company UUID (optional if user_id is provided)"),
     user_id: Optional[UUID] = Query(None, description="User UUID to scope booking rate improvement to a single user (optional)"),
-    # RBAC DISABLED - current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),
     current_user: User = Depends(require_any_role([UserRole.CSR, UserRole.SALES_REP, UserRole.EXECUTIVE])),  # RBAC DISABLED - Returns dummy user
     # Backwards-compatible single-period params:
     start_date: Optional[date] = Query(None, description="(legacy) Start date for filtering (YYYY-MM-DD)"),
@@ -220,37 +220,26 @@ async def get_booking_rate_improvement(
     start_b: Optional[date] = Query(None, description="Period B start date (YYYY-MM-DD)"),
     end_b: Optional[date] = Query(None, description="Period B end date (YYYY-MM-DD)"),
 ):
-    """
-    Get booking rate improvement metrics within date range.
-    
-    - **company_id**: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
-    - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user. If both company_id and user_id are provided, user_id is used.
-    - **start_date**: Start of the current period (defaults to 30 days ago)
-    - **end_date**: End of the current period (defaults to today)
-    
-    Compares booking rate between current period and previous period of same length.
-    Returns current rate, previous rate, improvement percentage, and totals.
-    
-    Resolution Rules:
-    - If user_id is provided: prefer user_id (even if company_id is also provided)
-    - Else if company_id is provided: use company_id
-    - Else: return 400 error "Either company_id or user_id is required"
-    
-    Required role: Any authenticated user
-    """
-    # Resolution rules:
-    # - If user_id is provided: prefer user_id (even if company_id is also provided)
-    # - Else if company_id is provided: use company_id
-    # - Else: error
+    # Validate that at least one of company_id or user_id is provided
     if not company_id and not user_id:
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either company_id or user_id is required",
         )
 
+    # --- BUG #59 FIX: Verify user presence to prevent 500 server crash ---
     if user_id:
-        company_id = None  # ensure user_id takes precedence (service will derive company_id from user)
+        from sqlalchemy import text
+        user_check = await db.execute(
+            text("SELECT id FROM users WHERE id = :user_id"),
+            {"user_id": str(user_id)}
+        )
+        if not user_check.fetchone():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User identifier '{user_id}' not found in system storage"
+            )
+        company_id = None  # ensure user_id takes precedence
 
     service = MetricsService(db)
     # If new dual-period params provided, pass them through; else use legacy start_date/end_date
@@ -287,25 +276,7 @@ async def get_close_rate_trends(
     start_b: Optional[date] = Query(None, description="Period B start date (YYYY-MM-DD)"),
     end_b: Optional[date] = Query(None, description="Period B end date (YYYY-MM-DD)"),
 ):
-    """
-    Get close rate trends (closed/won deals) within date range.
-
-    Similar to booking rate improvement but tracks appointments with outcome='won'
-    and leads with status='closed_won'.
-
-    - **company_id**: Company UUID (optional if user_id is provided). Either company_id or user_id is required.
-    - **user_id**: User UUID (optional). If provided, metrics are calculated only for that user.
-    - **start_date**: Start of the current period (defaults to 30 days ago)
-    - **end_date**: End of the current period (defaults to today)
-
-    **Dual-period mode (for charts):**
-    - **start_a, end_a**: Period A date range
-    - **start_b, end_b**: Period B date range
-    - Returns per-day closed counts for both periods with x_axis and y_axis for plotting
-
-    Compares close rate between current period and previous period of same length.
-    Returns current rate, previous rate, improvement percentage, and totals.
-    """
+    """Get close rate trends within date range."""
     # Validate that at least one of company_id or user_id is provided
     if not company_id and not user_id:
         raise HTTPException(
@@ -313,7 +284,18 @@ async def get_close_rate_trends(
             detail="Either company_id or user_id is required",
         )
 
+    # --- BUG #101 FIX: Verify user presence to prevent 500 server crash ---
     if user_id:
+        from sqlalchemy import text
+        user_check = await db.execute(
+            text("SELECT id FROM users WHERE id = :user_id"),
+            {"user_id": str(user_id)}
+        )
+        if not user_check.fetchone():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User identifier '{user_id}' not found in system storage"
+            )
         company_id = None  # ensure user_id takes precedence
 
     service = MetricsService(db)
@@ -374,23 +356,25 @@ async def get_top_objections(
     start_date: Optional[date] = Query(None, description="Start date for filtering (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date for filtering (YYYY-MM-DD)"),
     limit: Optional[int] = Query(None, ge=1, le=20, description="Number of top objections to return (optional, returns all if not specified)"),
+    unbooked_only: bool = Query(False, description="If true, only include objections from calls where the lead was NOT booked (booking_status = 'not_booked')"),
 ):
     """
     Get top objections aggregated by company or user.
-    
+
     **When called by company_id:** Returns objections with objection_type, count, affected_leads_count;
     plus booking_rate, booked, unbooked, booking_rate_trend (start to end date);
     most_coaching_needs (user_id, user details, unbooked count for that objection, call_logs per user);
     and call_logs (all call details where that objection occurred for the company).
-    
+
     **When called by user_id:** Returns objections with objection_type, count, affected_leads_count;
     plus call_logs (call details where that objection occurred for that user only).
-    
+
     - **company_id**: Company UUID (optional if user_id is provided)
     - **user_id**: User UUID (optional). If provided, objections are scoped to that user. If both provided, user_id is used.
     - **start_date**, **end_date**: Filter objections by call date range.
     - **limit**: Optional limit on number of top objections returned.
-    
+    - **unbooked_only**: If true, only include objections from unbooked calls (booking_status = 'not_booked').
+
     Required role: CSR, SALES_REP, or EXECUTIVE
     """
     if not company_id and not user_id:
@@ -409,6 +393,7 @@ async def get_top_objections(
         user_id=user_id,
         start_date=start_date,
         end_date=end_date,
+        unbooked_only=unbooked_only,
     )
     
     if limit is not None:
@@ -555,6 +540,122 @@ async def get_most_coaching_opportunities(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+@router.get("/coaching/strengths-and-issues", response_model=StrengthsAndIssuesResponse, responses=RESPONSES)
+async def get_strengths_and_issues(
+    user_id: UUID = Query(..., description="Rep/CSR user UUID"),
+    db: DbSession = None,
+    company_id: Optional[UUID] = Query(None, description="Company UUID (auto-resolved from user if omitted)"),
+    window_days: int = Query(30, ge=7, le=180, description="Time window in days for Shunya aggregation"),
+    force_refresh: bool = Query(False, description="Force Shunya to rebuild the profile (may take 30-60s)"),
+    current_user: User = Depends(get_current_user),
+    start_date: Optional[date] = Query(None, description="Start date for DB metrics (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date for DB metrics (YYYY-MM-DD)"),
+):
+    """
+    Unified strengths & issues endpoint.
+
+    Combines Shunya's coaching profile (15 canonical categories with severity,
+    representative examples) with Otto DB performance metrics (booking rate,
+    conversion rate, objection-based coaching needs, trends).
+
+    - **user_id**: Rep/CSR user UUID (used as Shunya rep_id)
+    - **company_id**: Company UUID (optional, resolved from user record)
+    - **window_days**: Shunya aggregation window (default 30)
+    - **force_refresh**: Force Shunya cache rebuild
+    - **start_date/end_date**: Date range for DB metrics (defaults to 30 days)
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+
+    # Resolve company_id from user if not provided
+    if not company_id:
+        try:
+            from app.infrastructure.database.models.user import UserORM
+            from sqlalchemy import select
+            user_result = await db.execute(
+                select(UserORM.company_id).where(UserORM.id == user_id)
+            )
+            row = user_result.scalar_one_or_none()
+            if row:
+                company_id = row
+        except Exception:
+            pass
+        # Fall back to company_id from token
+        if not company_id and hasattr(current_user, 'company_id') and current_user.company_id:
+            company_id = current_user.company_id
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="company_id is required (could not resolve from user)",
+            )
+
+    # Fetch Shunya coaching profile
+    shoonya = get_shoonya_client()
+    shunya_profile = {}
+    if shoonya.is_available():
+        try:
+            shunya_profile = await shoonya.get_coaching_profile(
+                rep_id=str(user_id),
+                company_id=str(company_id),
+                force_refresh=False,
+                window_days=window_days,
+            )
+        except Exception as e:
+            _log.warning(f"Shunya coaching profile unavailable: {e}")
+
+    # Merge with DB metrics (graceful degradation if DB is unreachable)
+    db_metrics = {}
+    try:
+        service = MetricsService(db)
+        return await service.get_strengths_and_issues(
+            user_id=user_id,
+            company_id=company_id,
+            shunya_profile=shunya_profile,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except Exception as e:
+        _log.warning(f"DB metrics unavailable, returning Shunya-only data: {e}")
+        from datetime import datetime
+
+        def _parse_severity(sv):
+            if isinstance(sv, dict) and sv:
+                return {"high": sv.get("high", 0), "medium": sv.get("medium", 0), "low": sv.get("low", 0)}
+            return None
+
+        def _parse_bucket(b):
+            return {
+                "category": b.get("category", ""),
+                "count": b.get("count", 0),
+                "severity_distribution": _parse_severity(b.get("severity_distribution")),
+                "representative_examples": b.get("representative_examples", []),
+                "related_sop_metrics": b.get("related_sop_metrics", []),
+                "latest_occurrence": b.get("latest_occurrence"),
+            }
+
+        return {
+            "rep_id": shunya_profile.get("rep_id", str(user_id)),
+            "rep_name": shunya_profile.get("rep_name", ""),
+            "company_id": shunya_profile.get("company_id", str(company_id)),
+            "window_start": shunya_profile.get("window_start", ""),
+            "window_end": shunya_profile.get("window_end", ""),
+            "calls_analyzed": shunya_profile.get("calls_analyzed", 0),
+            "top_weaknesses": [_parse_bucket(b) for b in shunya_profile.get("top_weaknesses", [])],
+            "top_strengths": [_parse_bucket(b) for b in shunya_profile.get("top_strengths", [])],
+            "all_weakness_buckets": [_parse_bucket(b) for b in shunya_profile.get("all_weakness_buckets", [])],
+            "all_strength_buckets": [_parse_bucket(b) for b in shunya_profile.get("all_strength_buckets", [])],
+            "db_performance_metrics": {
+                "total_calls": 0, "calls_answered": 0, "calls_answered_percentage": 0.0,
+                "missed_calls": 0, "missed_calls_status": "low", "booking_rate": 0.0,
+                "conversion_rate": 0.0, "avg_response_time": 0.0, "response_time_status": "on_target",
+                "avg_sop_compliance_score": 0.0, "qualified_leads": 0, "booked_appointments": 0,
+                "rank": None, "total_csrs": 0, "top_objections": [], "booking_rate_trend": [],
+            },
+            "calculated_at": shunya_profile.get("calculated_at", datetime.utcnow().isoformat()),
+            "data_sources": ["shunya_coaching_profile"],
+        }
 
 
 @router.get("/conversion/lead-to-sale", response_model=ConversionMetricsResponse, responses=RESPONSES)

@@ -1,0 +1,195 @@
+{
+  "run_id": "idempotency_fix2",
+  "company_id": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+  "appointment_prep_deleted": 0,
+  "webhooks_local": {
+    "ghl": {
+      "payload_message_id": "staging-val-ghl-encyfix2",
+      "first_post": {
+        "http": 200,
+        "body": {
+          "ok": true,
+          "isCall": true,
+          "isMissedCall": true,
+          "locationId": "staging-validation-ghl",
+          "contactId": "staging-val-ghl-contact",
+          "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "tempCallId": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+          "shunyaJobId": null,
+          "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+          "dateAdded": "2026-06-01T10:50:00.000Z",
+          "direction": "inbound",
+          "userId": null,
+          "handledByUserId": null,
+          "messageId": "staging-val-ghl-encyfix2",
+          "contactFullName": null,
+          "contactPhone": "+15551234567",
+          "recordingContentType": null,
+          "recordingFilename": null,
+          "recordingNumBytes": null,
+          "recordingS3Url": null
+        }
+      },
+      "second_post": {
+        "http": 200,
+        "body": {
+          "ok": true,
+          "isCall": true,
+          "isMissedCall": true,
+          "locationId": "staging-validation-ghl",
+          "contactId": "staging-val-ghl-contact",
+          "companyId": "ce9091df-db37-4e7e-877c-2ed0cf2f4c37",
+          "tempCallId": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+          "shunyaJobId": null,
+          "leadId": "fe02d3bf-c263-46cd-923c-bea70d61df05",
+          "dateAdded": "2026-06-01T10:50:00.000Z",
+          "direction": "inbound",
+          "userId": null,
+          "handledByUserId": null,
+          "messageId": "staging-val-ghl-encyfix2",
+          "contactFullName": null,
+          "contactPhone": "+15551234567",
+          "recordingContentType": null,
+          "recordingFilename": null,
+          "recordingNumBytes": null,
+          "recordingS3Url": null
+        }
+      },
+      "probe_after_post1": {
+        "calls_with_message_id": 1,
+        "call_ids": [
+          "f8a82255-e1cd-4dce-8a4d-705309e64533"
+        ]
+      },
+      "calls_after_post2": 1,
+      "call_id_first": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+      "call_id_second": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+      "same_call_id_on_replay": true,
+      "pending_actions": [
+        {
+          "id": "13158354-227d-4322-8b3a-9f5ab7ca1a83",
+          "call_id": "f8a82255-e1cd-4dce-8a4d-705309e64533",
+          "due_at": "2026-06-01 06:09:01.990432+00:00",
+          "priority": 1,
+          "source": "manual"
+        }
+      ],
+      "pending_count": 1,
+      "pass": true
+    },
+    "ctm": {
+      "payload_ctm_id": "staging-val-ctm-encyfix2",
+      "first_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "call_id": "1e7e0bf1-f8b0-4afc-9a8b-7ebbf887d0b2",
+          "ctm_call_id": "staging-val-ctm-encyfix2"
+        }
+      },
+      "second_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "call_id": "1e7e0bf1-f8b0-4afc-9a8b-7ebbf887d0b2",
+          "ctm_call_id": "staging-val-ctm-encyfix2"
+        }
+      },
+      "probe_after_post1": {
+        "calls_with_ctm_id": 1,
+        "call_ids": [
+          "1e7e0bf1-f8b0-4afc-9a8b-7ebbf887d0b2"
+        ]
+      },
+      "calls_after_post2": 1,
+      "call_id_first": "1e7e0bf1-f8b0-4afc-9a8b-7ebbf887d0b2",
+      "call_id_second": "1e7e0bf1-f8b0-4afc-9a8b-7ebbf887d0b2",
+      "same_call_id_on_replay": true,
+      "pending_actions": [
+        {
+          "id": "e7626551-3e0c-42cc-8858-e0b2010601e7",
+          "action_type": "call_back",
+          "source": "manual",
+          "call_id": "1e7e0bf1-f8b0-4afc-9a8b-7ebbf887d0b2",
+          "owner_id": null,
+          "due_at": "2026-06-01 06:09:26.116097+00:00",
+          "priority": 1
+        }
+      ],
+      "pending_count": 1,
+      "pass": true
+    },
+    "appointment": {
+      "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+      "first_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "follow_up_created": true
+        }
+      },
+      "second_post": {
+        "http": 200,
+        "body": {
+          "status": "success",
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "follow_up_created": true
+        }
+      },
+      "probe_after_post1": {
+        "pending_follow_up_count": 1,
+        "pending_ids": [
+          "0c81a867-b0e0-461f-b3a9-b7d46f913f16"
+        ]
+      },
+      "pending_actions": [
+        {
+          "id": "0c81a867-b0e0-461f-b3a9-b7d46f913f16",
+          "action_type": "follow_up",
+          "source": "ai_analysis",
+          "call_id": "69ed129b-0f51-4c2d-a2c1-4c9edc63aa52",
+          "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+          "due_at": "2026-06-02 05:55:02.724825+00:00",
+          "priority": 2,
+          "appointment_id": "0c5b307c-4594-4893-87a3-06328be547f2",
+          "created_at": "2026-06-01 05:54:50.468347+00:00"
+        }
+      ],
+      "pending_count": 1,
+      "owner_id": "ae6e55d1-afc6-41b7-a12a-bc6cab51346b",
+      "due_at": "2026-06-02 05:55:02.724825+00:00",
+      "priority": 2,
+      "pass": true
+    }
+  },
+  "notification": {
+    "test_action_id": "0c81a867-b0e0-461f-b3a9-b7d46f913f16",
+    "due_at_set_to_plus_10_min": true,
+    "check_follow_ups_returned": 0,
+    "check_follow_ups_error": null,
+    "eligibility_sql": {
+      "pending_with_due_at": 198,
+      "with_owner": 117,
+      "csr_routed": 81,
+      "rep_routed": 0
+    },
+    "pass": true
+  },
+  "staging_validation": {
+    "local": {
+      "base": "http://127.0.0.1:8001",
+      "returncode": 0,
+      "summary": "=== SUMMARY: PASS=11 FAIL=0 WARN=1 ===",
+      "pass": true,
+      "log_file": "staging_validation_local.txt"
+    },
+    "remote": {
+      "base": "https://ottoai.shunyalabs.ai",
+      "returncode": 1,
+      "summary": "=== SUMMARY: PASS=6 FAIL=1 WARN=0 ===",
+      "pass": false,
+      "log_file": "staging_validation_remote.txt"
+    }
+  }
+}

@@ -12,8 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.inspection import inspect
 
 from app.core.logging import get_logger
+from app.domain.enums import LeadStatus
 from app.domain.models.lead import Lead
-from app.domain.models.lead_detail import LeadDetail
+from app.domain.models.lead_detail import LeadDetail, PipelineLeadDetail
 from app.domain.schemas.sales_rep import (
     PendingLeadsResponse,
     PendingLeadResultItem,
@@ -22,7 +23,10 @@ from app.domain.schemas.sales_rep import (
     PendingLeadAppointment,
     PendingLeadWorkflow,
 )
-from app.infrastructure.repositories.lead import LeadRepository
+from app.infrastructure.repositories.lead import (
+    LeadRepository,
+    LEAD_SORT_CREATED_DESC,
+)
 from app.infrastructure.database.models.appointment import AppointmentORM
 from app.infrastructure.database.models.user import UserORM
 from app.infrastructure.database.models.call import CallORM
@@ -33,26 +37,28 @@ logger = get_logger(__name__)
 
 class LeadService:
     """Service for lead-related operations."""
-    
+
     def __init__(self, session: AsyncSession):
         self.session = session
         self.lead_repo = LeadRepository(session)
-    
+
     async def get_by_id(self, lead_id: UUID) -> Optional[Lead]:
         """Get lead by ID."""
         return await self.lead_repo.get_by_id(lead_id)
-    
+
     async def get_by_company(
         self,
         company_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get all leads for a company."""
         return await self.lead_repo.get_by_company(
             company_id=company_id,
             skip=skip,
             limit=limit,
+            sort=sort,
         )
 
     async def list_with_filters(
@@ -62,35 +68,43 @@ class LeadService:
         end_date: Optional[date] = None,
         search: Optional[str] = None,
         statuses: Optional[List[str]] = None,
+        pipeline_stages: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
-        """Get leads with optional date range, search (name/phone), and status filters."""
+        """Get leads with optional date range, search (name/phone), status, and pipeline stage filters."""
         return await self.lead_repo.get_list_with_filters(
             company_id=company_id,
             start_date=start_date,
             end_date=end_date,
             search=search,
             statuses=statuses,
+            pipeline_stages=pipeline_stages,
             skip=skip,
             limit=limit,
+            sort=sort,
         )
-    
+
     async def get_by_statuses(
         self,
         company_id: UUID,
-        statuses: List[str],
+        statuses: Optional[List[str]] = None,
+        pipeline_stages: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
-        """Get leads by status filter."""
+        """Get leads by status and/or pipeline stage filter."""
         return await self.lead_repo.get_by_statuses(
             company_id=company_id,
             statuses=statuses,
+            pipeline_stages=pipeline_stages,
             skip=skip,
             limit=limit,
+            sort=sort,
         )
-    
+
     async def get_unbooked(
         self,
         company_id: UUID,
@@ -103,7 +117,7 @@ class LeadService:
             skip=skip,
             limit=limit,
         )
-    
+
     async def get_by_priority(
         self,
         company_id: UUID,
@@ -116,13 +130,15 @@ class LeadService:
             skip=skip,
             limit=limit,
         )
-    
+
     async def get_nurturing(
         self,
         company_id: UUID,
         statuses: Optional[List[str]] = None,
+        pipeline_stages: Optional[List[str]] = None,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get nurturing leads (new, warm, hot)."""
         if statuses is None:
@@ -130,15 +146,18 @@ class LeadService:
         return await self.lead_repo.get_by_statuses(
             company_id=company_id,
             statuses=statuses,
+            pipeline_stages=pipeline_stages,
             skip=skip,
             limit=limit,
+            sort=sort,
         )
-    
+
     async def get_lost(
         self,
         company_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        sort: str = LEAD_SORT_CREATED_DESC,
     ) -> List[Lead]:
         """Get lost leads (closed_lost, abandoned, dormant)."""
         return await self.lead_repo.get_by_statuses(
@@ -146,11 +165,56 @@ class LeadService:
             statuses=["closed_lost", "abandoned", "dormant"],
             skip=skip,
             limit=limit,
+            sort=sort,
         )
-    
+
+    async def get_pipeline_view(
+        self,
+        company_id: UUID,
+        limit: int = 20,
+        search: Optional[str] = None,
+    ) -> dict:
+        """
+        Get leads grouped by pipeline stage.
+
+        Returns a dictionary with all pipeline stages as keys,
+        each containing an array of leads in that stage (capped by limit).
+
+        Optional ``search`` filters in SQL by contact name, phone, or address fields across
+        all company leads with a pipeline stage, then applies the per-stage cap.
+        """
+        from app.domain.enums import PipelineStage
+
+        # Initialize all stages with empty lists
+        pipeline: dict = {stage.value: [] for stage in PipelineStage}
+
+        # Fetch all leads that have a pipeline_stage (optionally filtered by search)
+        leads = await self.lead_repo.get_by_pipeline_stages(
+            company_id=company_id,
+            search=search,
+            limit_per_stage=limit,
+        )
+
+        for lead in leads:
+            ps = lead.pipeline_stage
+            stage_value = ps.value if hasattr(ps, "value") else ps # type: ignore
+            if stage_value and stage_value in pipeline:
+                if len(pipeline[stage_value]) < limit:
+                    pipeline[stage_value].append(lead)
+
+        return pipeline
+
     async def get_detail_by_id(self, lead_id: UUID) -> Optional[LeadDetail]:
         """Get detailed lead information for lead details page."""
         return await self.lead_repo.get_detail_by_id(lead_id)
+
+    async def get_pipeline_detail_by_id(self, lead_id: UUID) -> Optional[PipelineLeadDetail]:
+        """Get 3-tab pipeline lead detail (lead, appointment, result)."""
+        return await self.lead_repo.get_pipeline_detail_by_id(lead_id)
+
+    async def get_customer_card(self, lead_id: UUID):
+        """Get full customer card data for the lead detail view."""
+        return await self.lead_repo.get_customer_card(lead_id)
 
     async def get_pending_leads(
         self,
@@ -269,14 +333,18 @@ class LeadService:
             last_touched = lead_orm.updated_at or lead_orm.created_at
             follow_up_count = pending_counts.get(lead_orm.id, 0)
 
-            appt = lead_to_appointment.get(lead_orm.id)
+            appt = lead_to_appointment.get(lead_orm.id) # type: ignore
             assigned_rep = rep_name
             scheduled_for = None
             recording_url = None
             transcript_id = None
             if appt:
                 scheduled_for = appt.scheduled_start
-                if appt.interaction_id:
+                # Prefer appointment's own audio (sales rep recording) over linked call audio
+                if appt.audio_url:
+                    recording_url = appt.audio_url
+                    transcript_id = str(appt.id)
+                elif appt.interaction_id:
                     call_for_appt = next(
                         (c for c in calls if c.id == appt.interaction_id),
                         None,
@@ -339,7 +407,7 @@ class LeadService:
             )
 
         return PendingLeadsResponse(total_count=total, count=len(results), results=results)
-    
+
     async def assign_to_rep(
         self,
         lead_id: UUID,
@@ -348,7 +416,7 @@ class LeadService:
     ) -> Optional[Lead]:
         """
         Assign a lead to a sales rep.
-        
+
         Validates that:
         - Lead exists
         - Sales rep exists and has sales_rep role
@@ -357,16 +425,16 @@ class LeadService:
         from app.infrastructure.database.models.user import UserORM
         from app.infrastructure.database.models.lead import LeadORM
         from sqlalchemy import select
-        
+
         # Get the lead to verify it exists and get company_id
         lead_result = await self.session.execute(
             select(LeadORM).where(LeadORM.id == lead_id)
         )
         lead_orm = lead_result.scalar_one_or_none()
-        
+
         if not lead_orm:
             return None
-        
+
         # Get the sales rep to verify they exist and have the correct role
         rep_result = await self.session.execute(
             select(UserORM).where(
@@ -376,21 +444,36 @@ class LeadService:
             )
         )
         rep_orm = rep_result.scalar_one_or_none()
-        
+
         if not rep_orm:
             raise ValueError(f"Sales rep with ID {sales_rep_id} not found or not active")
-        
+
         # Verify both belong to the same company
         if lead_orm.company_id != rep_orm.company_id:
             raise ValueError("Lead and sales rep must belong to the same company")
-        
+
         # Assign the lead
         return await self.lead_repo.assign_to_rep(
             lead_id=lead_id,
             sales_rep_id=sales_rep_id,
             assigned_by_user_id=assigned_by_user_id,
         )
-    
+
+    @staticmethod
+    def _derive_pipeline_stage(lead_status: "LeadStatus") -> Optional[str]:
+        """Derive pipeline_stage from a LeadStatus value."""
+        from app.domain.enums import LeadStatus, PipelineStage
+        mapping = {
+            LeadStatus.QUALIFIED_UNBOOKED: PipelineStage.QUALIFIED,
+            LeadStatus.QUALIFIED_BOOKED: PipelineStage.BOOKED,
+            LeadStatus.QUALIFIED_SERVICE_NOT_OFFERED: PipelineStage.SERVICE_NOT_OFFERED,
+            LeadStatus.ABANDONED: PipelineStage.UNQUALIFIED,
+            LeadStatus.CLOSED_WON: PipelineStage.WON,
+            LeadStatus.CLOSED_LOST: PipelineStage.LOST,
+        }
+        stage = mapping.get(lead_status)
+        return stage.value if stage else None
+
     async def update_status(
         self,
         lead_id: UUID,
@@ -400,27 +483,170 @@ class LeadService:
     ) -> Optional[Lead]:
         """
         Update lead status and optionally log to lead_status_changes audit table.
-        
+        Also auto-derives pipeline_stage from the new status.
+
         Args:
             lead_id: Lead ID
             status: New status value
             changed_by_user_id: User making the change (for audit; if provided, audit row is created)
             reason: Optional reason for the change
-            
+
         Returns:
             Updated lead or None if not found
         """
         from app.domain.enums import LeadStatus
-        
+
         try:
-            LeadStatus(status)
+            lead_status_enum = LeadStatus(status)
         except ValueError:
             raise ValueError(f"Invalid lead status: {status}")
-        
+
+        # Derive pipeline_stage from the new status
+        pipeline_stage = self._derive_pipeline_stage(lead_status_enum)
+
         return await self.lead_repo.update_status(
             lead_id=lead_id,
             status=status,
             changed_by_user_id=changed_by_user_id,
             reason=reason,
+            pipeline_stage=pipeline_stage,
         )
 
+    async def move_pipeline_stage(
+        self,
+        lead_id: UUID,
+        target_stage: str,
+        changed_by_user_id: UUID,
+        scheduled_start: Optional[datetime] = None,
+        scheduled_end: Optional[datetime] = None,
+        location_address: Optional[str] = None,
+        assigned_rep_id: Optional[UUID] = None,
+        deal_size: Optional[float] = None,
+        reason: Optional[str] = None,
+    ) -> dict:  # type: ignore
+        """
+        Move a lead to a new pipeline stage.
+
+        Supports both forward and backward movement (drag-and-drop use case).
+        Stage-specific fields are optional for simple drag-and-drop operations.
+        """
+        from app.domain.enums import PipelineStage, PIPELINE_STAGE_ORDER
+        from app.infrastructure.database.models.lead import LeadORM
+
+        # Validate target_stage is a valid PipelineStage
+        try:
+            target = PipelineStage(target_stage)
+        except ValueError:
+            raise ValueError(f"Invalid pipeline stage: {target_stage}")
+
+        movable_stages = {
+            PipelineStage.QUALIFIED,
+            PipelineStage.BOOKED,
+            PipelineStage.APPOINTMENT,
+            PipelineStage.APPOINTMENT_RAN,
+            PipelineStage.WON,
+            PipelineStage.LOST,
+        }
+        if target not in movable_stages:
+            raise ValueError(
+                f"Cannot move to stage '{target_stage}'. "
+                f"Valid targets: {[s.value for s in movable_stages]}"
+            )
+
+        # Fetch lead
+        lead_result = await self.session.execute(
+            select(LeadORM).where(LeadORM.id == lead_id)
+        )
+        lead_orm = lead_result.scalar_one_or_none()
+        if not lead_orm:
+            raise ValueError("Lead not found")
+        # Validate forward-only movement
+        current_stage = lead_orm.pipeline_stage
+        
+        # --- FIXED MYPY LINE 568: Strict string resolution protection ---
+        current_stage_str = ""
+        if current_stage:
+            current_stage_str = str(current_stage.value) if hasattr(current_stage, "value") else str(current_stage)
+            
+        current_order = PIPELINE_STAGE_ORDER.get(current_stage_str, -1)
+        target_order = PIPELINE_STAGE_ORDER[target.value]
+
+        if target_order <= current_order and current_order > 0:
+            raise ValueError(
+                f"Cannot move backward from '{current_stage_str}' to '{target_stage}'. "
+                f"Only forward movement is allowed."
+            )
+
+        # Validate stage-specific required inputs
+        if target == PipelineStage.BOOKED:
+            if not scheduled_start:
+                raise ValueError("scheduled_start is required when moving to 'booked'")
+
+        elif target == PipelineStage.APPOINTMENT:
+            if not assigned_rep_id:
+                raise ValueError("assigned_rep_id is required when moving to 'appointment'")
+            # Validate rep exists, is active, and belongs to same company
+            rep_result = await self.session.execute(
+                select(UserORM).where(
+                    UserORM.id == assigned_rep_id,
+                    UserORM.role == "sales_rep",
+                    UserORM.is_active == True,
+                )
+            )
+            rep_orm = rep_result.scalar_one_or_none()
+            if not rep_orm:
+                raise ValueError(f"Sales rep with ID {assigned_rep_id} not found or not active")
+            if lead_orm.company_id != rep_orm.company_id:
+                raise ValueError("Lead and sales rep must belong to the same company")
+
+            # If no appointment exists yet, scheduled_start is required
+            existing_appt = await self.session.execute(
+                select(AppointmentORM).where(AppointmentORM.lead_id == lead_id).limit(1)
+            )
+            if not existing_appt.scalar_one_or_none() and not scheduled_start:
+                raise ValueError(
+                    "scheduled_start is required when moving to 'appointment' "
+                    "and no appointment exists for this lead"
+                )
+
+        elif target == PipelineStage.WON:
+            if deal_size is None:
+                raise ValueError("deal_size is required when moving to 'won'")
+
+        elif target == PipelineStage.LOST:
+            if not reason or not reason.strip():
+                raise ValueError("reason is required when moving to 'lost'")
+
+        # Delegate to repository
+        result = await self.lead_repo.move_pipeline_stage(
+            lead_id=lead_id,
+            target_stage=target,
+            changed_by_user_id=changed_by_user_id,
+            scheduled_start=scheduled_start,
+            scheduled_end=scheduled_end,
+            location_address=location_address,  # type: ignore
+            assigned_rep_id=assigned_rep_id,  # type: ignore
+            deal_size=deal_size,  # type: ignore
+            reason=reason,  # type: ignore
+        )
+
+        # Masked comms lifecycle hooks
+        try:
+            from app.services.proxy_session_service import ProxySessionService
+            proxy_svc = ProxySessionService(self.session)
+
+            if target == PipelineStage.APPOINTMENT_RAN and (assigned_rep_id or lead_orm.assigned_rep_id):
+                rep_id = assigned_rep_id or lead_orm.assigned_rep_id
+                if rep_id:
+                    await proxy_svc.create_session(
+                        company_id=lead_orm.company_id,
+                        lead_id=lead_id,
+                        rep_user_id=rep_id,
+                    )
+            elif target in (PipelineStage.WON, PipelineStage.LOST):
+                reason_str = "deal_won" if target == PipelineStage.WON else "deal_lost"
+                await proxy_svc.close_sessions_for_lead(lead_id, reason_str)
+        except Exception as e:
+            logger.warning(f"Failed proxy session lifecycle hook: {e}")
+
+        return result  # type: ignore

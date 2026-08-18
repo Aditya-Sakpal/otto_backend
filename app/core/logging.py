@@ -26,6 +26,10 @@ def setup_logging() -> None:
         stream=sys.stdout,
         level=getattr(logging, settings.LOG_LEVEL.upper()),
     )
+
+    # Silence noisy third-party loggers
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     
     # Configure structlog
     processors: list[Processor] = [

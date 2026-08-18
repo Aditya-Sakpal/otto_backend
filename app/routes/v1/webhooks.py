@@ -13,7 +13,9 @@ import json
 import traceback
 from typing import Any, Dict, Optional, Set
 from uuid import UUID
+
 from fastapi import APIRouter, Header, Request, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -27,9 +29,226 @@ from app.infrastructure.repositories.company_integration import CompanyIntegrati
 from app.services.call_service import CallService, transform_summary_to_analysis_data
 from app.services.ghl_service import GHLService
 from app.services.ctm_service import CTMService
+from app.services.servicetitan_service import ServiceTitanService
+from app.services.masked_comms_service import MaskedCommsService
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+async def _mark_call_analysis_failed(
+    db: AsyncSession,
+    call_id: UUID,
+    company_id: Optional[UUID],
+    error_detail: str,
+) -> None:
+    """
+    Record an explicit failure marker so CL-44 (PDF #44) surfaces in the UI.
+
+    Writes to two places:
+      1. ``CallAnalysisORM`` — upserts a row with ``status="failed"`` and all
+         other analytical fields left null. This is what ``GET /calls/logs``
+         reads; it populates the new ``analysis_status`` field in the response.
+      2. ``CallProcessingJobORM`` — the most recent job for this call_id (if
+         any) is transitioned to ``status="failed"`` with ``failed_at`` set.
+         The authoritative job-lifecycle table — keeps the state consistent
+         with anything polling ``GET /call-processing/status/{job_id}``.
+
+    Designed to never raise: any exception is logged and swallowed, because
+    the webhook must still return 200 so Shunya stops retrying.
+
+    For appointment recordings (sales audio) the parallel helper is
+    ``_mark_appointment_analysis_failed`` below — callers are expected to
+    branch on whether the tracker id belongs to a Call or an Appointment.
+    """
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+
+    from app.domain.enums import AnalysisStatus
+    from app.domain.models.analysis import CallAnalysis
+    from app.infrastructure.database.models.call_processing_job import (
+        CallProcessingJobORM,
+    )
+    from app.infrastructure.repositories.analysis import CallAnalysisRepository
+
+    try:
+        resolved_company_id = company_id
+        if resolved_company_id is None:
+            # Best-effort: look the call up to recover company_id for the
+            # CallAnalysis row (non-null FK in the ORM).
+            try:
+                from app.infrastructure.repositories.call import CallRepository
+
+                call_repo = CallRepository(db)
+                call = await call_repo.get_by_id(call_id)
+                if call:
+                    resolved_company_id = call.company_id
+            except Exception:
+                pass
+
+        if resolved_company_id is not None:
+            analysis_repo = CallAnalysisRepository(db)
+            failed_analysis = CallAnalysis(
+                call_id=call_id,
+                company_id=resolved_company_id,
+                status=AnalysisStatus.FAILED,
+            )
+            try:
+                await analysis_repo.upsert_by_call_id(call_id, failed_analysis)
+            except Exception as upsert_err:
+                logger.warning(
+                    "Could not upsert failed CallAnalysis marker",
+                    call_id=str(call_id),
+                    error=str(upsert_err),
+                )
+
+        # Transition the most recent processing job for this call to failed.
+        try:
+            job_stmt = (
+                select(CallProcessingJobORM)
+                .where(CallProcessingJobORM.call_id == call_id)
+                .order_by(CallProcessingJobORM.created_at.desc())
+                .limit(1)
+            )
+            job_row = (await db.execute(job_stmt)).scalar_one_or_none()
+            if job_row is not None and job_row.status not in ("failed", "completed"):
+                job_row.status = "failed"
+                job_row.failed_at = datetime.now(timezone.utc)
+                existing_err = job_row.error or {}
+                if not isinstance(existing_err, dict):
+                    existing_err = {"previous": str(existing_err)}
+                existing_err.setdefault("source", "shoonya_job_complete_webhook")
+                existing_err["detail"] = error_detail[:500] if error_detail else "summary_unavailable"
+                job_row.error = existing_err
+        except Exception as job_err:
+            logger.warning(
+                "Could not transition CallProcessingJob to failed",
+                call_id=str(call_id),
+                error=str(job_err),
+            )
+
+        try:
+            await db.commit()
+        except Exception as commit_err:
+            logger.warning(
+                "Commit failed while recording analysis failure marker",
+                call_id=str(call_id),
+                error=str(commit_err),
+            )
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+    except Exception as outer_err:
+        logger.error(
+            "Unexpected error while recording analysis failure marker",
+            call_id=str(call_id),
+            error=str(outer_err),
+        )
+
+
+async def _mark_appointment_analysis_failed(
+    db: AsyncSession,
+    appointment_id: UUID,
+    error_detail: str,
+) -> None:
+    """
+    Parallel of ``_mark_call_analysis_failed`` for sales-audio recordings.
+
+    Appointments carry their own ``analysis_status`` column directly on
+    ``AppointmentORM`` (no separate analysis table for the appointment
+    flow). We also transition the matching ``CallProcessingJobORM`` when
+    one exists — ``/recordings/complete`` writes the ``shunya_job_id`` onto
+    the appointment, so by default there is no ``CallProcessingJobORM`` row
+    (those are only created for call-flow jobs), but if one is ever added
+    we want it consistent.
+
+    Never raises: the webhook / recording endpoints must return cleanly
+    even if persisting the failure marker itself fails.
+    """
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+
+    from app.infrastructure.database.models.call_processing_job import (
+        CallProcessingJobORM,
+    )
+    from app.infrastructure.repositories.appointment import AppointmentRepository
+
+    try:
+        appointment_repo = AppointmentRepository(db)
+        appointment = await appointment_repo.get_by_id(appointment_id)
+        if appointment is not None:
+            appointment.analysis_status = "failed"
+            # Preserve the failure reason in extra_metadata (additive, no
+            # schema change needed on AppointmentORM). This helps operators
+            # triage without pulling Shunya logs.
+            existing_meta = dict(appointment.extra_metadata or {})
+            existing_meta["analysis_failure"] = {
+                "source": "shoonya_job_complete_webhook",
+                "detail": (error_detail or "summary_unavailable")[:500],
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
+            }
+            appointment.extra_metadata = existing_meta
+            appointment.mark_updated()
+            try:
+                await appointment_repo.update(appointment_id, appointment)
+            except Exception as update_err:
+                logger.warning(
+                    "Could not persist appointment analysis_status=failed",
+                    appointment_id=str(appointment_id),
+                    error=str(update_err),
+                )
+        else:
+            logger.warning(
+                "Cannot mark missing appointment as failed",
+                appointment_id=str(appointment_id),
+            )
+
+        # Transition the most recent processing job for this appointment, if any.
+        try:
+            job_stmt = (
+                select(CallProcessingJobORM)
+                .where(CallProcessingJobORM.call_id == appointment_id)
+                .order_by(CallProcessingJobORM.created_at.desc())
+                .limit(1)
+            )
+            job_row = (await db.execute(job_stmt)).scalar_one_or_none()
+            if job_row is not None and job_row.status not in ("failed", "completed"):
+                job_row.status = "failed"
+                job_row.failed_at = datetime.now(timezone.utc)
+                existing_err = job_row.error or {}
+                if not isinstance(existing_err, dict):
+                    existing_err = {"previous": str(existing_err)}
+                existing_err.setdefault("source", "shoonya_job_complete_webhook")
+                existing_err["detail"] = (
+                    error_detail[:500] if error_detail else "summary_unavailable"
+                )
+                job_row.error = existing_err
+        except Exception as job_err:
+            logger.warning(
+                "Could not transition CallProcessingJob to failed for appointment",
+                appointment_id=str(appointment_id),
+                error=str(job_err),
+            )
+
+        try:
+            await db.commit()
+        except Exception as commit_err:
+            logger.warning(
+                "Commit failed while recording appointment analysis failure",
+                appointment_id=str(appointment_id),
+                error=str(commit_err),
+            )
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+    except Exception as outer_err:
+        logger.error(
+            "Unexpected error while recording appointment failure marker",
+            appointment_id=str(appointment_id),
+            error=str(outer_err),
+        )
 
 
 @router.post("/telephony/call-complete")
@@ -198,21 +417,28 @@ async def shoonya_job_complete_webhook(
         # In NEW FLOW, call may not exist yet
         call = await service.call_repo.get_by_id(call_id)
 
-        # Get company_id from call if exists, otherwise from payload
+        # Always check appointments table — Shunya uses the same webhook for both
+        from app.infrastructure.repositories.appointment import AppointmentRepository
+        appointment_repo = AppointmentRepository(db)
+        found_appointment = await appointment_repo.get_by_id(call_id)
+
+        # Get company_id from call/appointment if exists, otherwise from payload
         if call:
-            # OLD FLOW: Call record exists
             if not company_id:
                 company_id = str(call.company_id)
             logger.info(f"Found existing call record for {call_id}")
+        elif found_appointment:
+            if not company_id:
+                company_id = str(found_appointment.company_id)
+            logger.info(f"Found appointment record for {call_id}")
         else:
-            # NEW FLOW: Call record doesn't exist yet (direct Shunya submission)
             if not company_id:
                 logger.warning(f"Call {call_id} not found and no company_id in payload")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Call {call_id} not found and company_id not provided",
                 )
-            logger.info(f"No existing call record for {call_id}, will create from Shunya results (NEW FLOW)")
+            logger.info(f"No existing call/appointment record for {call_id}, will create from Shunya results")
 
         # CRITICAL: Always fetch complete call summary from Shunya Summary API
         # The webhook payload only contains URLs (summary_url at top level or in results), not the actual data
@@ -234,6 +460,27 @@ async def shoonya_job_complete_webhook(
                 # Extract transcript from summary if available
                 transcript = complete_summary_data.get("transcript")
 
+                # If no transcript in summary, fetch from call detail endpoint
+                if not transcript:
+                    try:
+                        logger.info(f"Fetching transcript from Shunya Call Detail API for call {call_id}")
+                        call_detail = await shoonya.get_call_detail(
+                            call_id=str(call_id),
+                            company_id=company_id,
+                            include_transcript=True,
+                            include_segments=False,
+                        )
+                        transcript = call_detail.get("transcript")
+                        if transcript:
+                            logger.info(f"Successfully fetched transcript from Call Detail API for call {call_id}")
+                        else:
+                            logger.warning(f"No transcript available from Call Detail API for call {call_id}")
+                    except Exception as detail_err:
+                        logger.warning(
+                            f"Failed to fetch transcript from Call Detail API: {detail_err}",
+                            call_id=str(call_id),
+                        )
+
             except Exception as e:
                 logger.error(
                     f"Failed to fetch complete summary from Shunya Summary API: {e}",
@@ -249,10 +496,41 @@ async def shoonya_job_complete_webhook(
                         complete_summary_data = analysis_data
 
                 if not complete_summary_data:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to fetch summary from Shunya API and no fallback data available: {str(e)}",
+                    # Return 200 so Shunya stops retrying — the tracker will
+                    # remain unanalysed. We still record an explicit failure
+                    # marker so the UI can distinguish "analysis failed" from
+                    # "never analysed".
+                    logger.error(
+                        f"Shunya summary unavailable for {call_id} and no fallback data in payload. "
+                        f"Tracker will remain unanalyzed. Shunya error: {e}",
+                        call_id=str(call_id),
                     )
+                    # The incoming tracker id may belong to either a Call
+                    # (CL-44 / PDF #44) or an Appointment recording (sales
+                    # audio). `found_appointment` was resolved at the top of
+                    # this handler; route to the matching failure helper.
+                    if found_appointment is not None:
+                        await _mark_appointment_analysis_failed(
+                            db=db,
+                            appointment_id=call_id,
+                            error_detail=str(e),
+                        )
+                        return {
+                            "status": "acknowledged",
+                            "appointment_id": str(call_id),
+                            "warning": "Summary unavailable from Shunya — appointment marked analysis_status=failed",
+                        }
+                    await _mark_call_analysis_failed(
+                        db=db,
+                        call_id=call_id,
+                        company_id=UUID(company_id) if company_id else None,
+                        error_detail=str(e),
+                    )
+                    return {
+                        "status": "acknowledged",
+                        "call_id": str(call_id),
+                        "warning": "Summary unavailable from Shunya — call stored without analysis",
+                    }
         else:
             # Shunya not configured - try to use webhook payload data
             logger.warning("Shunya client not available, attempting to use webhook payload data")
@@ -276,6 +554,67 @@ async def shoonya_job_complete_webhook(
         # Process analysis with complete data from Summary API
         logger.info(f"Processing analysis for call {call_id} with complete summary data")
 
+        # Check if this is an appointment recording (not a call)
+        # Use our DB lookup first, fall back to Shunya metadata
+        metadata = complete_summary_data.get("metadata", {}) if complete_summary_data else {}
+        is_appointment = found_appointment is not None or metadata.get("is_appointment", False)
+
+        if is_appointment:
+            # APPOINTMENT FLOW: Write analysis directly to appointments table
+            appointment_id_str = metadata.get("appointment_id") or str(call_id)
+
+            # Load the ORM row (the shared persistence helper mutates ORM state
+            # within this session; the repo's get_by_id returns a detached domain
+            # object, so we fetch the ORM appointment directly here).
+            from sqlalchemy import select as sa_select
+            from app.infrastructure.database.models.appointment import AppointmentORM
+            appt_orm_result = await db.execute(
+                sa_select(AppointmentORM).where(AppointmentORM.id == UUID(appointment_id_str))
+            )
+            appointment = appt_orm_result.scalar_one_or_none()
+
+            if not appointment:
+                # Shunya produced a summary for an appointment we don't know
+                # about. 404 is correct here — we can't mark a missing row as
+                # failed. The outer handler will log and return a 500 upstream.
+                logger.error(f"Appointment {appointment_id_str} not found for Shunya analysis")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Appointment {appointment_id_str} not found",
+                )
+
+            # Persist analysis via the shared path (same code used by the stuck-
+            # recording reconciliation job, so a recovered job is persisted
+            # identically to a webhook-delivered one).
+            from app.services.recording_reconciliation_service import apply_appointment_analysis
+
+            follow_up_required = await apply_appointment_analysis(
+                db, appointment, complete_summary_data, transcript
+            )
+
+            await db.commit()
+
+            logger.info(
+                "Shunya webhook processed for appointment",
+                appointment_id=appointment_id_str,
+                job_id=payload.get("job_id") or payload.get("shunya_job_id"),
+                follow_up_required=follow_up_required,
+            )
+            return {
+                "status": "success",
+                "appointment_id": appointment_id_str,
+                "follow_up_created": follow_up_required,
+            }
+
+        # CALL FLOW: Existing call analysis path
+        # Ensure company_id is available in metadata for NEW FLOW (call record creation)
+        # Shunya summary has company_id at root level, but process_analysis looks under metadata
+        if company_id and complete_summary_data:
+            if "metadata" not in complete_summary_data:
+                complete_summary_data["metadata"] = {}
+            if isinstance(complete_summary_data.get("metadata"), dict):
+                complete_summary_data["metadata"]["company_id"] = str(company_id)
+
         analysis = await service.process_analysis(
             call_id=call_id,
             analysis_data=complete_summary_data,
@@ -297,8 +636,48 @@ async def shoonya_job_complete_webhook(
     except HTTPException:
         raise
     except Exception as e:
+        # CL-44 parity for the sales-audio / call processing branch: if we
+        # made it past payload validation but tripped inside the analysis
+        # extraction or DB write, make sure the tracker lands in an explicit
+        # "failed" state instead of sitting in "processing" forever. The
+        # call_id and found_appointment variables exist in scope as long as
+        # we got past the initial call_id parsing (line ~175).
         logger.error(f"Error processing Shoonya webhook: {e}")
         traceback.print_exc()
+        try:
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            resolved_call_id = call_id if "call_id" in locals() else None
+            resolved_appointment = (
+                found_appointment if "found_appointment" in locals() else None
+            )
+            if resolved_call_id is not None:
+                if resolved_appointment is not None:
+                    await _mark_appointment_analysis_failed(
+                        db=db,
+                        appointment_id=resolved_call_id,
+                        error_detail=str(e),
+                    )
+                else:
+                    resolved_company_id = None
+                    if "company_id" in locals() and company_id:
+                        try:
+                            resolved_company_id = UUID(company_id)
+                        except (ValueError, TypeError):
+                            resolved_company_id = None
+                    await _mark_call_analysis_failed(
+                        db=db,
+                        call_id=resolved_call_id,
+                        company_id=resolved_company_id,
+                        error_detail=str(e),
+                    )
+        except Exception as marker_err:
+            logger.warning(
+                "Could not write failure marker from webhook outer handler",
+                error=str(marker_err),
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -336,7 +715,7 @@ async def ghl_message(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     event = GHLService.extract_event_payload(body)
-    
+
     logger.info("GHL message webhook received", payload=body, extracted_event=event)
 
     # Normalize outbound webhook format to standard GHL format
@@ -363,7 +742,9 @@ async def ghl_message(
     is_call_event = (
         message_type == "CALL" or
         webhook_type in ("INBOUNDMESSAGE", "OUTBOUNDMESSAGE") or
-        (has_call_fields and event.get("status", "").lower() in ("completed", "answered"))
+        (has_call_fields and event.get("status", "").lower() in (
+            "completed", "answered", "no-answer", "no answer", "busy", "voicemail", "failed", "missed"
+        ))
     )
 
     if is_call_event:
@@ -646,12 +1027,39 @@ async def ctm_call_webhook(
             )
 
         company_id = await integration_repo.get_company_id_by_voip_company_id(voip_company_id)
+        if not company_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No company integration found for CTM account_id {voip_company_id}",
+            )
+
+        if not isinstance(company_id, UUID):
+            company_id = UUID(str(company_id))
+
+        # Decrypt CTM credentials for authenticated audio download
+        ctm_access_key = None
+        ctm_secret_key = None
+        try:
+            voip_api_encrypted_key = await integration_repo.get_voip_api_encrypted_key_by_voip_company_id(
+                voip_company_id
+            )
+            voip_access_key_encrypted = await integration_repo.get_voip_access_key_encrypted_by_voip_company_id(
+                voip_company_id
+            )
+            if voip_api_encrypted_key:
+                ctm_secret_key = decrypt_api_key(voip_api_encrypted_key)
+            if voip_access_key_encrypted:
+                ctm_access_key = decrypt_api_key(voip_access_key_encrypted)
+        except Exception as e:
+            logger.warning(f"Could not decrypt CTM credentials for audio download: {e}")
 
         # Process CTM webhook
         service = CTMService(db)
         call = await service.process_webhook(
             payload=payload,
             company_id=company_id,
+            ctm_access_key=ctm_access_key,
+            ctm_secret_key=ctm_secret_key,
         )
 
         return {
@@ -675,3 +1083,221 @@ async def ctm_call_webhook(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
+
+
+def _verify_worker_secret(x_worker_secret: str | None) -> None:
+    """Validate the shared secret sent by the ST poller worker."""
+    expected = settings.ST_WORKER_SECRET
+    if expected and x_worker_secret != expected:
+        raise HTTPException(status_code=401, detail="Invalid worker secret")
+
+
+@router.post("/servicetitan/calls")
+async def servicetitan_calls_webhook(
+    request: Request,
+    db: DbSession,
+    x_worker_secret: Optional[str] = Header(default=None),
+):
+    """
+    Receive batched ServiceTitan call records from the ST poller worker.
+
+    Payload: { "tenant_id": "...", "calls": [...], "poll_timestamp": "..." }
+    """
+    _verify_worker_secret(x_worker_secret)
+
+    try:
+        payload = await request.json()
+        logger.info("ST calls payload received", payload=payload)
+        logger.info("ST calls webhook received", tenant_id=payload.get("tenant_id"))
+
+        tenant_id = payload.get("tenant_id")
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="tenant_id required")
+
+        integration_repo = CompanyIntegrationRepository(db)
+        company_id = await integration_repo.get_company_id_by_st_tenant_id(str(tenant_id))
+        if not company_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No company found for ST tenant_id {tenant_id}",
+            )
+
+        if not isinstance(company_id, UUID):
+            company_id = UUID(str(company_id))
+
+        service = ServiceTitanService(db)
+        result = await service.process_calls_webhook(payload, company_id)
+        await db.commit()
+
+        return {"status": "success", **result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing ST calls webhook: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/servicetitan/crm")
+async def servicetitan_crm_webhook(
+    request: Request,
+    db: DbSession,
+    x_worker_secret: Optional[str] = Header(default=None),
+):
+    """
+    Receive batched ServiceTitan CRM records from the ST poller worker.
+
+    Payload: {
+        "tenant_id": "...",
+        "customers": [...],
+        "customer_contacts": [...],
+        "leads": [...],
+        "bookings": [...]
+    }
+    """
+    _verify_worker_secret(x_worker_secret)
+
+    try:
+        payload = await request.json()
+        logger.info("ST CRM payload received", payload=payload)
+        logger.info("ST CRM webhook received", tenant_id=payload.get("tenant_id"))
+
+        tenant_id = payload.get("tenant_id")
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="tenant_id required")
+
+        integration_repo = CompanyIntegrationRepository(db)
+        company_id = await integration_repo.get_company_id_by_st_tenant_id(str(tenant_id))
+        if not company_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No company found for ST tenant_id {tenant_id}",
+            )
+
+        if not isinstance(company_id, UUID):
+            company_id = UUID(str(company_id))
+
+        service = ServiceTitanService(db)
+        result = await service.process_crm_webhook(payload, company_id)
+        await db.commit()
+
+        return {"status": "success", **result}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing ST CRM webhook: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/twilio/messaging/inbound")
+async def twilio_inbound_sms_webhook(request: Request, db: DbSession):
+    """
+    Twilio Status Callback / inbound SMS webhook (application/x-www-form-urlencoded).
+
+    Configure Twilio to POST here when an SMS is received on a proxy number.
+    Resolves `proxy_sessions` + `proxy_numbers`, inserts `masked_communications`,
+    and stores intent_label + confidence_score (Intent-to-Action).
+
+    Validates `X-Twilio-Signature` when TWILIO_AUTH_TOKEN is set.
+    """
+    form = await request.form()
+    params = {k: v for k, v in form.multi_items()}
+
+    if settings.TWILIO_AUTH_TOKEN:
+        try:
+            from twilio.request_validator import RequestValidator
+
+            validator = RequestValidator(settings.TWILIO_AUTH_TOKEN)
+            signature = request.headers.get("X-Twilio-Signature") or ""
+            url = str(request.url)
+            if not validator.validate(url, params, signature):
+                raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Twilio signature validation error", error=str(e))
+            raise HTTPException(status_code=500, detail="Webhook validation failed")
+
+    from_number = (params.get("From") or "").strip()
+    to_number = (params.get("To") or "").strip()
+    body = params.get("Body") or ""
+    message_sid = (params.get("MessageSid") or "").strip() or None
+
+    if not from_number or not to_number:
+        raise HTTPException(status_code=400, detail="From and To are required")
+
+    try:
+        # Canonical path: route all inbound SMS through masked comms handler so
+        # we do persist + forward + push + intent + task creation in one place.
+        service = MaskedCommsService(db)
+        await service.handle_inbound_sms(
+            proxy_number=to_number,
+            sender=from_number,
+            body=body,
+            twilio_message_sid=message_sid or "",
+        )
+        await db.commit()
+    except Exception as e:
+        logger.error("twilio inbound SMS webhook failed", error=str(e), exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Twilio expects 2xx and optional empty TwiML
+    logger.info(
+        "twilio inbound SMS processed",
+        new_id=None,
+        message_sid=message_sid,
+    )
+    return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="application/xml")
+
+
+@router.post("/retell/call-ended")
+async def retell_call_ended_webhook(request: Request, db: DbSession):
+    """
+    Retell post-call webhook — persist transcript and summary as an Otto call record.
+
+    Verifies X-Retell-Signature when RETELL_API_KEY is configured.
+    """
+    raw_body = await request.body()
+    raw_text = raw_body.decode("utf-8")
+
+    if settings.RETELL_API_KEY:
+        signature = request.headers.get("X-Retell-Signature")
+        verified = False
+        try:
+            from retell import Retell
+
+            verified = Retell.verify(
+                raw_text,
+                api_key=settings.RETELL_API_KEY,
+                signature=str(signature or ""),
+            )
+        except ImportError:
+            logger.warning(
+                "retell-sdk not installed; accepting webhook without signature check"
+            )
+            verified = True
+        except Exception as exc:
+            logger.error("Retell signature verification error", error=str(exc))
+            verified = False
+        if not verified:
+            raise HTTPException(status_code=401, detail="Invalid Retell signature")
+
+    try:
+        import json
+
+        payload = json.loads(raw_text) if raw_text else {}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON") from exc
+
+    try:
+        from app.services.voice_agent_service import VoiceAgentService
+
+        result = await VoiceAgentService(db).ingest_retell_call(payload)
+        return {"status": "success", "call_id": result.call_id}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Retell call-ended webhook failed", error=str(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

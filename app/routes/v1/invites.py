@@ -17,14 +17,15 @@ from app.domain.schemas.invitation import (
     InvitationSignupRequest,
     InvitationSignupResponse,
 )
-from app.services.invitation_service import InvitationService
+from app.services.invitation_service import InvitationService, InvitationNotFoundError
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 RESPONSES = {
-    400: {"description": "Bad request (e.g. invalid token or validation error)"},
+    400: {"description": "Bad request (e.g. token already accepted or expired)"},
     403: {"description": "Forbidden"},
+    404: {"description": "Invitation token not found"},
     422: {"description": "Validation error"},
     500: {"description": "Internal server error"},
 }
@@ -93,6 +94,12 @@ async def validate_invitation_token(
         return InvitationValidateResponse(
             valid=True,
             invitation=InvitationResponse.model_validate(invitation),
+        )
+    except InvitationNotFoundError as e:
+        logger.warning(f"Invitation token not found: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
         )
     except ValueError as e:
         logger.warning(f"Validation error validating invitation token: {e}")

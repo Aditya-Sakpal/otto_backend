@@ -13,7 +13,11 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from app.core.dependencies import DbSession
 from app.core.permissions import require_any_role
 from app.domain.enums import UserRole
-from app.domain.schemas.sales_rep import PendingLeadsResponse
+from app.domain.schemas.sales_rep import (
+    PendingLeadsResponse,
+    WorkQueueResponse,
+    MissedCallRecoveryResponse,
+)
 from app.domain.users.repository import UserRepository
 from app.domain.schemas.sales_rep_dashboard import (
     RidealongEntry,
@@ -25,6 +29,8 @@ from app.domain.schemas.appointment_details import AppointmentDetailsResponse
 from app.domain.users.models import User
 from app.services.appointment_service import AppointmentService
 from app.services.lead_service import LeadService
+from app.services.work_queue_service import WorkQueueService
+from app.services.missed_call_recovery_service import MissedCallRecoveryService
 from app.services.sales_rep_service import SalesRepService
 from app.services.sales_rep_dashboard_service import SalesRepDashboardService
 from app.services.sales_rep_stat_service import SalesRepStatService
@@ -52,6 +58,107 @@ async def get_follow_up(
             detail="Appointment not found or has no call analysis",
         )
     return result
+
+
+@router.get("/work-queue", response_model=WorkQueueResponse)
+async def get_work_queue(
+    db: DbSession,
+    owner_id: Optional[UUID] = Query(
+        None,
+        description="Executive-only: view another rep's queue. Reps/CSRs always see their own.",
+    ),
+    limit: int = Query(50, ge=1, le=200, description="Max items per section"),
+    current_user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])),
+):
+    """
+    Unified rep work queue — the rep's entire actionable workload in one call.
+
+    Composes three existing rep-scoped surfaces (no new ranking/scoring):
+    - **tasks** + **next_action** + **task_summary** (Action Center: call_back,
+      follow_up, appointment_reminder, rehash)
+    - **unresolved_appointments** (ran/past appointments whose outcome is still open)
+    - **pending_leads** (qualified-unbooked / stuck leads assigned to the rep)
+
+    Owner resolution:
+    - EXECUTIVE: uses `owner_id` query param if provided, else self.
+    - SALES_REP / CSR: always the current user (any `owner_id` is ignored).
+
+    Access: EXECUTIVE, CSR, SALES_REP
+    """
+    if current_user.company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has no company association",
+        )
+
+    # Reps/CSRs are forced to their own queue; executives may target a rep.
+    if current_user.role == UserRole.EXECUTIVE:
+        target_owner_id = owner_id or current_user.id
+    else:
+        target_owner_id = current_user.id
+
+    try:
+        service = WorkQueueService(db)
+        return await service.get_work_queue(
+            company_id=current_user.company_id,
+            owner_id=target_owner_id,
+            limit=limit,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/missed-calls", response_model=MissedCallRecoveryResponse)
+async def get_missed_call_recovery(
+    db: DbSession,
+    owner_id: Optional[UUID] = Query(
+        None,
+        description="Executive-only: view another rep's dashboard. Reps/CSRs always see their own.",
+    ),
+    limit: int = Query(100, ge=1, le=200, description="Max callbacks per section"),
+    completed_window_hours: int = Query(
+        24, ge=1, le=168, description="Lookback window for the completed-callbacks section (hours)"
+    ),
+    current_user: User = Depends(require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])),
+):
+    """
+    Rep missed-call recovery dashboard.
+
+    Surfaces the rep's `call_back` tasks (auto-created from VoIP missed calls):
+    - **pending_callbacks** with countdown (`minutes_until_due`, `urgency_tier`,
+      `overdue`) reused from the Action Center.
+    - **completed_callbacks** recovered within `completed_window_hours`.
+    - Counts: `pending_count`, `overdue_count`, `completed_today_count`.
+
+    Completion uses the existing workflow (PATCH /metrics/actions/pending/{id}/complete).
+
+    Owner resolution:
+    - EXECUTIVE: uses `owner_id` query param if provided, else self.
+    - SALES_REP / CSR: always the current user.
+
+    Access: EXECUTIVE, CSR, SALES_REP
+    """
+    if current_user.company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has no company association",
+        )
+
+    if current_user.role == UserRole.EXECUTIVE:
+        target_owner_id = owner_id or current_user.id
+    else:
+        target_owner_id = current_user.id
+
+    try:
+        service = MissedCallRecoveryService(db)
+        return await service.get_missed_call_dashboard(
+            company_id=current_user.company_id,
+            owner_id=target_owner_id,
+            limit=limit,
+            completed_window_hours=completed_window_hours,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.get("/pending-leads", response_model=PendingLeadsResponse)
@@ -117,17 +224,29 @@ async def get_pending_leads(
 async def get_sales_rep_stat(
     sales_rep_id: UUID,
     db: DbSession,
+    start_date: Optional[date] = Query(
+        None,
+        description="Inclusive start date for stats (YYYY-MM-DD). Defaults to 30 days before end_date or now.",
+    ),
+    end_date: Optional[date] = Query(
+        None,
+        description="Inclusive end date for stats (YYYY-MM-DD). Defaults to today (UTC).",
+    ),
     current_user: User = Depends(
         require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])
     ),
 ) -> SalesRepStatResponse:
     """
     Get sales rep stat: personal stats (recordings, win rates, attendance, etc.)
-    and pending leads.
+    and pending leads. All metrics scoped to start_date/end_date (default last 30 days).
     """
     try:
         service = SalesRepStatService(db)
-        return await service.get_sales_rep_stat(sales_rep_id=sales_rep_id)
+        return await service.get_sales_rep_stat(
+            sales_rep_id=sales_rep_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -178,7 +297,11 @@ async def get_ridealongs_list(
     ),
     status: Optional[str] = Query(
         None,
-        description="Filter by status: pending, won, lost, no_show, rescheduled, or 'In Progress'",
+        description="Filter by outcome: pending, won, lost, no_show, rescheduled, or 'In Progress'",
+    ),
+    outcome: Optional[str] = Query(
+        None,
+        description="Same filter as status; use when the client sends outcome= (e.g. won) instead of status=",
     ),
     ghost_mode: Optional[bool] = Query(
         None,
@@ -188,6 +311,11 @@ async def get_ridealongs_list(
         None,
         description="Filter by sales rep name (partial match)",
     ),
+    search: Optional[str] = Query(
+        None,
+        description="Search contact name/phone, rep name, or location (tokens ANDed)",
+    ),
+    q: Optional[str] = Query(None, description="Alias for search"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     current_user: User = Depends(
@@ -211,13 +339,16 @@ async def get_ridealongs_list(
             raise HTTPException(status_code=400, detail="end_date must be YYYY-MM-DD")
 
     service = SalesRepDashboardService(db)
+    status_effective = (outcome.strip() if outcome and outcome.strip() else None) or status
+    search_effective = (search or q or "").strip() or None
     return await service.get_ridealongs_list(
         company_id=company_id,
         start_date=start_d,
         end_date=end_d,
-        status=status,
+        status=status_effective,
         ghost_mode=ghost_mode,
         sales_rep_name=sales_rep_name,
+        search=search_effective,
         skip=skip,
         limit=limit,
     )
@@ -241,7 +372,7 @@ async def get_sales_team_stats(
     ),
 ) -> list[SalesTeamStatsEntry]:
     """
-    Get sales team stats: rep_name, total_recordings_hours, win_rate,
+    Get sales team stats: rep_name, total_recordings, win_rate,
     process_score, skills_score, otto_usage_hours. Supports pagination.
     """
     service = SalesRepDashboardService(db)
@@ -259,17 +390,52 @@ async def get_sales_team_stats(
 )
 async def get_dashboard(
     db: DbSession,
-    company_id: UUID = Query(..., description="Company UUID"),
+    company_id: UUID = Query(
+        ...,
+        description="Company UUID",
+        example="6d40b509-82bc-4d21-9614-de91cc25dc1b",
+    ),
+    start_date: Optional[str] = Query(
+        None,
+        description="Start date for filtering objections (YYYY-MM-DD)",
+        example="2026-02-14",
+    ),
+    end_date: Optional[str] = Query(
+        None,
+        description="End date for filtering objections (YYYY-MM-DD)",
+        example="2026-02-20",
+    ),
     current_user: User = Depends(
         require_any_role([UserRole.SALES_REP, UserRole.CSR, UserRole.EXECUTIVE])
     ),
 ) -> SalesRepDashboardResponse:
     """
-    Get main dashboard: ridealongs_list (latest 9 appointments of the day)
-    and sales_team_stats (top 3 reps).
+    Get main dashboard: ridealongs_list (latest 9 appointments of the day),
+    sales_team_stats (top 3 reps), and objections (same format as /metrics/objections/top).
     """
+    from datetime import date as date_type
+    
+    start_dt = None
+    end_dt = None
+    if start_date:
+        try:
+            start_dt = date_type.fromisoformat(start_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="start_date must be in YYYY-MM-DD format",
+            )
+    if end_date:
+        try:
+            end_dt = date_type.fromisoformat(end_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="end_date must be in YYYY-MM-DD format",
+            )
+    
     service = SalesRepDashboardService(db)
-    return await service.get_dashboard(company_id=company_id)
+    return await service.get_dashboard(company_id=company_id, start_date=start_dt, end_date=end_dt)
 
 
 @router.get("/tasks")

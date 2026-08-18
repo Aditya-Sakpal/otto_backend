@@ -245,3 +245,7 @@ memory
 service_titan_docs
 seed_realistic_test_data.sql
 test_shunya.py
+
+# miscelleaneous
+context.md
+CLAUDE.md

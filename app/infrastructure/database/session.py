@@ -14,55 +14,39 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.infrastructure.database.connection import build_database_target
 
 logger = get_logger(__name__)
 
 
-def _normalize_database_url(url: str) -> str:
-    """
-    Normalize database URL to use correct async driver.
-
-    Args:
-        url: Database connection string
-
-    Returns:
-        Normalized URL with correct async driver
-    """
-    # If it's PostgreSQL without async driver, add asyncpg
-    if url.startswith("postgresql://") and "+asyncpg" not in url:
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    # If it's postgres:// (alternative format), convert to postgresql+asyncpg://
-    elif url.startswith("postgres://") and "+asyncpg" not in url:
-        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
-    # If it's SQLite, ensure it uses aiosqlite
-    elif url.startswith("sqlite://") and "+aiosqlite" not in url:
-        url = url.replace("sqlite://", "sqlite+aiosqlite://", 1)
-
-    return url
-
-
-# Normalize database URL for async driver
-database_url = _normalize_database_url(settings.DATABASE_URL)
+# Resolve the async driver and, for PostgreSQL, the TLS mode. See
+# app/infrastructure/database/connection.py for why the sslmode is set
+# explicitly rather than left to asyncpg's plaintext-fallback default.
+database_target = build_database_target(
+    settings.DATABASE_URL,
+    ssl_mode=settings.DB_SSL_MODE or None,
+)
+logger.info(f"Database target: {database_target.description}")
 
 # Create async engine
 # Handle both PostgreSQL (asyncpg) and SQLite (aiosqlite) drivers
-if database_url.startswith("sqlite"):
+if database_target.is_sqlite:
     # SQLite configuration (for development)
     engine = create_async_engine(
-        database_url,
+        database_target.url,
         echo=False,
-        connect_args={"check_same_thread": False},  # SQLite requirement
+        connect_args=database_target.connect_args,
     )
 else:
     # PostgreSQL configuration (production)
     engine = create_async_engine(
-        database_url,
+        database_target.url,
         echo=False,
         pool_size=20,
         max_overflow=40,
         pool_pre_ping=True,
         pool_recycle=1800,
-        connect_args={"statement_cache_size": 0},
+        connect_args={**database_target.connect_args, "statement_cache_size": 0},
     )
 
 # Create session factory

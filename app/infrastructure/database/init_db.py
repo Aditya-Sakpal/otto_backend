@@ -10,6 +10,10 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.infrastructure.database.base import Base
+from app.infrastructure.database.connection import (
+    build_database_target,
+    connection_failure_hint,
+)
 from app.infrastructure.database.models import (
     CompanyORM,
     UserORM,
@@ -65,29 +69,28 @@ async def create_tables():
     
     logger.info("Creating database tables (if they don't exist)...")
     
-    # Normalize database URL
-    database_url = settings.DATABASE_URL
-    if database_url.startswith("postgresql://") and "+asyncpg" not in database_url:
-        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    elif database_url.startswith("postgres://") and "+asyncpg" not in database_url:
-        database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
-    elif database_url.startswith("sqlite://") and "+aiosqlite" not in database_url:
-        database_url = database_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
-    
+    # Normalize database URL and resolve driver connect args (TLS included)
+    target = build_database_target(
+        settings.DATABASE_URL,
+        ssl_mode=settings.DB_SSL_MODE or None,
+    )
+    logger.info(f"Database target: {target.description}")
+
     # Create engine
-    if database_url.startswith("sqlite"):
+    if target.is_sqlite:
         engine = create_async_engine(
-            database_url,
+            target.url,
             echo=settings.is_development,
-            connect_args={"check_same_thread": False},
+            connect_args=target.connect_args,
         )
     else:
         engine = create_async_engine(
-            database_url,
+            target.url,
             echo=settings.is_development,
             pool_pre_ping=True,
+            connect_args=target.connect_args,
         )
-    
+
     try:
         # Create all tables
         async with engine.begin() as conn:
@@ -97,30 +100,12 @@ async def create_tables():
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Error creating tables: {error_msg}")
-        
+
         # Provide helpful error messages for common issues
-        if "getaddrinfo failed" in error_msg or "11001" in error_msg:
-            logger.error(
-                "Database connection failed. Possible issues:\n"
-                "  1. Database server is not running\n"
-                "  2. DATABASE_URL is incorrect or points to unreachable host\n"
-                "  3. Network/DNS resolution issue\n"
-                f"  Current DATABASE_URL: {settings.DATABASE_URL}\n"
-                "  For local development, consider using SQLite: sqlite+aiosqlite:///./otto.db"
-            )
-        elif "authentication failed" in error_msg.lower():
-            logger.error(
-                "Database authentication failed. Check:\n"
-                "  1. Database username and password in DATABASE_URL\n"
-                "  2. Database user has proper permissions\n"
-                f"  Current DATABASE_URL: {settings.DATABASE_URL[:50]}..." if len(settings.DATABASE_URL) > 50 else f"  Current DATABASE_URL: {settings.DATABASE_URL}"
-            )
-        elif "does not exist" in error_msg.lower():
-            logger.error(
-                "Database does not exist. Create the database first:\n"
-                "  For PostgreSQL: CREATE DATABASE your_db_name;"
-            )
-        
+        hint = connection_failure_hint(error_msg, target)
+        if hint:
+            logger.error(hint)
+
         raise
     finally:
         await engine.dispose()

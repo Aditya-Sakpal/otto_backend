@@ -37,6 +37,14 @@ class Settings(BaseSettings):
         default=os.getenv("DATABASE_URL"),
         description="Database connection string (PostgreSQL with asyncpg or SQLite with aiosqlite)"
     )
+    DB_SSL_MODE: str = Field(
+        default=os.getenv("DB_SSL_MODE", ""),
+        description=(
+            "PostgreSQL TLS mode handed to asyncpg: disable, allow, prefer, require, "
+            "verify-ca or verify-full. Empty means take it from DATABASE_URL, else "
+            "require for remote hosts and prefer for localhost."
+        )
+    )
 
     # Redis
     REDIS_URL: str = Field(default=os.getenv("REDIS_URL", "redis://localhost:6379/0"))

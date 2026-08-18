@@ -29,6 +29,7 @@ class Settings(BaseSettings):
 
     # Otto-Backend PostgreSQL
     DATABASE_URL: str = ""
+    DB_SSL_MODE: str = ""
 
     # Local SQLite
     LOCAL_DB_PATH: str = "data/follow_up.db"

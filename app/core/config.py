@@ -13,7 +13,6 @@ from pydantic import Field
 # Load environment variables from .env file
 load_dotenv(override=True)
 
-print("ENV DATABASE_URL =", os.getenv("DATABASE_URL"))
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -44,6 +43,11 @@ class Settings(BaseSettings):
             "verify-ca or verify-full. Empty means take it from DATABASE_URL, else "
             "require for remote hosts and prefer for localhost."
         )
+    )
+    DB_SECRET_ARN: str = Field(
+        default=os.getenv("DB_SECRET_ARN", ""),
+        description="AWS Secrets Manager ARN holding the rotating database password. "
+                    "When set, the password embedded in DATABASE_URL is used only as a fallback."
     )
 
     # Redis

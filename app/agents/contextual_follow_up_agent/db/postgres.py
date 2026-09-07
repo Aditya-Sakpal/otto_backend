@@ -25,6 +25,7 @@ _PROJECT_ROOT = os.path.abspath(
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
+from app.core import db_credentials  # noqa: E402
 from app.infrastructure.database.connection import build_database_target  # noqa: E402
 
 logger = get_logger(__name__)
@@ -44,7 +45,7 @@ async def init_pg() -> None:
         ssl_mode=settings.DB_SSL_MODE or None,
     )
     _engine = create_async_engine(
-        target.url,
+        db_credentials.prepare_url(target.url),
         echo=settings.is_development,
         pool_size=5,
         max_overflow=10,
@@ -52,6 +53,7 @@ async def init_pg() -> None:
         pool_recycle=1800,
         connect_args=target.connect_args,
     )
+    db_credentials.attach(_engine)
     _session_factory = async_sessionmaker(
         _engine,
         class_=AsyncSession,

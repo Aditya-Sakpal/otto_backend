@@ -76,20 +76,23 @@ async def create_tables():
     )
     logger.info(f"Database target: {target.description}")
 
+    engine_url = db_credentials.prepare_url(target.url)
+
     # Create engine
     if target.is_sqlite:
         engine = create_async_engine(
-            target.url,
+            engine_url,
             echo=settings.is_development,
             connect_args=target.connect_args,
         )
     else:
         engine = create_async_engine(
-            target.url,
+            engine_url,
             echo=settings.is_development,
             pool_pre_ping=True,
             connect_args=target.connect_args,
         )
+    db_credentials.attach(engine)
 
     try:
         # Create all tables

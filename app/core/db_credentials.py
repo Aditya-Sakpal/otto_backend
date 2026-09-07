@@ -16,6 +16,7 @@ import threading
 import time
 from typing import Optional
 
+from sqlalchemy import event
 from sqlalchemy.engine import URL, make_url
 
 from app.core.config import settings
@@ -163,3 +164,64 @@ def invalidate() -> None:
         logger.warning(
             "Discarded cached database password; next connection will refetch it"
         )
+
+
+def prepare_url(url: str) -> str:
+    """
+    Return the URL an engine should be built from.
+
+    When the password is managed it is taken out of the URL and kept as a
+    fallback, because attach() supplies the live one per connection instead.
+    Returns the URL unchanged when management is off or no password is present,
+    so callers can use this unconditionally.
+    """
+    if not is_enabled():
+        return url
+
+    password = extract_password(url)
+    if password is None:
+        return url
+
+    set_fallback_password(password)
+    return strip_password(url)
+
+
+def _on_connect(dialect, conn_rec, cargs, cparams):
+    """Supply the current password each time a new connection is opened."""
+    cparams["password"] = get_password()
+
+
+def _on_error(context):
+    """
+    Drop the cached password when the server rejects it.
+
+    A rotation between two cache refreshes shows up as an authentication
+    failure; clearing the cache means the next connection attempt fetches the
+    new password instead of retrying the old one.
+    """
+    if type(context.original_exception).__name__ in (
+        "InvalidPasswordError",
+        "InvalidAuthorizationSpecificationError",
+    ):
+        invalidate()
+
+
+def attach(engine) -> None:
+    """
+    Feed the managed password to every new connection opened by engine.
+
+    Safe to call on any engine: a no-op unless the password is managed and the
+    engine talks to PostgreSQL. Every PostgreSQL engine in the application has
+    to be attached, not just the request-path one, or the engines left out keep
+    using the password captured at startup and fail at the next rotation.
+    """
+    if not is_enabled():
+        return
+
+    sync_engine = getattr(engine, "sync_engine", engine)
+    if sync_engine.dialect.name != "postgresql":
+        return
+
+    event.listen(sync_engine, "do_connect", _on_connect)
+    event.listen(sync_engine, "handle_error", _on_error)
+    logger.info("Database password for this engine will be read from Secrets Manager")

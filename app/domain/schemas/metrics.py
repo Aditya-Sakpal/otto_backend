@@ -269,6 +269,17 @@ class UnbookedLeadsResponse(BaseModel):
     end_date: Optional[str] = None
 
 
+class InsightsDashboardResponse(BaseModel):
+    """Bundled Lead Insights dashboard payload (single round-trip)."""
+    company_overview: CompanyOverviewResponse
+    booking_rate_improvement: Optional[BookingRateImprovementResponse] = None
+    top_objections: Dict[str, Any]
+    unbooked_leads: UnbookedLeadsResponse
+    auto_queued_leads: Dict[str, Any]
+    missed_calls: MissedCallsResponse
+    coaching_opportunities: MostCoachingOpportunitiesResponse
+
+
 class PendingActionsResponse(BaseModel):
     """Pending actions metrics."""
     total_pending: int

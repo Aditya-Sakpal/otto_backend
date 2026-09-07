@@ -5,11 +5,13 @@ Provides analytics and metrics endpoints with date range filtering.
 Most endpoints require either company_id or user_id (with user_id taking precedence if both are provided).
 All endpoints support start_date/end_date for filtering.
 """
-from typing import Optional
+import asyncio
+from typing import Optional, Any, Dict
 from uuid import UUID
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import DbSession, get_current_user
 from app.core.permissions import require_executive, require_any_role
@@ -26,6 +28,7 @@ from app.domain.schemas.metrics import (
     ObjectionsSummaryResponse,
     CoachingOpportunitiesResponse,
     MostCoachingOpportunitiesResponse,
+    InsightsDashboardResponse,
     ConversionMetricsResponse,
     ConversionsPendingToBookedResponse,
     EmergencyDroppedResponse,
@@ -41,6 +44,7 @@ from app.services.metrics_service import MetricsService
 from app.services.analytics_service import AnalyticsService
 from app.services.pending_action_service import PendingActionService
 from app.infrastructure.integrations.shoonya import get_shoonya_client
+from app.infrastructure.database.session import AsyncSessionLocal
 
 router = APIRouter(tags=["metrics"])
 
@@ -98,6 +102,137 @@ async def get_company_overview(
         user_id=user_id,
         start_date=start_date,
         end_date=end_date,
+    )
+
+
+async def _run_with_session(callback):
+    """Run a read-only metrics query on its own DB session (safe for asyncio.gather)."""
+    async with AsyncSessionLocal() as session:
+        return await callback(session)
+
+
+@router.get(
+    "/exec/insights-dashboard",
+    response_model=InsightsDashboardResponse,
+    responses=RESPONSES,
+)
+async def get_insights_dashboard(
+    company_id: UUID,
+    # RBAC DISABLED - current_user: User = Depends(require_executive),
+    current_user: User = Depends(require_executive),  # RBAC DISABLED - Returns dummy user
+    start_date: Optional[date] = Query(None, description="Dashboard date range start (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Dashboard date range end (YYYY-MM-DD)"),
+    start_a: Optional[date] = Query(None, description="Booking-rate period A start (YYYY-MM-DD)"),
+    end_a: Optional[date] = Query(None, description="Booking-rate period A end (YYYY-MM-DD)"),
+    start_b: Optional[date] = Query(None, description="Booking-rate period B start (YYYY-MM-DD)"),
+    end_b: Optional[date] = Query(None, description="Booking-rate period B end (YYYY-MM-DD)"),
+    unbooked_limit: int = Query(50, ge=1, le=200, description="Max unbooked leads to return"),
+    queued_limit: int = Query(20, ge=1, le=100, description="Max auto-queued leads to return"),
+):
+    """
+    Bundled Lead Insights dashboard metrics in a single request.
+
+    Runs the underlying read queries in parallel on separate DB sessions so the
+    frontend makes one round-trip instead of seven.
+    """
+    async def company_overview(session: AsyncSession):
+        service = MetricsService(session)
+        return await service.get_company_overview(
+            company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    async def booking_rate(session: AsyncSession):
+        if start_a and end_a and start_b and end_b:
+            service = MetricsService(session)
+            return await service.get_booking_rate_improvement(
+                company_id=company_id,
+                start_a=start_a,
+                end_a=end_a,
+                start_b=start_b,
+                end_b=end_b,
+            )
+        if start_date and end_date:
+            service = MetricsService(session)
+            return await service.get_booking_rate_improvement(
+                company_id=company_id,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        return None
+
+    async def top_objections(session: AsyncSession):
+        analytics = AnalyticsService(session)
+        result = await analytics.get_top_objections(
+            company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+            unbooked_only=True,
+        )
+        result["objections"] = result.get("objections", [])[:5]
+        return result
+
+    async def unbooked_leads(session: AsyncSession):
+        service = MetricsService(session)
+        return await service.get_unbooked_leads(
+            company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+            limit=unbooked_limit,
+        )
+
+    async def auto_queued_leads(session: AsyncSession):
+        service = MetricsService(session)
+        return await service.get_auto_queued_leads(
+            company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+            limit=queued_limit,
+        )
+
+    async def missed_calls(session: AsyncSession):
+        service = MetricsService(session)
+        return await service.get_missed_calls(
+            company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    async def coaching_opportunities(session: AsyncSession):
+        service = MetricsService(session)
+        return await service.get_most_coaching_opportunities(
+            company_id=company_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    (
+        company_overview_result,
+        booking_rate_result,
+        top_objections_result,
+        unbooked_leads_result,
+        auto_queued_leads_result,
+        missed_calls_result,
+        coaching_opportunities_result,
+    ) = await asyncio.gather(
+        _run_with_session(company_overview),
+        _run_with_session(booking_rate),
+        _run_with_session(top_objections),
+        _run_with_session(unbooked_leads),
+        _run_with_session(auto_queued_leads),
+        _run_with_session(missed_calls),
+        _run_with_session(coaching_opportunities),
+    )
+
+    return InsightsDashboardResponse(
+        company_overview=company_overview_result,
+        booking_rate_improvement=booking_rate_result,
+        top_objections=top_objections_result,
+        unbooked_leads=unbooked_leads_result,
+        auto_queued_leads=auto_queued_leads_result,
+        missed_calls=missed_calls_result,
+        coaching_opportunities=coaching_opportunities_result,
     )
 
 
